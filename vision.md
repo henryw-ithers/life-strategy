@@ -1,0 +1,297 @@
+# Life Strategy — Vision Document
+
+> **Status:** Draft Vision (rev. 2)\
+> **Purpose:** Define the philosophy, mechanics, and roadmap for the
+> Life Strategy application.
+
+## Inspiration
+
+This project is inspired by **Rainer Strack's** work on strategic life
+planning (with Susanne Dyrchs and Allison Bailey), published in the
+*Harvard Business Review* as "Use Strategic Thinking to Create the Life
+You Want." Strack adapts corporate portfolio strategy to personal life:
+you break your life into **Strategic Life Areas (SLAs)** and their
+underlying **Strategic Life Units (SLUs)**, rate each unit on
+**importance** and **current satisfaction**, and plot the results on a
+portfolio graph to see where your life needs strategic attention.
+
+Strack's framework is a periodic, reflective exercise. This application
+extends it into a **living system**: the diagnostic doesn't just produce
+a chart — it derives a personalized daily scoring system that connects
+what matters most to what you actually do each day, and tracks both over
+months and years.
+
+## The Core Idea
+
+1. **Diagnose.** The user rates every Strategic Life Unit from 1–10 on
+   *importance* and 1–10 on *current satisfaction*.
+2. **Derive.** From those ratings, the app derives a personal scoring
+   system out of **100 points per day**, allocating point weight to each
+   unit — primarily by importance, with additional weight for units
+   where satisfaction lags.
+3. **Do.** Within each unit the user sets **goals** — concrete,
+   measurable objectives — and goals generate daily or weekly tasks, a
+   blend of app recommendations and user-created tasks. Completing
+   tasks earns that unit's points.
+4. **Track.** Daily grades accumulate into weekly and monthly grades.
+   Periodically, the user repeats the diagnostic and watches their
+   portfolio graph shift over time.
+5. **Calibrate.** Over the long term, the grading method is tuned so
+   that a person's grade genuinely reflects how content they felt over
+   that period — not just how many boxes they checked.
+
+## Strategic Life Areas and Units
+
+The default taxonomy, adapted from Strack's portfolio:
+
+| # | Strategic Life Area (SLA) | Strategic Life Units (SLUs) |
+|---|---------------------------|------------------------------|
+| 1 | Relationships | Significant other · Family · Friendship |
+| 2 | Body, mind, and spirituality | Physical health/sports · Mental health/mindfulness · Spirituality/faith |
+| 3 | Community and society | Community/citizenship · Societal engagement |
+| 4 | Job, learning, and finances | Job/career · Education/learning · Finances |
+| 5 | Interests and entertainment | Hobbies/interests · Online entertainment · Offline entertainment |
+| 6 | Personal care | Physiological needs · Activities of daily living |
+
+Sixteen units across six areas. The taxonomy is the default, not a
+cage — users can rename units, hide ones that don't apply, or add their
+own, but the app always starts from this research-backed structure so
+nothing important is silently forgotten.
+
+## The Diagnostic
+
+For each SLU the user records:
+
+- **Importance** (1–10): how much this unit matters to the life they
+  want.
+- **Satisfaction** (1–10): how satisfied they are with this unit today.
+
+The diagnostic is quick (16 units, two sliders each) and is repeated
+periodically — quarterly by default — so the system evolves with the
+user.
+
+### The Portfolio Graph
+
+The diagnostic is visualized as Strack's portfolio graph, a centerpiece
+of the app:
+
+- **Y-axis:** importance
+- **X-axis:** satisfaction
+- **Bubble size:** effort actually invested — in Strack's original
+  exercise this is self-reported hours per week; in this app it can be
+  *measured* from task activity, which is more honest than estimation.
+
+The graph makes gaps visible at a glance: big, high, left-side bubbles
+(important, unsatisfying, absorbing effort without payoff) and small,
+high, left-side bubbles (important, unsatisfying, neglected) are where
+strategy should focus.
+
+**Change over time is a first-class feature.** Each diagnostic is saved
+as a snapshot. The app can animate or trail bubble movement between
+snapshots, so users literally watch units migrate toward the
+high-importance/high-satisfaction quadrant over months and years. This
+long-horizon view is the emotional payoff of the whole system.
+
+## The Scoring System
+
+Each day is scored out of **100 points**.
+
+### Deriving unit weights
+
+Every active SLU receives a share of the 100 points, derived from the
+diagnostic:
+
+- **Importance is the primary driver.** A unit rated 9 in importance
+  deserves more daily weight than one rated 4.
+- **Satisfaction is a secondary modifier.** Units where satisfaction
+  lags importance get a boost — they're the gaps the user said they
+  want to close. As satisfaction improves in later diagnostics, the
+  boost naturally shrinks and points flow to the next gap.
+
+A candidate default formula (to be validated in practice):
+
+> unit weight ∝ importance + 0.5 × max(0, importance − satisfaction)
+
+Weights are normalized so all active units sum to 100. The exact
+formula is an implementation detail; the design commitment is:
+**importance first, gap-boost second, always normalized to 100.**
+
+### Task counts follow the weights
+
+The number of recommended tasks per unit is also informed by the
+diagnostic: high-weight units carry 2–3 daily/weekly tasks, low-weight
+units may carry one small task or a weekly-only task. A unit the user
+marks unimportant shouldn't nag them daily.
+
+### Customizable, with strong defaults
+
+The derived system is a **recommendation, not a mandate**. Users can:
+
+- Adjust a unit's point weight (the app rebalances the rest to keep
+  the 100 total).
+- Add, remove, or re-weight tasks within a unit.
+- Accept the recommended configuration untouched — which should be a
+  genuinely good experience, because most users will.
+
+Whenever the user overrides a value, the app still displays the
+recommended value alongside it, so customization never loses the
+guideline.
+
+## Goals
+
+Goals sit between strategic life units and tasks:
+
+    Strategic Life Area → Strategic Life Unit → Goal → Task
+
+A goal is a concrete, measurable objective within a unit, created in
+response to what the diagnostic revealed.
+
+Example:
+
+- **SLA:** Body, mind, and spirituality
+- **SLU:** Physical health/sports
+- **Goal:** Bench press 225 lb
+- **Tasks:** "Strength training session" (3× weekly), "10k steps" (daily)
+
+Goals should be:
+
+- **Specific** — a clear finish line, not a direction.
+- **Measurable** — you can tell whether it's done.
+- **Temporary** — goals end; the units they serve don't.
+
+Larger goals may contain **milestones** (bench 135 → 185 → 225), with
+only the current milestone in active focus.
+
+Goals have a lifecycle: *active*, *paused*, *revised*, *abandoned*, or
+*completed*. Abandoned and revised goals are first-class outcomes, not
+failures to hide — the reflection cycle asks whether the goal was wrong
+or the plan was. Completing a goal or milestone generates an
+**achievement**, which feeds monthly and yearly summaries rather than
+daily grades.
+
+## Tasks
+
+Tasks are the daily unit of execution. Each task derives from a goal
+and carries a point value drawn from its unit's weight. (Whether
+recurring maintenance habits require an explicit goal or may attach
+directly to a unit is an open design decision — see the ADR list.)
+
+- **Recommended tasks:** the app suggests concrete, evidence-informed
+  goals and tasks per unit (e.g., Physical health → "30 minutes of
+  exercise"; Friendship → "reach out to one friend"). Recommendations
+  are informed by the unit's importance/satisfaction profile.
+- **User-created tasks:** users add their own tasks under any goal,
+  with the app suggesting an appropriate point value.
+- **Cadence:** tasks may be daily or weekly. Daily simplicity is a core
+  principle — opening the app should feel like opening a checklist, not
+  project-management software.
+
+## Grades and Tracking
+
+The second centerpiece graphic (alongside the portfolio graph) is the
+**grade log**:
+
+- **Daily grade:** points earned out of 100.
+- **Weekly grade:** aggregated from the week's dailies.
+- **Monthly grade:** aggregated from the month.
+
+Grades are displayed as a continuous log — calendar heat-map, trend
+line, and rolling averages — so consistency and drift are both visible.
+
+### Grading principles
+
+- The grade measures **consistency of intentional behavior**, not
+  productivity or hustle.
+- The grade should never punish planned rest; rest can be a task
+  (Personal care and Mental health are units for a reason).
+- Weekly and monthly grades should smooth over bad days rather than
+  amplify them.
+
+### The Contentment Experiment
+
+The long-term ambition — and the most experimental part of the app —
+is a grading method that **actually reflects how content the person
+felt over that period**, not merely their completion rate.
+
+Mechanism: periodically (e.g., weekly), the app asks one question —
+*"How content did you feel this week, 1–10?"* — and stores it alongside
+the computed grade. Over time, the app compares felt contentment
+against computed grades and surfaces mismatches:
+
+- Grades high, contentment low → the tasks or weights are measuring
+  the wrong things; the app suggests diagnostic or task revisions.
+- Grades low, contentment high → the system is stricter than the life
+  it serves; the app suggests loosening.
+
+Eventually this feedback loop can tune the scoring formula itself, per
+user. A grade that *predicts* the user's own felt contentment is the
+end-state metric of success for the entire application.
+
+## Reflection Cycle
+
+The system runs on three nested rhythms:
+
+- **Daily:** complete tasks, receive a grade. Simple, fast, checklist-like.
+- **Weekly:** review the week's grade, answer the contentment
+  question, make small task adjustments.
+- **Quarterly (default):** repeat the full diagnostic, watch the
+  portfolio graph update, let weights and task recommendations
+  re-derive.
+
+Strategy stays thoughtful and adaptive; execution stays simple.
+
+## Design Principles
+
+- **Strategy before execution.** The diagnostic is the front door; tasks
+  exist because the diagnostic justified them.
+- **Daily simplicity.** The daily surface is a checklist and a number.
+- **Strong defaults, full customization.** Everything derived is
+  overridable; everything overridable shows its recommended value.
+- **Measure what matters, not what's easy.** The contentment experiment
+  keeps the score honest.
+- **Personal over social.** A private self-improvement tool first.
+  Daily grades are private by default. No leaderboards, no competitive
+  rankings, no score comparisons.
+
+## Future Directions (Deliberately Deferred)
+
+These are plausible extensions, kept out of the core vision until the
+core loop proves itself:
+
+- **Templates:** packaged goal/task sets per unit, shareable between
+  users or curated by experts; possibly a marketplace much later.
+- **Light community:** accountability partners and shared goals —
+  knowledge-sharing, never comparison.
+
+## Sequencing
+
+Exact version boundaries are deliberately loose at this stage. The
+build order is:
+
+1. **The core loop** — diagnostic, portfolio graph, derived scoring,
+   goals, tasks, daily grade.
+2. **Time** — diagnostic snapshots, portfolio change over time,
+   weekly/monthly grades, contentment data collection.
+3. **Calibration** — contentment vs. grade analysis, adaptive
+   recommendations, richer statistics.
+4. **Extensions** — templates, then community, if warranted.
+
+## Long-Term Vision
+
+The application aims to continually answer three questions:
+
+1. What matters most to me?
+2. Where am I currently falling short?
+3. What should I do today to move closer to the life I want?
+
+The measure of success is not engagement, streaks, or completion
+percentages — it is whether the user's grade converges with the user's
+own felt experience of a life well lived.
+
+## References
+
+- Strack, Rainer; Dyrchs, Susanne; Bailey, Allison. "Use Strategic
+  Thinking to Create the Life You Want." *Harvard Business Review*,
+  December 2023. Source of the Strategic Life Areas/Units taxonomy and
+  the importance–satisfaction portfolio graph. Consult the original for
+  the complete seven-question framework and methodology.
