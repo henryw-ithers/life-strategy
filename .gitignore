@@ -1,6 +1,56 @@
+# ── Dependencies ────────────────────────────────────────────────────
 node_modules/
+
+# ── Expo / Metro / builds ───────────────────────────────────────────
 .expo/
 dist/
+web-build/
+.metro-health-check*
+*.tsbuildinfo
+expo-env.d.ts
+
+# Note: apps/mobile/drizzle/ (generated migrations) IS committed —
+# migration history is source of truth (ADR-0002). Never ignore it.
+
+# ── Environment & secrets ───────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# ── Test / tooling caches ───────────────────────────────────────────
 coverage/
+.vitest/
+.eslintcache
+
+# ── Logs ────────────────────────────────────────────────────────────
 *.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# ── OS cruft ────────────────────────────────────────────────────────
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+# macOS
 .DS_Store
+._*
+
+# ── Editors ─────────────────────────────────────────────────────────
+.idea/
+*.swp
+# VS Code: keep shared settings, ignore personal ones
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ── Local scratch ───────────────────────────────────────────────────
+*.local
+scratch/

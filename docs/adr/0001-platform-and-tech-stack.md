@@ -114,11 +114,15 @@ from one codebase.
 
 ## Action items
 
-1. [ ] Scaffold Expo + TypeScript app (Expo Router, EAS configured).
-2. [ ] Add `expo-sqlite` + Drizzle; prove a migration runs on device.
-3. [ ] Spike the Skia bubble chart: 16 animated bubbles with
-       importance/satisfaction axes, before any other UI.
-4. [ ] Create the pure-TS `scoring` package skeleton (blocked on
-       ADR-0003 for the formula).
-5. [ ] Resolve ADR-0002 (data model) next — it now has its platform
+1. [x] Scaffold Expo + TypeScript app (Expo Router; EAS still pending).
+       *Note: pinned to SDK 54 for now — the store build of Expo Go on
+       the test iPhone maxes out there. Root package.json `overrides`
+       hold the pin; revert them when upgrading.*
+2. [x] Add `expo-sqlite` + Drizzle; prove a migration runs on device.
+3. [x] Spike the Skia bubble chart: 16 animated bubbles with
+       importance/satisfaction axes, before any other UI. **Verified
+       on-device 2026-07-16** — see docs/design/portfolio-graph-brief.md.
+4. [x] Create the pure-TS `scoring` package skeleton (formula v1 +
+       rounding + rank shares, tested).
+5. [x] Resolve ADR-0002 (data model) next — it now has its platform
        answer.

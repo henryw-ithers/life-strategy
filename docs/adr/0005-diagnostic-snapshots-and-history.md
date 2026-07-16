@@ -106,8 +106,9 @@ computed on demand, never stored (ADR-0002 decision 6).
 
 1. [ ] Amend ADR-0002: `rating` gains `effort_points`; monthly review
        decision now includes the diagnostic.
-2. [ ] Extend the ADR-0001 Skia spike: bubble trails + position tween
-       between two snapshots.
+2. [x] Extend the ADR-0001 Skia spike: bubble trails + position tween
+       between two snapshots. (Shipped in the PortfolioGraph component:
+       compare trails + playback scrubber, verified on-device.)
 3. [ ] Implement the 28-day effort query (completions + activity
        credit per unit).
 4. [ ] Design the post-diagnostic diff flow (weights, overrides,

@@ -2,6 +2,7 @@ import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import migrations from "../../drizzle/migrations";
 import { db } from "../db/client";
@@ -39,10 +40,15 @@ export default function RootLayout() {
   // Splash screen stays visible while migrations/seed run.
   if (!success || !seeded) return null;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <Stack screenOptions={{ headerShown: false }} />
+    </GestureHandlerRootView>
+  );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   errorTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
   errorBody: { textAlign: "center" },

@@ -10,6 +10,7 @@ import {
   FORMULA_VERSION,
   taskPointValues,
 } from "@life-strategy/scoring";
+import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -62,6 +63,10 @@ export default function ScaffoldCheck() {
         <Row left="task points (rank 1–3)" right={demoTaskPoints.join(" / ")} />
       </Section>
 
+      <Link href="/dev/graph" style={styles.devLink}>
+        Open portfolio graph spike →
+      </Link>
+
       <Section label="Database (seeded taxonomy)">
         {rows === null ? (
           <Text style={styles.dim}>Loading…</Text>
@@ -103,4 +108,10 @@ const styles = StyleSheet.create({
   rowLeft: { fontSize: 15 },
   rowRight: { fontSize: 15, fontVariant: ["tabular-nums"] },
   dim: { opacity: 0.5 },
+  devLink: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 16,
+    paddingVertical: 12,
+  },
 });
