@@ -21,5 +21,25 @@ All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
 carries the accumulated schema amendments from 0003–0009.
 
-New ADRs: copy [template.md](template.md), take the next number, add a
-row here.
+## Planned ADRs
+
+Decisions we know are coming, with the trigger that opens each one.
+Numbers are reserved; write the ADR (copy [template.md](template.md))
+when its trigger fires, not before. None of these blocks starting to
+code.
+
+| # | Title | Trigger — open this ADR when… | Decides |
+|---|-------|-------------------------------|---------|
+| 0010 | Notifications and reminders | …the daily checklist screen is being built (reminders are part of the daily loop, and the ADR-0001 platform choice was partly justified by them) | Which reminders exist (daily tasks, weekly check-in, monthly review), copy under the ambient-kindness invariant (a reminder must never read as "you're behind"), quiet hours, permission flow, granular opt-outs |
+| 0011 | Onboarding and first run | …anyone other than Henry is about to install a build | Flow order (welcome → taxonomy → first diagnostic → starter plan → notification ask), skippability of each step, the one neutral Support Resources mention (ADR-0008) |
+| 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
+| 0013 | Crash reporting and telemetry | …before any distribution beyond the dev machine | Zero-telemetry vs. opt-in crash reports; if any, provider and scrubbing. Standing default until then: nothing leaves the device, period |
+| 0014 | Partial credit | …calibration data (ADR-0008) shows binary completion diverging from felt contentment — the trigger written into ADR-0004 | The completion-fraction model and its UI without breaking one-tap simplicity |
+| 0015 | Metric-linked goals | …manual completion proves limiting in real use (deferred in ADR-0007; `goal.target_value` is waiting) | Progress entries, auto-completion, per-goal-type design |
+| 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
+| 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
+| 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
+
+Deliberately **not** ADRs: release operations (EAS/TestFlight/store
+listings), testing conventions, and code style — those live in repo
+docs and CLAUDE.md once scaffolding exists.

@@ -12,12 +12,29 @@ decision; it is the source of truth for what the app is and is not.
 
 ## Current phase
 
-**Design complete, pre-code.** All nine foundational ADRs in
-[docs/adr/](docs/adr/) are **accepted** — implementation can begin,
-following them. Strategic design context lives in
-[PRODUCT.md](PRODUCT.md). If a task requires a decision the ADRs
-don't cover, surface the question rather than silently picking an
-answer.
+**Scaffolded, early implementation.** All nine foundational ADRs in
+[docs/adr/](docs/adr/) are **accepted**; follow them. Strategic design
+context lives in [PRODUCT.md](PRODUCT.md). If a task requires a
+decision the ADRs don't cover, check the Planned-ADRs table in the
+[ADR index](docs/adr/README.md) and surface the question rather than
+silently picking an answer.
+
+## Repository layout
+
+npm workspaces monorepo:
+
+- `apps/mobile` — the Expo app (SDK 57, TypeScript, Expo Router,
+  `src/app/` file-based routes). Database: `expo-sqlite` + Drizzle;
+  schema at `src/db/schema.ts`, migrations generated into `drizzle/`
+  via `npm run db:generate -w apps/mobile` (never hand-edit or delete
+  past migrations — forward-only, ADR-0002).
+- `packages/scoring` — the pure scoring engine (`@life-strategy/
+  scoring`). **No React Native imports allowed here, ever** (ADR-0001).
+  All derivation/grading math lives here as pure functions with vitest
+  tests.
+
+Root commands: `npm test` (scoring tests), `npm run typecheck` (both
+packages), `npm run mobile` (Expo dev server).
 
 ## Domain vocabulary
 

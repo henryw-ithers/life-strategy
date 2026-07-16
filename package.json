@@ -1,0 +1,13 @@
+{
+  "name": "life-strategy",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w packages/scoring",
+    "typecheck": "npm run typecheck -w packages/scoring && npm run typecheck -w apps/mobile",
+    "mobile": "npm run start -w apps/mobile"
+  }
+}

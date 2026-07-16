@@ -31,8 +31,17 @@ number out of 100.
 
 ## Status
 
-**Pre-code design phase.** The product is being specified before
-implementation begins.
+**Scaffolded.** The design phase (vision + nine accepted ADRs) is
+complete and the workspace is up: `apps/mobile` (Expo SDK 57 +
+Drizzle/SQLite, migration and taxonomy seed in place) and
+`packages/scoring` (the pure scoring engine, formula v1, tested).
+
+```
+npm install          # once
+npm test             # scoring engine tests
+npm run typecheck    # both packages
+npm run mobile       # Expo dev server (scan QR with Expo Go)
+```
 
 ## Documentation
 
