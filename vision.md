@@ -34,7 +34,7 @@ months and years.
    blend of app recommendations and user-created tasks. Completing
    tasks earns that unit's points.
 4. **Track.** Daily grades accumulate into weekly and monthly grades.
-   Periodically, the user repeats the diagnostic and watches their
+   Each month, the user repeats the diagnostic and watches their
    portfolio graph shift over time.
 5. **Calibrate.** Over the long term, the grading method is tuned so
    that a person's grade genuinely reflects how content they felt over
@@ -67,8 +67,10 @@ For each SLU the user records:
 - **Satisfaction** (1–10): how satisfied they are with this unit today.
 
 The diagnostic is quick (16 units, two sliders each) and is repeated
-periodically — quarterly by default — so the system evolves with the
-user.
+**monthly** as the opening act of the monthly review — and anytime
+life changes. Re-diagnosing never destroys anything: goals and tasks
+carry over by default, point values rescale automatically from their
+ranks, and the app only prompts where weights actually shifted.
 
 ### The Portfolio Graph
 
@@ -169,22 +171,52 @@ or the plan was. Completing a goal or milestone generates an
 **achievement**, which feeds monthly and yearly summaries rather than
 daily grades.
 
+Completing a goal also asks what it leaves behind: archive its tasks,
+roll into a follow-up goal (bench 225 → bench 275), or **transition to
+maintenance** — the goal ends but its habits detach to the unit and
+live on. Goals are temporary; the units they serve aren't.
+
 ## Tasks
 
-Tasks are the daily unit of execution. Each task derives from a goal
-and carries a point value drawn from its unit's weight. (Whether
-recurring maintenance habits require an explicit goal or may attach
-directly to a unit is an open design decision — see the ADR list.)
+Tasks are the daily unit of execution. Every task belongs to a
+strategic life unit and carries a point value drawn from its unit's
+weight. Tasks that pursue a finish line link to a goal; recurring
+maintenance habits ("10k steps") may attach directly to their unit
+without one (decided in ADR-0002).
 
 - **Recommended tasks:** the app suggests concrete, evidence-informed
   goals and tasks per unit (e.g., Physical health → "30 minutes of
-  exercise"; Friendship → "reach out to one friend"). Recommendations
-  are informed by the unit's importance/satisfaction profile.
-- **User-created tasks:** users add their own tasks under any goal,
-  with the app suggesting an appropriate point value.
+  exercise"; Friendship → "reach out to one friend") from a curated
+  on-device library, matched to the unit's importance/satisfaction
+  profile. After the first diagnostic, the app proposes a complete
+  starter plan to edit or accept — useful in minute one.
+- **User-created tasks:** users add their own tasks under any goal or
+  unit.
+- **Point values from ranking, not typing:** within a unit, tasks are
+  ranked via a quick binary-comparison flow (inspired by the Beli
+  app's ranking UX) — "which matters more?" — and point values derive
+  automatically from rank. Users never enter point numbers manually,
+  though any derived value can be overridden.
 - **Cadence:** tasks may be daily or weekly. Daily simplicity is a core
   principle — opening the app should feel like opening a checklist, not
   project-management software.
+
+## Spontaneous Activities
+
+Life doesn't only happen on the checklist. A round of golf, a movie
+with a friend, an afternoon volunteering — **activities** are logged
+in a few taps, tagged to the units they served (up to three), and
+sized quick/normal/big.
+
+Activity credit first *fills* the tagged units' unearned planned
+points — golf can honestly stand in for the workout you skipped — and
+anything beyond that becomes a small visible bonus above 100, capped
+so grades stay meaningful ("92 +6"). The point is to encourage
+actually doing things, and to make people mindful of how their time
+maps onto what they said matters.
+
+Activities can also be logged without credit as pure journal lines —
+they're part of the log of your life either way.
 
 ## Grades and Tracking
 
@@ -202,10 +234,45 @@ line, and rolling averages — so consistency and drift are both visible.
 
 - The grade measures **consistency of intentional behavior**, not
   productivity or hustle.
-- The grade should never punish planned rest; rest can be a task
-  (Personal care and Mental health are units for a reason).
-- Weekly and monthly grades should smooth over bad days rather than
-  amplify them.
+- The grade should never punish planned rest: **rest days** are
+  declared (in advance or retroactively) and excluded from aggregates
+  entirely.
+- Weekly and monthly grades are straight point totals — transparent
+  and predictable. Consistency is shown as separate statistics, never
+  baked invisibly into the grade.
+
+### Scores are guidelines, not judgments
+
+The grade is information for reflection, never a verdict. The app
+reassures regularly — and contextually, not naggingly — that the
+number is a guideline: a lens on how the week mapped to intentions,
+not a measure of worth. Distance is rendered kindly: zoomed-out
+history emphasizes trends, best days, and special days over individual
+low numbers, the way memory does. The stored record stays true; the
+presentation stays gentle.
+
+### The grade log is a log of your life
+
+Not every day is a task day. **Special days** — a wedding, a summit, a
+day that was entirely its own thing — get a title and note in the log,
+suspend regular tasks, and are graded by how satisfying the day was
+(rated 1–10). Years later, the grade log reads back as a record of a
+life, not a spreadsheet of checkboxes: you can scroll to any day and
+see what it was.
+
+Three light touches deepen the log, all optional and all encouraged
+softly rather than required:
+
+- **Journaling:** any day can carry a few written lines alongside its
+  grade — what the day was like, not just what it scored. Entries
+  append rather than overwrite: adding a note to a past day never
+  replaces what was written at the time, and late additions are marked
+  as retroactive.
+- **Photos:** a day can hold a few photos. A year-old grade with a
+  picture attached is a memory; without one it's a number.
+- **Memory flags:** any day or activity can be marked *worth
+  remembering*. Flagged moments feed look-back views — month and year
+  reviews resurface them, the way you'd want the past retold.
 
 ### The Contentment Experiment
 
@@ -231,12 +298,14 @@ end-state metric of success for the entire application.
 
 The system runs on three nested rhythms:
 
-- **Daily:** complete tasks, receive a grade. Simple, fast, checklist-like.
-- **Weekly:** review the week's grade, answer the contentment
-  question, make small task adjustments.
-- **Quarterly (default):** repeat the full diagnostic, watch the
-  portfolio graph update, let weights and task recommendations
-  re-derive.
+- **Daily:** complete tasks, log activities, receive a grade. Simple,
+  fast, checklist-like.
+- **Weekly:** review the week's grade and answer the contentment
+  question.
+- **Monthly:** the full ritual — repeat the diagnostic, watch the
+  portfolio graph update, review re-derived weights, carry over or
+  adjust goals and tasks, and see the monthly grade and new
+  achievements. A diagnostic can also be run anytime life changes.
 
 Strategy stays thoughtful and adaptive; execution stays simple.
 
@@ -249,6 +318,18 @@ Strategy stays thoughtful and adaptive; execution stays simple.
   overridable; everything overridable shows its recommended value.
 - **Measure what matters, not what's easy.** The contentment experiment
   keeps the score honest.
+- **Gentle by design.** For someone struggling, a life-wide grade can
+  curdle into shame. Scores are guidelines, and the app says so
+  regularly — in onboarding, in low-grade moments, in the monthly
+  review. Low grades get neutral, kind presentation; there are no
+  shame mechanics anywhere (no alarm colors, no streak guilt, no
+  loss-aversion tricks). The score serves the life, never the
+  reverse.
+- **A tool, not a taskmaster.** You decide how much use you get out of
+  it. Scoring is never strict about participation: skip days, ignore
+  whole features, use only the diagnostic, disappear for a month and
+  come back. Partial use is valid use, and returning never earns a
+  guilt trip.
 - **Personal over social.** A private self-improvement tool first.
   Daily grades are private by default. No leaderboards, no competitive
   rankings, no score comparisons.

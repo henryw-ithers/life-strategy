@@ -16,7 +16,7 @@ daily system:
    weekly tasks (app-recommended or your own). Completing tasks earns
    points.
 4. **Track** — daily grades roll into weekly and monthly grades. Repeat
-   the diagnostic quarterly and watch your portfolio graph shift over
+   the diagnostic monthly and watch your portfolio graph shift over
    time.
 5. **Calibrate** — a weekly one-question check-in ("how content did you
    feel?") tunes the grading so your score converges with your actual
@@ -43,3 +43,4 @@ implementation begins.
   coding starts; see the [ADR index](docs/adr/README.md).
 - [AGENTS.md](AGENTS.md) — orientation for AI coding agents working in
   this repo.
+- [docs/backburner.md](docs/backburner.md) — parked ideas and why.
