@@ -135,6 +135,9 @@ you added from memory.
 - **`achievement`** — id, goal_id, milestone_id (nullable),
   title_snapshot, achieved_at
 - **`contentment_checkin`** — id, week_start_date, score (1–10)
+- **`calibration_suggestion`** — id, insight_text, proposed_change,
+  status (`proposed|accepted|dismissed`), created_at, resolved_at —
+  dismissed suggestions never re-surface automatically (ADR-0008)
 - **`app_setting`** — key (PK), value
 
 `day_grade` is a materialized cache for fast history rendering and is

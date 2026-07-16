@@ -12,12 +12,12 @@ decision; it is the source of truth for what the app is and is not.
 
 ## Current phase
 
-**Design, pre-code.** There is no application code yet. Foundational
-decisions live in [docs/adr/](docs/adr/) — check the
-[ADR index](docs/adr/README.md) before proposing or writing
-implementation code. If a task requires a decision that an ADR leaves
-open (status: *Proposed*), surface the question rather than silently
-picking an answer.
+**Design complete, pre-code.** All nine foundational ADRs in
+[docs/adr/](docs/adr/) are **accepted** — implementation can begin,
+following them. Strategic design context lives in
+[PRODUCT.md](PRODUCT.md). If a task requires a decision the ADRs
+don't cover, surface the question rather than silently picking an
+answer.
 
 ## Domain vocabulary
 
@@ -61,6 +61,13 @@ Use these terms consistently in code, docs, and UI copy:
   streak guilt, or loss-aversion mechanics. Stored grades are never
   altered for emotional effect — kindness lives in the presentation
   layer, truth lives in the data.
+- **Kindness is ambient, never targeted** (ADR-0008). No copy, prompt,
+  or feature may condition on low grades or low contentment —
+  encouragement reads identically on good and bad weeks. Celebration
+  may condition on positive events only. Support resources are always
+  discoverable, never reactively surfaced. Calibration suggestions
+  apply only on explicit user confirmation, and dismissed suggestions
+  never re-appear unless the user seeks them out.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
 

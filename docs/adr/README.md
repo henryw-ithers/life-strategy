@@ -14,12 +14,12 @@ status to *Accepted*.
 | [0005](0005-diagnostic-snapshots-and-history.md) | Diagnostic snapshots and portfolio history | Accepted |
 | [0006](0006-task-and-goal-recommendations.md) | Task and goal recommendation source | Accepted |
 | [0007](0007-goal-lifecycle.md) | Goal lifecycle and milestones | Accepted |
-| [0008](0008-contentment-calibration.md) | Contentment calibration and sensitive data | Proposed |
+| [0008](0008-contentment-calibration.md) | Contentment calibration and sensitive data | Accepted |
 | [0009](0009-spontaneous-activities.md) | Spontaneous activities and bonus credit | Accepted |
 
-Suggested order: 0001 → 0002 → 0003 → 0004 are blocking for any code.
-0005–0008 can be resolved in parallel once the data model exists, but
-should be settled before their features are built.
+All foundational ADRs are **accepted** — implementation can begin.
+Amendments are noted inline in each ADR; the data model in 0002
+carries the accumulated schema amendments from 0003–0009.
 
 New ADRs: copy [template.md](template.md), take the next number, add a
 row here.

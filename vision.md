@@ -320,11 +320,15 @@ Strategy stays thoughtful and adaptive; execution stays simple.
   keeps the score honest.
 - **Gentle by design.** For someone struggling, a life-wide grade can
   curdle into shame. Scores are guidelines, and the app says so
-  regularly — in onboarding, in low-grade moments, in the monthly
-  review. Low grades get neutral, kind presentation; there are no
-  shame mechanics anywhere (no alarm colors, no streak guilt, no
-  loss-aversion tricks). The score serves the life, never the
-  reverse.
+  constantly — the framing lives wherever grades appear, never
+  triggered by a low number. Kindness is **ambient, not targeted**:
+  encouragement carries the same tone on good weeks and bad, because
+  comfort conditioned on your worst data feels like surveillance.
+  Celebration may notice your best moments; nothing ever announces it
+  noticed your worst. Support resources live quietly in the app —
+  discoverable always, pushed never. No shame mechanics anywhere (no
+  alarm colors, no streak guilt, no loss-aversion tricks). The score
+  serves the life, never the reverse.
 - **A tool, not a taskmaster.** You decide how much use you get out of
   it. Scoring is never strict about participation: skip days, ignore
   whole features, use only the diagnostic, disappear for a month and
