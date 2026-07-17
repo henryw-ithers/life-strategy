@@ -16,6 +16,7 @@ status to *Accepted*.
 | [0007](0007-goal-lifecycle.md) | Goal lifecycle and milestones | Accepted |
 | [0008](0008-contentment-calibration.md) | Contentment calibration and sensitive data | Accepted |
 | [0009](0009-spontaneous-activities.md) | Spontaneous activities and bonus credit | Accepted |
+| [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -30,7 +31,6 @@ code.
 
 | # | Title | Trigger — open this ADR when… | Decides |
 |---|-------|-------------------------------|---------|
-| 0010 | Notifications and reminders | …the daily checklist screen is being built (reminders are part of the daily loop, and the ADR-0001 platform choice was partly justified by them) | Which reminders exist (daily tasks, weekly check-in, monthly review), copy under the ambient-kindness invariant (a reminder must never read as "you're behind"), quiet hours, permission flow, granular opt-outs |
 | 0011 | Onboarding and first run | …anyone other than Henry is about to install a build | Flow order (welcome → taxonomy → first diagnostic → starter plan → notification ask), skippability of each step, the one neutral Support Resources mention (ADR-0008) |
 | 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
 | 0013 | Crash reporting and telemetry | …before any distribution beyond the dev machine | Zero-telemetry vs. opt-in crash reports; if any, provider and scrubbing. Standing default until then: nothing leaves the device, period |

@@ -36,7 +36,7 @@ and rest-day entries are simply creditless activities.
 When logging with credit, the user picks a size:
 
 | Size | Rough meaning | Credit per tagged unit |
-|------|---------------|------------------------|
+| ------ | --------------- | ------------------------ |
 | Quick | ~30 minutes | 25% × unit weight |
 | Normal | ~1–2 hours | 50% × unit weight |
 | Big | half a day or more | 100% × unit weight |
