@@ -14,8 +14,10 @@ decision; it is the source of truth for what the app is and is not.
 
 **Scaffolded, early implementation.** All nine foundational ADRs in
 [docs/adr/](docs/adr/) are **accepted**; follow them. Strategic design
-context lives in [PRODUCT.md](PRODUCT.md). If a task requires a
-decision the ADRs don't cover, check the Planned-ADRs table in the
+context lives in [PRODUCT.md](PRODUCT.md); the visual system (tokens,
+components, and the bubble-backdrop signature every screen carries) in
+[DESIGN.md](DESIGN.md). If a task requires a decision the ADRs don't
+cover, check the Planned-ADRs table in the
 [ADR index](docs/adr/README.md) and surface the question rather than
 silently picking an answer.
 

@@ -22,7 +22,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Backdrop, type BackdropCircle } from "../components/diagnostic/Backdrop";
+import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
 import { ProgressDots } from "../components/diagnostic/ProgressDots";
 import { UnitRatingBlock } from "../components/diagnostic/UnitRatingBlock";
 import { PortfolioGraphView, type GraphSnapshot } from "../components/portfolio-graph";
@@ -42,26 +42,6 @@ import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
 type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "results";
-
-/** Intro constellation: all six area hues as soft off-canvas circles. */
-function introCircles(areas: Record<string, string>): BackdropCircle[] {
-  return [
-    { color: areas["mental-wellbeing"] ?? "#888", size: 260, offset: { top: -90, right: -70 }, alpha: "1a" },
-    { color: areas["relationships"] ?? "#888", size: 150, offset: { top: 130, left: -70 } },
-    { color: areas["home-environment"] ?? "#888", size: 88, offset: { top: 40, left: 48 }, alpha: "10" },
-    { color: areas["leisure-creativity"] ?? "#888", size: 110, offset: { top: 300, right: 40 }, alpha: "12" },
-    { color: areas["work-money"] ?? "#888", size: 64, offset: { top: 220, right: 120 }, alpha: "10" },
-    { color: areas["physical-health"] ?? "#888", size: 190, offset: { bottom: -70, right: -50 }, alpha: "0f" },
-  ];
-}
-
-/** Each area step is washed by its own hue. */
-function stepCircles(accent: string): BackdropCircle[] {
-  return [
-    { color: accent, size: 280, offset: { top: -110, right: -90 }, alpha: "16" },
-    { color: accent, size: 140, offset: { bottom: -40, left: -50 }, alpha: "0d" },
-  ];
-}
 
 export default function DiagnosticFlow() {
   const scheme = useColorScheme();
@@ -192,7 +172,7 @@ export default function DiagnosticFlow() {
   if (phase === "intro") {
     return (
       <View style={screen}>
-        <Backdrop circles={introCircles(theme.areas)} />
+        <Backdrop circles={constellation(theme.areas)} />
         <View style={styles.introBody}>
           <AppText variant="display" color={theme.ink}>
             Life diagnostic
@@ -231,7 +211,7 @@ export default function DiagnosticFlow() {
 
     return (
       <View style={screen}>
-        <Backdrop circles={stepCircles(accent)} />
+        <Backdrop circles={hueWash(accent)} />
         <ProgressDots
           areaIds={areas.map((a) => a.id)}
           currentIndex={stepIndex}
@@ -318,13 +298,14 @@ export default function DiagnosticFlow() {
     .reduce((sum, r) => sum + (r.weight ?? 0), 0);
 
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.canvas }}
-      contentContainerStyle={[
-        styles.resultsScroll,
-        { paddingTop: insets.top + space.lg, paddingBottom: insets.bottom + space.xl },
-      ]}
-    >
+    <View style={[styles.resultsRoot, { backgroundColor: theme.canvas }]}>
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+      <ScrollView
+        contentContainerStyle={[
+          styles.resultsScroll,
+          { paddingTop: insets.top + space.lg, paddingBottom: insets.bottom + space.xl },
+        ]}
+      >
       <AppText variant="display" color={theme.ink}>
         Your portfolio
       </AppText>
@@ -392,9 +373,10 @@ export default function DiagnosticFlow() {
         <PortfolioGraphView snapshots={results.graph} theme={theme} />
       ) : null}
 
-      <View style={{ height: space.xl }} />
-      <Button label="Done" onPress={() => router.back()} theme={theme} />
-    </ScrollView>
+        <View style={{ height: space.xl }} />
+        <Button label="Done" onPress={() => router.back()} theme={theme} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -416,6 +398,7 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  resultsRoot: { flex: 1, overflow: "hidden" },
   resultsScroll: { paddingHorizontal: space.screen },
   resultsLead: { marginTop: space.sm, marginBottom: space.xl, maxWidth: 340 },
   weightGroup: {

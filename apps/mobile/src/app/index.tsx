@@ -1,8 +1,7 @@
 /**
- * Temporary scaffold smoke screen. Proves the vertical slice:
- * workspace package import → scoring engine → SQLite schema →
- * migration → seed → query. Replaced by the real daily checklist
- * once feature work starts.
+ * Temporary scaffold home. Proves the vertical slice (scoring engine →
+ * SQLite → query) and links to the real surfaces. Replaced by the
+ * daily checklist once feature work starts.
  */
 import {
   DAILY_BUDGET,
@@ -12,15 +11,20 @@ import {
 } from "@life-strategy/scoring";
 import { Link, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppText } from "../components/ui/AppText";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { db } from "../db/client";
+import { getTheme } from "../theme/colors";
+import { space, type as typeScale } from "../theme/tokens";
 
 // ADR-0003's worked example.
 const demoWeights = deriveWeights([
-  { unitId: "physical-health", importance: 9, satisfaction: 4 },
+  { unitId: "exercise-fitness", importance: 9, satisfaction: 4 },
   { unitId: "friendship", importance: 7, satisfaction: 7 },
-  { unitId: "online-entertainment", importance: 3, satisfaction: 6 },
+  { unitId: "art-media", importance: 3, satisfaction: 6 },
 ]);
 const demoTaskPoints = taskPointValues(demoWeights[0]?.weight ?? 0, 3);
 
@@ -29,15 +33,21 @@ interface TaxonomyRow {
   unitCount: number;
 }
 
-export default function ScaffoldCheck() {
+export default function ScaffoldHome() {
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme === "dark" ? "dark" : "light");
+  const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<TaxonomyRow[] | null>(null);
 
   useEffect(() => {
     (async () => {
       const areas = await db.query.lifeArea.findMany({
+        where: (a, { isNull }) => isNull(a.archivedAt),
         orderBy: (a, { asc }) => asc(a.sortOrder),
       });
-      const units = await db.query.lifeUnit.findMany();
+      const units = await db.query.lifeUnit.findMany({
+        where: (u, { isNull }) => isNull(u.archivedAt),
+      });
       setRows(
         areas.map((area) => ({
           areaName: area.name,
@@ -48,75 +58,114 @@ export default function ScaffoldCheck() {
   }, []);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Life Strategy</Text>
-      <Text style={styles.subtitle}>Scaffold check</Text>
+    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+      <Backdrop circles={constellation(theme.areas)} />
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + space.xxl }]}
+      >
+        <AppText variant="display" color={theme.ink}>
+          Life Strategy
+        </AppText>
+        <AppText variant="caption" color={theme.muted}>
+          Scaffold build · formula v{FORMULA_VERSION}
+        </AppText>
 
-      <Section label={`Scoring engine (formula v${FORMULA_VERSION})`}>
-        {demoWeights.map((w) => (
-          <Row key={w.unitId} left={w.unitId} right={`${w.weight} pts`} />
-        ))}
-        <Row
-          left="sum"
-          right={`${demoWeights.reduce((a, w) => a + w.weight, 0)} / ${DAILY_BUDGET}`}
-        />
-        <Row left="task points (rank 1–3)" right={demoTaskPoints.join(" / ")} />
-      </Section>
+        <View style={styles.links}>
+          <Link href={"/diagnostic" as Href} style={[typeScale.headline, { color: theme.accent }]}>
+            Run diagnostic →
+          </Link>
+          <Link href="/dev/graph" style={[typeScale.headline, { color: theme.accent }]}>
+            Portfolio graph spike →
+          </Link>
+        </View>
 
-      {/* Cast: the typed-routes file regenerates on the next `expo start`. */}
-      <Link href={"/diagnostic" as Href} style={styles.devLink}>
-        Run diagnostic →
-      </Link>
+        <Section label="Scoring engine" theme={theme}>
+          {demoWeights.map((w) => (
+            <Row key={w.unitId} left={w.unitId} right={`${w.weight} pts`} theme={theme} />
+          ))}
+          <Row
+            left="sum"
+            right={`${demoWeights.reduce((a, w) => a + w.weight, 0)} / ${DAILY_BUDGET}`}
+            theme={theme}
+          />
+          <Row left="task points (rank 1–3)" right={demoTaskPoints.join(" / ")} theme={theme} />
+        </Section>
 
-      <Link href="/dev/graph" style={styles.devLink}>
-        Open portfolio graph spike →
-      </Link>
-
-      <Section label="Database (seeded taxonomy)">
-        {rows === null ? (
-          <Text style={styles.dim}>Loading…</Text>
-        ) : (
-          rows.map((r) => (
-            <Row key={r.areaName} left={r.areaName} right={`${r.unitCount} units`} />
-          ))
-        )}
-      </Section>
-    </ScrollView>
+        <Section label="Database (synced taxonomy)" theme={theme}>
+          {rows === null ? (
+            <AppText variant="caption" color={theme.muted}>
+              Loading…
+            </AppText>
+          ) : (
+            rows.map((r) => (
+              <Row key={r.areaName} left={r.areaName} right={`${r.unitCount} units`} theme={theme} />
+            ))
+          )}
+        </Section>
+      </ScrollView>
+    </View>
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  label,
+  theme,
+  children,
+}: {
+  label: string;
+  theme: ReturnType<typeof getTheme>;
+  children: React.ReactNode;
+}) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{label}</Text>
+    <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+      <AppText variant="caption" color={theme.muted} style={styles.sectionLabel}>
+        {label}
+      </AppText>
       {children}
     </View>
   );
 }
 
-function Row({ left, right }: { left: string; right: string }) {
+function Row({
+  left,
+  right,
+  theme,
+}: {
+  left: string;
+  right: string;
+  theme: ReturnType<typeof getTheme>;
+}) {
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLeft}>{left}</Text>
-      <Text style={styles.rowRight}>{right}</Text>
+      <AppText color={theme.ink} style={styles.rowLeft} numberOfLines={1}>
+        {left}
+      </AppText>
+      <AppText color={theme.ink} tabular>
+        {right}
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, paddingTop: 80, gap: 8 },
-  title: { fontSize: 28, fontWeight: "700" },
-  subtitle: { fontSize: 15, opacity: 0.6, marginBottom: 16 },
-  section: { marginTop: 16, gap: 6 },
-  sectionLabel: { fontSize: 13, fontWeight: "600", opacity: 0.5, marginBottom: 4 },
-  row: { flexDirection: "row", justifyContent: "space-between" },
-  rowLeft: { fontSize: 15 },
-  rowRight: { fontSize: 15, fontVariant: ["tabular-nums"] },
-  dim: { opacity: 0.5 },
-  devLink: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 16,
-    paddingVertical: 12,
+  root: { flex: 1, overflow: "hidden" },
+  container: {
+    paddingHorizontal: space.screen,
+    paddingBottom: space.xxl,
+    gap: space.xs,
   },
+  links: { marginTop: space.xl, marginBottom: space.lg, gap: space.md },
+  section: {
+    marginTop: space.lg,
+    paddingTop: space.md,
+    gap: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  sectionLabel: { marginBottom: space.xs },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: space.md,
+  },
+  rowLeft: { flexShrink: 1 },
 });
