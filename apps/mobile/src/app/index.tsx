@@ -74,6 +74,9 @@ export default function ScaffoldHome() {
           <Link href={"/diagnostic" as Href} style={[typeScale.headline, { color: theme.accent }]}>
             Run diagnostic →
           </Link>
+          <Link href={"/plan" as Href} style={[typeScale.headline, { color: theme.accent }]}>
+            Plan your tasks →
+          </Link>
           <Link href="/dev/graph" style={[typeScale.headline, { color: theme.accent }]}>
             Portfolio graph spike →
           </Link>

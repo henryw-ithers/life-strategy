@@ -73,6 +73,10 @@ being reacted to is often more painful than being left alone.
   is never nagged (a tool, not a taskmaster). Sparse data simply slows
   calibration; the Calibration section states this once, factually,
   where the user can see it, not as a push.
+- **A missed check-in stays answerable through the following week**
+  (the ADR-0004 edit window applied to the check-in): last week's
+  question can still be filled in this week, after which it lapses
+  quietly.
 - Special-day satisfaction ratings (ADR-0004) join the dataset as
   bonus ground truth.
 

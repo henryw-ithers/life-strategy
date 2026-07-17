@@ -207,9 +207,10 @@ without one (decided in ADR-0002).
   app's ranking UX) — "which matters more?" — and point values derive
   automatically from rank. Users never enter point numbers manually,
   though any derived value can be overridden.
-- **Cadence:** tasks may be daily or weekly. Daily simplicity is a core
-  principle — opening the app should feel like opening a checklist, not
-  project-management software.
+- **Cadence:** each task states how many times a week it happens, from
+  once to every day — which days is up to you. Daily simplicity is a
+  core principle — opening the app should feel like opening a
+  checklist, not project-management software.
 
 ## Spontaneous Activities
 

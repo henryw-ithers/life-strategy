@@ -8,6 +8,34 @@
       "when": 1784216265739,
       "tag": "0000_colossal_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784264061747,
+      "tag": "0001_sweet_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784264091782,
+      "tag": "0002_steady_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784265391201,
+      "tag": "0003_tense_mystique",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784265492196,
+      "tag": "0004_giant_black_bolt",
+      "breakpoints": true
     }
   ]
 }

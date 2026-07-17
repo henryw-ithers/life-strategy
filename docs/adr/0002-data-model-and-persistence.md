@@ -98,8 +98,11 @@ the model just gives them columns to land in.
 ### Tasks and completions
 
 - **`task`** — id, unit_id → life_unit (required), goal_id → goal
-  (nullable), title, cadence (`daily|weekly`), point_value,
-  rank_in_unit (per ADR-0003's ranking flow), active, archived_at
+  (nullable), title, times_per_week (1–7, 7 = daily; 0 = once every
+  two weeks; evolved from `daily|weekly` → `interval_days` →
+  frequency on 2026-07-17),
+  point_value, rank_in_unit (per ADR-0003's ranking flow), active,
+  archived_at
 - **`task_completion`** — id, task_id, local_date, completed_at,
   points_earned
 
@@ -112,7 +115,8 @@ partial completion.)
 
 - **`day_grade`** — local_date (PK), kind (`normal|rest|special`),
   points_earned, points_possible, satisfaction_rating (1–10, special
-  days), title, flagged (memory flag), finalized_at (nullable) —
+  days), title, flagged (memory flag), finalized_at (stamped when the
+  day's week is two weeks old — ADR-0004's week-aligned edit window) —
   kind/title/rating semantics per ADR-0004.
 - **`journal_entry`** — id, local_date, text, created_at. Multiple
   entries per day; **append-only** — adding a note never overwrites or

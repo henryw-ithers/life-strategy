@@ -4,11 +4,12 @@
  * with derived weights and the portfolio graph on real data.
  */
 import { useNavigation, usePreventRemove } from "@react-navigation/native";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
@@ -336,7 +337,14 @@ export default function DiagnosticFlow() {
               </AppText>
             </View>
             {group.rows.map((row) => (
-              <View key={row.unitId} style={styles.weightRow}>
+              <Pressable
+                key={row.unitId}
+                disabled={row.weight === null}
+                onPress={() => router.push(`/plan/${row.unitId}` as Href)}
+                accessibilityRole="button"
+                accessibilityHint="Opens this unit's task plan"
+                style={({ pressed }) => [styles.weightRow, { opacity: pressed ? 0.6 : 1 }]}
+              >
                 <AppText
                   color={row.weight === null ? theme.muted : theme.ink}
                   style={styles.grow}
@@ -353,7 +361,7 @@ export default function DiagnosticFlow() {
                     {row.weight}
                   </AppText>
                 )}
-              </View>
+              </Pressable>
             ))}
           </View>
         );

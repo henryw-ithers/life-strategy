@@ -16,16 +16,22 @@ should be able to say what they were, not just what they scored.
 
 ## Decisions
 
-### 1. Day lifecycle: 3 AM rollover, 3-day edit window
+### 1. Day lifecycle: 3 AM rollover, week-aligned edit window
 
 - The day rolls over at **3:00 AM local time** (configurable) — a
   late night still belongs to the day it felt like.
-- A day remains **editable for 3 days** after it ends: completions can
-  be back-filled or corrected, designations changed. At the third
-  rollover after a day ends, `finalized_at` is stamped and the day is
-  immutable forever.
-- Forgetting to log is not the same as not doing the thing; three days
-  is enough to be honest and short enough to prevent retro-fiction.
+- **The editable past is the current week and the week before**
+  (amended 2026-07-17; replaces the original rolling 3-day window,
+  aligning the edit window with the weekly accounting unit that the
+  times-per-week task model established). Completions can be
+  back-filled or corrected and day designations changed anywhere in
+  that span. When a week ends, the days of the week-before-last get
+  `finalized_at` stamped and become immutable forever.
+- Weeks start on **Monday** by default (configurable via
+  `app_setting`).
+- Forgetting to log is not the same as not doing the thing; a full
+  prior week is enough to be honest, and the hard two-week horizon
+  still prevents retro-fiction.
 - Timezone rule: days bucket by the device's local time at logging.
   Travel does not restate past days.
 
@@ -59,6 +65,17 @@ for ADR-0008 — days graded by felt experience rather than task
 completion are exactly what the calibration needs more of.
 
 ### 4. Weekly-task accounting
+
+> **Amended 2026-07-17:** task cadence is now a frequency — *N times
+> per week* (1–7, 7 = daily). Tasks are not date-scheduled: a 3×/week
+> task can be done on any three days, so a missed Tuesday is not a
+> schedule violation. `times_per_week = 0` encodes once every two
+> weeks (budget: `point_value` per fortnight). Accounting: a task's
+> weekly budget is `point_value × times_per_week`; each completion
+> earns `point_value`; the daily checklist shows tasks with
+> completions remaining this week (or fortnight). How the daily grade denominator derives from
+> this (and whether a task can complete twice in one day) is decided
+> in the daily-checklist build.
 
 Task point values (ADR-0003) are daily-slot values. Let `D` = sum of a
 day's daily-task points and `W` = sum of weekly-task points
