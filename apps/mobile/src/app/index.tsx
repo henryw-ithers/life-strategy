@@ -10,7 +10,7 @@ import {
   FORMULA_VERSION,
   taskPointValues,
 } from "@life-strategy/scoring";
-import { Link } from "expo-router";
+import { Link, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -62,6 +62,11 @@ export default function ScaffoldCheck() {
         />
         <Row left="task points (rank 1–3)" right={demoTaskPoints.join(" / ")} />
       </Section>
+
+      {/* Cast: the typed-routes file regenerates on the next `expo start`. */}
+      <Link href={"/diagnostic" as Href} style={styles.devLink}>
+        Run diagnostic →
+      </Link>
 
       <Link href="/dev/graph" style={styles.devLink}>
         Open portfolio graph spike →

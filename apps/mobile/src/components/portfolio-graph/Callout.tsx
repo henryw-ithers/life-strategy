@@ -31,7 +31,7 @@ export function Callout({ point, hint, theme }: CalloutProps) {
             </Text>
           </View>
           <Text style={[styles.detail, { color: theme.muted }]}>
-            Importance {point.importance} · Satisfaction {point.satisfaction} ·{" "}
+            Priority {point.importance} · Satisfaction {point.satisfaction} ·{" "}
             {effortLabel(point.effort)}
             {point.includeInScoring ? "" : " · not scored"}
           </Text>

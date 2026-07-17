@@ -93,7 +93,7 @@ export function PortfolioGraphView({ snapshots, theme }: PortfolioGraphViewProps
       />
 
       <View style={styles.metaRow}>
-        <Text style={[styles.meta, { color: theme.muted }]}>Importance ↑</Text>
+        <Text style={[styles.meta, { color: theme.muted }]}>Priority ↑</Text>
         <Text style={[styles.meta, { color: theme.muted }]}>
           {snapshots[displayIndex]?.label ?? ""}
         </Text>

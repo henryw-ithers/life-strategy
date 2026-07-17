@@ -42,31 +42,41 @@ months and years.
 
 ## Strategic Life Areas and Units
 
-The default taxonomy, adapted from Strack's portfolio:
+The default taxonomy — adapted from Strack's portfolio and then
+revised (physical and mental health each earn their own area; personal
+care dissolves into them; spirituality is framed inclusively, as being
+in touch with reality beyond the everyday, whatever one's beliefs;
+leisure distinguishes making from taking in):
 
 | # | Strategic Life Area (SLA) | Strategic Life Units (SLUs) |
 |---|---------------------------|------------------------------|
 | 1 | Relationships | Significant other · Family · Friendship |
-| 2 | Body, mind, and spirituality | Physical health/sports · Mental health/mindfulness · Spirituality/faith |
-| 3 | Community and society | Community/citizenship · Societal engagement |
-| 4 | Job, learning, and finances | Job/career · Education/learning · Finances |
-| 5 | Interests and entertainment | Hobbies/interests · Online entertainment · Offline entertainment |
-| 6 | Personal care | Physiological needs · Activities of daily living |
+| 2 | Physical health | Exercise & fitness · Nutrition · Sleep & recovery |
+| 3 | Mental wellbeing | Mental & emotional health · Spirituality · Giving & service |
+| 4 | Work & money | Job/career · Learning & growth · Finances |
+| 5 | Home & environment | Living space · Nature & surroundings |
+| 6 | Leisure & creativity | Hobbies & projects · Art & media · Adventure & experiences |
 
-Sixteen units across six areas. The taxonomy is the default, not a
+Seventeen units across six areas. The taxonomy is the default, not a
 cage — users can rename units, hide ones that don't apply, or add their
-own, but the app always starts from this research-backed structure so
-nothing important is silently forgotten.
+own, but the app always starts from this structure so nothing important
+is silently forgotten. Each unit carries a short description and
+healthy guidelines, reachable from an info button wherever the unit is
+rated — direct, evidence-based claims the user can weigh for
+themselves, never prescriptions. The tool is what you make of it; the
+app's job is accurate inputs.
 
 ## The Diagnostic
 
 For each SLU the user records:
 
-- **Importance** (1–10): how much this unit matters to the life they
-  want.
+- **Priority** (1–10): Strack's *importance*, deliberately reframed —
+  everything on this list is important, so the honest question is
+  where the unit stands in your life right now. ("Importance" remains
+  the domain/formula term; "Priority" is what users see.)
 - **Satisfaction** (1–10): how satisfied they are with this unit today.
 
-The diagnostic is quick (16 units, two sliders each) and is repeated
+The diagnostic is quick (17 units, two ratings each) and is repeated
 **monthly** as the opening act of the monthly review — and anytime
 life changes. Re-diagnosing never destroys anything: goals and tasks
 carry over by default, point values rescale automatically from their

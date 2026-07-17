@@ -156,7 +156,7 @@ export function PortfolioGraph({
       {overlays.map((o) => {
         const p = o.point;
         const label = p
-          ? `${o.name}. Importance ${p.importance} of 10, satisfaction ${p.satisfaction} of 10, ${effortLabel(p.effort)}.${o.excluded ? " Not scored." : ""}`
+          ? `${o.name}. Priority ${p.importance} of 10, satisfaction ${p.satisfaction} of 10, ${effortLabel(p.effort)}.${o.excluded ? " Not scored." : ""}`
           : o.name;
         return (
           <Pressable

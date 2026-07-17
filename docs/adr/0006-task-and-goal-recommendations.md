@@ -32,12 +32,22 @@ no per-user cost, no diagnostic data leaving the device:
   entertainment) — recommendations and tagging are one content
   artifact, versioned (`content_version`) and updated via app
   releases.
-- **Sensitive units** (mental health/mindfulness, spirituality/faith,
-  significant other) get deliberately conservative, non-prescriptive
-  entries — invitations ("10 minutes of quiet", "one honest
-  conversation"), never clinical, therapeutic, or theological advice.
-  Every entry is hand-reviewed; this is a place where a curated
-  library *beats* generation.
+- **Editorial register** (refined 2026-07-16): direct, factual,
+  concise. Descriptions carry the weight — what the unit is and why it
+  matters. Guidelines exist to help the person judge their own
+  satisfaction rating, and their general philosophy is **balance**.
+  Specificity matches measurability: concrete domains get honest
+  benchmarks (sleep: 7–9 hours), relational and subjective domains get
+  broad functional dimensions (novelty, real time, reciprocity, room
+  for the rest of life) — how success *functions*, never one shape of
+  it. Felt experience can rightly override the standard picture.
+  Evidence appears where it earns its place; a line may stand alone
+  where it speaks for itself. Not prescriptions, not pampering. Gentleness lives in what's
+  omitted: no shame framing, no "you should," no implication the
+  reader is behind. **Sensitive units** (mental health, spirituality,
+  significant other) additionally carry no clinical, therapeutic, or
+  theological advice. Every entry is hand-reviewed; this is a place
+  where a curated library *beats* generation.
 
 **LLM personalization is deferred, not rejected.** When it comes, it
 arrives behind an explicit opt-in with plain disclosure of exactly

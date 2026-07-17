@@ -3,17 +3,14 @@
  * snapshot history. Never linked from production navigation.
  */
 import { useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-} from "react-native";
+import { ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { makeFixtureSnapshots, PortfolioGraphView } from "../../components/portfolio-graph";
+import { AppText } from "../../components/ui/AppText";
+import { Button } from "../../components/ui/Button";
 import { getTheme, type ThemeName } from "../../theme/colors";
+import { space } from "../../theme/tokens";
 
 export default function GraphSpike() {
   const systemScheme = useColorScheme();
@@ -28,22 +25,23 @@ export default function GraphSpike() {
   return (
     <ScrollView
       style={{ backgroundColor: theme.canvas }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + space.lg }]}
     >
-      <Text style={[styles.title, { color: theme.ink }]}>Portfolio graph</Text>
-      <Text style={[styles.subtitle, { color: theme.muted }]}>
+      <AppText variant="display" color={theme.ink}>
+        Portfolio graph
+      </AppText>
+      <AppText variant="caption" color={theme.muted}>
         Dev spike · fake data · 6 monthly snapshots
-      </Text>
+      </AppText>
 
-      <Pressable
-        onPress={() => setOverride(themeName === "dark" ? "light" : "dark")}
-        accessibilityRole="button"
-        style={[styles.themeToggle, { borderColor: theme.hairline }]}
-      >
-        <Text style={{ color: theme.ink, fontSize: 14, fontWeight: "500" }}>
-          {themeName === "dark" ? "Switch to light" : "Switch to dark"}
-        </Text>
-      </Pressable>
+      <View style={styles.toggleRow}>
+        <Button
+          label={themeName === "dark" ? "Switch to light" : "Switch to dark"}
+          variant="secondary"
+          onPress={() => setOverride(themeName === "dark" ? "light" : "dark")}
+          theme={theme}
+        />
+      </View>
 
       <PortfolioGraphView snapshots={snapshots} theme={theme} />
     </ScrollView>
@@ -51,15 +49,10 @@ export default function GraphSpike() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, paddingBottom: 48, gap: 12 },
-  title: { fontSize: 24, fontWeight: "700" },
-  subtitle: { fontSize: 14, marginTop: -8 },
-  themeToggle: {
-    alignSelf: "flex-start",
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    borderRadius: 22,
-    borderWidth: 1,
+  container: {
+    paddingHorizontal: space.screen,
+    paddingBottom: space.xxxl,
+    gap: space.md,
   },
+  toggleRow: { flexDirection: "row" },
 });

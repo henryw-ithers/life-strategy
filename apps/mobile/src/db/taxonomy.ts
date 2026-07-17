@@ -1,8 +1,16 @@
 /**
- * The default Strategic Life Areas and Units (vision.md), adapted from
- * Strack's strategic life portfolio. Ids are stable slugs: taxonomy
- * rows are never deleted or re-keyed (ADR-0002 §2), so ratings and
- * grades can reference them forever. Renames change `name` only.
+ * The default Strategic Life Areas and Units (vision.md) — revised
+ * from Strack's original taxonomy (2026-07-16 revision: physical and
+ * mental health split into their own areas, personal care dissolved
+ * into them, community area replaced by Home & environment, giving
+ * moved into Mental wellbeing, spirituality kept with an inclusive
+ * framing, leisure rebuilt around making vs. taking in).
+ *
+ * Ids are stable slugs (ADR-0002): units that continue a life
+ * dimension KEEP their id across revisions (renames/re-homes are
+ * labels), so rating history stays connected. Retired units are
+ * archived by the sync, never deleted. Unit descriptions and
+ * guidelines live in src/content/units.ts, keyed by these ids.
  */
 export interface SeedUnit {
   id: string;
@@ -26,46 +34,51 @@ export const DEFAULT_TAXONOMY: SeedArea[] = [
     ],
   },
   {
-    id: "body-mind-spirituality",
-    name: "Body, mind, and spirituality",
+    id: "physical-health",
+    name: "Physical health",
     units: [
-      { id: "physical-health", name: "Physical health/sports" },
-      { id: "mental-health", name: "Mental health/mindfulness" },
-      { id: "spirituality", name: "Spirituality/faith" },
+      { id: "exercise-fitness", name: "Exercise & fitness" },
+      { id: "nutrition", name: "Nutrition" },
+      { id: "sleep-recovery", name: "Sleep & recovery" },
     ],
   },
   {
-    id: "community-society",
-    name: "Community and society",
+    id: "mental-wellbeing",
+    name: "Mental wellbeing",
     units: [
-      { id: "community", name: "Community/citizenship" },
-      { id: "societal-engagement", name: "Societal engagement" },
+      // Continues the old "mental-health" unit (renamed, re-homed).
+      { id: "mental-health", name: "Mental & emotional health" },
+      // Continues the old "spirituality" unit, inclusively framed.
+      { id: "spirituality", name: "Spirituality" },
+      { id: "giving-service", name: "Giving & service" },
     ],
   },
   {
-    id: "job-learning-finances",
-    name: "Job, learning, and finances",
+    id: "work-money",
+    name: "Work & money",
     units: [
       { id: "job-career", name: "Job/career" },
-      { id: "education-learning", name: "Education/learning" },
+      // Continues the old "education-learning" unit.
+      { id: "education-learning", name: "Learning & growth" },
       { id: "finances", name: "Finances" },
     ],
   },
   {
-    id: "interests-entertainment",
-    name: "Interests and entertainment",
+    id: "home-environment",
+    name: "Home & environment",
     units: [
-      { id: "hobbies-interests", name: "Hobbies/interests" },
-      { id: "online-entertainment", name: "Online entertainment" },
-      { id: "offline-entertainment", name: "Offline entertainment" },
+      { id: "living-space", name: "Living space" },
+      { id: "nature-surroundings", name: "Nature & surroundings" },
     ],
   },
   {
-    id: "personal-care",
-    name: "Personal care",
+    id: "leisure-creativity",
+    name: "Leisure & creativity",
     units: [
-      { id: "physiological-needs", name: "Physiological needs" },
-      { id: "daily-living", name: "Activities of daily living" },
+      // Continues the old "hobbies-interests" unit.
+      { id: "hobbies-interests", name: "Hobbies & projects" },
+      { id: "art-media", name: "Art & media" },
+      { id: "adventure-experiences", name: "Adventure & experiences" },
     ],
   },
 ];

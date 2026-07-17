@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import migrations from "../../drizzle/migrations";
 import { db } from "../db/client";
-import { seedTaxonomy } from "../db/seed";
+import { syncTaxonomy } from "../db/seed";
 
 /**
  * Database gate: run pending migrations, then seed the default
@@ -20,7 +20,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!success) return;
-    seedTaxonomy(db)
+    syncTaxonomy(db)
       .then(() => setSeeded(true))
       .catch((e: unknown) =>
         setSeedError(e instanceof Error ? e : new Error(String(e))),

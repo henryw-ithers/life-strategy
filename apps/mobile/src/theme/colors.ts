@@ -19,28 +19,30 @@ export interface ThemeTokens {
   muted: string;
   /** oklch(0.90 0.004 220) / oklch(0.30 0 0) */
   hairline: string;
+  /** Brand teal (hue 200) — primary actions and app-level accents. */
+  accent: string;
   /** One categorical hue per Strategic Life Area, keyed by area id. */
   areas: Record<string, string>;
 }
 
-/** Hues 20/200/300/255/80/150 at L≈0.58 C≈0.11–0.13 (light canvas). */
+/** Hues 20/150/200/255/80/300 at L≈0.55–0.66 C≈0.10–0.13 (light canvas). */
 const AREA_COLORS_LIGHT: Record<string, string> = {
-  relationships: "#bb565a",
-  "body-mind-spirituality": "#008c92", // brand teal, hue 200
-  "community-society": "#7d5fad",
-  "job-learning-finances": "#3d73b6",
-  "interests-entertainment": "#b8892d",
-  "personal-care": "#4a925c",
+  relationships: "#bb565a", // rose, hue 20
+  "physical-health": "#4a925c", // green, hue 150
+  "mental-wellbeing": "#008c92", // brand teal, hue 200
+  "work-money": "#3d73b6", // blue, hue 255
+  "home-environment": "#b8892d", // amber, hue 80
+  "leisure-creativity": "#7d5fad", // violet, hue 300
 };
 
 /** Same hues lifted to L≈0.70–0.78 so bubbles glow on the dark canvas. */
 const AREA_COLORS_DARK: Record<string, string> = {
   relationships: "#eb8182",
-  "body-mind-spirituality": "#3ebfc6",
-  "community-society": "#ab8be3",
-  "job-learning-finances": "#64a1ee",
-  "interests-entertainment": "#e3ad4b",
-  "personal-care": "#6fc082",
+  "physical-health": "#6fc082",
+  "mental-wellbeing": "#3ebfc6",
+  "work-money": "#64a1ee",
+  "home-environment": "#e3ad4b",
+  "leisure-creativity": "#ab8be3",
 };
 
 const THEMES: Record<ThemeName, ThemeTokens> = {
@@ -51,6 +53,7 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
     ink: "#151c1e",
     muted: "#5a6569",
     hairline: "#dbdfe0",
+    accent: "#008c92",
     areas: AREA_COLORS_LIGHT,
   },
   dark: {
@@ -60,6 +63,7 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
     ink: "#e4e9e9",
     muted: "#929a9b",
     hairline: "#2e2e2e",
+    accent: "#3ebfc6",
     areas: AREA_COLORS_DARK,
   },
 };

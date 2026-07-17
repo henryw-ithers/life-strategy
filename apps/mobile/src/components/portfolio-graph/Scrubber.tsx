@@ -119,7 +119,7 @@ export function Scrubber({
         {trackWidth > 0 &&
           labels.map((label, i) => (
             <View
-              key={label}
+              key={i}
               style={[
                 styles.detent,
                 {
