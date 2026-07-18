@@ -71,3 +71,16 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
 export function getTheme(name: ThemeName): ThemeTokens {
   return THEMES[name];
 }
+
+/** Grade ramp for calendar scores: red <50, orange 50s, yellow 60s,
+ *  green 70s, brighter green 80s, bright blue 90+. Hues at palette
+ *  weight per theme (darker on light canvas, lifted on dark). */
+const GRADE_RAMP_LIGHT = ["#c2453c", "#c07a2b", "#a38f1f", "#4a925c", "#31a352", "#2b7fdd"];
+const GRADE_RAMP_DARK = ["#ef7a6d", "#e59a4a", "#d9c04b", "#6fc082", "#52d97e", "#58b0ff"];
+
+export function gradeColor(grade: number, theme: ThemeTokens): string {
+  const ramp = theme.name === "dark" ? GRADE_RAMP_DARK : GRADE_RAMP_LIGHT;
+  const band =
+    grade < 50 ? 0 : grade < 60 ? 1 : grade < 70 ? 2 : grade < 80 ? 3 : grade < 90 ? 4 : 5;
+  return ramp[band]!;
+}

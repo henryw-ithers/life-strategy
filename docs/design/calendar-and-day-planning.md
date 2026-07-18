@@ -65,7 +65,10 @@ markers for special/flagged days.
    future days; drag/assign this week's remaining runs onto days.
 4. **Month calendar:** the full spine; becomes the natural home of
    the life-log browsing experience (and possibly the app's main
-   navigation someday).
+   navigation someday). *Arrived early in part (2026-07-17): the
+   checklist's date header expands a current-month grid with each
+   day's score; life-log markers and month paging remain for this
+   phase proper.*
 
 ## Schema additions (when their phase lands)
 

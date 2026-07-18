@@ -73,9 +73,36 @@ completion are exactly what the calibration needs more of.
 > weeks (budget: `point_value` per fortnight). Accounting: a task's
 > weekly budget is `point_value × times_per_week`; each completion
 > earns `point_value`; the daily checklist shows tasks with
-> completions remaining this week (or fortnight). How the daily grade denominator derives from
-> this (and whether a task can complete twice in one day) is decided
-> in the daily-checklist build.
+> completions remaining this week (or fortnight).
+>
+> **Amended 2026-07-17 (checklist build):** the deferred decisions
+> land. A task completes **at most once per day** — 3×/week means "on
+> three days"; a genuine second round the same day is an ADR-0009
+> activity. The weekly goal is **exceedable**: runs beyond it credit
+> `EXTRA_RUN_RATE` (50%, a named tunable) of the task's point value
+> into the ADR-0009 bonus pool, under the same +10 cap.
+>
+> **Amended 2026-07-17 (formula v2 — unified denominator):** the
+> daily/weekly split below is superseded. Every task contributes a
+> flat per-day share of its weekly commitment to every day's
+> denominator: `point_value × times_per_week ÷ 7` (fortnightly:
+> `point_value ÷ 14`). The denominator is therefore **constant across
+> days** — total weekly commitment ÷ 7. Any within-goal completion
+> earns its **full point value on its day**, so every check moves
+> today's number, and **a day may exceed 100** when several weekly
+> runs land together (planned work shows honestly; only self-declared
+> activity bonus stays capped). Consequences: the **weekly grade is
+> the plain average of normal-day grades** (special days enter at
+> `rating × 10`), the daily-vs-weekly copy problem disappears, and a
+> day completing only its daily tasks scores below 100 by design —
+> the number reads "on pace" only when weekly work gets daily-ish
+> attention. ADR-0009 fill applies against a unit's unearned share of
+> the day's denominator. `FORMULA_VERSION` bumps to 2.
+>
+> **Amended 2026-07-17 (formula v3):** ADR-0009's fill/bonus pool is
+> retired — extra-run credit (still 50%) and activity credit add
+> directly to the day's earned points. One additive score, displayed
+> with a percent sign. `FORMULA_VERSION` bumps to 3.
 
 Task point values (ADR-0003) are daily-slot values. Let `D` = sum of a
 day's daily-task points and `W` = sum of weekly-task points
@@ -127,18 +154,22 @@ day's daily-task points and `W` = sum of weekly-task points
   days start accumulating contentment ground truth from day one.
 - **Harder:** three day-kinds and the edit window add real state
   machinery (finalization job at rollover, retro-designation rules);
-  the daily-vs-weekly denominator difference needs careful UI copy so
-  "today: 80" and "week: 74" don't look like a bug.
+  ~~the daily-vs-weekly denominator difference needs careful UI copy~~
+  *(resolved by the formula-v2 amendment: one denominator, weekly =
+  average of days)*.
 - **Revisit when:** calibration (ADR-0008) weighs in on binary
   completion, consistency-sensitivity, or special-day grading; if
   users overuse rest days, reconsider the soft guideline.
 
 ## Action items
 
-1. [ ] Implement day lifecycle in the `scoring` package: rollover,
+1. [x] Implement day lifecycle in the `scoring` package: rollover,
        edit window, finalization; property tests (finalized days never
-       change; rest days never affect aggregates).
+       change; rest days never affect aggregates). *(days.ts + tests;
+       finalization stamps lazily on app open.)*
 2. [ ] Implement daily/weekly/monthly grade computation per §4–5 with
-       the worked denominators.
-3. [ ] Amend the Drizzle schema: `day_grade` columns + `day_entry`.
-4. [ ] Design UI copy for the daily-vs-weekly denominator difference.
+       the worked denominators. *(Daily done — `computeDayScore` in
+       grade.ts; weekly/monthly land with the review surfaces.)*
+3. [x] Amend the Drizzle schema: `day_grade` columns + `day_entry`.
+4. [x] Design UI copy for the daily-vs-weekly denominator difference.
+       *("This week · counts in the week's grade" on the checklist.)*

@@ -4,6 +4,17 @@
 > **Date:** 2026-07-15\
 > **Deciders:** Henry
 
+> **Amended 2026-07-17 (formula v3):** the fill-then-overflow split
+> and `BONUS_CAP` (§3) are retired. Activity credit and extra-run
+> credit add **directly to the day's earned points** — one additive
+> score, no separate "+N" pool, consistent with formula v2's rule
+> that days may exceed 100. Sizing (§2) keeps its three credit rates
+> (25/50/100% of unit weight) but is asked **qualitatively** — "How
+> significant was it?" A little / Fairly / Very — with no time
+> anchors; the schema enum `quick|normal|big` is unchanged. Revisit:
+> if real use shows activity credit inflating grades (the risk §3's
+> cap existed to bound), reintroduce a cap as a formula-version bump.
+
 ## Context
 
 Planned tasks can't cover a life. A round of golf, a movie with a
@@ -102,12 +113,13 @@ logging — even on a perfect day.
 
 ## Action items
 
-1. [ ] Implement fill-then-overflow credit in the `scoring` package;
+1. [x] Implement fill-then-overflow credit in the `scoring` package;
        property tests (bonus ≤ BONUS_CAP; fill never exceeds a unit's
        unearned daily points; creditless activities never touch
-       grades).
-2. [ ] Replace `day_entry` with `activity`/`activity_tag` in the
+       grades). *(grade.ts + tests, incl. extra-run bonus pooling.)*
+2. [x] Replace `day_entry` with `activity`/`activity_tag` in the
        schema.
-3. [ ] Build the v1 tag-suggestion keyword map (title → SLUs).
+3. [x] Build the v1 tag-suggestion keyword map (title → SLUs).
+       *(content/tagKeywords.ts.)*
 4. [ ] Fold activity credit into ADR-0005's bubble-size effort metric
        when that ADR is resolved.

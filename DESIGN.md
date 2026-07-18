@@ -30,7 +30,10 @@ Light canvas is pure white, dark is pure near-black; the brand lives in
 the hues, never tinting the surface. Six categorical area hues (one
 per Strategic Life Area) at matched weight per theme; brand teal
 (hue 200) doubles as `accent` for primary actions. Contrast verified:
-ink ≥16:1, muted ≥6:1 on both canvases.
+ink ≥16:1, muted ≥6:1 on both canvases. A six-band `gradeColor` ramp
+(red <50 → bright blue 90+, per-theme weights) colors calendar scores —
+a deliberate, Henry-chosen exception to the no-alarm-colors stance,
+scoped to the month grid only.
 
 ## Type & spacing
 
