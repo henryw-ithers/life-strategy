@@ -2,7 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UnitInfo } from "../../content/units";
-import type { ThemeTokens } from "../../theme/colors";
+import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -37,6 +37,7 @@ export function UnitInfoSheet({
       <Pressable
         style={styles.backdrop}
         onPress={onClose}
+        accessibilityRole="button"
         accessibilityLabel="Close"
       />
       <View
@@ -82,7 +83,7 @@ export function UnitInfoSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     maxHeight: "75%",
     borderTopLeftRadius: radius.xl,

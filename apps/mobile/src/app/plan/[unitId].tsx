@@ -112,7 +112,7 @@ export default function UnitPlanScreen() {
           style={styles.back}
         >
           <AppText variant="label" color={theme.muted}>
-            ‹ Plan
+            ‹ Back
           </AppText>
         </Pressable>
 
@@ -149,7 +149,7 @@ export default function UnitPlanScreen() {
             <AppText variant="caption" color={theme.muted} style={styles.lead}>
               {unit.weight !== null
                 ? `${guidance(unit.weight)} Hold a task to remove it.`
-                : "This unit isn't scored."}
+                : "This unit stays in the diagnostic but holds no daily points."}
             </AppText>
 
             {unit.tasks.length === 0 ? (
@@ -192,7 +192,10 @@ export default function UnitPlanScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`${formatFrequency(t.timesPerWeek)}. Tap to change.`}
                         accessibilityState={{ expanded }}
-                        hitSlop={6}
+                        // The row's long-press is destructive; the chip
+                        // needs a full-size target so a near-miss can't
+                        // become "Remove this task?".
+                        hitSlop={10}
                         style={[
                           styles.cadenceChip,
                           {
@@ -311,7 +314,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.pill,
     paddingHorizontal: space.sm + 2,
-    paddingVertical: 3,
+    paddingVertical: space.xs + 2,
   },
   pts: { minWidth: 26, textAlign: "right" },
   addWrap: { marginTop: space.xl },

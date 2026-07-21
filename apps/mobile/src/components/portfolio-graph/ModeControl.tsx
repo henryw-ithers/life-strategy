@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",

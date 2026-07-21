@@ -7,7 +7,7 @@ interface ButtonProps {
   label: string;
   onPress: () => void;
   /**
-   * primary: filled, white label (fill must be a saturated mid-tone).
+   * primary: filled, onAccent label (fill must be an accent/area hue).
    * secondary: surface-filled, ink label, for neutral actions.
    * quiet: borderless text button for tertiary actions.
    */
@@ -78,7 +78,7 @@ export function Button({
         },
       ]}
     >
-      <Text style={[typeScale.headline, styles.primaryLabel]}>{label}</Text>
+      <Text style={[typeScale.headline, { color: theme.onAccent }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: space.xl,
   },
-  primaryLabel: { color: "#ffffff" },
   secondary: {
     minHeight: 48,
     borderRadius: radius.md,

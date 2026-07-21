@@ -1,9 +1,20 @@
-import { deriveWeights, FORMULA_VERSION } from "@life-strategy/scoring";
-import { asc, desc, eq, isNull } from "drizzle-orm";
+import { addDays, deriveWeights, FORMULA_VERSION } from "@life-strategy/scoring";
+import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
-import { lifeArea, lifeUnit, rating, snapshot, unitWeight } from "./schema";
+import {
+  activity,
+  activityTag,
+  lifeArea,
+  lifeUnit,
+  rating,
+  snapshot,
+  task,
+  taskCompletion,
+  unitWeight,
+} from "./schema";
+import { currentLocalDate } from "./today";
 
 export interface DiagnosticUnit {
   id: string;
@@ -78,18 +89,60 @@ export interface DiagnosticEntry {
 }
 
 /**
+ * ADR-0005 §3: points earned per unit over the trailing 28 days —
+ * task completions plus activity credit — normalized so the busiest
+ * unit is 1. Null when nothing is logged yet (first snapshot:
+ * bubbles render uniform and small until life gets logged).
+ */
+async function trailingEffort(): Promise<Map<string, number> | null> {
+  const today = currentLocalDate();
+  const start = addDays(today, -28);
+
+  const completions = await db
+    .select({
+      unitId: task.unitId,
+      pts: sql<number>`sum(${taskCompletion.pointsEarned})`,
+    })
+    .from(taskCompletion)
+    .innerJoin(task, eq(taskCompletion.taskId, task.id))
+    .where(
+      and(gte(taskCompletion.localDate, start), lte(taskCompletion.localDate, today)),
+    )
+    .groupBy(task.unitId);
+
+  const credits = await db
+    .select({
+      unitId: activityTag.unitId,
+      pts: sql<number>`sum(${activityTag.pointsCredited})`,
+    })
+    .from(activityTag)
+    .innerJoin(activity, eq(activityTag.activityId, activity.id))
+    .where(and(gte(activity.localDate, start), lte(activity.localDate, today)))
+    .groupBy(activityTag.unitId);
+
+  const totals = new Map<string, number>();
+  for (const row of [...completions, ...credits]) {
+    totals.set(row.unitId, (totals.get(row.unitId) ?? 0) + (row.pts ?? 0));
+  }
+  const max = Math.max(0, ...totals.values());
+  if (max <= 0) return null;
+  return new Map([...totals].map(([id, pts]) => [id, pts / max]));
+}
+
+/**
  * The snapshot transaction (ADR-0002): snapshot header, all 16 rating
  * rows (excluded units included — they're diagnosed, just not scored),
  * and unit_weight rows from the scoring engine for included units
  * only (ADR-0003 §2). All-or-nothing.
  *
  * `derived` stores the integer weight (the displayed, task-priceable
- * value); `effort_points` stays null until the trailing-effort query
- * ships (ADR-0005 §3 — the graph renders uniform bubbles meanwhile).
+ * value); `effort_points` freezes the trailing-28-day effort at
+ * snapshot time (ADR-0005 §3) — null on units with no history yet.
  */
 export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string> {
   const snapshotId = Crypto.randomUUID();
   const takenAt = new Date().toISOString();
+  const effort = await trailingEffort();
 
   const weights = deriveWeights(
     entries
@@ -113,6 +166,9 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         unitId: e.unitId,
         importance: e.importance,
         satisfaction: e.satisfaction,
+        // With any history, unlogged units are honestly 0 — only a
+        // history-free first snapshot leaves effort null (uniform).
+        effortPoints: effort ? (effort.get(e.unitId) ?? 0) : null,
       })),
     );
     if (weights.length > 0) {

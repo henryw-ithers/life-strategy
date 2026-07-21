@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { spokenDate } from "../../lib/format";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -58,7 +59,7 @@ export function WeekStrip({ days, selected, today, onSelect, theme }: WeekStripP
                     disabled={isFuture}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isSelected, disabled: isFuture }}
-                    accessibilityLabel={`${date}${isToday ? ", today" : ""}`}
+                    accessibilityLabel={`${spokenDate(date)}${isToday ? ", today" : ""}`}
                     style={[
                       styles.chip,
                       // Solid outline = today; broken outline = selected day.

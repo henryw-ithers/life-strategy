@@ -6,7 +6,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { ThemeTokens } from "../../theme/colors";
+import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -55,7 +55,12 @@ export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteS
       onRequestClose={onClose}
       onShow={() => setTimeout(() => inputRef.current?.focus(), 80)}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      />
       <Animated.View
         style={[
           styles.sheet,
@@ -89,7 +94,7 @@ export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteS
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

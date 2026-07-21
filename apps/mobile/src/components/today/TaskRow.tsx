@@ -79,7 +79,7 @@ export function TaskRow({
     >
       <View style={[styles.circle, { borderColor: hue }]}>
         <Animated.View style={[styles.circleFill, { backgroundColor: hue }, fillStyle]}>
-          <AppText variant="caption" color="#ffffff" style={styles.check}>
+          <AppText variant="caption" color={theme.onAccent} style={styles.check}>
             ✓
           </AppText>
         </Animated.View>

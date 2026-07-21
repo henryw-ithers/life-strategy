@@ -21,9 +21,17 @@ export interface ThemeTokens {
   hairline: string;
   /** Brand teal (hue 200) — primary actions and app-level accents. */
   accent: string;
+  /** Label color on accent/area fills. Dark theme lifts its hues, so
+   *  the readable label there is near-black, not white (≥7:1). */
+  onAccent: string;
+  /** Destructive actions only — never an area hue doing double duty. */
+  danger: string;
   /** One categorical hue per Strategic Life Area, keyed by area id. */
   areas: Record<string, string>;
 }
+
+/** Sheet/modal backdrop dim, identical in both themes. */
+export const SCRIM = "rgba(0,0,0,0.45)";
 
 /** Hues 20/150/200/255/80/300 at L≈0.55–0.66 C≈0.10–0.13 (light canvas). */
 const AREA_COLORS_LIGHT: Record<string, string> = {
@@ -54,6 +62,8 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
     muted: "#5a6569",
     hairline: "#dbdfe0",
     accent: "#008c92",
+    onAccent: "#ffffff",
+    danger: "#a63d33", // oklch(0.50 0.13 30) — 6.3:1 on white
     areas: AREA_COLORS_LIGHT,
   },
   dark: {
@@ -64,6 +74,8 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
     muted: "#929a9b",
     hairline: "#2e2e2e",
     accent: "#3ebfc6",
+    onAccent: "#070707",
+    danger: "#ee9086", // lifted to match dark-area weight — 8.6:1 on canvas
     areas: AREA_COLORS_DARK,
   },
 };

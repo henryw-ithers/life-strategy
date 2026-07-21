@@ -11,6 +11,7 @@ import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -49,18 +50,9 @@ import {
   type TodayActivity,
   type TodayTask,
 } from "../db/today";
+import { spokenDate } from "../lib/format";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
-
-function spokenDate(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  });
-}
 
 type SectionKey = "everyDay" | "thisWeek" | "doneWeek" | "completed";
 
@@ -117,6 +109,11 @@ export default function TodayScreen() {
     void Haptics.selectionAsync();
     await toggleCompletion(task.id, day.date);
     const next = await reload(day.date);
+    // The visual feedback is the climbing number; give screen readers
+    // the same loop.
+    AccessibilityInfo.announceForAccessibility(
+      `${task.title} ${task.completedToday ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
+    );
     const allDone =
       next.daily.length > 0 && next.daily.every((t) => t.completedToday);
     if (allDone && !allDoneBefore.current) {
@@ -317,7 +314,8 @@ export default function TodayScreen() {
 
             {day.finalized ? (
               <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-                This week is sealed.
+                This week is sealed — days settle for good a few days after
+                they end. Notes and photos stay open.
               </AppText>
             ) : null}
 
@@ -347,7 +345,7 @@ export default function TodayScreen() {
             ) : !day.hasTasks ? (
               <View style={styles.empty}>
                 <AppText color={theme.ink} style={styles.centerText}>
-                  Your weights are set — now give them something to do.
+                  Your daily budget is set — now give it something to do.
                 </AppText>
                 <Button
                   label="Plan your tasks"
@@ -463,17 +461,29 @@ export default function TodayScreen() {
             {/* ── Footer ── */}
             <View style={[styles.footer, { borderTopColor: theme.hairline }]}>
               <View style={styles.footerLinks}>
-                <Pressable onPress={() => router.push("/plan" as Href)} hitSlop={8}>
+                <Pressable
+                  onPress={() => router.push("/plan" as Href)}
+                  accessibilityRole="button"
+                  style={styles.footerLink}
+                >
                   <AppText variant="label" color={theme.muted}>
                     Plan
                   </AppText>
                 </Pressable>
-                <Pressable onPress={() => router.push("/diagnostic" as Href)} hitSlop={8}>
+                <Pressable
+                  onPress={() => router.push("/diagnostic" as Href)}
+                  accessibilityRole="button"
+                  style={styles.footerLink}
+                >
                   <AppText variant="label" color={theme.muted}>
                     Diagnostic
                   </AppText>
                 </Pressable>
-                <Pressable onPress={() => router.push("/dev/graph" as Href)} hitSlop={8}>
+                <Pressable
+                  onPress={() => router.push("/portfolio" as Href)}
+                  accessibilityRole="button"
+                  style={styles.footerLink}
+                >
                   <AppText variant="label" color={theme.muted}>
                     Portfolio
                   </AppText>
@@ -723,4 +733,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerLinks: { flexDirection: "row", gap: space.xl },
+  footerLink: { minHeight: 44, justifyContent: "center" },
 });

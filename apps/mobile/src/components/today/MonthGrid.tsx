@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { MonthDay } from "../../db/today";
+import { spokenDate } from "../../lib/format";
 import { gradeColor, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -62,7 +63,7 @@ export function MonthGrid({ month, grades, selected, today, onSelect, theme }: M
                 disabled={isFuture}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected, disabled: isFuture }}
-                accessibilityLabel={`${date}${isToday ? ", today" : ""}${
+                accessibilityLabel={`${spokenDate(date)}${isToday ? ", today" : ""}${
                   day?.grade != null ? `, ${day.grade} percent` : ""
                 }${day?.kind === "rest" ? ", rest day" : ""}`}
                 style={[
@@ -91,11 +92,9 @@ export function MonthGrid({ month, grades, selected, today, onSelect, theme }: M
                       },
                     ]}
                   >
-                    <AppText
-                      variant="footnote"
-                      color={gradeColor(day.grade, theme)}
-                      tabular
-                    >
+                    {/* Numeral in ink — the ramp colors the chip, never
+                        small text (mid-bands sit under 4.5:1). */}
+                    <AppText variant="footnote" color={theme.ink} tabular>
                       {day.grade}
                     </AppText>
                   </View>

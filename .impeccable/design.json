@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-20T00:00:00Z",
+  "title": "Design System: Life Strategy",
+  "extensions": {
+    "colorMeta": {
+      "canvas-light": { "role": "neutral", "displayName": "Pure White", "canonical": "oklch(1 0 0)" },
+      "canvas-dark": { "role": "neutral", "displayName": "Near Black", "canonical": "oklch(0.13 0 0)" },
+      "surface-light": { "role": "neutral", "displayName": "Cool Surface", "canonical": "oklch(0.955 0.003 220)" },
+      "surface-dark": { "role": "neutral", "displayName": "Cool Surface Dark", "canonical": "oklch(0.19 0.006 220)" },
+      "ink-light": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.22 0.012 220)" },
+      "ink-dark": { "role": "neutral", "displayName": "Ink Dark", "canonical": "oklch(0.93 0.005 200)" },
+      "muted-light": { "role": "neutral", "displayName": "Muted", "canonical": "oklch(0.50 0.015 220)" },
+      "muted-dark": { "role": "neutral", "displayName": "Muted Dark", "canonical": "oklch(0.68 0.010 200)" },
+      "hairline-light": { "role": "neutral", "displayName": "Hairline", "canonical": "#dbdfe0" },
+      "hairline-dark": { "role": "neutral", "displayName": "Hairline Dark", "canonical": "#2e2e2e" },
+      "accent-light": { "role": "primary", "displayName": "Brand Teal", "canonical": "oklch(0.62 0.12 200)" },
+      "accent-dark": { "role": "primary", "displayName": "Brand Teal (Dark)", "canonical": "oklch(0.74 0.12 200)" },
+      "area-relationships-light": { "role": "secondary", "displayName": "Rose", "canonical": "oklch(0.60 0.11 20)" },
+      "area-relationships-dark": { "role": "secondary", "displayName": "Rose (Dark)", "canonical": "oklch(0.74 0.11 20)" },
+      "area-physical-health-light": { "role": "secondary", "displayName": "Green", "canonical": "oklch(0.58 0.12 150)" },
+      "area-physical-health-dark": { "role": "secondary", "displayName": "Green (Dark)", "canonical": "oklch(0.72 0.12 150)" },
+      "area-mental-wellbeing-light": { "role": "secondary", "displayName": "Teal", "canonical": "oklch(0.62 0.12 200)" },
+      "area-mental-wellbeing-dark": { "role": "secondary", "displayName": "Teal (Dark)", "canonical": "oklch(0.74 0.12 200)" },
+      "area-work-money-light": { "role": "secondary", "displayName": "Blue", "canonical": "oklch(0.56 0.13 255)" },
+      "area-work-money-dark": { "role": "secondary", "displayName": "Blue (Dark)", "canonical": "oklch(0.70 0.13 255)" },
+      "area-home-environment-light": { "role": "secondary", "displayName": "Amber", "canonical": "oklch(0.64 0.10 80)" },
+      "area-home-environment-dark": { "role": "secondary", "displayName": "Amber (Dark)", "canonical": "oklch(0.76 0.10 80)" },
+      "area-leisure-creativity-light": { "role": "secondary", "displayName": "Violet", "canonical": "oklch(0.55 0.13 300)" },
+      "area-leisure-creativity-dark": { "role": "secondary", "displayName": "Violet (Dark)", "canonical": "oklch(0.70 0.13 300)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The grade number and top-level screen titles." },
+      "title": { "displayName": "Title", "purpose": "Section headers: a diagnostic area name, a goal title." },
+      "headline": { "displayName": "Headline", "purpose": "Primary button labels, list-item emphasis." },
+      "body": { "displayName": "Body", "purpose": "Running text, journal entries. Cap at 65-75ch on wide screens." },
+      "label": { "displayName": "Label", "purpose": "Secondary buttons, form labels, the NumberDial row label." },
+      "caption": { "displayName": "Caption", "purpose": "Captions, the NumberDial's small readout label." },
+      "footnote": { "displayName": "Footnote", "purpose": "Timestamps, fine print." }
+    },
+    "shadows": [
+      { "name": "sheet", "value": "0px 4px 12px rgba(0, 0, 0, 0.08)", "purpose": "Reserved for sheet/overlay surfaces lifting off the canvas (e.g. UnitInfoSheet). Not used on buttons, cards, or the NumberDial, which stay flat." }
+    ],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled with the accent teal (or a caller-supplied area color), white label, min-height 52px. Scales to 0.98 when pressed.",
+      "html": "<button class=\"ds-btn-primary\">Mark done</button>",
+      "css": ".ds-btn-primary { background: #008c92; color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: -0.2px; line-height: 22px; border: none; border-radius: 14px; min-height: 52px; padding: 0 24px; transition: transform 0.15s; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:disabled { opacity: 0.35; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Surface-filled, ink label, for neutral actions. Min-height 48px.",
+      "html": "<button class=\"ds-btn-secondary\">Not now</button>",
+      "css": ".ds-btn-secondary { background: #eef1f1; color: #151c1e; font-size: 15px; font-weight: 600; border: none; border-radius: 12px; min-height: 48px; padding: 0 24px; transition: opacity 0.15s; } .ds-btn-secondary:active { opacity: 0.7; } .ds-btn-secondary:disabled { opacity: 0.4; }"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Borderless text button for tertiary or dismissive actions. Min-height 44px.",
+      "html": "<button class=\"ds-btn-quiet\">Skip</button>",
+      "css": ".ds-btn-quiet { background: transparent; color: #5a6569; font-size: 15px; font-weight: 600; border: none; min-height: 44px; padding: 0 16px; transition: opacity 0.15s; } .ds-btn-quiet:active { opacity: 0.55; } .ds-btn-quiet:disabled { opacity: 0.4; }"
+    },
+    {
+      "name": "Bubble Backdrop",
+      "kind": "custom",
+      "refersTo": "backdrop",
+      "description": "The app's signature: soft, oversized circles in Strategic Life Area hues bleeding off the canvas. Constellation mode (all six hues) or Hue Wash mode (one hue). Alpha 2-10%, never behind dense data.",
+      "html": "<div class=\"ds-backdrop\"><span class=\"ds-bubble ds-bubble-1\"></span><span class=\"ds-bubble ds-bubble-2\"></span><span class=\"ds-bubble ds-bubble-3\"></span></div>",
+      "css": ".ds-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; } .ds-bubble { position: absolute; border-radius: 50%; } .ds-bubble-1 { width: 260px; height: 260px; top: -90px; right: -70px; background: #008c9226; } .ds-bubble-2 { width: 150px; height: 150px; top: 130px; left: -70px; background: #bb565a1f; } .ds-bubble-3 { width: 190px; height: 190px; bottom: -70px; right: -50px; background: #4a925c17; }"
+    },
+    {
+      "name": "Number Dial",
+      "kind": "custom",
+      "refersTo": "numberdial-track",
+      "description": "Looping 1-10 carousel scroll-snapped on a surface track, haptic detent per stop, tap-to-jump. Unset state shows an em dash rather than a default value.",
+      "html": "<div class=\"ds-dial\"><span class=\"ds-dial-indicator\"></span><span class=\"ds-dial-digit\">7</span></div>",
+      "css": ".ds-dial { position: relative; height: 56px; border-radius: 14px; background: #eef1f1; display: flex; align-items: center; overflow: hidden; } .ds-dial-indicator { position: absolute; width: 52px; height: 44px; border-radius: 12px; border: 1.5px solid #dbdfe0; top: 6px; } .ds-dial-digit { font-size: 19px; font-weight: 600; color: #151c1e; margin: 0 auto; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Strategy Board",
+    "overview": "Life Strategy is where a monthly diagnostic - importance x satisfaction across 17 Strategic Life Units - turns into a daily checklist and a grade. The interface reads as a strategist's board, not a habit tracker's scoreboard: decisive color, crisp hierarchy, and one recurring geometric motif (soft, oversized circles echoing the portfolio graph's bubbles) that carries the same strategic shape from the analytical screens onto every daily surface. Canvas stays pure - white in light mode, near-black in dark - so the six Strategic Life Area hues and the single brand teal accent are what carry identity, never a tinted background. The system explicitly rejects: Jira/Notion-style density and nested configuration; Habitica/Duolingo-style streak-shame mechanics, alarm colors on missed days, or nagging; SaaS dashboard cliches (hero metrics, gradient accents, identical stat-card grids); and any leaderboard or score-comparison surface. Warmth here comes from celebration - completed goals, special days, look-back memories - never from decoration or softened truth.",
+    "keyCharacteristics": [
+      "Pure canvas (true white / true near-black), brand carried entirely in hue, never in surface tint",
+      "One signature backdrop motif (bubble constellation / hue wash) present on every screen",
+      "Flat by default; the one shadow tier is reserved for sheets and overlays that must read as lifted",
+      "Seven-step system-font type scale, negative tracking on display sizes, tabular numerals wherever figures align",
+      "A single deliberate exception to \"no alarm colors\": the six-band grade ramp, scoped only to the calendar grid"
+    ],
+    "rules": [
+      { "name": "The Untinted Canvas Rule", "body": "Canvas and surface never carry brand hue. The six area colors and the teal accent are the only carriers of identity; a warm or cool tint on the background is drift, not brand expression.", "section": "colors" },
+      { "name": "The Calendar Exception", "body": "A six-band grade ramp colors the monthly calendar grid only. This is the one deliberate exception to the no-alarm-colors stance in PRODUCT.md; it must never spread beyond the calendar grid.", "section": "colors" },
+      { "name": "The One Text Rule", "body": "AppText is the only text component in the app; every string picks a variant from the scale and an explicit color. No inline font sizes, no unthemed text color.", "section": "typography" },
+      { "name": "The Lifted-Not-Raised Rule", "body": "Only sheets and overlays get a shadow. A card or button that wants to feel important gets stronger color or type weight, never a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep canvas and surface achromatic (pure white / pure near-black); let the six area hues and the teal accent carry all brand color.",
+      "Do use tabular numerals anywhere numbers stack or align - the grade, the diagnostic ratings, the dial readout.",
+      "Do keep the bubble backdrop present on every screen in Constellation or Hue Wash mode, alpha in the 05-1a hex range, never behind the portfolio graph's own canvas.",
+      "Do reserve the sheet shadow (0px 4px 12px rgba(0,0,0,0.08)) for sheets/overlays only - everything else stays flat.",
+      "Do frame every score as a guideline in copy; say \"Priority,\" never \"Importance,\" in any user-facing string."
+    ],
+    "donts": [
+      "Don't use Jira/Notion-style density, nested configuration, or dashboard sprawl - the daily surface is a checklist, not a workspace.",
+      "Don't use streak-shame gamification: Habitica-style punishment mechanics, Duolingo-style nagging, alarm colors on missed days, or loss-aversion tricks anywhere outside the calendar grid's grade ramp.",
+      "Don't use SaaS dashboard cliches - hero metrics with gradient accents, identical stat-card grids.",
+      "Don't add leaderboards, shared scores, or any competitive/comparison surface.",
+      "Don't apply a shadow to a button, card, or the NumberDial to signal emphasis - use color or type weight instead.",
+      "Don't let the six-band grade ramp leak outside the monthly calendar grid - it is a named, scoped exception, not a general status color system."
+    ]
+  }
+}

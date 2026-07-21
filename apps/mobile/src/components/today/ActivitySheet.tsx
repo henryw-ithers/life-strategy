@@ -1,6 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -17,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { suggestTags } from "../../content/tagKeywords";
 import type { ActivitySize, DayKind } from "../../db/today";
-import type { ThemeTokens } from "../../theme/colors";
+import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -149,7 +150,12 @@ export function ActivitySheet({
         if (!editing) setTimeout(() => titleRef.current?.focus(), 80);
       }}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      />
       <Animated.View
         style={[
           styles.sheet,
@@ -268,13 +274,24 @@ export function ActivitySheet({
         {editing && onDelete ? (
           <Pressable
             onPress={() => {
-              onDelete();
-              onClose();
+              // Deleting erases a line of the life log — same stakes as
+              // archiving a task, so it gets the same confirm.
+              Alert.alert("Delete this activity?", "It leaves the day's record.", [
+                { text: "Keep", style: "cancel" },
+                {
+                  text: "Delete",
+                  style: "destructive",
+                  onPress: () => {
+                    onDelete();
+                    onClose();
+                  },
+                },
+              ]);
             }}
             accessibilityRole="button"
             style={({ pressed }) => [styles.delete, { opacity: pressed ? 0.5 : 1 }]}
           >
-            <AppText variant="label" color={theme.areas.relationships ?? theme.muted}>
+            <AppText variant="label" color={theme.danger}>
               Delete activity
             </AppText>
           </Pressable>
@@ -287,7 +304,7 @@ export function ActivitySheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

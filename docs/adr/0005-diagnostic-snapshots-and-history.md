@@ -109,7 +109,9 @@ computed on demand, never stored (ADR-0002 decision 6).
 2. [x] Extend the ADR-0001 Skia spike: bubble trails + position tween
        between two snapshots. (Shipped in the PortfolioGraph component:
        compare trails + playback scrubber, verified on-device.)
-3. [ ] Implement the 28-day effort query (completions + activity
-       credit per unit).
+3. [x] Implement the 28-day effort query (completions + activity
+       credit per unit). (Shipped: `trailingEffort()` in
+       `apps/mobile/src/db/diagnostic.ts` freezes normalized effort
+       into `rating.effort_points` at snapshot time.)
 4. [ ] Design the post-diagnostic diff flow (weights, overrides,
        task-count prompts, carry-over defaults).

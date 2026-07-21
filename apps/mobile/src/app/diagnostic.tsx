@@ -209,6 +209,15 @@ export default function DiagnosticFlow() {
     const accent = theme.areas[area.id] ?? theme.ink;
     const stepDone = completedByArea[stepIndex] === true;
     const isLast = stepIndex === areas.length - 1;
+    // A disabled button alone leaves the user hunting for the unset
+    // dial; say how many ratings the step still needs.
+    const ratingsLeft = area.units.reduce(
+      (n, u) =>
+        n +
+        ((drafts[u.id]?.importance ?? null) === null ? 1 : 0) +
+        ((drafts[u.id]?.satisfaction ?? null) === null ? 1 : 0),
+      0,
+    );
 
     return (
       <View style={screen}>
@@ -247,6 +256,18 @@ export default function DiagnosticFlow() {
           </ScrollView>
         </Animated.View>
         <View style={[styles.footer, { borderTopColor: theme.hairline }, footerPad]}>
+          {!stepDone ? (
+            <AppText
+              variant="caption"
+              color={theme.muted}
+              style={styles.ratingsLeft}
+              accessibilityLiveRegion="polite"
+            >
+              {ratingsLeft === 1
+                ? "1 rating left in this area"
+                : `${ratingsLeft} ratings left in this area`}
+            </AppText>
+          ) : null}
           <Button
             label={isLast ? "Save snapshot" : "Next"}
             color={accent}
@@ -406,6 +427,7 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  ratingsLeft: { textAlign: "center" },
   resultsRoot: { flex: 1, overflow: "hidden" },
   resultsScroll: { paddingHorizontal: space.screen },
   resultsLead: { marginTop: space.sm, marginBottom: space.xl, maxWidth: 340 },
