@@ -19,6 +19,8 @@ export {
   addDays,
   weekStart,
   fortnightStart,
+  monthStart,
+  nextMonthStart,
   editWindowStart,
   isEditable,
   isFinalized,
@@ -33,4 +35,10 @@ export type {
   DayScoreInput,
   DayScore,
 } from "./grade";
-export { deriveChecklist, computeDayScore, dayShare, extraRunPoints } from "./grade";
+export {
+  deriveChecklist,
+  computeDayScore,
+  aggregateGrade,
+  dayShare,
+  extraRunPoints,
+} from "./grade";

@@ -5,6 +5,7 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
+import type { DayScore } from "@life-strategy/scoring";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -33,6 +34,7 @@ import { WeekStrip } from "../components/today/WeekStrip";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { loadWeekGrade } from "../db/grades";
 import {
   addJournalEntry,
   addPhoto,
@@ -66,6 +68,7 @@ export default function TodayScreen() {
    *  a date = the user navigated somewhere in the edit window. */
   const [selected, setSelected] = useState<string | null>(null);
   const [day, setDay] = useState<DayData | null>(null);
+  const [weekGrade, setWeekGrade] = useState<DayScore | null>(null);
   const [monthGrades, setMonthGrades] = useState<Map<string, MonthDay>>(new Map());
   const [monthOpen, setMonthOpen] = useState(false);
   const [kindSheet, setKindSheet] = useState(false);
@@ -81,12 +84,14 @@ export default function TodayScreen() {
   const allDoneBefore = useRef(false);
 
   const reload = useCallback(async (date: string) => {
-    const [next, grades] = await Promise.all([
+    const [next, grades, week] = await Promise.all([
       loadDay(date),
       loadMonthGrades(currentLocalDate()),
+      loadWeekGrade(date),
     ]);
     setDay(next);
     setMonthGrades(grades);
+    setWeekGrade(week);
     return next;
   }, []);
 
@@ -261,6 +266,12 @@ export default function TodayScreen() {
                 ) : null}
               </View>
             </View>
+
+            {weekGrade?.base !== null && weekGrade?.base !== undefined ? (
+              <AppText variant="caption" color={theme.muted} style={styles.weekStat}>
+                This week · {weekGrade.base}%
+              </AppText>
+            ) : null}
 
             {/* ── Day record actions (journal is edit-window exempt) ── */}
             {day.date <= day.today ? (
@@ -691,6 +702,7 @@ const styles = StyleSheet.create({
   },
   headerText: { flex: 1, gap: 2 },
   headerRight: { alignItems: "flex-end", gap: space.xs },
+  weekStat: { marginTop: space.xs },
   kindButton: { minWidth: 44, minHeight: 32, alignItems: "flex-end" },
   recordButtons: {
     flexDirection: "row",

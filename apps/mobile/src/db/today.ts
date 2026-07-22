@@ -13,6 +13,8 @@ import {
   isEditable,
   isFinalized,
   localDateOf,
+  monthStart,
+  nextMonthStart,
   weekStart,
   type ActivityCredit,
   type DayScore,
@@ -396,13 +398,14 @@ export interface MonthDay {
 /** Cached grades for the calendar month containing `date`, keyed by
  *  local date. Days never touched have no row and are simply absent. */
 export async function loadMonthGrades(date: string): Promise<Map<string, MonthDay>> {
-  const monthStart = `${date.slice(0, 7)}-01`;
-  const nextMonth = addDays(`${date.slice(0, 7)}-28`, 7).slice(0, 7);
   const rows = await db
     .select()
     .from(dayGrade)
     .where(
-      and(gte(dayGrade.localDate, monthStart), lt(dayGrade.localDate, `${nextMonth}-01`)),
+      and(
+        gte(dayGrade.localDate, monthStart(date)),
+        lt(dayGrade.localDate, nextMonthStart(date)),
+      ),
     );
   return new Map(
     rows.map((r) => [

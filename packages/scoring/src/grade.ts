@@ -170,3 +170,22 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     base: possible > 0 ? Math.round((earned / possible) * 100) : null,
   };
 }
+
+/**
+ * Weekly and monthly grades (ADR-0004 §5): points earned ÷ points
+ * possible over the period, purely additive — no curves or weighting.
+ * Every day already reduces to an {earned, possible} pair (rest days
+ * are {0, 0} and drop out on their own), so this one reduce serves
+ * both periods; only the input range differs.
+ */
+export function aggregateGrade(
+  days: { earned: number; possible: number }[],
+): DayScore {
+  const earned = days.reduce((a, d) => a + d.earned, 0);
+  const possible = days.reduce((a, d) => a + d.possible, 0);
+  return {
+    possible,
+    earned,
+    base: possible > 0 ? Math.round((earned / possible) * 100) : null,
+  };
+}

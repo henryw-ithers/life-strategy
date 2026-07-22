@@ -7,6 +7,8 @@ import {
   isEditable,
   isFinalized,
   localDateOf,
+  monthStart,
+  nextMonthStart,
   weekStart,
 } from "../days";
 
@@ -44,6 +46,30 @@ describe("week and fortnight boundaries", () => {
     expect(fortnightStart(addDays(fs, 13))).toBe(fs);
     // The next fortnight starts exactly 14 days later.
     expect(fortnightStart(addDays(fs, 14))).toBe(addDays(fs, 14));
+  });
+});
+
+describe("month boundaries", () => {
+  it("monthStart is the 1st of the month containing date", () => {
+    expect(monthStart("2026-07-17")).toBe("2026-07-01");
+    expect(monthStart("2026-07-01")).toBe("2026-07-01");
+    expect(monthStart("2026-07-31")).toBe("2026-07-01");
+  });
+
+  it("nextMonthStart rolls over within a year", () => {
+    expect(nextMonthStart("2026-07-17")).toBe("2026-08-01");
+  });
+
+  it("nextMonthStart rolls over across a year boundary", () => {
+    expect(nextMonthStart("2026-12-05")).toBe("2027-01-01");
+    expect(monthStart("2026-12-05")).toBe("2026-12-01");
+  });
+
+  it("[monthStart, nextMonthStart) brackets every day in the month, none outside it", () => {
+    const start = monthStart("2026-02-10");
+    const end = nextMonthStart("2026-02-10");
+    expect(start <= "2026-02-28" && "2026-02-28" < end).toBe(true);
+    expect(start <= "2026-03-01" && "2026-03-01" < end).toBe(false);
   });
 });
 

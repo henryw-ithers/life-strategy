@@ -167,9 +167,14 @@ day's daily-task points and `W` = sum of weekly-task points
        edit window, finalization; property tests (finalized days never
        change; rest days never affect aggregates). *(days.ts + tests;
        finalization stamps lazily on app open.)*
-2. [ ] Implement daily/weekly/monthly grade computation per §4–5 with
-       the worked denominators. *(Daily done — `computeDayScore` in
-       grade.ts; weekly/monthly land with the review surfaces.)*
+2. [x] Implement daily/weekly/monthly grade computation per §4–5 with
+       the worked denominators. *(Daily: `computeDayScore`; weekly and
+       monthly: `aggregateGrade` (same reduce, either period) —
+       `packages/scoring/src/grade.ts`. Queried via `loadWeekGrade`/
+       `loadMonthGrade` in `apps/mobile/src/db/grades.ts`. The weekly
+       grade surfaces on the Today screen; monthly has no screen to
+       land on yet — the full monthly-review ritual (ADR-0002 decision
+       5) is still unbuilt.)*
 3. [x] Amend the Drizzle schema: `day_grade` columns + `day_entry`.
 4. [x] Design UI copy for the daily-vs-weekly denominator difference.
        *("This week · counts in the week's grade" on the checklist.)*

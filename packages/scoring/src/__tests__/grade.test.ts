@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDayScore, deriveChecklist, extraRunPoints } from "../grade";
+import { aggregateGrade, computeDayScore, deriveChecklist, extraRunPoints } from "../grade";
 
 const date = "2026-07-17"; // Friday; week starts 07-13
 
@@ -171,5 +171,57 @@ describe("computeDayScore (unified denominator, ADR-0004 §4 amendment)", () => 
     const avg = week.reduce((a, s) => a + (s.base ?? 0), 0) / 7;
     // Shares: 4 + 3 = 7/day; earned across week = 4×7 + 7×3 = 49 = 7×7.
     expect(Math.round(avg)).toBe(100);
+  });
+});
+
+describe("aggregateGrade — ADR-0004 §5 (weekly/monthly: earned ÷ possible over the period)", () => {
+  it("sums earned and possible across the period", () => {
+    const s = aggregateGrade([
+      { earned: 10, possible: 20 },
+      { earned: 5, possible: 20 },
+    ]);
+    expect(s.earned).toBe(15);
+    expect(s.possible).toBe(40);
+    expect(s.base).toBe(38); // round(15/40*100)
+  });
+
+  it("an all-rest period (every day {0,0}) grades nothing", () => {
+    const s = aggregateGrade([
+      { earned: 0, possible: 0 },
+      { earned: 0, possible: 0 },
+    ]);
+    expect(s.base).toBeNull();
+  });
+
+  it("an empty period grades nothing", () => {
+    expect(aggregateGrade([]).base).toBeNull();
+  });
+
+  it("rest days ({0,0}) drop out without needing special-casing", () => {
+    const withRest = aggregateGrade([
+      { earned: 10, possible: 10 },
+      { earned: 0, possible: 0 }, // rest day
+      { earned: 10, possible: 10 },
+    ]);
+    const withoutRest = aggregateGrade([
+      { earned: 10, possible: 10 },
+      { earned: 10, possible: 10 },
+    ]);
+    expect(withRest).toEqual(withoutRest);
+  });
+
+  it("a special day (rating × 10 earned / 100 possible) contributes correctly", () => {
+    const s = aggregateGrade([
+      { earned: 50, possible: 50 }, // a normal day at 100%
+      { earned: 80, possible: 100 }, // special day, rating 8
+    ]);
+    expect(s.earned).toBe(130);
+    expect(s.possible).toBe(150);
+    expect(s.base).toBe(87); // round(130/150*100)
+  });
+
+  it("matches the ADR's own worked identity: a perfect balanced week totals 100", () => {
+    const week = Array.from({ length: 7 }, () => ({ earned: 7, possible: 7 }));
+    expect(aggregateGrade(week).base).toBe(100);
   });
 });

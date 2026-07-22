@@ -55,6 +55,19 @@ export function fortnightStart(date: string): string {
   return format(new Date(ws - (((weeksSinceEpoch % 2) + 2) % 2) * 7 * DAY_MS));
 }
 
+/** First day of the calendar month containing `date`. */
+export function monthStart(date: string): string {
+  const dt = parse(date);
+  return format(new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1, 12)));
+}
+
+/** First day of the month after the one containing `date` — the
+ *  exclusive upper bound for a month range query. */
+export function nextMonthStart(date: string): string {
+  const dt = parse(date);
+  return format(new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1, 12)));
+}
+
 /** First editable day: Monday of the week before `today`'s week. */
 export function editWindowStart(today: string): string {
   return addDays(weekStart(today), -7);
