@@ -471,6 +471,15 @@ export default function TodayScreen() {
                   </AppText>
                 </Pressable>
                 <Pressable
+                  onPress={() => router.push("/goals" as Href)}
+                  accessibilityRole="button"
+                  style={styles.footerLink}
+                >
+                  <AppText variant="label" color={theme.muted}>
+                    Goals
+                  </AppText>
+                </Pressable>
+                <Pressable
                   onPress={() => router.push("/diagnostic" as Href)}
                   accessibilityRole="button"
                   style={styles.footerLink}

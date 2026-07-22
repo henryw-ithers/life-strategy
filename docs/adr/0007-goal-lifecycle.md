@@ -114,11 +114,20 @@ major entries; milestone completions minor ones.
 
 ## Action items
 
-1. [ ] Amend ADR-0002: `linked_from_goal_id` + `link_kind` replace
-       `revised_from_goal_id`.
-2. [ ] Implement the state machine as pure functions with the task
+1. [x] Amend ADR-0002: `linked_from_goal_id` + `link_kind` replace
+       `revised_from_goal_id`. (Already the live schema —
+       `apps/mobile/src/db/schema.ts`.)
+2. [x] Implement the state machine as pure functions with the task
        side-effects table above; property tests (terminal states stay
        terminal; task ranks always re-share to the unit weight).
-3. [ ] Design the completion flow UI (three paths) and the neutral
-       abandonment copy.
-4. [ ] Surface goal-load nudges in the monthly review.
+       (Shipped: `packages/scoring/src/goals.ts`
+       (`nextGoalStatus`/`advanceMilestone`), tests in
+       `__tests__/goals.test.ts`; task side-effects wired in
+       `apps/mobile/src/db/goals.ts`.)
+3. [x] Design the completion flow UI (three paths) and the neutral
+       abandonment copy. (Shipped:
+       `components/goals/CompleteGoalModal.tsx`,
+       `AbandonGoalModal.tsx`.)
+4. [x] Surface goal-load nudges in the monthly review. (Shipped on the
+       Goals list screen instead — `apps/mobile/src/app/goals/index.tsx`
+       — no monthly-review surface exists yet to host it.)

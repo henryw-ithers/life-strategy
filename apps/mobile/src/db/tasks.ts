@@ -35,7 +35,7 @@ export interface PlanData {
   areas: PlanArea[];
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function latestWeights(
   dbOrTx: Tx | typeof db,
@@ -101,7 +101,7 @@ export async function loadPlan(): Promise<PlanData> {
 }
 
 /** Re-derive every active task's points from rank shares (ADR-0003). */
-async function recomputeUnitPoints(tx: Tx, unitId: string): Promise<void> {
+export async function recomputeUnitPoints(tx: Tx, unitId: string): Promise<void> {
   const weights = await latestWeights(tx);
   const weight = weights.get(unitId) ?? 0;
   const active = await tx
