@@ -121,5 +121,8 @@ logging — even on a perfect day.
        schema.
 3. [x] Build the v1 tag-suggestion keyword map (title → SLUs).
        *(content/tagKeywords.ts.)*
-4. [ ] Fold activity credit into ADR-0005's bubble-size effort metric
-       when that ADR is resolved.
+4. [x] Fold activity credit into ADR-0005's bubble-size effort metric
+       when that ADR is resolved. *(`trailingEffort()` in
+       `apps/mobile/src/db/diagnostic.ts` sums `activity_tag` credit
+       alongside task completions before freezing it into
+       `rating.effort_points`.)*

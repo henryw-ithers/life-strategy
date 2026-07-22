@@ -2,10 +2,14 @@ import { DAILY_BUDGET, GAP_COEFFICIENT } from "./constants";
 import { largestRemainder } from "./rounding";
 import type { DerivedWeight, UnitRating } from "./types";
 
+/** Ratings may now come from either an absolute 1–10 scale or a
+ *  rank-derived continuous score (`rankToScore`) — both live in the
+ *  same (0, 10] range, so the contract only checks range, not
+ *  integrality. */
 function assertRating(value: number, field: string, unitId: string): void {
-  if (!Number.isInteger(value) || value < 1 || value > 10) {
+  if (!Number.isFinite(value) || value < 1 || value > 10) {
     throw new Error(
-      `deriveWeights: ${field} for unit "${unitId}" must be an integer 1–10, got ${value}`,
+      `deriveWeights: ${field} for unit "${unitId}" must be a number 1–10, got ${value}`,
     );
   }
 }

@@ -1,7 +1,15 @@
 /**
- * The diagnostic flow (ADR-0005): intro → six area steps (each rating
- * its units on priority + satisfaction) → transactional save → results
- * with derived weights and the portfolio graph on real data.
+ * The diagnostic flow (ADR-0005, ranked per the ADR-0003 amendment):
+ * intro → for each area, rank its units by priority then by
+ * satisfaction → rank the areas themselves the same way → review →
+ * transactional save → results with derived weights and the
+ * portfolio graph on real data.
+ *
+ * Ranking (not absolute 1–10 dials) guarantees full-range spread every
+ * time, regardless of how "important" everything subjectively feels —
+ * `buildEntriesFromRanking` (db/diagnostic.ts) converts the finished
+ * order back into the same importance/satisfaction numbers the
+ * weight formula and portfolio graph have always consumed.
  */
 import { useNavigation, usePreventRemove } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
@@ -23,26 +31,108 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
+import { RankGroup } from "../components/diagnostic/RankGroup";
 import { ProgressDots } from "../components/diagnostic/ProgressDots";
-import { UnitRatingBlock } from "../components/diagnostic/UnitRatingBlock";
 import { PortfolioGraphView, type GraphSnapshot } from "../components/portfolio-graph";
+import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import {
+  buildEntriesFromRanking,
   loadDiagnosticAreas,
-  loadLatestRatings,
+  loadDiagnosticDiff,
   loadWeightSummary,
   saveDiagnostic,
   type AreaWeightGroup,
   type DiagnosticArea,
-  type RatingDraft,
+  type DiagnosticAxis,
+  type DiagnosticDiff,
 } from "../db/diagnostic";
 import { loadGraphSnapshots } from "../db/graph";
-import { getTheme } from "../theme/colors";
+import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
-type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "results";
+type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "diff" | "results";
+
+type Step =
+  | { kind: "area"; areaIndex: number; axis: DiagnosticAxis }
+  | { kind: "areas"; axis: DiagnosticAxis }
+  | { kind: "review" };
+
+function buildSequence(areaCount: number): Step[] {
+  const seq: Step[] = [];
+  for (let i = 0; i < areaCount; i++) {
+    seq.push({ kind: "area", areaIndex: i, axis: "priority" });
+    seq.push({ kind: "area", areaIndex: i, axis: "satisfaction" });
+  }
+  seq.push({ kind: "areas", axis: "priority" });
+  seq.push({ kind: "areas", axis: "satisfaction" });
+  seq.push({ kind: "review" });
+  return seq;
+}
+
+const AXIS_LABEL: Record<DiagnosticAxis, string> = {
+  priority: "Priority",
+  satisfaction: "Satisfaction",
+};
+
+const UNIT_PROMPT: Record<DiagnosticAxis, string> = {
+  priority: "Which needs more attention right now?",
+  satisfaction: "Which are you more satisfied with?",
+};
+
+const AREA_PROMPT: Record<DiagnosticAxis, string> = {
+  priority: "Which area needs more attention right now?",
+  satisfaction: "Which area are you more satisfied with overall?",
+};
+
+interface DiffRowProps {
+  areaColor: string;
+  name: string;
+  primary: string;
+  caption?: string;
+  onPress?: () => void;
+  theme: ThemeTokens;
+}
+
+/** One diff row — tappable only when there's somewhere useful to go
+ *  (ADR-0005 §2: prompts appear only where the diagnostic moved
+ *  things; everything else is just informational). */
+function DiffRow({ areaColor, name, primary, caption, onPress, theme }: DiffRowProps) {
+  return (
+    <Pressable
+      disabled={!onPress}
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [diffStyles.row, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      <View style={[diffStyles.dot, { backgroundColor: areaColor }]} />
+      <AppText color={theme.ink} style={diffStyles.grow} numberOfLines={1}>
+        {name}
+      </AppText>
+      {caption ? (
+        <AppText variant="caption" color={theme.muted}>
+          {caption}
+        </AppText>
+      ) : null}
+      <AppText color={theme.ink} tabular>
+        {primary}
+      </AppText>
+    </Pressable>
+  );
+}
+
+const diffStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    minHeight: 44,
+    paddingVertical: space.xs,
+  },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  grow: { flex: 1 },
+});
 
 export default function DiagnosticFlow() {
   const scheme = useColorScheme();
@@ -53,41 +143,32 @@ export default function DiagnosticFlow() {
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [areas, setAreas] = useState<DiagnosticArea[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, RatingDraft>>({});
-  const [prefilled, setPrefilled] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [unitOrder, setUnitOrder] = useState<
+    Record<string, Partial<Record<DiagnosticAxis, string[]>>>
+  >({});
+  const [areaOrder, setAreaOrder] = useState<Partial<Record<DiagnosticAxis, string[]>>>(
+    {},
+  );
   const [results, setResults] = useState<{
     weights: AreaWeightGroup[];
     graph: GraphSnapshot[];
   } | null>(null);
+  const [diff, setDiff] = useState<DiagnosticDiff | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [loadedAreas, previous] = await Promise.all([
-        loadDiagnosticAreas(),
-        loadLatestRatings(),
-      ]);
-      const initial: Record<string, RatingDraft> = {};
-      for (const area of loadedAreas) {
-        for (const unit of area.units) {
-          const prev = previous[unit.id];
-          initial[unit.id] = prev
-            ? { importance: prev.importance, satisfaction: prev.satisfaction }
-            : { importance: null, satisfaction: null };
-        }
-      }
+      const loadedAreas = await loadDiagnosticAreas();
       setAreas(loadedAreas);
-      setDrafts(initial);
-      setPrefilled(Object.keys(previous).length > 0);
       setPhase("intro");
     })();
   }, []);
 
   // A stray back-swipe must not destroy five minutes of reflection.
   usePreventRemove(phase === "steps" || phase === "saving", ({ data }) => {
-    Alert.alert("Discard this diagnostic?", "Your ratings won't be saved.", [
-      { text: "Keep rating", style: "cancel" },
+    Alert.alert("Discard this diagnostic?", "Your rankings won't be saved.", [
+      { text: "Keep ranking", style: "cancel" },
       {
         text: "Discard",
         style: "destructive",
@@ -96,31 +177,21 @@ export default function DiagnosticFlow() {
     ]);
   });
 
-  const completedByArea = useMemo(
-    () =>
-      areas.map((area) =>
-        area.units.every(
-          (u) =>
-            drafts[u.id]?.importance !== null &&
-            drafts[u.id]?.satisfaction !== null,
-        ),
-      ),
-    [areas, drafts],
-  );
+  const sequence = useMemo(() => buildSequence(areas.length), [areas.length]);
 
-  const setRating = (
-    unitId: string,
-    field: "importance" | "satisfaction",
-    value: number,
-  ) => {
-    setDrafts((prev) => ({
-      ...prev,
-      [unitId]: {
-        ...(prev[unitId] ?? { importance: null, satisfaction: null }),
-        [field]: value,
-      },
-    }));
-  };
+  const dotIds = useMemo(() => [...areas.map((a) => a.id), "__areas__"], [areas]);
+  const dotCompleted = useMemo(
+    () => [
+      ...areas.map((a) => unitOrder[a.id]?.satisfaction !== undefined),
+      areaOrder.satisfaction !== undefined,
+    ],
+    [areas, unitOrder, areaOrder],
+  );
+  const currentDotIndex = (() => {
+    const step = sequence[stepIndex];
+    if (!step) return 0;
+    return step.kind === "area" ? step.areaIndex : areas.length;
+  })();
 
   const goToStep = (next: number) => {
     setDirection(next >= stepIndex ? 1 : -1);
@@ -130,21 +201,25 @@ export default function DiagnosticFlow() {
   const save = async () => {
     setPhase("saving");
     try {
-      const entries = areas.flatMap((area) =>
-        area.units.map((u) => ({
-          unitId: u.id,
-          importance: drafts[u.id]!.importance!,
-          satisfaction: drafts[u.id]!.satisfaction!,
-          includeInScoring: u.includeInScoring,
-        })),
-      );
+      const entries = buildEntriesFromRanking(areas, unitOrder, areaOrder);
       const snapshotId = await saveDiagnostic(entries);
-      const [weights, graph] = await Promise.all([
+      const [weights, graph, snapshotDiff] = await Promise.all([
         loadWeightSummary(snapshotId),
         loadGraphSnapshots(),
+        loadDiagnosticDiff(snapshotId),
       ]);
       setResults({ weights, graph });
-      setPhase("results");
+      const hasDiff =
+        snapshotDiff !== null &&
+        (snapshotDiff.moved.length > 0 ||
+          snapshotDiff.excluded.length > 0 ||
+          snapshotDiff.included.length > 0);
+      if (hasDiff) {
+        setDiff(snapshotDiff);
+        setPhase("diff");
+      } else {
+        setPhase("results");
+      }
     } catch {
       setPhase("error");
     }
@@ -179,17 +254,13 @@ export default function DiagnosticFlow() {
             Life diagnostic
           </AppText>
           <AppText color={theme.ink} style={styles.introCopy}>
-            Rate each part of your life on two things: the priority it holds
-            right now, and how satisfied you are with it.
+            Rank each part of your life against the rest — what needs your
+            attention most, and where you're most satisfied. No numbers, just
+            comparisons.
           </AppText>
           <AppText variant="caption" color={theme.muted}>
-            Six areas · about five minutes · 1 is low, 10 is high
+            Six areas · about five minutes
           </AppText>
-          {prefilled ? (
-            <AppText variant="caption" color={theme.muted}>
-              Your last ratings are filled in. Adjust what's changed.
-            </AppText>
-          ) : null}
         </View>
         <View style={[styles.footer, { borderTopColor: theme.hairline }, footerPad]}>
           <Button label="Begin" onPress={() => setPhase("steps")} theme={theme} />
@@ -205,76 +276,81 @@ export default function DiagnosticFlow() {
   }
 
   if (phase === "steps") {
-    const area = areas[stepIndex]!;
-    const accent = theme.areas[area.id] ?? theme.ink;
-    const stepDone = completedByArea[stepIndex] === true;
-    const isLast = stepIndex === areas.length - 1;
-    // A disabled button alone leaves the user hunting for the unset
-    // dial; say how many ratings the step still needs.
-    const ratingsLeft = area.units.reduce(
-      (n, u) =>
-        n +
-        ((drafts[u.id]?.importance ?? null) === null ? 1 : 0) +
-        ((drafts[u.id]?.satisfaction ?? null) === null ? 1 : 0),
-      0,
-    );
+    const step = sequence[stepIndex]!;
+    const currentAreaId = step.kind === "area" ? areas[step.areaIndex]!.id : null;
+    const accent = currentAreaId ? (theme.areas[currentAreaId] ?? theme.ink) : theme.ink;
+
+    let heading: string;
+    let content: React.ReactNode;
+
+    if (step.kind === "area") {
+      const area = areas[step.areaIndex]!;
+      heading = `${area.name} — ${AXIS_LABEL[step.axis]}`;
+      content = (
+        <RankGroup
+          key={`${area.id}-${step.axis}`}
+          items={area.units.map((u) => ({ id: u.id, label: u.name }))}
+          prompt={UNIT_PROMPT[step.axis]}
+          theme={theme}
+          onComplete={(order) => {
+            setUnitOrder((prev) => ({
+              ...prev,
+              [area.id]: { ...prev[area.id], [step.axis]: order },
+            }));
+            goToStep(stepIndex + 1);
+          }}
+        />
+      );
+    } else if (step.kind === "areas") {
+      heading = `Your areas — ${AXIS_LABEL[step.axis]}`;
+      content = (
+        <RankGroup
+          key={`areas-${step.axis}`}
+          items={areas.map((a) => ({ id: a.id, label: a.name }))}
+          prompt={AREA_PROMPT[step.axis]}
+          theme={theme}
+          onComplete={(order) => {
+            setAreaOrder((prev) => ({ ...prev, [step.axis]: order }));
+            goToStep(stepIndex + 1);
+          }}
+        />
+      );
+    } else {
+      heading = "Ready";
+      content = (
+        <AppText color={theme.ink}>
+          Every area is ranked. Save this snapshot to see your portfolio.
+        </AppText>
+      );
+    }
 
     return (
       <View style={screen}>
         <Backdrop circles={hueWash(accent)} />
         <ProgressDots
-          areaIds={areas.map((a) => a.id)}
-          currentIndex={stepIndex}
-          completed={completedByArea}
+          areaIds={dotIds}
+          currentIndex={currentDotIndex}
+          completed={dotCompleted}
           theme={theme}
         />
-        <Animated.View key={area.id} entering={entering} style={styles.step}>
+        <Animated.View key={stepIndex} entering={entering} style={styles.step}>
           <ScrollView
             contentContainerStyle={styles.stepScroll}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.areaHeader}>
               <AppText variant="title" color={theme.ink}>
-                {area.name}
-              </AppText>
-              <AppText variant="caption" color={theme.muted} tabular>
-                {stepIndex + 1} of {areas.length}
+                {heading}
               </AppText>
             </View>
             <View style={{ height: space.md }} />
-            {area.units.map((unit) => (
-              <UnitRatingBlock
-                key={unit.id}
-                unit={unit}
-                draft={drafts[unit.id] ?? { importance: null, satisfaction: null }}
-                onChange={(field, value) => setRating(unit.id, field, value)}
-                accent={accent}
-                theme={theme}
-                reduceMotion={reduceMotion}
-              />
-            ))}
+            {content}
           </ScrollView>
         </Animated.View>
         <View style={[styles.footer, { borderTopColor: theme.hairline }, footerPad]}>
-          {!stepDone ? (
-            <AppText
-              variant="caption"
-              color={theme.muted}
-              style={styles.ratingsLeft}
-              accessibilityLiveRegion="polite"
-            >
-              {ratingsLeft === 1
-                ? "1 rating left in this area"
-                : `${ratingsLeft} ratings left in this area`}
-            </AppText>
+          {step.kind === "review" ? (
+            <Button label="Save snapshot" color={accent} onPress={save} theme={theme} />
           ) : null}
-          <Button
-            label={isLast ? "Save snapshot" : "Next"}
-            color={accent}
-            disabled={!stepDone}
-            onPress={() => (isLast ? save() : goToStep(stepIndex + 1))}
-            theme={theme}
-          />
           <Button
             label="Back"
             variant="quiet"
@@ -306,10 +382,107 @@ export default function DiagnosticFlow() {
           Couldn't save
         </AppText>
         <AppText color={theme.muted} style={{ textAlign: "center" }}>
-          Your ratings are still here. Try again.
+          Your rankings are still here. Try again.
         </AppText>
         <View style={{ height: space.sm }} />
         <Button label="Retry" onPress={save} theme={theme} />
+      </View>
+    );
+  }
+
+  if (phase === "diff") {
+    const d = diff ?? { moved: [], excluded: [], included: [] };
+    return (
+      <View style={[styles.resultsRoot, { backgroundColor: theme.canvas }]}>
+        <Backdrop circles={constellation(theme.areas, { faint: true })} />
+        <ScrollView
+          contentContainerStyle={[
+            styles.resultsScroll,
+            { paddingTop: insets.top + space.lg, paddingBottom: insets.bottom + space.xl },
+          ]}
+        >
+          <AppText variant="display" color={theme.ink}>
+            What moved
+          </AppText>
+          <AppText color={theme.muted} style={styles.resultsLead}>
+            Since your last diagnostic. Nothing here needs action — carry
+            everything over as-is if it looks right.
+          </AppText>
+
+          {d.excluded.length > 0 ? (
+            <View style={[styles.weightGroup, { borderTopColor: theme.hairline }]}>
+              <AppText variant="headline" color={theme.ink} style={{ marginBottom: space.xs }}>
+                Excluded from scoring
+              </AppText>
+              {d.excluded.map((row) => (
+                <DiffRow
+                  key={row.unitId}
+                  areaColor={theme.areas[row.areaId] ?? theme.muted}
+                  name={row.name}
+                  primary="excluded"
+                  caption={row.goalIds.length > 0 ? "pause its goal?" : undefined}
+                  onPress={
+                    row.goalIds.length === 1
+                      ? () => router.push(`/goals/${row.goalIds[0]}` as Href)
+                      : row.goalIds.length > 1
+                        ? () => router.push("/goals" as Href)
+                        : undefined
+                  }
+                  theme={theme}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {d.moved.length > 0 ? (
+            <View style={[styles.weightGroup, { borderTopColor: theme.hairline }]}>
+              <AppText variant="headline" color={theme.ink} style={{ marginBottom: space.xs }}>
+                Weight moved
+              </AppText>
+              {d.moved.map((row) => (
+                <DiffRow
+                  key={row.unitId}
+                  areaColor={theme.areas[row.areaId] ?? theme.muted}
+                  name={row.name}
+                  primary={`${row.oldWeight} → ${row.newWeight}`}
+                  caption={row.suggestAddTask ? "add a task?" : undefined}
+                  onPress={
+                    row.suggestAddTask
+                      ? () => router.push(`/plan/${row.unitId}` as Href)
+                      : undefined
+                  }
+                  theme={theme}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {d.included.length > 0 ? (
+            <View style={[styles.weightGroup, { borderTopColor: theme.hairline }]}>
+              <AppText variant="headline" color={theme.ink} style={{ marginBottom: space.xs }}>
+                Back in scoring
+              </AppText>
+              {d.included.map((row) => (
+                <DiffRow
+                  key={row.unitId}
+                  areaColor={theme.areas[row.areaId] ?? theme.muted}
+                  name={row.name}
+                  primary={`${row.newWeight}`}
+                  caption={row.suggestAddTask ? "add a task?" : undefined}
+                  onPress={
+                    row.suggestAddTask
+                      ? () => router.push(`/plan/${row.unitId}` as Href)
+                      : undefined
+                  }
+                  theme={theme}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          <View style={{ height: space.xl }} />
+          <Button label="Continue" onPress={() => setPhase("results")} theme={theme} />
+        </ScrollView>
       </View>
     );
   }
@@ -427,7 +600,6 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  ratingsLeft: { textAlign: "center" },
   resultsRoot: { flex: 1, overflow: "hidden" },
   resultsScroll: { paddingHorizontal: space.screen },
   resultsLead: { marginTop: space.sm, marginBottom: space.xl, maxWidth: 340 },

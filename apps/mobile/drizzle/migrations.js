@@ -6,6 +6,7 @@ import m0001 from './0001_sweet_iron_fist.sql';
 import m0002 from './0002_steady_bloodscream.sql';
 import m0003 from './0003_tense_mystique.sql';
 import m0004 from './0004_giant_black_bolt.sql';
+import m0005 from './0005_material_wiccan.sql';
 
   export default {
     journal,
@@ -14,7 +15,8 @@ import m0004 from './0004_giant_black_bolt.sql';
 m0001,
 m0002,
 m0003,
-m0004
+m0004,
+m0005
     }
   }
   

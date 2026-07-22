@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -15,6 +14,7 @@ import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { PairwiseRank } from "../ui/PairwiseRank";
 import { FrequencyPicker } from "./FrequencyPicker";
 
 export interface ComparisonTask {
@@ -52,8 +52,7 @@ export function AddTaskModal({
   const [phase, setPhase] = useState<Phase>("form");
   const [title, setTitle] = useState("");
   const [timesPerWeek, setTimesPerWeek] = useState(7);
-  const [low, setLow] = useState(0);
-  const [high, setHigh] = useState(0);
+  const [placementKey, setPlacementKey] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
@@ -85,26 +84,9 @@ export function AddTaskModal({
       commit(1);
       return;
     }
-    setLow(0);
-    setHigh(existingTasks.length);
+    setPlacementKey((k) => k + 1);
     setPhase("compare");
   };
-
-  const choose = (newWins: boolean) => {
-    void Haptics.selectionAsync();
-    const mid = Math.floor((low + high) / 2);
-    const nextLow = newWins ? low : mid + 1;
-    const nextHigh = newWins ? mid : high;
-    if (nextLow >= nextHigh) {
-      commit(nextLow + 1);
-      return;
-    }
-    setLow(nextLow);
-    setHigh(nextHigh);
-  };
-
-  const mid = Math.floor((low + high) / 2);
-  const opponent = existingTasks[mid];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
@@ -170,60 +152,16 @@ export function AddTaskModal({
               />
             </>
           ) : (
-            <>
-              <AppText variant="title" color={theme.ink}>
-                Which matters more right now?
-              </AppText>
-              <View style={styles.cards}>
-                <Pressable
-                  onPress={() => choose(true)}
-                  disabled={saving}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.card,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.hairline,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <AppText variant="headline" color={theme.ink}>
-                    {title.trim()}
-                  </AppText>
-                </Pressable>
-                <AppText variant="caption" color={theme.muted} style={styles.vs}>
-                  or
-                </AppText>
-                <Pressable
-                  onPress={() => choose(false)}
-                  disabled={saving}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.card,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.hairline,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <AppText variant="headline" color={theme.ink}>
-                    {opponent?.title ?? ""}
-                  </AppText>
-                </Pressable>
-              </View>
-              <Pressable
-                onPress={() => commit(existingTasks.length + 1)}
-                disabled={saving}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.skipLast, { opacity: pressed ? 0.5 : 1 }]}
-              >
-                <AppText variant="label" color={theme.muted}>
-                  Skip — rank it last
-                </AppText>
-              </Pressable>
-            </>
+            <PairwiseRank
+              key={placementKey}
+              newItem={{ id: "new", label: title.trim() }}
+              existingItems={existingTasks.map((t) => ({ id: t.id, label: t.title }))}
+              prompt="Which matters more right now?"
+              skipLabel="Skip — rank it last"
+              theme={theme}
+              disabled={saving}
+              onResolve={commit}
+            />
           )}
 
           <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
@@ -256,19 +194,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
   },
   repeatBlock: { gap: space.sm },
-  cards: { gap: space.sm },
-  skipLast: {
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  card: {
-    minHeight: 64,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    justifyContent: "center",
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
-  vs: { alignSelf: "center" },
 });

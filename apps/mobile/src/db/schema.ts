@@ -70,8 +70,10 @@ export const rating = sqliteTable(
     unitId: text("unit_id")
       .notNull()
       .references(() => lifeUnit.id),
-    importance: integer("importance").notNull(),
-    satisfaction: integer("satisfaction").notNull(),
+    /** Rank-derived score (rankToScore), continuous 1–10 — not
+     *  necessarily an integer (ADR-0003 amendment: ranked diagnostic). */
+    importance: real("importance").notNull(),
+    satisfaction: real("satisfaction").notNull(),
     /** Trailing-28-day effort frozen at snapshot time (ADR-0005 §3). */
     effortPoints: real("effort_points"),
     ...timestamps,

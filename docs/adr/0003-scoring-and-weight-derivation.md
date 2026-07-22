@@ -7,7 +7,9 @@
 ## Context
 
 Each active SLU gets a share of 100 daily points, derived from the
-diagnostic (importance `I`, satisfaction `S`, both 1–10). vision.md
+diagnostic (importance `I`, satisfaction `S`, both 1–10 — amended
+2026-07-22 per ADR-0005 decision 7: rank-derived, so not necessarily
+integers, but the same 1–10 range and meaning). vision.md
 commits to: importance first, satisfaction-gap boost second, always
 normalized to 100, everything overridable with recommendations still
 shown. ADR-0002 materializes the results as `unit_weight` rows per
@@ -134,11 +136,15 @@ Strength session **26**, 10k steps **18**, Stretching **9** → 53. ✓
 
 ## Action items
 
-1. [ ] Implement formula v1 + largest-remainder rounding in the
+1. [x] Implement formula v1 + largest-remainder rounding in the
        `scoring` package, with property tests (sum always 100; weight
-       monotone in I; no penalty when S > I).
-2. [ ] Implement rank-share point derivation + binary-insertion
-       comparison logic (pure functions; UI later).
+       monotone in I; no penalty when S > I). (Shipped:
+       `packages/scoring/src/weights.ts` + `rounding.ts`, tests in
+       `__tests__/weights.test.ts`.)
+2. [x] Implement rank-share point derivation + binary-insertion
+       comparison logic (pure functions; UI later). (Shipped:
+       `packages/scoring/src/tasks.ts` (`rankShares`/`taskPointValues`);
+       UI in `components/ui/PairwiseRank.tsx`.)
 3. [ ] Add `rank_in_unit` to the task schema (amends ADR-0002).
 4. [ ] Resolve ADR-0004: cadence accounting and grade lifecycle now
        block the first end-to-end grade.

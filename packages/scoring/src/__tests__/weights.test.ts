@@ -80,8 +80,18 @@ describe("deriveWeights — invariants", () => {
       deriveWeights([{ unitId: "a", importance: 5, satisfaction: 11 }]),
     ).toThrow();
     expect(() =>
-      deriveWeights([{ unitId: "a", importance: 5.5, satisfaction: 5 }]),
+      deriveWeights([{ unitId: "a", importance: Number.NaN, satisfaction: 5 }]),
     ).toThrow();
+  });
+
+  it("accepts continuous, non-integer ratings (rank-derived scores)", () => {
+    const weights = deriveWeights([
+      { unitId: "a", importance: 8.5, satisfaction: 3.2 },
+      { unitId: "b", importance: 5.5, satisfaction: 5.5 },
+    ]);
+    const sum = weights.reduce((a, w) => a + w.weight, 0);
+    expect(sum).toBe(DAILY_BUDGET);
+    expect(weights[0]!.weight).toBeGreaterThan(weights[1]!.weight);
   });
 
   it("returns [] for an empty portfolio", () => {

@@ -1,8 +1,16 @@
-import { addDays, deriveWeights, FORMULA_VERSION } from "@life-strategy/scoring";
-import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import {
+  addDays,
+  combineHierarchicalRank,
+  deriveWeights,
+  FORMULA_VERSION,
+  rankToScore,
+  recommendedTaskRange,
+} from "@life-strategy/scoring";
+import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
+import { loadGoals } from "./goals";
 import {
   activity,
   activityTag,
@@ -15,6 +23,7 @@ import {
   unitWeight,
 } from "./schema";
 import { currentLocalDate } from "./today";
+import { loadPlan } from "./tasks";
 
 export interface DiagnosticUnit {
   id: string;
@@ -26,11 +35,6 @@ export interface DiagnosticArea {
   id: string;
   name: string;
   units: DiagnosticUnit[];
-}
-
-export interface RatingDraft {
-  importance: number | null;
-  satisfaction: number | null;
 }
 
 export async function loadDiagnosticAreas(): Promise<DiagnosticArea[]> {
@@ -58,34 +62,60 @@ export async function loadDiagnosticAreas(): Promise<DiagnosticArea[]> {
   }));
 }
 
-/** Latest snapshot's ratings, for prefilling the monthly re-run. */
-export async function loadLatestRatings(): Promise<
-  Record<string, { importance: number; satisfaction: number }>
-> {
-  const [latest] = await db
-    .select()
-    .from(snapshot)
-    .orderBy(desc(snapshot.takenAt))
-    .limit(1);
-  if (!latest) return {};
-
-  const rows = await db
-    .select()
-    .from(rating)
-    .where(eq(rating.snapshotId, latest.id));
-  return Object.fromEntries(
-    rows.map((r) => [
-      r.unitId,
-      { importance: r.importance, satisfaction: r.satisfaction },
-    ]),
-  );
-}
-
 export interface DiagnosticEntry {
   unitId: string;
   importance: number;
   satisfaction: number;
   includeInScoring: boolean;
+}
+
+/** "priority" ranks feed `importance`; "satisfaction" ranks feed
+ *  `satisfaction` — both amended to rank-derived scores (ADR-0003
+ *  amendment: ranked diagnostic). */
+export type DiagnosticAxis = "priority" | "satisfaction";
+
+const AXES: readonly DiagnosticAxis[] = ["priority", "satisfaction"];
+
+/**
+ * Turns a completed ranking (each area's units ordered, then the
+ * areas themselves ordered, per axis) into the same `DiagnosticEntry`
+ * shape `saveDiagnostic` has always taken — `deriveWeights`, the
+ * `rating`/`unit_weight` tables, and the portfolio graph never need to
+ * know the numbers came from ranks rather than absolute dials.
+ */
+export function buildEntriesFromRanking(
+  areas: DiagnosticArea[],
+  unitOrderByArea: Record<string, Partial<Record<DiagnosticAxis, string[]>>>,
+  areaOrder: Partial<Record<DiagnosticAxis, string[]>>,
+): DiagnosticEntry[] {
+  const scoreByAxis: Record<DiagnosticAxis, Map<string, number>> = {
+    priority: new Map(),
+    satisfaction: new Map(),
+  };
+
+  for (const axis of AXES) {
+    const areaIds = areaOrder[axis];
+    if (!areaIds) continue;
+    const areaRanks = areaIds.map((areaId, i) => ({ areaId, rank: i + 1 }));
+    const unitRanksByArea: Record<string, { unitId: string; rank: number }[]> = {};
+    for (const area of areas) {
+      const order = unitOrderByArea[area.id]?.[axis] ?? [];
+      unitRanksByArea[area.id] = order.map((unitId, i) => ({ unitId, rank: i + 1 }));
+    }
+    const overall = combineHierarchicalRank(areaRanks, unitRanksByArea);
+    for (const o of overall) {
+      scoreByAxis[axis].set(o.unitId, rankToScore(o.overallRank, o.total));
+    }
+  }
+
+  return areas.flatMap((area) =>
+    area.units.map((u) => ({
+      unitId: u.id,
+      importance: scoreByAxis.priority.get(u.id) ?? 1,
+      satisfaction: scoreByAxis.satisfaction.get(u.id) ?? 1,
+      includeInScoring: u.includeInScoring,
+    })),
+  );
 }
 
 /**
@@ -221,4 +251,143 @@ export async function loadWeightSummary(
       };
     }),
   }));
+}
+
+interface DiffRowBase {
+  unitId: string;
+  name: string;
+  areaId: string;
+}
+
+export interface MovedRow extends DiffRowBase {
+  oldWeight: number;
+  newWeight: number;
+  suggestAddTask: boolean;
+}
+
+export interface ExcludedRow extends DiffRowBase {
+  /** Active goals on this unit — a "pause its goal?" prompt candidate. */
+  goalIds: string[];
+}
+
+export interface IncludedRow extends DiffRowBase {
+  newWeight: number;
+  suggestAddTask: boolean;
+}
+
+export interface DiagnosticDiff {
+  moved: MovedRow[];
+  excluded: ExcludedRow[];
+  included: IncludedRow[];
+}
+
+/** Below this, a weight change isn't worth surfacing (ADR-0005 §2). */
+const MOVED_THRESHOLD = 2;
+
+/**
+ * Compares a snapshot's weights against the one before it (ADR-0005
+ * §2: "diagnostics never destroy anything," a diff, not a rebuild).
+ * Returns `null` when there's no prior snapshot — a first-ever
+ * diagnostic has nothing to diff, so the caller should skip straight
+ * to results. Overrides aren't diffed: `unit_weight.override` is
+ * never written anywhere in the app yet (no override-editing UI
+ * exists), so there's nothing there to compare.
+ */
+export async function loadDiagnosticDiff(
+  newSnapshotId: string,
+): Promise<DiagnosticDiff | null> {
+  const [current] = await db
+    .select()
+    .from(snapshot)
+    .where(eq(snapshot.id, newSnapshotId));
+  if (!current) return null;
+
+  const [previous] = await db
+    .select()
+    .from(snapshot)
+    .where(lt(snapshot.takenAt, current.takenAt))
+    .orderBy(desc(snapshot.takenAt))
+    .limit(1);
+  if (!previous) return null;
+
+  const [oldWeights, newWeights, areas, plan, goals] = await Promise.all([
+    db.select().from(unitWeight).where(eq(unitWeight.snapshotId, previous.id)),
+    db.select().from(unitWeight).where(eq(unitWeight.snapshotId, newSnapshotId)),
+    loadDiagnosticAreas(),
+    loadPlan(),
+    loadGoals(),
+  ]);
+
+  const oldByUnit = new Map(oldWeights.map((w) => [w.unitId, w]));
+  const newByUnit = new Map(newWeights.map((w) => [w.unitId, w]));
+  const unitMeta = new Map(
+    areas.flatMap((a) =>
+      a.units.map((u) => [u.id, { name: u.name, areaId: a.id }] as const),
+    ),
+  );
+  const taskCountByUnit = new Map(
+    plan.areas.flatMap((a) =>
+      a.units.map((u) => [u.id, u.tasks.length] as const),
+    ),
+  );
+  const activeGoalIdsByUnit = new Map(
+    goals.areas.flatMap((a) =>
+      a.units.map(
+        (u) =>
+          [
+            u.id,
+            u.goals.filter((g) => g.status === "active").map((g) => g.id),
+          ] as const,
+      ),
+    ),
+  );
+
+  const moved: MovedRow[] = [];
+  const excluded: ExcludedRow[] = [];
+  const included: IncludedRow[] = [];
+
+  const allUnitIds = new Set([...oldByUnit.keys(), ...newByUnit.keys()]);
+  for (const unitId of allUnitIds) {
+    const meta = unitMeta.get(unitId);
+    if (!meta) continue; // archived since — nothing to show
+
+    const oldW = oldByUnit.get(unitId);
+    const newW = newByUnit.get(unitId);
+    const taskCount = taskCountByUnit.get(unitId) ?? 0;
+
+    if (oldW && newW) {
+      const oldEffective = oldW.override ?? oldW.derived;
+      const newEffective = newW.override ?? newW.derived;
+      const delta = newEffective - oldEffective;
+      if (Math.abs(delta) >= MOVED_THRESHOLD) {
+        moved.push({
+          unitId,
+          name: meta.name,
+          areaId: meta.areaId,
+          oldWeight: Math.round(oldEffective),
+          newWeight: Math.round(newEffective),
+          suggestAddTask:
+            delta > 0 && taskCount < recommendedTaskRange(newEffective).min,
+        });
+      }
+    } else if (oldW && !newW) {
+      excluded.push({
+        unitId,
+        name: meta.name,
+        areaId: meta.areaId,
+        goalIds: activeGoalIdsByUnit.get(unitId) ?? [],
+      });
+    } else if (!oldW && newW) {
+      const newEffective = newW.override ?? newW.derived;
+      included.push({
+        unitId,
+        name: meta.name,
+        areaId: meta.areaId,
+        newWeight: Math.round(newEffective),
+        suggestAddTask: taskCount < recommendedTaskRange(newEffective).min,
+      });
+    }
+  }
+
+  return { moved, excluded, included };
 }

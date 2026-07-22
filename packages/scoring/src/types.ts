@@ -1,8 +1,8 @@
 export interface UnitRating {
   unitId: string;
-  /** 1–10 integer */
+  /** 1–10 — an absolute rating or a rank-derived score (`rankToScore`) */
   importance: number;
-  /** 1–10 integer */
+  /** 1–10 — an absolute rating or a rank-derived score (`rankToScore`) */
   satisfaction: number;
 }
 
