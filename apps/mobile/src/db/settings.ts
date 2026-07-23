@@ -55,3 +55,19 @@ export async function hasAskedNotificationPermission(): Promise<boolean> {
 export async function markNotificationPermissionAsked(): Promise<void> {
   await setSetting(KEY_NOTIFICATIONS_PERMISSION_ASKED, "true");
 }
+
+const KEY_CALIBRATION_GAP_COEFFICIENT = "calibration.gapCoefficient";
+
+/** `null` = no override; `deriveWeights` falls back to the built-in
+ *  `GAP_COEFFICIENT` constant (ADR-0008: a calibration lever, applied
+ *  only on explicit user acceptance of a suggestion). */
+export async function getGapCoefficientOverride(): Promise<number | null> {
+  const value = await getSetting(KEY_CALIBRATION_GAP_COEFFICIENT);
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function setGapCoefficientOverride(value: number): Promise<void> {
+  await setSetting(KEY_CALIBRATION_GAP_COEFFICIENT, String(value));
+}

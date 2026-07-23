@@ -5,7 +5,7 @@
  */
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Linking from "expo-linking";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -127,6 +127,19 @@ export default function SettingsScreen() {
           Settings
         </AppText>
 
+        <Pressable
+          onPress={() => router.push("/calibration" as Href)}
+          accessibilityRole="button"
+          style={[styles.navRow, { borderColor: theme.hairline }]}
+        >
+          <AppText color={theme.ink} style={styles.grow}>
+            Calibration
+          </AppText>
+          <AppText variant="label" color={theme.muted}>
+            ›
+          </AppText>
+        </Pressable>
+
         {settings === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
@@ -192,6 +205,25 @@ export default function SettingsScreen() {
             ) : null}
           </View>
         )}
+
+        <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+          <AppText variant="headline" color={theme.ink}>
+            Support resources
+          </AppText>
+          <AppText color={theme.ink}>
+            These are here anytime, for anyone — not because of anything in
+            your data.
+          </AppText>
+          <AppText color={theme.ink} style={styles.resourceLine}>
+            988 Suicide &amp; Crisis Lifeline — call or text 988.
+          </AppText>
+          <AppText color={theme.ink} style={styles.resourceLine}>
+            Crisis Text Line — text HOME to 741741.
+          </AppText>
+          <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
+            Or talk to a doctor, therapist, or someone you trust.
+          </AppText>
+        </View>
       </ScrollView>
     </View>
   );
@@ -208,8 +240,19 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    minHeight: 48,
+    marginTop: space.lg,
+    paddingHorizontal: space.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+  },
   grow: { flex: 1 },
   caption: { marginTop: -space.xs },
+  resourceLine: { marginTop: -space.xs },
   deniedBox: {
     marginTop: space.sm,
     borderWidth: StyleSheet.hairlineWidth,

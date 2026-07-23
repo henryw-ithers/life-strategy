@@ -22,6 +22,7 @@ import {
   taskCompletion,
   unitWeight,
 } from "./schema";
+import { getGapCoefficientOverride } from "./settings";
 import { currentLocalDate } from "./today";
 import { loadPlan } from "./tasks";
 
@@ -172,7 +173,10 @@ async function trailingEffort(): Promise<Map<string, number> | null> {
 export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string> {
   const snapshotId = Crypto.randomUUID();
   const takenAt = new Date().toISOString();
-  const effort = await trailingEffort();
+  const [effort, gapCoefficientOverride] = await Promise.all([
+    trailingEffort(),
+    getGapCoefficientOverride(),
+  ]);
 
   const weights = deriveWeights(
     entries
@@ -182,6 +186,7 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         importance: e.importance,
         satisfaction: e.satisfaction,
       })),
+    gapCoefficientOverride ?? undefined,
   );
 
   await db.transaction(async (tx) => {

@@ -13,6 +13,12 @@ export { nextGoalStatus, advanceMilestone } from "./goals";
 export type { AreaRank, UnitRank, OverallUnitRank } from "./ranking";
 export { rankToScore, combineHierarchicalRank } from "./ranking";
 export { recommendedTaskRange } from "./taskGuidance";
+export type {
+  WeeklyGradeSample,
+  ContentmentSample,
+  DivergenceStats,
+} from "./calibration";
+export { meetsColdStartGate, computeDivergence } from "./calibration";
 export {
   ROLLOVER_HOUR,
   localDateOf,

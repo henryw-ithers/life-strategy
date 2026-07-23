@@ -111,10 +111,28 @@ being reacted to is often more painful than being left alone.
 
 ## Action items
 
-1. [ ] Amend ADR-0002: add `calibration_suggestion`.
-2. [ ] Implement divergence statistics + cold-start gating as pure
-       functions in the `scoring` package.
-3. [ ] Design the Calibration section (insights, suggestion states,
+1. [x] Amend ADR-0002: add `calibration_suggestion`. (Already
+       documented in `docs/adr/0002-data-model-and-persistence.md`
+       and shipped in `apps/mobile/src/db/schema.ts` — this item was
+       stale bookkeeping.)
+2. [x] Implement divergence statistics + cold-start gating as pure
+       functions in the `scoring` package. (Shipped:
+       `packages/scoring/src/calibration.ts` —
+       `meetsColdStartGate`/`computeDivergence`, tested in
+       `__tests__/calibration.test.ts`. Only the `gapCoefficient`
+       suggestion lever is implemented; "revisit a unit's weight" and
+       "revisit a task lineup at the next monthly review" are not —
+       neither has data or a surface to act on yet, see decision 1's
+       levers list.)
+3. [x] Design the Calibration section (insights, suggestion states,
        re-propose affordance) and the Support Resources section.
-4. [ ] Write the ambient-kindness copy rules into the app's copy
-       guide (with AGENTS.md pointing at them).
+       (Shipped: `apps/mobile/src/app/calibration.tsx`,
+       `apps/mobile/src/db/calibration.ts`; Support Resources in
+       `apps/mobile/src/app/settings.tsx`, permanent and unconditional.
+       "Re-propose" per §1 means the user re-visits, not a button —
+       satisfied by the section being visitable anytime.)
+4. [x] Write the ambient-kindness copy rules into the app's copy
+       guide (with AGENTS.md pointing at them). (Shipped:
+       `docs/design/copy-guide.md`, standing rule plus the calibration
+       copy section; AGENTS.md already names ADR-0008 at its ambient-
+       kindness invariant.)
