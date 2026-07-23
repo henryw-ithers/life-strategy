@@ -31,10 +31,12 @@ import { MonthGrid } from "../components/today/MonthGrid";
 import { NoteSheet } from "../components/today/NoteSheet";
 import { TaskRow } from "../components/today/TaskRow";
 import { WeekStrip } from "../components/today/WeekStrip";
+import { PermissionPrescreen } from "../components/notifications/PermissionPrescreen";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { loadWeekGrade } from "../db/grades";
+import { hasAskedNotificationPermission } from "../db/settings";
 import {
   addJournalEntry,
   addPhoto,
@@ -53,6 +55,7 @@ import {
   type TodayTask,
 } from "../db/today";
 import { spokenDate } from "../lib/format";
+import { syncDailyNudge } from "../notifications/dailyNudge";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -82,6 +85,7 @@ export default function TodayScreen() {
     completed: false,
   });
   const allDoneBefore = useRef(false);
+  const [showPrescreen, setShowPrescreen] = useState(false);
 
   const reload = useCallback(async (date: string) => {
     const [next, grades, week] = await Promise.all([
@@ -92,6 +96,7 @@ export default function TodayScreen() {
     setDay(next);
     setMonthGrades(grades);
     setWeekGrade(week);
+    if (next.date === next.today) void syncDailyNudge(next);
     return next;
   }, []);
 
@@ -102,6 +107,17 @@ export default function TodayScreen() {
           d.daily.length > 0 && d.daily.every((t) => t.completedToday);
       });
     }, [reload, selected]),
+  );
+
+  // First run of the checklist, until ADR-0011 onboarding exists
+  // (ADR-0010 §4): the in-app pre-screen has to appear before the OS
+  // permission dialog ever can.
+  useFocusEffect(
+    useCallback(() => {
+      void hasAskedNotificationPermission().then((asked) => {
+        if (!asked) setShowPrescreen(true);
+      });
+    }, []),
   );
 
   const select = (date: string) => {
@@ -508,6 +524,15 @@ export default function TodayScreen() {
                     Portfolio
                   </AppText>
                 </Pressable>
+                <Pressable
+                  onPress={() => router.push("/settings" as Href)}
+                  accessibilityRole="button"
+                  style={styles.footerLink}
+                >
+                  <AppText variant="label" color={theme.muted}>
+                    Settings
+                  </AppText>
+                </Pressable>
               </View>
               <AppText variant="footnote" color={theme.muted}>
                 Grades are guidelines, not judgments.
@@ -516,6 +541,15 @@ export default function TodayScreen() {
           </>
         )}
       </ScrollView>
+
+      <PermissionPrescreen
+        visible={showPrescreen}
+        theme={theme}
+        onDone={() => {
+          setShowPrescreen(false);
+          if (day) void reload(day.date);
+        }}
+      />
 
       {day ? (
         <>

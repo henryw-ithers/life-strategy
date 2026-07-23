@@ -123,12 +123,24 @@ is ever proposed** — that is the line quiet hours exist to protect.
 
 ## Action items
 
-1. [ ] Wire `expo-notifications`: daily scheduled notification,
+1. [x] Wire `expo-notifications`: daily scheduled notification,
        cancel-and-reschedule on completion and rest-day events.
-2. [ ] Build the in-app permission pre-screen (first-run of the
-       checklist until ADR-0011 onboarding exists).
-3. [ ] Add the settings controls (toggle + time picker) and the
-       OS-denied deep-link path.
-4. [ ] Write the nudge copy pool into the copy guide next to the
-       ADR-0008 ambient-kindness rules.
-5. [ ] Update the ADR index: 0010 accepted.
+       (Shipped: `apps/mobile/src/notifications/dailyNudge.ts`
+       — `syncDailyNudge` cancels and re-derives the single scheduled
+       occurrence on every `reload()` in `apps/mobile/src/app/index.tsx`,
+       which already runs after every completion/rest-day mutation.)
+2. [x] Build the in-app permission pre-screen (first-run of the
+       checklist until ADR-0011 onboarding exists). (Shipped:
+       `components/notifications/PermissionPrescreen.tsx`, triggered
+       from `index.tsx` on first focus when
+       `notifications.permissionAsked` is unset.)
+3. [x] Add the settings controls (toggle + time picker) and the
+       OS-denied deep-link path. (Shipped: `apps/mobile/src/app/settings.tsx`
+       — one `Switch` + `@react-native-community/datetimepicker`,
+       `Linking.openSettings()` when `canAskAgain` is false.)
+4. [x] Write the nudge copy pool into the copy guide next to the
+       ADR-0008 ambient-kindness rules. (Shipped:
+       `docs/design/copy-guide.md`, seeded with this pool; the full
+       ADR-0008 rules land there when that ADR is built.)
+5. [x] Update the ADR index: 0010 accepted. (Already correct in
+       `docs/adr/README.md` — this item was stale bookkeeping.)
