@@ -104,8 +104,11 @@ same weight as code.
 
 1. [ ] Define the content-package schema (goal templates, tasks,
        profile tags, default ranks, keyword map, content_version).
-2. [ ] Write the library: 16 units × (3–5 goals + 6–10 tasks), with a
-       hand-review pass on sensitive units.
+2. [ ] Write the library: 17 units × (3–5 goals + 6–10 tasks), with a
+       hand-review pass on sensitive units. (17, not 16 — the seeded
+       taxonomy is 6 areas × 17 units; `UNIT_INFO` in
+       `apps/mobile/src/content/units.ts` already covers all 17 and is
+       the first slice of this package.)
 3. [ ] Implement starter-plan generation (profile matching + ADR-0003
        bands) as a pure function in the `scoring`/content layer.
 4. [ ] Wire recommendation surfacing into the post-diagnostic diff and

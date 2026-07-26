@@ -145,6 +145,8 @@ Strength session **26**, 10k steps **18**, Stretching **9** → 53. ✓
        comparison logic (pure functions; UI later). (Shipped:
        `packages/scoring/src/tasks.ts` (`rankShares`/`taskPointValues`);
        UI in `components/ui/PairwiseRank.tsx`.)
-3. [ ] Add `rank_in_unit` to the task schema (amends ADR-0002).
-4. [ ] Resolve ADR-0004: cadence accounting and grade lifecycle now
-       block the first end-to-end grade.
+3. [x] Add `rank_in_unit` to the task schema (amends ADR-0002).
+       (Shipped: `task.rankInUnit`, `apps/mobile/src/db/schema.ts`.)
+4. [x] Resolve ADR-0004: cadence accounting and grade lifecycle now
+       block the first end-to-end grade. (Accepted; the grade runs end
+       to end, daily through monthly.)

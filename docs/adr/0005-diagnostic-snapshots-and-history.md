@@ -135,8 +135,11 @@ axes**, hierarchical to keep the comparison count sane:
 
 ## Action items
 
-1. [ ] Amend ADR-0002: `rating` gains `effort_points`; monthly review
-       decision now includes the diagnostic.
+1. [x] Amend ADR-0002: `rating` gains `effort_points`; monthly review
+       decision now includes the diagnostic. (Both landed:
+       `rating.effortPoints` in `apps/mobile/src/db/schema.ts`, and
+       ADR-0002 decision 5 now opens the monthly ritual with the
+       diagnostic. The ritual itself is still unbuilt — no screen.)
 2. [x] Extend the ADR-0001 Skia spike: bubble trails + position tween
        between two snapshots. (Shipped in the PortfolioGraph component:
        compare trails + playback scrubber, verified on-device.)

@@ -179,7 +179,7 @@ later goal edits don't rewrite trophy history.
 ## Action items
 
 1. [x] Define the Drizzle schema for the tables above; generate
-       migration 0001; seed the 6×16 taxonomy. (Shipped:
+       migration 0001; seed the 6×17 taxonomy. (Shipped:
        `apps/mobile/src/db/schema.ts`, `db/seed.ts`, migrations in
        `apps/mobile/drizzle/`.)
 2. [x] Write the snapshot flow as a transaction: ratings →
@@ -187,5 +187,6 @@ later goal edits don't rewrite trophy history.
        `saveDiagnostic()` in `apps/mobile/src/db/diagnostic.ts`.)
 3. [ ] Prove backup round-trip on device: export → encrypt → decrypt →
        restore.
-4. [ ] Resolve ADR-0003 (scoring formula) — `unit_weight.derived` and
-       `formula_version` are waiting on it.
+4. [x] Resolve ADR-0003 (scoring formula) — `unit_weight.derived` and
+       `formula_version` are waiting on it. (Accepted; the formula has
+       since reached v3 via the ADR-0004 amendments.)

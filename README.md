@@ -31,10 +31,22 @@ number out of 100.
 
 ## Status
 
-**Scaffolded.** The design phase (vision + nine accepted ADRs) is
-complete and the workspace is up: `apps/mobile` (Expo SDK 57 +
-Drizzle/SQLite, migration and taxonomy seed in place) and
-`packages/scoring` (the pure scoring engine, formula v1, tested).
+**Core loop closed; not yet in daily use by anyone but the builder.**
+The design phase (vision + ten accepted ADRs) is complete, and the
+loop runs end to end: diagnostic → derived weights → planned tasks →
+daily checklist and grade → weekly and monthly aggregation →
+contentment check-in → portfolio graph.
+
+The workspace: `apps/mobile` (Expo SDK 54 — pinned, see
+[ADR-0001](docs/adr/0001-platform-and-tech-stack.md) — with
+Drizzle/SQLite) and `packages/scoring` (the pure scoring engine,
+formula v3, tested).
+
+Not built yet: the recommendation library
+([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md) — every
+goal and task is currently hand-entered), the monthly review ritual,
+any look-back over the life log, onboarding
+(planned ADR-0011), and backup (ADR-0002 action item 3).
 
 ```
 npm install          # once

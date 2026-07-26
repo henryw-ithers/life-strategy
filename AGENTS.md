@@ -12,7 +12,7 @@ decision; it is the source of truth for what the app is and is not.
 
 ## Current phase
 
-**Scaffolded, early implementation.** All nine foundational ADRs in
+**Core loop closed; extending it.** All ten foundational ADRs in
 [docs/adr/](docs/adr/) are **accepted**; follow them. Strategic design
 context lives in [PRODUCT.md](PRODUCT.md); the visual system (tokens,
 components, and the bubble-backdrop signature every screen carries) in
@@ -25,8 +25,11 @@ silently picking an answer.
 
 npm workspaces monorepo:
 
-- `apps/mobile` — the Expo app (SDK 57, TypeScript, Expo Router,
-  `src/app/` file-based routes). Database: `expo-sqlite` + Drizzle;
+- `apps/mobile` — the Expo app (TypeScript, Expo Router, `src/app/`
+  file-based routes). **Expo SDK 54, deliberately pinned** — not the
+  latest; the test iPhone's Expo Go caps there, so check
+  [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md) and read the v54 docs
+  before writing Expo API code. Database: `expo-sqlite` + Drizzle;
   schema at `src/db/schema.ts`, migrations generated into `drizzle/`
   via `npm run db:generate -w apps/mobile` (never hand-edit or delete
   past migrations — forward-only, ADR-0002).
@@ -98,3 +101,14 @@ Use these terms consistently in code, docs, and UI copy:
   `docs/adr/` using [template.md](docs/adr/template.md), numbered
   sequentially, and a line in the ADR index.
 - Keep documents wrapped at ~72–80 columns to match existing files.
+- **Never run `npm audit fix --force`.** `npm audit` reports ~39
+  findings; they collapse to five CVEs (brace-expansion, postcss ×3,
+  uuid, esbuild) and npm's stated fix for all but one is
+  `expo@57.0.8` — it would silently undo the SDK 54 pin. Every one of
+  them is in build tooling (dev server, PostCSS, CLI globbing), not in
+  anything that ships in the app, and nothing here is
+  network-exposed in production. The esbuild advisory (a website can
+  reach the dev server) is the only one worth thinking about, and only
+  while `npm run mobile` is running on an untrusted network. Clear
+  them when the Expo Go constraint lifts and the SDK moves — not
+  before, and not one dependency at a time.
