@@ -614,6 +614,7 @@ export default function TodayScreen() {
  *  Tapping a photo opens it full-screen; tap again to close. */
 function DayRecord({ day, theme }: { day: DayData; theme: ThemeTokens }) {
   const [viewing, setViewing] = useState<string | null>(null);
+  const [missingPhotos, setMissingPhotos] = useState<Set<string>>(new Set());
   if (day.journal.length === 0 && day.photos.length === 0) return null;
   return (
     <View style={[styles.band, { borderTopColor: theme.hairline }]}>
@@ -635,7 +636,20 @@ function DayRecord({ day, theme }: { day: DayData; theme: ThemeTokens }) {
                   source={{ uri: p.uri }}
                   style={styles.photoThumb}
                   contentFit="cover"
+                  // Backups are database-only for now (ADR-0002), so a
+                  // restore onto a fresh device leaves these rows
+                  // pointing at files that no longer exist. Say what
+                  // happened instead of showing a broken frame.
+                  placeholder={null}
+                  onError={() => setMissingPhotos((m) => new Set(m).add(p.id))}
                 />
+                {missingPhotos.has(p.id) ? (
+                  <View style={[styles.photoMissing, { borderColor: theme.hairline }]}>
+                    <AppText variant="caption" color={theme.muted} style={styles.centerText}>
+                      Photo not in this backup
+                    </AppText>
+                  </View>
+                ) : null}
               </Pressable>
             ))}
           </View>
@@ -752,6 +766,14 @@ const styles = StyleSheet.create({
   },
   photoRow: { flexDirection: "row", gap: space.sm },
   photoThumb: { width: 110, height: 110, borderRadius: radius.lg },
+  photoMissing: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: space.xs,
+  },
   photoViewer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.92)",

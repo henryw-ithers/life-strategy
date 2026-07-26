@@ -1,0 +1,21 @@
+{
+  "name": "@life-strategy/backup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure backup envelope for Life Strategy: AES-256-GCM sealing, scrypt key derivation, header encode/decode. No React Native imports allowed (ADR-0001).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

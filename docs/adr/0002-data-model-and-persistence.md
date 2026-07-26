@@ -162,6 +162,55 @@ later goal edits don't rewrite trophy history.
 - Live multi-device sync remains deferred; the UUID/soft-delete/
   updated_at conventions above are the pre-payment for it.
 
+> **Amended 2026-07-26 (manual local export; passphrase is mandatory,
+> not optional):** shipping the round-trip without waiting on ADR-0012
+> changed one thing above. The keychain-plus-*optional*-passphrase
+> model assumes a cloud account can restore the key to a replacement
+> device. Without that account, a key held only in this device's
+> keychain dies with this device — which is the exact case a backup
+> exists for. It would look like a backup and be a brick. **The
+> passphrase is therefore the only key**, derived with Argon2id; no
+> key is persisted anywhere. `expo-secure-store` is not used and is
+> not a dependency. When ADR-0012 lands and an account can hold a
+> wrapped key, the optional-passphrase model can return as an
+> *addition* — the envelope already carries its KDF parameters, so
+> that is a format-compatible change.
+>
+> Also settled, all within this ADR's scope rather than ADR-0012's:
+>
+> - **Transport is the share sheet**, not a server. Export writes one
+>   `.lsbk` file and hands it to `expo-sharing`; the user puts it in
+>   Files, iCloud Drive, or anywhere else. No provider, no account, no
+>   retention policy — ADR-0012 stays parked and untouched.
+> - **Cipher and library:** AES-256-GCM from `@noble/ciphers`, Argon2id
+>   from `@noble/hashes`. Both pure JS. The native alternative
+>   (`react-native-quick-crypto`) is faster but needs a development
+>   build, which would end the Expo Go workflow the SDK 54 pin exists
+>   to protect (ADR-0001). Speed was not worth that.
+> - **KDF parameters travel in the file header**, not in a constant, so
+>   they can be raised later without stranding existing backups. The
+>   defaults (OWASP's Argon2id minimum: 19 MiB, t=2, p=1) are ~0.5 s on
+>   a laptop and want re-benchmarking on the test device.
+> - **Database only.** Photos stay excluded per the `photo` note above,
+>   so a restore onto a fresh device leaves `file_uri` rows pointing at
+>   files that do not exist; the day view renders those as a
+>   "photo not in this backup" placeholder. The header reserves room to
+>   add the payload later.
+> - **The image comes from `sqlite.serializeAsync()`**, SQLite's own
+>   serialize — consistent with the live connection, with no file copy
+>   to race and no `-wal` sidecar to miss. Restore writes the bytes
+>   back, deletes the stale `-wal`/`-shm`, and requires an app
+>   relaunch, since `db` is a module-level singleton the screens
+>   already hold.
+> - **Restore is ordered so failure never costs data:** authenticate
+>   before touching disk, refuse a schema newer than the running build
+>   (the header carries the migration count), and copy the live
+>   database to `.pre-restore` before replacing it.
+>
+> *(`packages/backup` — pure, tested, no React Native imports per
+> ADR-0001; device half in `apps/mobile/src/backup/backupFile.ts`; UI
+> at `apps/mobile/src/app/backup.tsx`.)*
+
 ## Consequences
 
 - **Easier:** history is immutable by construction — no
@@ -185,8 +234,13 @@ later goal edits don't rewrite trophy history.
 2. [x] Write the snapshot flow as a transaction: ratings →
        scoring-engine call → `unit_weight` rows. (Shipped:
        `saveDiagnostic()` in `apps/mobile/src/db/diagnostic.ts`.)
-3. [ ] Prove backup round-trip on device: export → encrypt → decrypt →
-       restore.
+3. [~] Prove backup round-trip on device: export → encrypt → decrypt →
+       restore. (Built and unit-tested — `packages/backup` covers seal,
+       open, tamper detection, and format rejection; the device half
+       and UI are wired. **Still unproven on device**, which is the
+       half of this item that matters: Argon2id timing in Hermes, the
+       share sheet, `File.pickFileAsync`, and the relaunch-after-
+       restore path have never run on hardware.)
 4. [x] Resolve ADR-0003 (scoring formula) — `unit_weight.derived` and
        `formula_version` are waiting on it. (Accepted; the formula has
        since reached v3 via the ADR-0004 amendments.)

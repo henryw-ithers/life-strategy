@@ -37,6 +37,11 @@ npm workspaces monorepo:
   scoring`). **No React Native imports allowed here, ever** (ADR-0001).
   All derivation/grading math lives here as pure functions with vitest
   tests.
+- `packages/backup` — the pure backup envelope (`@life-strategy/
+  backup`): AES-256-GCM sealing, Argon2id key derivation, header
+  encode/decode. Same rule — **no React Native imports** — so the
+  format is testable off-device. The device half (SQLite serialize,
+  share sheet, file picker) stays in `apps/mobile/src/backup/`.
 
 Root commands: `npm test` (scoring tests), `npm run typecheck` (both
 packages), `npm run mobile` (Expo dev server).

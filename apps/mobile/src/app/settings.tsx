@@ -140,6 +140,19 @@ export default function SettingsScreen() {
           </AppText>
         </Pressable>
 
+        <Pressable
+          onPress={() => router.push("/backup" as Href)}
+          accessibilityRole="button"
+          style={[styles.navRow, { borderColor: theme.hairline }]}
+        >
+          <AppText color={theme.ink} style={styles.grow}>
+            Your data
+          </AppText>
+          <AppText variant="label" color={theme.muted}>
+            ›
+          </AppText>
+        </Pressable>
+
         {settings === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (

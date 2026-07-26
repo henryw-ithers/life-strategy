@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@life-strategy/backup": "*",
     "@life-strategy/scoring": "*",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/native": "^7.3.13",
@@ -20,6 +21,7 @@
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
+    "expo-sharing": "~14.0.7",
     "expo-splash-screen": "~31.0.13",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
