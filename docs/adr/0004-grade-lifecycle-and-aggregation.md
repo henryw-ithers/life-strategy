@@ -136,6 +136,44 @@ day's daily-task points and `W` = sum of weekly-task points
 - Monthly grade = same computation over the calendar month, presented
   at the monthly review (ADR-0002 decision 5).
 
+> **Amended 2026-07-26 (which days are in the period):** the formula
+> above is unchanged; what needed stating is its *input*. A `day_grade`
+> row is only written when the user touches a day, so aggregating the
+> stored rows alone dropped every ignored day out of the denominator —
+> a week of four good days and three skipped ones graded as a flawless
+> four-day week, and the inflated weeks fed straight into ADR-0008's
+> divergence statistic. A period is therefore built from its calendar
+> days, not from the rows that happen to exist:
+>
+> - An elapsed normal day with no row counts as **zero earned against
+>   the standard denominator** — that denominator is constant across
+>   days, so no history reconstruction is involved.
+> - **Days before the first diagnostic never count.** There was no plan
+>   to fall short of yet.
+> - **A day counts once it is over.** The current day is excluded from
+>   both numerator and denominator, extending the same reasoning §4
+>   already applies inside a week ("a missed Tuesday is not a miss until
+>   the week is out"). Counting an unfinished day would drop the period
+>   grade at every 3am rollover and walk it back up as the day is
+>   worked — a loss-aversion mechanic this app excludes by design. The
+>   cost is that today's work lands in the weekly number tomorrow; the
+>   daily number, which is the primary one on the checklist, still moves
+>   on every check. The Today caption reads "This week, through
+>   yesterday" so the lag is stated rather than inferred.
+>
+> Rest days remain {0, 0} and stay neutral; a fully rested week still
+> grades null. `FORMULA_VERSION` does **not** bump — no stored grade
+> changes meaning, and no day's own number changes. *(Pure function:
+> `periodDays` in `packages/scoring/src/grade.ts`, with tests; consumed
+> by `loadWeekGrade`/`loadMonthGrade`.)*
+>
+> Left open: the calendar tint (`loadMonthGrades`) still renders an
+> untouched past day as blank rather than as a zero, so a week can now
+> read below 100% with no visibly imperfect day behind it. Rendering
+> twenty skipped days as a wall of red is exactly the presentation this
+> product avoids, so the tint is a deliberate design question, not an
+> oversight — decide it when the monthly review gets built.
+
 ## Schema amendments (to ADR-0002)
 
 - `day_grade` gains: `kind` (`normal|rest|special`), `title`, `note`,

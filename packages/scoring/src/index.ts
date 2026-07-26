@@ -40,10 +40,13 @@ export type {
   ActivityCredit,
   DayScoreInput,
   DayScore,
+  RecordedDay,
+  PeriodInput,
 } from "./grade";
 export {
   deriveChecklist,
   computeDayScore,
+  periodDays,
   aggregateGrade,
   dayShare,
   extraRunPoints,

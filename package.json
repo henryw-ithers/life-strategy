@@ -16,14 +16,7 @@
   "scripts": {
     "test": "npm run test -w packages/scoring",
     "typecheck": "npm run typecheck -w packages/scoring && npm run typecheck -w apps/mobile",
-    "mobile": "npm run start -w apps/mobile",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "mobile": "npm run start -w apps/mobile"
   },
-  "version": "1.0.0",
-  "dependencies": {
-    "expo": "54.0.2",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
-  }
+  "version": "1.0.0"
 }

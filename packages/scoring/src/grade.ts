@@ -1,5 +1,5 @@
 import { EXTRA_RUN_RATE } from "./constants";
-import { fortnightStart, weekStart } from "./days";
+import { addDays, fortnightStart, weekStart } from "./days";
 
 /**
  * Daily checklist derivation and day-grade computation (ADR-0004 §4 as
@@ -171,12 +171,80 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   };
 }
 
+export interface RecordedDay {
+  localDate: string;
+  earned: number;
+  possible: number;
+}
+
+export interface PeriodInput {
+  /** First day of the period. */
+  start: string;
+  /** Exclusive upper bound. */
+  end: string;
+  /** The app's current local date. */
+  today: string;
+  /** Stored day rows falling inside the period, in any order. */
+  recorded: RecordedDay[];
+  /** The standard day denominator — constant across days (§4, v3). */
+  dailyPossible: number;
+  /** The first day the app could grade at all: the local date of the
+   *  first diagnostic. Null when no diagnostic has been taken. */
+  gradingStart: string | null;
+}
+
+/**
+ * The days of a period that count toward its grade (ADR-0004 §5).
+ *
+ * A stored row exists only for a day the user touched, so aggregating
+ * over stored rows alone would quietly drop every ignored day out of
+ * the denominator — a week where four days went well and three were
+ * skipped would grade like a flawless four-day week. §4 is explicit
+ * that the denominator is constant across days, so an elapsed normal
+ * day with no row counts as zero earned against `dailyPossible`.
+ *
+ * Two exclusions keep that from overreaching:
+ *
+ * - **Days before `gradingStart`** never counted; there was no plan to
+ *   fall short of yet.
+ * - **The current day, and anything after it.** A day counts once it
+ *   is over — the same reasoning §4 already applies within a week
+ *   ("a missed Tuesday is not a miss until the week is out"). Counting
+ *   an unfinished day would drop the period grade at every rollover
+ *   and walk it back up as the day is worked, which is precisely the
+ *   loss-aversion pattern the product excludes by design. Today is
+ *   excluded from *both* sides, so it neither drags nor flatters.
+ *
+ * Rest days are stored as {0, 0} and stay neutral; special days carry
+ * their rating in the stored row. Recorded rows always win over the
+ * fill.
+ */
+export function periodDays(
+  input: PeriodInput,
+): { earned: number; possible: number }[] {
+  const byDate = new Map(input.recorded.map((d) => [d.localDate, d]));
+  const days: { earned: number; possible: number }[] = [];
+  for (let d = input.start; d < input.end; d = addDays(d, 1)) {
+    // Dates ascend, so the first unfinished day ends the period.
+    if (d >= input.today) break;
+    if (input.gradingStart === null || d < input.gradingStart) continue;
+    const row = byDate.get(d);
+    days.push(
+      row
+        ? { earned: row.earned, possible: row.possible }
+        : { earned: 0, possible: input.dailyPossible },
+    );
+  }
+  return days;
+}
+
 /**
  * Weekly and monthly grades (ADR-0004 §5): points earned ÷ points
  * possible over the period, purely additive — no curves or weighting.
  * Every day already reduces to an {earned, possible} pair (rest days
  * are {0, 0} and drop out on their own), so this one reduce serves
- * both periods; only the input range differs.
+ * both periods; only the input range differs. Feed it `periodDays`,
+ * not the stored rows directly — see the note there.
  */
 export function aggregateGrade(
   days: { earned: number; possible: number }[],

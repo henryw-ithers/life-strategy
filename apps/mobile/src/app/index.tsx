@@ -5,7 +5,7 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
-import type { DayScore } from "@life-strategy/scoring";
+import { weekStart, type DayScore } from "@life-strategy/scoring";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -283,9 +283,14 @@ export default function TodayScreen() {
               </View>
             </View>
 
+            {/* Days count once they're over (ADR-0004 §5 / periodDays),
+                so today is not in this number yet — say so rather than
+                let a completed task appear to do nothing. */}
             {weekGrade?.base !== null && weekGrade?.base !== undefined ? (
               <AppText variant="caption" color={theme.muted} style={styles.weekStat}>
-                This week · {weekGrade.base}%
+                {weekStart(day.date) === weekStart(day.today)
+                  ? `This week, through yesterday · ${weekGrade.base}%`
+                  : `That week · ${weekGrade.base}%`}
               </AppText>
             ) : null}
 

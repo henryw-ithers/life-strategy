@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregateGrade, computeDayScore, deriveChecklist, extraRunPoints } from "../grade";
+import {
+  aggregateGrade,
+  computeDayScore,
+  deriveChecklist,
+  extraRunPoints,
+  periodDays,
+} from "../grade";
 
 const date = "2026-07-17"; // Friday; week starts 07-13
 
@@ -223,5 +229,115 @@ describe("aggregateGrade — ADR-0004 §5 (weekly/monthly: earned ÷ possible ov
   it("matches the ADR's own worked identity: a perfect balanced week totals 100", () => {
     const week = Array.from({ length: 7 }, () => ({ earned: 7, possible: 7 }));
     expect(aggregateGrade(week).base).toBe(100);
+  });
+});
+
+describe("periodDays", () => {
+  // Week of Mon 2026-07-13 .. Sun 2026-07-19.
+  const week = { start: "2026-07-13", end: "2026-07-20" };
+  const base = { ...week, dailyPossible: 50, gradingStart: "2026-01-01" };
+
+  it("counts an elapsed day with no stored row as zero earned", () => {
+    const days = periodDays({
+      ...base,
+      today: "2026-07-20", // the whole week is over
+      recorded: [{ localDate: "2026-07-13", earned: 50, possible: 50 }],
+    });
+    expect(days).toHaveLength(7);
+    expect(days[0]).toEqual({ earned: 50, possible: 50 });
+    expect(days.slice(1)).toEqual(
+      Array.from({ length: 6 }, () => ({ earned: 0, possible: 50 })),
+    );
+    // One perfect day out of a seven-day week, not a perfect week.
+    expect(aggregateGrade(days).base).toBe(14);
+  });
+
+  it("does not let skipped days vanish from the denominator", () => {
+    const recorded = [
+      { localDate: "2026-07-13", earned: 50, possible: 50 },
+      { localDate: "2026-07-14", earned: 50, possible: 50 },
+      { localDate: "2026-07-15", earned: 50, possible: 50 },
+      { localDate: "2026-07-16", earned: 50, possible: 50 },
+    ];
+    // The bug this guards: aggregating stored rows alone reads 100%.
+    expect(aggregateGrade(recorded).base).toBe(100);
+    const days = periodDays({ ...base, today: "2026-07-20", recorded });
+    expect(aggregateGrade(days).base).toBe(57); // round(200/350*100)
+  });
+
+  it("excludes the current day from both sides, so a rollover never drops the grade", () => {
+    const recorded = [
+      { localDate: "2026-07-13", earned: 50, possible: 50 },
+      { localDate: "2026-07-14", earned: 50, possible: 50 },
+    ];
+    // Wednesday morning, nothing done yet.
+    const morning = periodDays({ ...base, today: "2026-07-15", recorded });
+    expect(morning).toHaveLength(2);
+    expect(aggregateGrade(morning).base).toBe(100);
+
+    // Same day, halfway through — today still does not count either way.
+    const evening = periodDays({
+      ...base,
+      today: "2026-07-15",
+      recorded: [...recorded, { localDate: "2026-07-15", earned: 20, possible: 50 }],
+    });
+    expect(evening).toHaveLength(2);
+    expect(aggregateGrade(evening).base).toBe(100);
+  });
+
+  it("ignores days before the first diagnostic", () => {
+    const days = periodDays({
+      ...base,
+      gradingStart: "2026-07-16",
+      today: "2026-07-20",
+      recorded: [],
+    });
+    expect(days).toHaveLength(4); // 16th through 19th
+  });
+
+  it("grades nothing when no diagnostic has been taken", () => {
+    const days = periodDays({
+      ...base,
+      gradingStart: null,
+      today: "2026-07-20",
+      recorded: [{ localDate: "2026-07-13", earned: 50, possible: 50 }],
+    });
+    expect(days).toEqual([]);
+    expect(aggregateGrade(days).base).toBeNull();
+  });
+
+  it("keeps stored rest and special days as stored", () => {
+    const days = periodDays({
+      ...base,
+      today: "2026-07-16",
+      recorded: [
+        { localDate: "2026-07-13", earned: 0, possible: 0 }, // rest
+        { localDate: "2026-07-14", earned: 80, possible: 100 }, // special, 8/10
+        // 07-15 untouched → filled
+      ],
+    });
+    expect(days).toEqual([
+      { earned: 0, possible: 0 },
+      { earned: 80, possible: 100 },
+      { earned: 0, possible: 50 },
+    ]);
+  });
+
+  it("a fully rested elapsed week still grades nothing", () => {
+    const days = periodDays({
+      ...base,
+      today: "2026-07-20",
+      recorded: Array.from({ length: 7 }, (_, i) => ({
+        localDate: `2026-07-${13 + i}`,
+        earned: 0,
+        possible: 0,
+      })),
+    });
+    expect(aggregateGrade(days).base).toBeNull();
+  });
+
+  it("counts nothing for a week that has not started", () => {
+    const days = periodDays({ ...base, today: "2026-07-13", recorded: [] });
+    expect(days).toEqual([]);
   });
 });
