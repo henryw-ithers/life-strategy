@@ -16,6 +16,7 @@ import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { PairwiseRank } from "../ui/PairwiseRank";
 import { FrequencyPicker } from "./FrequencyPicker";
+import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 export interface ComparisonTask {
   id: string;
@@ -27,10 +28,20 @@ interface AddTaskModalProps {
   onClose: () => void;
   /** Active tasks sorted by rank (1 = most important). */
   existingTasks: ComparisonTask[];
+  /** Every scoreable unit, for linking the task to more than one. */
+  units: PickableUnit[];
+  /** The unit this was opened from — the default home unit. */
+  homeUnitId: string;
+  areaColors: Record<string, string>;
   accent: string;
   theme: ThemeTokens;
-  /** rank is 1-based; commits the insert. */
-  onCommit: (title: string, timesPerWeek: number, rank: number) => Promise<void>;
+  /** rank is 1-based and applies to `unitIds[0]`, the home unit. */
+  onCommit: (
+    title: string,
+    timesPerWeek: number,
+    rank: number,
+    unitIds: string[],
+  ) => Promise<void>;
 }
 
 type Phase = "form" | "compare";
@@ -44,6 +55,9 @@ export function AddTaskModal({
   visible,
   onClose,
   existingTasks,
+  units,
+  homeUnitId,
+  areaColors,
   accent,
   theme,
   onCommit,
@@ -52,6 +66,7 @@ export function AddTaskModal({
   const [phase, setPhase] = useState<Phase>("form");
   const [title, setTitle] = useState("");
   const [timesPerWeek, setTimesPerWeek] = useState(7);
+  const [unitIds, setUnitIds] = useState<string[]>([homeUnitId]);
   const [placementKey, setPlacementKey] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +74,7 @@ export function AddTaskModal({
     setPhase("form");
     setTitle("");
     setTimesPerWeek(7);
+    setUnitIds([homeUnitId]);
     setSaving(false);
   };
 
@@ -74,8 +90,9 @@ export function AddTaskModal({
     setSaving(true);
     const committedTitle = title.trim();
     const committedTimes = timesPerWeek;
+    const committedUnits = unitIds;
     close();
-    void onCommit(committedTitle, committedTimes, rank);
+    void onCommit(committedTitle, committedTimes, rank, committedUnits);
   };
 
   const startPlacement = () => {
@@ -143,6 +160,13 @@ export function AddTaskModal({
                   theme={theme}
                 />
               </View>
+              <UnitPicker
+                units={units}
+                value={unitIds}
+                onChange={setUnitIds}
+                theme={theme}
+                areaColors={areaColors}
+              />
               <Button
                 label={existingTasks.length === 0 ? "Add task" : "Next: rank it"}
                 color={accent}

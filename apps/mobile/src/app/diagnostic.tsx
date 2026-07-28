@@ -550,7 +550,7 @@ export default function DiagnosticFlow() {
                   caption={row.suggestAddTask ? "add a task?" : undefined}
                   onPress={
                     row.suggestAddTask
-                      ? () => router.push(`/plan/${row.unitId}` as Href)
+                      ? () => router.push(`/plan?unit=${row.unitId}` as Href)
                       : undefined
                   }
                   theme={theme}
@@ -573,7 +573,7 @@ export default function DiagnosticFlow() {
                   caption={row.suggestAddTask ? "add a task?" : undefined}
                   onPress={
                     row.suggestAddTask
-                      ? () => router.push(`/plan/${row.unitId}` as Href)
+                      ? () => router.push(`/plan?unit=${row.unitId}` as Href)
                       : undefined
                   }
                   theme={theme}
@@ -636,7 +636,7 @@ export default function DiagnosticFlow() {
               <Pressable
                 key={row.unitId}
                 disabled={row.weight === null}
-                onPress={() => router.push(`/plan/${row.unitId}` as Href)}
+                onPress={() => router.push(`/plan?unit=${row.unitId}` as Href)}
                 accessibilityRole="button"
                 accessibilityHint="Opens this unit's task plan"
                 style={({ pressed }) => [styles.weightRow, { opacity: pressed ? 0.6 : 1 }]}

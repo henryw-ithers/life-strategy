@@ -47,13 +47,26 @@ describe("deriveChecklist", () => {
   });
 
   it("ignores last week's completions", () => {
+    // `date` is Fri 2026-07-17, whose week opens Sun 2026-07-12; the
+    // Saturday before that is the last day of the prior week.
     const [status] = deriveChecklist(
       [run],
-      [{ taskId: "run", localDate: "2026-07-12" }], // Sunday, prior week
+      [{ taskId: "run", localDate: "2026-07-11" }], // Saturday, prior week
       date,
     );
     expect(status?.doneCount).toBe(0);
     expect(status?.band).toBe("week");
+  });
+
+  it("counts the Sunday that opens this week", () => {
+    // The boundary case the Sunday-first amendment turns on: this
+    // Sunday belongs to the current week, not the one before it.
+    const [status] = deriveChecklist(
+      [run],
+      [{ taskId: "run", localDate: "2026-07-12" }],
+      date,
+    );
+    expect(status?.doneCount).toBe(1);
   });
 
   it("counts fortnightly tasks over the whole fortnight", () => {

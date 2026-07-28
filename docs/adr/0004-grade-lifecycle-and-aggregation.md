@@ -27,8 +27,16 @@ should be able to say what they were, not just what they scored.
   back-filled or corrected and day designations changed anywhere in
   that span. When a week ends, the days of the week-before-last get
   `finalized_at` stamped and become immutable forever.
-- Weeks start on **Monday** by default (configurable via
-  `app_setting`).
+- Weeks start on **Sunday** and run to Saturday (**amended
+  2026-07-27**; originally Monday-first). One definition serves task
+  windows, weekly grades, the edit window, the calendar grid, and
+  contentment check-in keys — a weekly task whose window disagreed
+  with the week its grade lands in would be indefensible. Fortnights
+  re-anchor to even weeks from an epoch Sunday. Existing
+  `contentment_checkin` rows were keyed by Monday; a one-time fixup
+  (`migrateToSundayWeeks`) moves each back a day to the Sunday opening
+  the week it described, so six of its seven days are unchanged and no
+  score is altered.
 - Forgetting to log is not the same as not doing the thing; a full
   prior week is enough to be honest, and the hard two-week horizon
   still prevents retro-fiction.

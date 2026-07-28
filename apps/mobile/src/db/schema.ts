@@ -155,6 +155,37 @@ export const task = sqliteTable("task", {
   ...timestamps,
 });
 
+/**
+ * A task's scoring membership, one row per unit it serves (ADR-0019).
+ *
+ * Every task has at least one row here — the one matching `task.unitId`,
+ * its home unit for grouping. A task that serves more than one unit
+ * takes a rank slot in each and earns each unit's share, so completing
+ * it once credits all of them. Each unit still divides only its own
+ * weight across its own ranked tasks, so weights keep summing to 100;
+ * the day's denominator counts the task in every unit too, so a shared
+ * task inflates neither side of the grade.
+ *
+ * `task.point_value` stays as the sum of these rows — a cache, so the
+ * scoring engine and `task_completion` keep taking one number per task.
+ */
+export const taskUnit = sqliteTable(
+  "task_unit",
+  {
+    taskId: text("task_id")
+      .notNull()
+      .references(() => task.id),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => lifeUnit.id),
+    /** Beli-style rank within this unit; point value derives from it. */
+    rankInUnit: integer("rank_in_unit").notNull(),
+    pointValue: integer("point_value").notNull(),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.unitId] })],
+);
+
 export const taskCompletion = sqliteTable("task_completion", {
   id: text("id").primaryKey(),
   taskId: text("task_id")

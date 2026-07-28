@@ -8,8 +8,8 @@
  *  to the day it felt like. Configurable via app_setting. */
 export const ROLLOVER_HOUR = 3;
 
-/** Monday of the week containing 1970-01-05; anchors fortnight parity. */
-const EPOCH_MONDAY_MS = Date.UTC(1970, 0, 5, 12);
+/** A Sunday (1970-01-04); anchors fortnight parity. */
+const EPOCH_SUNDAY_MS = Date.UTC(1970, 0, 4, 12);
 const DAY_MS = 24 * 3600_000;
 
 function parse(date: string): Date {
@@ -39,19 +39,21 @@ export function addDays(date: string, n: number): string {
   return format(new Date(parse(date).getTime() + n * DAY_MS));
 }
 
-/** Monday of the week containing `date` (weeks start Monday, ADR-0004). */
+/** Sunday of the week containing `date` — weeks run Sunday→Saturday
+ *  (ADR-0004 §1 as amended 2026-07-27). This is the single definition
+ *  of "week" in the app: task windows, weekly grades, the edit window,
+ *  and contentment check-in keys all derive from it. */
 export function weekStart(date: string): string {
   const dt = parse(date);
-  const backToMonday = (dt.getUTCDay() + 6) % 7;
-  return format(new Date(dt.getTime() - backToMonday * DAY_MS));
+  return format(new Date(dt.getTime() - dt.getUTCDay() * DAY_MS));
 }
 
-/** Monday opening the fortnight containing `date`. Fortnights align to
- *  even weeks since the epoch Monday, so the boundary is stable and
- *  independent of any task's creation date. */
+/** Sunday opening the fortnight containing `date`. Fortnights align to
+ *  even weeks since the epoch Sunday, so the boundary is stable and
+ *  independent of any task's creation or completion date. */
 export function fortnightStart(date: string): string {
   const ws = parse(weekStart(date)).getTime();
-  const weeksSinceEpoch = Math.round((ws - EPOCH_MONDAY_MS) / (7 * DAY_MS));
+  const weeksSinceEpoch = Math.round((ws - EPOCH_SUNDAY_MS) / (7 * DAY_MS));
   return format(new Date(ws - (((weeksSinceEpoch % 2) + 2) % 2) * 7 * DAY_MS));
 }
 
@@ -68,7 +70,7 @@ export function nextMonthStart(date: string): string {
   return format(new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1, 12)));
 }
 
-/** First editable day: Monday of the week before `today`'s week. */
+/** First editable day: Sunday of the week before `today`'s week. */
 export function editWindowStart(today: string): string {
   return addDays(weekStart(today), -7);
 }

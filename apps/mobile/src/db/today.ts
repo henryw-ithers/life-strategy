@@ -33,6 +33,7 @@ import {
   photo,
   task,
   taskCompletion,
+  taskUnit,
   unitWeight,
 } from "./schema";
 
@@ -120,9 +121,25 @@ export async function loadDay(date: string): Promise<DayData> {
     units.filter((u) => u.includeInScoring).map((u) => u.id),
   );
 
-  const tasks = (
-    await db.select().from(task).where(eq(task.active, true)).orderBy(asc(task.rankInUnit))
-  ).filter((t) => scoredUnitIds.has(t.unitId));
+  // A task counts if *any* unit it serves is scored (ADR-0019) — an
+  // excluded unit already contributes zero points to it, so filtering
+  // on the home unit alone would drop legitimately-earned points from
+  // its other units.
+  const allTasks = await db
+    .select()
+    .from(task)
+    .where(eq(task.active, true))
+    .orderBy(asc(task.rankInUnit));
+  const memberships = allTasks.length
+    ? await db
+        .select()
+        .from(taskUnit)
+        .where(inArray(taskUnit.taskId, allTasks.map((t) => t.id)))
+    : [];
+  const scoredTaskIds = new Set(
+    memberships.filter((m) => scoredUnitIds.has(m.unitId)).map((m) => m.taskId),
+  );
+  const tasks = allTasks.filter((t) => scoredTaskIds.has(t.id));
 
   // Completions across the fortnight containing `date` cover both the
   // weekly and fortnightly counting windows.
@@ -397,16 +414,22 @@ export interface MonthDay {
 
 /** Cached grades for the calendar month containing `date`, keyed by
  *  local date. Days never touched have no row and are simply absent. */
-export async function loadMonthGrades(date: string): Promise<Map<string, MonthDay>> {
+/**
+ * Cached day scores over an arbitrary range, `end` exclusive.
+ *
+ * Both calendar surfaces read this. They need different spans — the
+ * grid wants a calendar month, the week strip wants the 14-day edit
+ * window, and those only coincide mid-month — so the range is the
+ * caller's to choose rather than being fixed to a month.
+ */
+export async function loadGradesBetween(
+  start: string,
+  end: string,
+): Promise<Map<string, MonthDay>> {
   const rows = await db
     .select()
     .from(dayGrade)
-    .where(
-      and(
-        gte(dayGrade.localDate, monthStart(date)),
-        lt(dayGrade.localDate, nextMonthStart(date)),
-      ),
-    );
+    .where(and(gte(dayGrade.localDate, start), lt(dayGrade.localDate, end)));
   return new Map(
     rows.map((r) => [
       r.localDate,
@@ -425,6 +448,21 @@ export async function loadMonthGrades(date: string): Promise<Map<string, MonthDa
       },
     ]),
   );
+}
+
+/**
+ * Everything both calendar surfaces need in one query: the month the
+ * grid shows, widened to take in the edit window when it reaches back
+ * into the previous month (which it does for the first ~two weeks of
+ * every month).
+ */
+export async function loadCalendarGrades(
+  today: string,
+): Promise<Map<string, MonthDay>> {
+  const windowDays = editWindowDays(today);
+  const start = [monthStart(today), windowDays[0]!].sort()[0]!;
+  const end = [nextMonthStart(today), addDays(windowDays[13]!, 1)].sort()[1]!;
+  return loadGradesBetween(start, end);
 }
 
 export async function setDayKind(
@@ -477,14 +515,14 @@ async function finalizePastDays(today: string): Promise<void> {
     );
 }
 
-/** The 14 selectable days: last week's Monday through this week's
+/** The 14 selectable days: last week's Sunday through this week's
  *  Sunday. Days after `today` are visible but disabled. */
 export function editWindowDays(today: string): string[] {
   const start = editWindowStart(today);
   return Array.from({ length: 14 }, (_, i) => addDays(start, i));
 }
 
-/** The seven days (Mon-first) of the week containing `date`. */
+/** The seven days (Sun-first) of the week containing `date`. */
 export function weekOf(date: string): string[] {
   const start = weekStart(date);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));

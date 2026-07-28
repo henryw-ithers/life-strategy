@@ -84,7 +84,8 @@ async function loadRangeGrade(start: string, end: string): Promise<DayScore> {
   );
 }
 
-/** The week containing `date` (Monday-first, ADR-0004 §1). */
+/** The week containing `date` (Sunday-first, ADR-0004 §1 as
+ *  amended 2026-07-27). */
 export async function loadWeekGrade(date: string): Promise<DayScore> {
   const start = weekStart(date);
   return loadRangeGrade(start, addDays(start, 7));

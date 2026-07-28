@@ -28,10 +28,19 @@ describe("localDateOf", () => {
 });
 
 describe("week and fortnight boundaries", () => {
-  it("weeks start on Monday", () => {
-    expect(weekStart("2026-07-17")).toBe("2026-07-13"); // Fri → Mon
-    expect(weekStart("2026-07-13")).toBe("2026-07-13"); // Mon → itself
-    expect(weekStart("2026-07-19")).toBe("2026-07-13"); // Sun → prior Mon
+  it("weeks start on Sunday and run to Saturday", () => {
+    expect(weekStart("2026-07-17")).toBe("2026-07-12"); // Fri → Sun
+    expect(weekStart("2026-07-12")).toBe("2026-07-12"); // Sun → itself
+    expect(weekStart("2026-07-18")).toBe("2026-07-12"); // Sat → same week
+    expect(weekStart("2026-07-19")).toBe("2026-07-19"); // next Sun → new week
+  });
+
+  it("every day of a week maps to the same Sunday", () => {
+    const sunday = "2026-07-12";
+    for (let i = 0; i < 7; i++) {
+      expect(weekStart(addDays(sunday, i))).toBe(sunday);
+    }
+    expect(weekStart(addDays(sunday, 7))).toBe(addDays(sunday, 7));
   });
 
   it("addDays crosses month boundaries", () => {
@@ -46,6 +55,22 @@ describe("week and fortnight boundaries", () => {
     expect(fortnightStart(addDays(fs, 13))).toBe(fs);
     // The next fortnight starts exactly 14 days later.
     expect(fortnightStart(addDays(fs, 14))).toBe(addDays(fs, 14));
+  });
+
+  it("fortnights open on a Sunday", () => {
+    // getUTCDay() === 0 is Sunday; noon-UTC parsing keeps this stable.
+    for (const d of ["2026-07-17", "2026-01-01", "2027-03-09"]) {
+      const fs = fortnightStart(d);
+      expect(new Date(`${fs}T12:00:00Z`).getUTCDay()).toBe(0);
+    }
+  });
+
+  it("a window never depends on when something was last done", () => {
+    // The property the calendar anchoring exists to guarantee: the
+    // boundary is a function of the date alone.
+    const a = fortnightStart("2026-07-15");
+    const b = fortnightStart("2026-07-16");
+    expect(a).toBe(b);
   });
 });
 
@@ -74,17 +99,17 @@ describe("month boundaries", () => {
 });
 
 describe("edit window (ADR-0004 §1, week-aligned)", () => {
-  const today = "2026-07-17"; // Friday; week starts 07-13
+  const today = "2026-07-17"; // Friday; week starts Sun 07-12
 
-  it("opens on Monday of the previous week", () => {
-    expect(editWindowStart(today)).toBe("2026-07-06");
+  it("opens on Sunday of the previous week", () => {
+    expect(editWindowStart(today)).toBe("2026-07-05");
   });
 
   it("the whole previous week is editable; before that is finalized", () => {
-    expect(isEditable("2026-07-06", today)).toBe(true);
-    expect(isEditable("2026-07-05", today)).toBe(false);
-    expect(isFinalized("2026-07-05", today)).toBe(true);
-    expect(isFinalized("2026-07-06", today)).toBe(false);
+    expect(isEditable("2026-07-05", today)).toBe(true);
+    expect(isEditable("2026-07-04", today)).toBe(false);
+    expect(isFinalized("2026-07-04", today)).toBe(true);
+    expect(isFinalized("2026-07-05", today)).toBe(false);
   });
 
   it("today is editable, the future is not", () => {

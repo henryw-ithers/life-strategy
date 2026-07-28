@@ -16,7 +16,7 @@ interface MonthGridProps {
   theme: ThemeTokens;
 }
 
-const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function pad2(n: number): string {
   return `${n}`.padStart(2, "0");
@@ -30,8 +30,8 @@ function pad2(n: number): string {
 export function MonthGrid({ month, grades, selected, today, onSelect, theme }: MonthGridProps) {
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(y!, m!, 0, 12)).getUTCDate();
-  // Monday-first offset of the 1st.
-  const leading = (new Date(Date.UTC(y!, m! - 1, 1, 12)).getUTCDay() + 6) % 7;
+  // Sunday-first offset of the 1st (ADR-0004 §1 as amended).
+  const leading = new Date(Date.UTC(y!, m! - 1, 1, 12)).getUTCDay();
 
   const cells: (string | null)[] = [
     ...Array.from({ length: leading }, () => null),

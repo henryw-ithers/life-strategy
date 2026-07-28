@@ -44,7 +44,7 @@ import {
   deleteActivity,
   editWindowDays,
   loadDay,
-  loadMonthGrades,
+  loadCalendarGrades,
   logActivity,
   setDayKind,
   toggleCompletion,
@@ -101,7 +101,7 @@ export default function TodayScreen() {
   const reload = useCallback(async (date: string) => {
     const [next, grades, week] = await Promise.all([
       loadDay(date),
-      loadMonthGrades(currentLocalDate()),
+      loadCalendarGrades(currentLocalDate()),
       loadWeekGrade(date),
     ]);
     setDay(next);
@@ -356,6 +356,7 @@ export default function TodayScreen() {
               <Animated.View layout={layout} style={styles.strip}>
                 <WeekStrip
                   days={editWindowDays(day.today)}
+                  grades={monthGrades}
                   selected={day.date}
                   today={day.today}
                   onSelect={select}

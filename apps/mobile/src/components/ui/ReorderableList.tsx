@@ -30,7 +30,7 @@ import Animated, {
   useAnimatedStyle,
   useFrameCallback,
   useReducedMotion,
-  useScrollOffset,
+  useAnimatedScrollHandler,
   useSharedValue,
   withSpring,
   withTiming,
@@ -50,9 +50,8 @@ export interface ReorderableItem {
   hasDetail?: boolean;
 }
 
-const ROW_HEIGHT = 64;
+const DEFAULT_ROW_HEIGHT = 64;
 const ROW_GAP = space.sm;
-const SLOT = ROW_HEIGHT + ROW_GAP;
 
 /** Rows sit inset from the scroll edges so a lifted row's shadow has
  *  somewhere to fall instead of being clipped by the viewport. */
@@ -85,6 +84,18 @@ interface ReorderableListProps {
   /** Completes "Opens …" for the row's accessibility hint. */
   detailHint?: string;
   theme: ThemeTokens;
+  /** Replaces the default rank/dot/label body. The handle, the row
+   *  chrome, and every gesture stay with the list; only the contents
+   *  change, so a caller can reorder rows it already renders. */
+  renderItem?: (item: ReorderableItem, index: number) => React.ReactNode;
+  /** Rows are uniform; the drag maths depends on it. */
+  rowHeight?: number;
+  /** False when a parent already scrolls. The list then lays out at its
+   *  full height and does no auto-scrolling of its own. */
+  scrollable?: boolean;
+  /** Fires as a drag starts and ends. A parent that scrolls must
+   *  freeze while a row is held, or the page moves with the finger. */
+  onDragStateChange?: (dragging: boolean) => void;
 }
 
 export function ReorderableList({
@@ -93,9 +104,20 @@ export function ReorderableList({
   onPressItem,
   detailHint,
   theme,
+  renderItem,
+  rowHeight = DEFAULT_ROW_HEIGHT,
+  scrollable = true,
+  onDragStateChange,
 }: ReorderableListProps) {
+  const SLOT = rowHeight + ROW_GAP;
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const scrollOffset = useScrollOffset(scrollRef);
+  // Tracked by hand rather than `useScrollOffset`: that hook warns
+  // whenever its ref goes unattached, which is exactly the
+  // `scrollable={false}` case where a parent owns the scrolling.
+  const scrollOffset = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollOffset.value = e.contentOffset.y;
+  });
   const [viewportHeight, setViewportHeight] = useState(0);
   /** Mirrors `draggingId` on the JS side purely to freeze scrolling. */
   const [dragging, setDragging] = useState(false);
@@ -132,7 +154,13 @@ export function ReorderableList({
 
   const count = items.length;
   const contentHeight = count * SLOT - ROW_GAP + INSET * 2;
-  const maxScroll = Math.max(0, contentHeight - viewportHeight);
+  // Nothing to auto-scroll when the parent owns scrolling.
+  const maxScroll = scrollable ? Math.max(0, contentHeight - viewportHeight) : 0;
+
+  const setDragState = (next: boolean) => {
+    setDragging(next);
+    onDragStateChange?.(next);
+  };
 
   const commit = (next: Record<string, number>) => {
     const ordered = [...items].sort((a, b) => next[a.id]! - next[b.id]!);
@@ -168,7 +196,7 @@ export function ReorderableList({
     if (maxScroll > 0) {
       const onScreen = dragTop.value - scrollOffset.value;
       const fromTop = onScreen;
-      const fromBottom = viewportHeight - ROW_HEIGHT - onScreen;
+      const fromBottom = viewportHeight - rowHeight - onScreen;
       // Depth into the edge zone, 0 at the boundary to 1 at the very
       // edge — the ramp is what makes this controllable.
       const ramp = (gap: number) => {
@@ -219,18 +247,7 @@ export function ReorderableList({
     [contentHeight],
   );
 
-  return (
-    <Animated.ScrollView
-      ref={scrollRef}
-      onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
-      contentContainerStyle={contentStyle}
-      showsVerticalScrollIndicator={false}
-      scrollEventThrottle={16}
-      // While a row is held, the list must not also respond to the
-      // finger — the frame loop owns scrolling for the duration.
-      scrollEnabled={!dragging}
-    >
-      {items.map((item, index) => (
+  const rows = items.map((item, index) => (
         <Row
           key={item.id}
           item={item}
@@ -245,15 +262,36 @@ export function ReorderableList({
           lift={lift}
           liftedId={liftedId}
           scrollOffset={scrollOffset}
-          onSetDragging={setDragging}
-          onCommit={commit}
-          onMoveBy={moveBy}
-          onTick={tick}
-          onPressItem={onPressItem}
-          detailHint={detailHint}
-          theme={theme}
-        />
-      ))}
+      onSetDragging={setDragState}
+      onCommit={commit}
+      onMoveBy={moveBy}
+      onTick={tick}
+      onPressItem={onPressItem}
+      detailHint={detailHint}
+      theme={theme}
+      renderItem={renderItem}
+      rowHeight={rowHeight}
+      slot={SLOT}
+    />
+  ));
+
+  if (!scrollable) {
+    return <Animated.View style={contentStyle}>{rows}</Animated.View>;
+  }
+
+  return (
+    <Animated.ScrollView
+      ref={scrollRef}
+      onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+      contentContainerStyle={contentStyle}
+      onScroll={scrollHandler}
+      showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
+      // While a row is held, the list must not also respond to the
+      // finger — the frame loop owns scrolling for the duration.
+      scrollEnabled={!dragging}
+    >
+      {rows}
     </Animated.ScrollView>
   );
 }
@@ -278,6 +316,9 @@ interface RowProps {
   onPressItem?: (item: ReorderableItem) => void;
   detailHint?: string;
   theme: ThemeTokens;
+  renderItem?: (item: ReorderableItem, index: number) => React.ReactNode;
+  rowHeight: number;
+  slot: number;
 }
 
 function Row({
@@ -300,6 +341,9 @@ function Row({
   onPressItem,
   detailHint,
   theme,
+  renderItem,
+  rowHeight,
+  slot,
 }: RowProps) {
   const reduceMotion = useReducedMotion();
 
@@ -311,7 +355,7 @@ function Row({
     .shouldCancelWhenOutside(false)
     .onStart(() => {
       draggingId.value = item.id;
-      startTop.value = (positions.value[item.id] ?? index) * SLOT + INSET;
+      startTop.value = (positions.value[item.id] ?? index) * slot + INSET;
       dragTop.value = startTop.value;
       startScroll.value = scrollOffset.value;
       translation.value = 0;
@@ -335,8 +379,8 @@ function Row({
     const isDragging = draggingId.value === item.id;
     // Fall back to render order: a row can paint for one frame before
     // a re-seed reaches the shared value, and NaN would blank it.
-    const slot = positions.value[item.id] ?? index;
-    const resting = slot * SLOT + INSET;
+    const mySlot = positions.value[item.id] ?? index;
+    const resting = mySlot * slot + INSET;
     const top = isDragging
       ? dragTop.value
       : reduceMotion
@@ -361,9 +405,22 @@ function Row({
       style={[
         styles.row,
         animated,
-        { backgroundColor: theme.surface, borderColor: theme.hairline },
+        { height: rowHeight },
+        // A caller-rendered row drops the border but keeps the fill:
+        // the lift shadow is drawn by this view, and a transparent one
+        // casts nothing.
+        renderItem
+          ? { backgroundColor: theme.surface }
+          : {
+              backgroundColor: theme.surface,
+              borderColor: theme.hairline,
+              borderWidth: StyleSheet.hairlineWidth,
+            },
       ]}
     >
+      {renderItem ? (
+        <View style={styles.custom}>{renderItem(item, index)}</View>
+      ) : (
       <Pressable
         onPress={tappable ? () => onPressItem!(item) : undefined}
         disabled={!tappable}
@@ -390,6 +447,7 @@ function Row({
           {item.label}
         </AppText>
       </Pressable>
+      )}
       <GestureDetector gesture={pan}>
         <View
           accessible={false}
@@ -410,9 +468,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: INSET,
     right: INSET,
-    height: ROW_HEIGHT,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     alignItems: "center",
     // Sheet shadow (DESIGN.md §4), faded in only while lifted.
@@ -440,4 +496,6 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   grip: { width: 18, height: 1.5, borderRadius: 1 },
+  custom: { flex: 1, justifyContent: "center" },
 });
+

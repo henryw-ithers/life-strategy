@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import migrations from "../../drizzle/migrations";
 import { AppText } from "../components/ui/AppText";
 import { db } from "../db/client";
+import { runDataMigrations } from "../db/migrations";
 import { syncTaxonomy } from "../db/seed";
 import { getTheme } from "../theme/colors";
 import { space } from "../theme/tokens";
@@ -25,7 +26,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!success) return;
+    // Taxonomy first: data fixups may reference units it seeds.
     syncTaxonomy(db)
+      .then(runDataMigrations)
       .then(() => setSeeded(true))
       .catch((e: unknown) =>
         setSeedError(e instanceof Error ? e : new Error(String(e))),

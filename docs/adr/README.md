@@ -17,6 +17,7 @@ status to *Accepted*.
 | [0008](0008-contentment-calibration.md) | Contentment calibration and sensitive data | Accepted |
 | [0009](0009-spontaneous-activities.md) | Spontaneous activities and bonus credit | Accepted |
 | [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
+| [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -39,6 +40,11 @@ code.
 | 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
 | 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
 | 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
+
+**0019 was written ahead of its reserved numbers.** 0011–0018 stay
+reserved for the triggers listed above; multi-unit tasks simply came
+up first, and renumbering reserved slots to keep the sequence tidy
+would break every reference already pointing at them.
 
 Deliberately **not** ADRs: release operations (EAS/TestFlight/store
 listings), testing conventions, and code style — those live in repo
