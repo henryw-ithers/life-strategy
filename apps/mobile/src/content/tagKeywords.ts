@@ -18,6 +18,7 @@ const KEYWORDS: Record<string, string[]> = {
   finances: ["budget", "budgeting", "invest", "investing", "taxes", "finances"],
   "living-space": ["clean", "cleaning", "tidy", "tidied", "organize", "organized", "declutter", "diy", "garden"],
   "nature-surroundings": ["hike", "hiking", "walk", "park", "beach", "nature", "outdoors", "camping", "sunrise", "sunset"],
+  hygiene: ["shower", "shave", "shaved", "haircut", "hair cut", "barber", "floss", "flossed", "dentist", "skincare", "laundry", "washing", "groom", "grooming", "nails"],
   "hobbies-interests": ["paint", "painting", "draw", "drawing", "guitar", "piano", "music practice", "project", "craft", "chess", "photography", "wrote", "writing"],
   "art-media": ["movie", "film", "cinema", "concert", "gig", "museum", "gallery", "album", "book", "podcast", "game", "gaming", "show", "theatre"],
   "adventure-experiences": ["trip", "travel", "flight", "roadtrip", "road trip", "explore", "new place", "first time", "adventure"],

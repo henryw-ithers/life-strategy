@@ -54,10 +54,18 @@ leisure distinguishes making from taking in):
 | 2 | Physical health | Exercise & fitness · Nutrition · Sleep & recovery |
 | 3 | Mental wellbeing | Mental & emotional health · Spirituality · Giving & service |
 | 4 | Work & money | Job/career · Learning & growth · Finances |
-| 5 | Home & environment | Living space · Nature & surroundings |
+| 5 | Wellness | Living space · Nature · Hygiene |
 | 6 | Leisure & creativity | Hobbies & projects · Art & media · Adventure & experiences |
 
-Seventeen units across six areas. The taxonomy is the default, not a
+**Wellness is the maintenance area.** Where the other five are largely
+about growth, these three are low-effort, high-return upkeep: getting
+outside, a living space that's clean and comfortable, and looking after
+your own hygiene. It exists so the basics have somewhere to live and
+aren't crowded out by ambition — and it's deliberately distinct from
+Mental wellbeing, which is the inner work rather than the practical
+floor beneath it.
+
+Eighteen units across six areas. The taxonomy is the default, not a
 cage — users can rename units, hide ones that don't apply, or add their
 own, but the app always starts from this structure so nothing important
 is silently forgotten. Each unit carries a short description and
@@ -76,7 +84,7 @@ For each SLU the user records:
   the domain/formula term; "Priority" is what users see.)
 - **Satisfaction** (1–10): how satisfied they are with this unit today.
 
-The diagnostic is quick (17 units, two ratings each) and is repeated
+The diagnostic is quick (18 units, two ratings each) and is repeated
 **monthly** as the opening act of the monthly review — and anytime
 life changes. Re-diagnosing never destroys anything: goals and tasks
 carry over by default, point values rescale automatically from their

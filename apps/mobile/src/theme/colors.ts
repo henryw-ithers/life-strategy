@@ -37,7 +37,7 @@ export const SCRIM = "rgba(0,0,0,0.45)";
 const AREA_COLORS_LIGHT: Record<string, string> = {
   relationships: "#bb565a", // rose, hue 20
   "physical-health": "#4a925c", // green, hue 150
-  "mental-wellbeing": "#008c92", // brand teal, hue 200
+  "mental-wellbeing": "#007a80", // brand teal, hue 200 — tracks `accent`
   "work-money": "#3d73b6", // blue, hue 255
   "home-environment": "#b8892d", // amber, hue 80
   "leisure-creativity": "#7d5fad", // violet, hue 300
@@ -61,7 +61,11 @@ const THEMES: Record<ThemeName, ThemeTokens> = {
     ink: "#151c1e",
     muted: "#5a6569",
     hairline: "#dbdfe0",
-    accent: "#008c92",
+    /** oklch(0.52 0.087 200) — 5.1:1 as text on canvas, 4.5:1 on
+     *  surface, and 5.1:1 for the white label on an accent fill. The
+     *  previous #008c92 sat at 4.06:1 in all three roles, under AA for
+     *  15–17px label text; this is the same hue, one step down. */
+    accent: "#007a80",
     onAccent: "#ffffff",
     danger: "#a63d33", // oklch(0.50 0.13 30) — 6.3:1 on white
     areas: AREA_COLORS_LIGHT,

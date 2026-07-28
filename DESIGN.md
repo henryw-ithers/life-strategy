@@ -12,7 +12,7 @@ colors:
   muted-dark: "#929a9b"
   hairline-light: "#dbdfe0"
   hairline-dark: "#2e2e2e"
-  accent-light: "#008c92"
+  accent-light: "#007a80"
   accent-dark: "#3ebfc6"
   on-accent-light: "#ffffff"
   on-accent-dark: "#070707"
@@ -23,7 +23,7 @@ colors:
   area-relationships-dark: "#eb8182"
   area-physical-health-light: "#4a925c"
   area-physical-health-dark: "#6fc082"
-  area-mental-wellbeing-light: "#008c92"
+  area-mental-wellbeing-light: "#007a80"
   area-mental-wellbeing-dark: "#3ebfc6"
   area-work-money-light: "#3d73b6"
   area-work-money-dark: "#64a1ee"
@@ -127,7 +127,7 @@ components:
 **Creative North Star: "The Strategy Board"**
 
 Life Strategy is where a monthly diagnostic — importance × satisfaction
-across 17 Strategic Life Units — turns into a daily checklist and a
+across 18 Strategic Life Units — turns into a daily checklist and a
 grade. The interface reads as a strategist's board, not a habit
 tracker's scoreboard: decisive color, crisp hierarchy, and one
 recurring geometric motif (soft, oversized circles echoing the
@@ -158,7 +158,7 @@ decoration or softened truth.
 Six categorical Strategic Life Area hues at matched perceptual weight, one brand teal accent, and a pure achromatic canvas/surface/ink system — composed in OKLCH, exported as hex because React Native can't parse OKLCH at runtime.
 
 ### Primary
-- **Brand Teal** (`#008c92` light / `#3ebfc6` dark): the accent — primary buttons, active states, and the Mental Wellbeing area hue (the accent *is* one of the six areas, not a color invented separately from the system).
+- **Brand Teal** (`#007a80` light / `#3ebfc6` dark): the accent — primary buttons, active states, and the Mental Wellbeing area hue (the accent *is* one of the six areas, not a color invented separately from the system).
 - **On-Accent** (`#ffffff` light / `#070707` dark): the only label color on accent/area fills. Dark mode lifts its hues, so the readable label there is near-black (≥7:1), never white.
 - **Danger** (`#a63d33` light / `#ee9086` dark): destructive actions only (delete, remove). Area hues never signal destruction — red-rose means Relationships, not "warning."
 - **Scrim** (`rgba(0, 0, 0, 0.45)` both themes): the one backdrop dim behind sheets and modals.
@@ -167,9 +167,11 @@ Six categorical Strategic Life Area hues at matched perceptual weight, one brand
 Six categorical hues, one per Strategic Life Area, each lifted in lightness (not just brightened) for the dark canvas so bubbles glow rather than muddy:
 - **Rose** (`#bb565a` / `#eb8182`) — Relationships
 - **Green** (`#4a925c` / `#6fc082`) — Physical Health
-- **Teal** (`#008c92` / `#3ebfc6`) — Mental Wellbeing (= accent)
+- **Teal** (`#007a80` / `#3ebfc6`) — Mental Wellbeing (= accent)
 - **Blue** (`#3d73b6` / `#64a1ee`) — Work & Money
-- **Amber** (`#b8892d` / `#e3ad4b`) — Home & Environment
+- **Amber** (`#b8892d` / `#e3ad4b`) — Wellness (token ids keep the
+  original `home-environment` slug; ADR-0002 never re-keys taxonomy
+  rows, so a rename is a label change and the hue travels with it)
 - **Violet** (`#7d5fad` / `#ab8be3`) — Leisure & Creativity
 
 ### Neutral
@@ -216,7 +218,7 @@ Flat by default: canvas and surface differ only by tonal fill, never by shadow, 
 
 ### Buttons
 - **Shape:** rounded rectangle, radius varies by weight — primary 14px (`rounded.lg`), secondary 12px (`rounded.md`), quiet has no fill or radius.
-- **Primary:** filled with `accent` (teal `#008c92`/`#3ebfc6`, or a caller-supplied color for area-specific actions), white label at Headline weight, min-height 52px, horizontal padding 24px. Press state: scales to 0.98, no color change.
+- **Primary:** filled with `accent` (teal `#007a80`/`#3ebfc6`, or a caller-supplied color for area-specific actions), white label at Headline weight, min-height 52px, horizontal padding 24px. Press state: scales to 0.98, no color change.
 - **Secondary:** filled with `surface`, Ink-colored label at Label weight, min-height 48px. Press state: opacity 0.7.
 - **Quiet:** no fill, Muted-colored label at Label weight, min-height 44px, horizontal padding 16px. Press state: opacity 0.55. For tertiary/dismissive actions only.
 - **Disabled:** opacity 0.35 (primary) / 0.4 (secondary, quiet) on all variants — never a separate disabled palette.

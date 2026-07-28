@@ -78,16 +78,44 @@ export type DiagnosticAxis = "priority" | "satisfaction";
 const AXES: readonly DiagnosticAxis[] = ["priority", "satisfaction"];
 
 /**
- * Turns a completed ranking (each area's units ordered, then the
- * areas themselves ordered, per axis) into the same `DiagnosticEntry`
- * shape `saveDiagnostic` has always taken — `deriveWeights`, the
+ * The app's proposed overall order for one axis: every unit in one
+ * list, area rank primary and within-area rank secondary. This is what
+ * the final review step opens with, and what the user then drags into
+ * shape if the composition got something wrong.
+ */
+export function suggestOverallOrder(
+  areas: DiagnosticArea[],
+  unitOrderByArea: Record<string, Partial<Record<DiagnosticAxis, string[]>>>,
+  areaOrder: Partial<Record<DiagnosticAxis, string[]>>,
+  axis: DiagnosticAxis,
+): string[] {
+  const areaIds = areaOrder[axis] ?? areas.map((a) => a.id);
+  const areaRanks = areaIds.map((areaId, i) => ({ areaId, rank: i + 1 }));
+  const unitRanksByArea: Record<string, { unitId: string; rank: number }[]> = {};
+  for (const area of areas) {
+    const order = unitOrderByArea[area.id]?.[axis] ?? area.units.map((u) => u.id);
+    unitRanksByArea[area.id] = order.map((unitId, i) => ({ unitId, rank: i + 1 }));
+  }
+  return combineHierarchicalRank(areaRanks, unitRanksByArea).map((o) => o.unitId);
+}
+
+/**
+ * Turns a completed ranking into the same `DiagnosticEntry` shape
+ * `saveDiagnostic` has always taken — `deriveWeights`, the
  * `rating`/`unit_weight` tables, and the portfolio graph never need to
  * know the numbers came from ranks rather than absolute dials.
+ *
+ * `finalOrder` is the reviewed overall order per axis. It is the
+ * source of truth where present: the area and within-area rankings
+ * build the *suggestion*, but what the user confirmed on the last
+ * screen is what scores. Falling back to the composed order keeps this
+ * correct for a snapshot saved without a review pass.
  */
 export function buildEntriesFromRanking(
   areas: DiagnosticArea[],
   unitOrderByArea: Record<string, Partial<Record<DiagnosticAxis, string[]>>>,
   areaOrder: Partial<Record<DiagnosticAxis, string[]>>,
+  finalOrder: Partial<Record<DiagnosticAxis, string[]>> = {},
 ): DiagnosticEntry[] {
   const scoreByAxis: Record<DiagnosticAxis, Map<string, number>> = {
     priority: new Map(),
@@ -95,18 +123,14 @@ export function buildEntriesFromRanking(
   };
 
   for (const axis of AXES) {
-    const areaIds = areaOrder[axis];
-    if (!areaIds) continue;
-    const areaRanks = areaIds.map((areaId, i) => ({ areaId, rank: i + 1 }));
-    const unitRanksByArea: Record<string, { unitId: string; rank: number }[]> = {};
-    for (const area of areas) {
-      const order = unitOrderByArea[area.id]?.[axis] ?? [];
-      unitRanksByArea[area.id] = order.map((unitId, i) => ({ unitId, rank: i + 1 }));
-    }
-    const overall = combineHierarchicalRank(areaRanks, unitRanksByArea);
-    for (const o of overall) {
-      scoreByAxis[axis].set(o.unitId, rankToScore(o.overallRank, o.total));
-    }
+    if (!areaOrder[axis] && !finalOrder[axis]) continue;
+    const ordered =
+      finalOrder[axis] ??
+      suggestOverallOrder(areas, unitOrderByArea, areaOrder, axis);
+    const total = ordered.length;
+    ordered.forEach((unitId, i) => {
+      scoreByAxis[axis].set(unitId, rankToScore(i + 1, total));
+    });
   }
 
   return areas.flatMap((area) =>

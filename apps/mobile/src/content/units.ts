@@ -25,7 +25,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   // ── Relationships ─────────────────────────────────────────────────
   "significant-other": {
     description:
-      "Your romantic partnership. If you're single, rate how you feel about that.",
+      "Your romantic partnership or relationship with being single.",
     guidelines: [
       "Conflict happens, but it's handled with grace and complaints get repaired instead of buried.",
       "You still do new things together. Novelty keeps satisfaction alive where routine wears it down.",
@@ -44,7 +44,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   friendship: {
     description:
-      "People you enjoy spending time with, and people who actually know you. Social connection is one of the strongest predictors of health and longevity we have. ",
+      "People you enjoy spending time with and people who actually know you.",
     guidelines: [
       "Some of your friendships have real depth.",
       "You can be yourself without fear of judgement.",
@@ -55,7 +55,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   // ── Physical health ───────────────────────────────────────────────
   "exercise-fitness": {
     description:
-      "Movement, strength, and what your body can do. Regular activity lowers all-cause mortality, heart disease risk, and rates of depression and anxiety.",
+      "Movement, strength, and what your body can do.",
     guidelines: [
       "You move most days. The common benchmark is 150 to 300 minutes of moderate activity a week, and walking counts.",
       "Regular strength training.",
@@ -64,7 +64,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   nutrition: {
     description:
-      "How you fuel yourself. What matters is the balance not any single meal. Long-term health follows the trend.",
+      "How you fuel yourself.",
     guidelines: [
       "Most of what you eat is minimally processed and makes you feel good afterwards.",
       "Meals are enjoyable, colourful, balanced, and have protein in them.",
@@ -102,7 +102,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   "giving-service": {
     description:
-      "What you put back: generosity, help, service in any form. Volunteers show lower rates of depression and mortality.",
+      "What you put back: generosity, help, service in any form.",
     guidelines: [
       "Giving happens regularly and by choice. The benefit is strongest when it's voluntary.",
       "You can see some of the effect. Visible impact is what ties giving to meaning.",
@@ -113,7 +113,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   // ── Work & money ──────────────────────────────────────────────────
   "job-career": {
     description:
-      "The work itself: challenge, progress, respect, direction. Once pay covers your needs, autonomy, competence, and purpose predict satisfaction better than money does.",
+      "The work itself: challenge, progress, respect, direction.",
     guidelines: [
       "You can point to progress on something that matters. Small visible wins are the strongest daily motivator we know of.",
       "You have real say in how you work. Burnout comes from effort without control, not from effort.",
@@ -122,7 +122,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   "education-learning": {
     description:
-      "Learning and growth in any direction: skills, subjects, crafts. Growth feeds capability and mood, and curiosity itself helps memory form.",
+      "Learning and growth in any direction: skills, subjects, crafts.",
     guidelines: [
       "Learning happens in short sessions spread out over time, with some self-testing. That combination beats rereading by a wide margin.",
       "You follow what actually interests you. Interest improves retention, so it's a strategy, not a detour.",
@@ -131,7 +131,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   finances: {
     description:
-      "Security, control, and direction with money, the most commonly reported stressor in national surveys. The wellbeing effect comes from security and alignment, not wealth itself.",
+      "Security, control, and direction with money.",
     guidelines: [
       "You know your numbers. Looking at the accounts regularly lowers money anxiety more than avoiding them does.",
       "There's a buffer for surprises. It buys calm far beyond its size.",
@@ -139,10 +139,13 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
     ],
   },
 
-  // ── Home & environment ────────────────────────────────────────────
+  // ── Wellness ──────────────────────────────────────────────────────
+  // The maintenance area: low-effort, high-return upkeep. Most other
+  // areas are about growth; these three are about keeping the floor
+  // solid, and their guidelines should read as upkeep, not ambition.
   "living-space": {
     description:
-      "Your home, and whether it's comfortable, functional, and feels like yours. Environment shapes mood and behavior more reliably than willpower.",
+      "Your home, and whether it's comfortable, functional, and feels like yours.",
     guidelines: [
       "The space is ordered enough to rest in. Clutter tracks with higher cortisol, especially at the end of the day.",
       "Rooms are set up for the life you want in them. A space arranged for a habit produces more of it.",
@@ -151,11 +154,21 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   "nature-surroundings": {
     description:
-      "Time outdoors: nature, daylight, your surroundings. About two hours a week in nature tracks with better reported health and wellbeing, and it doesn't require wilderness.",
+      "Time outdoors: nature, daylight, your surroundings.",
     guidelines: [
       "You get outside most days, even briefly. Morning daylight sets the rhythm your sleep and mood follow.",
       "Nature comes in any dose. Street trees, a park, even a view from a window lowers stress markers.",
       "Some of the weekly hours come from ordinary places. The neighborhood counts.",
+    ],
+  },
+  hygiene: {
+    description:
+      "The daily upkeep of your body: showers, teeth, grooming, clean clothes. Maintenance, not growth. Small routines with an outsized return in how you feel.",
+    guidelines: [
+      "The basics happen without negotiation: teeth, showers, laundry.",
+      "You mostly start the day feeling clean and put together, and it shows in how you carry it.",
+      "There's a little care past the minimum, whatever that means for you: skincare, a haircut, nails.",
+      "A busy stretch dents the routine without erasing it, and the way back is short.",
     ],
   },
 
@@ -180,7 +193,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
   },
   "adventure-experiences": {
     description:
-      "Novelty, travel, firsts. The experiences that make one season different from the last.",
+      "Novelty, travel, firsts.",
     guidelines: [
       "Something is on the calendar to look forward to. Anticipation is a big share of the total enjoyment.",
       "Newness shows up at every scale. Unfamiliar routes, foods, and skills register like trips do.",

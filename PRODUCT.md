@@ -25,7 +25,7 @@ should feel like itself, not like a system app on either platform.
 ## Product Purpose
 
 A personal planning and reflection app that turns a monthly life
-diagnostic — importance × satisfaction ratings across 17 strategic
+diagnostic — importance × satisfaction ratings across 18 strategic
 life units — into a derived daily checklist and a grade out of 100.
 Daily execution is a checklist and a number; monthly reflection is a
 ritual (diagnostic, portfolio graph, goal review); the long-term

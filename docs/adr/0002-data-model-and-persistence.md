@@ -69,7 +69,7 @@ Calendar bucketing uses the user's **local date** stored as `TEXT
 - **`life_unit`** — id, area_id → life_area, name, sort_order,
   is_custom, archived_at
 
-Seeded with the 6 SLAs / 16 SLUs from vision.md.
+Seeded with the 6 SLAs / 18 SLUs from vision.md.
 
 ### Diagnostic
 
@@ -228,7 +228,7 @@ later goal edits don't rewrite trophy history.
 ## Action items
 
 1. [x] Define the Drizzle schema for the tables above; generate
-       migration 0001; seed the 6×17 taxonomy. (Shipped:
+       migration 0001; seed the 6×18 taxonomy. (Shipped:
        `apps/mobile/src/db/schema.ts`, `db/seed.ts`, migrations in
        `apps/mobile/drizzle/`.)
 2. [x] Write the snapshot flow as a transaction: ratings →

@@ -7,7 +7,7 @@ Inspired by Rainer Strack's *Harvard Business Review* work on strategic
 life planning, the app turns a periodic self-assessment into a living
 daily system:
 
-1. **Diagnose** — rate 17 Strategic Life Units (grouped into 6 Strategic
+1. **Diagnose** — rate 18 Strategic Life Units (grouped into 6 Strategic
    Life Areas) on importance and satisfaction, 1–10 each.
 2. **Derive** — the app converts your ratings into a personal scoring
    system: 100 points per day, weighted primarily by importance with a

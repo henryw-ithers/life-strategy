@@ -79,7 +79,7 @@ are pull, not push: available when a unit is opened, silent otherwise
 
 ### 4. Launch content bar
 
-v1 ships only when every one of the 16 SLUs has at least 3 goal
+v1 ships only when every one of the 18 SLUs has at least 3 goal
 templates and 6 tasks across all three profile tags, and the keyword
 map covers common activities. Content is a launch deliverable with the
 same weight as code.
@@ -104,10 +104,12 @@ same weight as code.
 
 1. [ ] Define the content-package schema (goal templates, tasks,
        profile tags, default ranks, keyword map, content_version).
-2. [ ] Write the library: 17 units × (3–5 goals + 6–10 tasks), with a
-       hand-review pass on sensitive units. (17, not 16 — the seeded
-       taxonomy is 6 areas × 17 units; `UNIT_INFO` in
-       `apps/mobile/src/content/units.ts` already covers all 17 and is
+2. [ ] Write the library: 18 units × (3–5 goals + 6–10 tasks), with a
+       hand-review pass on sensitive units. (18 — earlier drafts of this
+       ADR said 16, and the count has moved with the taxonomy; the
+       seeded default is 6 areas × 18 units as of the 2026-07-27
+       Wellness revision. `UNIT_INFO` in
+       `apps/mobile/src/content/units.ts` already covers all 18 and is
        the first slice of this package.)
 3. [ ] Implement starter-plan generation (profile matching + ADR-0003
        bands) as a pure function in the `scoring`/content layer.

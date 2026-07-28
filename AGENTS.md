@@ -5,7 +5,7 @@ Orientation for AI coding agents working in this repository.
 ## What this project is
 
 **Life Strategy** — a personal planning app where users rate the
-importance and satisfaction of 17 Strategic Life Units, and the app
+importance and satisfaction of 18 Strategic Life Units, and the app
 derives a 100-point daily scoring system of goals and tasks from those
 ratings. Read [vision.md](vision.md) before making any product-shaped
 decision; it is the source of truth for what the app is and is not.
@@ -53,7 +53,7 @@ Use these terms consistently in code, docs, and UI copy:
 | Term | Meaning |
 |------|---------|
 | **SLA** — Strategic Life Area | One of 6 top-level life areas (e.g., Relationships) |
-| **SLU** — Strategic Life Unit | One of 17 sub-areas under the SLAs (e.g., Friendship); the unit of diagnosis and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted |
+| **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of diagnosis and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted |
 | **Diagnostic** | The periodic assessment: importance (1–10) and satisfaction (1–10) per SLU. **User-facing copy always says "Priority," never "Importance"** — everything on the list is important; the rating is relative standing. Schema, scoring engine, and formulas keep `importance` as the domain term |
 | **Snapshot** | One saved diagnostic; snapshots form the portfolio history |
 | **Portfolio graph** | Bubble chart: importance (y) × satisfaction (x), bubble size = effort invested |

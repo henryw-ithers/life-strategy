@@ -7,7 +7,7 @@
 
 ## Summary
 
-The app's front door: rate all 16 SLUs on importance and satisfaction
+The app's front door: rate all 18 SLUs on importance and satisfaction
 (1–10) in six stepped screens (one per life area), save the snapshot
 transactionally, and land on results where the portfolio graph renders
 real data. Monthly ritual + anytime; always the full flow (ADR-0005).

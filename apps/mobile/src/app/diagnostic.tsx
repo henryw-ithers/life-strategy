@@ -1,15 +1,18 @@
 /**
  * The diagnostic flow (ADR-0005, ranked per the ADR-0003 amendment):
- * intro → for each area, rank its units by priority then by
- * satisfaction → rank the areas themselves the same way → review →
- * transactional save → results with derived weights and the
- * portfolio graph on real data.
+ * intro → rank the six areas by priority, then order all seventeen
+ * units by priority → the same two passes for satisfaction → review →
+ * transactional save → results with derived weights and the portfolio
+ * graph on real data. See `buildSequence` for why the per-area unit
+ * passes were dropped.
  *
  * Ranking (not absolute 1–10 dials) guarantees full-range spread every
  * time, regardless of how "important" everything subjectively feels —
  * `buildEntriesFromRanking` (db/diagnostic.ts) converts the finished
  * order back into the same importance/satisfaction numbers the
- * weight formula and portfolio graph have always consumed.
+ * weight formula and portfolio graph have always consumed. The area
+ * ranking seeds the unit list's opening order; the unit list is what
+ * scores.
  */
 import { useNavigation, usePreventRemove } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
@@ -33,16 +36,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RankGroup } from "../components/diagnostic/RankGroup";
 import { ProgressDots } from "../components/diagnostic/ProgressDots";
+import { UnitInfoSheet } from "../components/diagnostic/UnitInfoSheet";
 import { PortfolioGraphView, type GraphSnapshot } from "../components/portfolio-graph";
-import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
+import { UNIT_INFO } from "../content/units";
 import {
   buildEntriesFromRanking,
   loadDiagnosticAreas,
   loadDiagnosticDiff,
   loadWeightSummary,
   saveDiagnostic,
+  suggestOverallOrder,
   type AreaWeightGroup,
   type DiagnosticArea,
   type DiagnosticAxis,
@@ -55,20 +61,35 @@ import { radius, space } from "../theme/tokens";
 type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "diff" | "results";
 
 type Step =
-  | { kind: "area"; areaIndex: number; axis: DiagnosticAxis }
   | { kind: "areas"; axis: DiagnosticAxis }
+  | { kind: "final"; axis: DiagnosticAxis }
   | { kind: "review" };
 
-function buildSequence(areaCount: number): Step[] {
-  const seq: Step[] = [];
-  for (let i = 0; i < areaCount; i++) {
-    seq.push({ kind: "area", areaIndex: i, axis: "priority" });
-    seq.push({ kind: "area", areaIndex: i, axis: "satisfaction" });
-  }
-  seq.push({ kind: "areas", axis: "priority" });
-  seq.push({ kind: "areas", axis: "satisfaction" });
-  seq.push({ kind: "review" });
-  return seq;
+/**
+ * Coarse then fine, once per axis.
+ *
+ * Ranking each area's two or three units separately, then the areas,
+ * then confirming the composition, meant seventeen steps to express
+ * what the last screen could express directly — and the per-area
+ * passes were the ones doing the least work, since a strict
+ * area-primary composition can put a low unit of a top area above the
+ * best unit of a lower one anyway. Ranking the areas now seeds the
+ * order of the full unit list, and that list is where the answer is
+ * actually given.
+ *
+ * Grouped by axis rather than by scope: all the "what matters"
+ * thinking, then all the "how is it going" thinking. The unit list
+ * opens ordered by the area ranking made immediately before it, so
+ * the seed is legible instead of arriving two screens late.
+ */
+function buildSequence(): Step[] {
+  return [
+    { kind: "areas", axis: "priority" },
+    { kind: "final", axis: "priority" },
+    { kind: "areas", axis: "satisfaction" },
+    { kind: "final", axis: "satisfaction" },
+    { kind: "review" },
+  ];
 }
 
 const AXIS_LABEL: Record<DiagnosticAxis, string> = {
@@ -76,14 +97,19 @@ const AXIS_LABEL: Record<DiagnosticAxis, string> = {
   satisfaction: "Satisfaction",
 };
 
-const UNIT_PROMPT: Record<DiagnosticAxis, string> = {
-  priority: "Which needs more attention right now?",
-  satisfaction: "Which are you more satisfied with?",
-};
-
 const AREA_PROMPT: Record<DiagnosticAxis, string> = {
   priority: "Which area needs more attention right now?",
   satisfaction: "Which area are you more satisfied with overall?",
+};
+
+const FINAL_PROMPT: Record<DiagnosticAxis, string> = {
+  priority: "Everything, in order of attention",
+  satisfaction: "Everything, in order of satisfaction",
+};
+
+const FINAL_HEADING: Record<DiagnosticAxis, string> = {
+  priority: "Your priorities",
+  satisfaction: "Your satisfaction",
 };
 
 interface DiffRowProps {
@@ -145,9 +171,6 @@ export default function DiagnosticFlow() {
   const [areas, setAreas] = useState<DiagnosticArea[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
-  const [unitOrder, setUnitOrder] = useState<
-    Record<string, Partial<Record<DiagnosticAxis, string[]>>>
-  >({});
   const [areaOrder, setAreaOrder] = useState<Partial<Record<DiagnosticAxis, string[]>>>(
     {},
   );
@@ -156,6 +179,20 @@ export default function DiagnosticFlow() {
     graph: GraphSnapshot[];
   } | null>(null);
   const [diff, setDiff] = useState<DiagnosticDiff | null>(null);
+  /** The reviewed overall order per axis — set when the final step is
+   *  first shown, then edited by dragging. Cleared whenever an upstream
+   *  ranking changes, so going back and reordering an area produces a
+   *  fresh suggestion rather than silently keeping a stale one. */
+  const [finalOrder, setFinalOrder] = useState<
+    Partial<Record<DiagnosticAxis, string[]>>
+  >({});
+  /** The unit whose guidelines sheet is open, if any — carrying its
+   *  area hue so the sheet stays colour-coded now that steps aren't. */
+  const [infoUnit, setInfoUnit] = useState<{
+    id: string;
+    name: string;
+    accent: string;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -177,21 +214,21 @@ export default function DiagnosticFlow() {
     ]);
   });
 
-  const sequence = useMemo(() => buildSequence(areas.length), [areas.length]);
+  const sequence = useMemo(() => buildSequence(), []);
 
-  const dotIds = useMemo(() => [...areas.map((a) => a.id), "__areas__"], [areas]);
-  const dotCompleted = useMemo(
-    () => [
-      ...areas.map((a) => unitOrder[a.id]?.satisfaction !== undefined),
-      areaOrder.satisfaction !== undefined,
-    ],
-    [areas, unitOrder, areaOrder],
+  /** One dot per ranking step; review shares the last one. */
+  const dotIds = useMemo(
+    () => sequence.filter((s) => s.kind !== "review").map((s) => `${s.kind}-${s.axis}`),
+    [sequence],
   );
-  const currentDotIndex = (() => {
-    const step = sequence[stepIndex];
-    if (!step) return 0;
-    return step.kind === "area" ? step.areaIndex : areas.length;
-  })();
+  const currentDotIndex = Math.min(stepIndex, dotIds.length - 1);
+  /** Dragging is optional — the suggested order is already a valid
+   *  answer — so a stage counts as done once it has been passed, not
+   *  once something has been moved. */
+  const dotCompleted = useMemo(
+    () => dotIds.map((_, i) => i < currentDotIndex),
+    [dotIds, currentDotIndex],
+  );
 
   const goToStep = (next: number) => {
     setDirection(next >= stepIndex ? 1 : -1);
@@ -201,7 +238,9 @@ export default function DiagnosticFlow() {
   const save = async () => {
     setPhase("saving");
     try {
-      const entries = buildEntriesFromRanking(areas, unitOrder, areaOrder);
+      // No within-area pass any more — the reviewed unit order is the
+      // ranking, and `finalOrder` is what scores.
+      const entries = buildEntriesFromRanking(areas, {}, areaOrder, finalOrder);
       const snapshotId = await saveDiagnostic(entries);
       const [weights, graph, snapshotDiff] = await Promise.all([
         loadWeightSummary(snapshotId),
@@ -277,42 +316,80 @@ export default function DiagnosticFlow() {
 
   if (phase === "steps") {
     const step = sequence[stepIndex]!;
-    const currentAreaId = step.kind === "area" ? areas[step.areaIndex]!.id : null;
-    const accent = currentAreaId ? (theme.areas[currentAreaId] ?? theme.ink) : theme.ink;
 
     let heading: string;
     let content: React.ReactNode;
 
-    if (step.kind === "area") {
-      const area = areas[step.areaIndex]!;
-      heading = `${area.name} — ${AXIS_LABEL[step.axis]}`;
-      content = (
-        <RankGroup
-          key={`${area.id}-${step.axis}`}
-          items={area.units.map((u) => ({ id: u.id, label: u.name }))}
-          prompt={UNIT_PROMPT[step.axis]}
-          theme={theme}
-          onComplete={(order) => {
-            setUnitOrder((prev) => ({
-              ...prev,
-              [area.id]: { ...prev[area.id], [step.axis]: order },
-            }));
-            goToStep(stepIndex + 1);
-          }}
-        />
-      );
-    } else if (step.kind === "areas") {
+    /** Unit id -> its name and area, for the flattened list. */
+    const unitById = new Map(
+      areas.flatMap((a) =>
+        a.units.map((u) => [u.id, { name: u.name, areaId: a.id }] as const),
+      ),
+    );
+
+    // Any unit row opens its detail — "what does this actually mean?"
+    // is a fair question wherever it's asked. A custom unit (the schema
+    // allows them; no UI creates them yet) has nothing written, hence
+    // `hasDetail`.
+    const unitRow = (id: string) => {
+      const u = unitById.get(id);
+      return {
+        id,
+        label: u?.name ?? id,
+        hasDetail: UNIT_INFO[id] !== undefined,
+        accent: u ? theme.areas[u.areaId] : undefined,
+      };
+    };
+    const openInfo = (item: { id: string; label: string }) =>
+      setInfoUnit({
+        id: item.id,
+        name: item.label,
+        accent:
+          theme.areas[unitById.get(item.id)?.areaId ?? ""] ?? theme.accent,
+      });
+    const UNIT_HINT = "Tap a unit to read what it covers · drag the handle to reorder";
+    const AREA_HINT = "Drag the handle to reorder";
+
+    if (step.kind === "areas") {
+      const order = areaOrder[step.axis] ?? areas.map((a) => a.id);
       heading = `Your areas — ${AXIS_LABEL[step.axis]}`;
       content = (
         <RankGroup
           key={`areas-${step.axis}`}
-          items={areas.map((a) => ({ id: a.id, label: a.name }))}
+          items={order.map((id) => {
+            const a = areas.find((x) => x.id === id)!;
+            return { id: a.id, label: a.name, accent: theme.areas[a.id] };
+          })}
           prompt={AREA_PROMPT[step.axis]}
+          hint={AREA_HINT}
           theme={theme}
-          onComplete={(order) => {
-            setAreaOrder((prev) => ({ ...prev, [step.axis]: order }));
-            goToStep(stepIndex + 1);
+          onChange={(next) => {
+            setAreaOrder((prev) => ({ ...prev, [step.axis]: next }));
+            setFinalOrder((prev) => ({ ...prev, [step.axis]: undefined }));
           }}
+        />
+      );
+    } else if (step.kind === "final") {
+      // Opens ordered by the area ranking made on the previous screen,
+      // units in taxonomy order within each. Every row wears its own
+      // area's hue, which is the explanation for where it landed — and
+      // the cue for whether a move you want is really a correction to
+      // the area ranking one step back.
+      const order =
+        finalOrder[step.axis] ?? suggestOverallOrder(areas, {}, areaOrder, step.axis);
+      heading = FINAL_HEADING[step.axis];
+      content = (
+        <RankGroup
+          key={`final-${step.axis}`}
+          items={order.map(unitRow)}
+          prompt={FINAL_PROMPT[step.axis]}
+          hint={UNIT_HINT}
+          theme={theme}
+          onPressItem={openInfo}
+          detailHint="what this unit covers"
+          onChange={(next) =>
+            setFinalOrder((prev) => ({ ...prev, [step.axis]: next }))
+          }
         />
       );
     } else {
@@ -326,31 +403,46 @@ export default function DiagnosticFlow() {
 
     return (
       <View style={screen}>
-        <Backdrop circles={hueWash(accent)} />
+        <Backdrop circles={constellation(theme.areas, { faint: true })} />
         <ProgressDots
           areaIds={dotIds}
           currentIndex={currentDotIndex}
           completed={dotCompleted}
           theme={theme}
         />
+        {/* Ranking steps own their scrolling — the list auto-scrolls
+            while dragging, which a wrapping ScrollView would fight. */}
         <Animated.View key={stepIndex} entering={entering} style={styles.step}>
-          <ScrollView
-            contentContainerStyle={styles.stepScroll}
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={styles.stepInner}>
             <View style={styles.areaHeader}>
               <AppText variant="title" color={theme.ink}>
                 {heading}
               </AppText>
             </View>
             <View style={{ height: space.md }} />
-            {content}
-          </ScrollView>
+            {step.kind === "review" ? (
+              <ScrollView showsVerticalScrollIndicator={false}>{content}</ScrollView>
+            ) : (
+              content
+            )}
+          </View>
         </Animated.View>
+        {/* Advance/save keep the app accent rather than the step's area
+            hue. Three of the six light-theme hues put a white label
+            under 4.5:1 as a button fill (amber worst, 3.16:1), and the
+            area is already spoken for by the backdrop wash and the
+            progress dots — recolouring the primary action per step was
+            decoration paying an accessibility cost. */}
         <View style={[styles.footer, { borderTopColor: theme.hairline }, footerPad]}>
           {step.kind === "review" ? (
-            <Button label="Save snapshot" color={accent} onPress={save} theme={theme} />
-          ) : null}
+            <Button label="Save snapshot" onPress={save} theme={theme} />
+          ) : (
+            <Button
+              label="Continue"
+              onPress={() => goToStep(stepIndex + 1)}
+              theme={theme}
+            />
+          )}
           <Button
             label="Back"
             variant="quiet"
@@ -360,6 +452,16 @@ export default function DiagnosticFlow() {
             theme={theme}
           />
         </View>
+        {infoUnit && UNIT_INFO[infoUnit.id] ? (
+          <UnitInfoSheet
+            visible
+            onClose={() => setInfoUnit(null)}
+            unitName={infoUnit.name}
+            info={UNIT_INFO[infoUnit.id]!}
+            accent={infoUnit.accent}
+            theme={theme}
+          />
+        ) : null}
       </View>
     );
   }
@@ -588,7 +690,7 @@ const styles = StyleSheet.create({
   introBody: { flex: 1, justifyContent: "center", gap: space.lg },
   introCopy: { maxWidth: 320 },
   step: { flex: 1 },
-  stepScroll: { paddingBottom: space.xl },
+  stepInner: { flex: 1, paddingBottom: space.lg },
   areaHeader: {
     flexDirection: "row",
     alignItems: "baseline",

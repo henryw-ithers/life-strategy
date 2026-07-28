@@ -61,6 +61,17 @@ import { radius, space } from "../theme/tokens";
 
 type SectionKey = "everyDay" | "thisWeek" | "doneWeek" | "completed";
 
+/** Everything off the daily surface, in the order the app's own
+ *  hierarchy runs: strategy (plan, goals), then the periodic ritual
+ *  (diagnostic, portfolio), then settings. */
+const DESTINATIONS = [
+  { href: "/plan", label: "Plan" },
+  { href: "/goals", label: "Goals" },
+  { href: "/diagnostic", label: "Diagnostic" },
+  { href: "/portfolio", label: "Portfolio" },
+  { href: "/settings", label: "Settings" },
+] as const;
+
 export default function TodayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
@@ -157,6 +168,9 @@ export default function TodayScreen() {
   };
 
   const isToday = day?.date === day?.today;
+  /** Notes and photos stay addable past the edit window (ADR-0002:
+   *  grades finalize, memories don't) — only the future is off-limits. */
+  const canRecord = day !== null && day.date <= day.today;
   const dormant = day !== null && day.score.earned === 0;
   const layout = reduceMotion ? undefined : LinearTransition.duration(200);
 
@@ -213,6 +227,38 @@ export default function TodayScreen() {
     setActivitySheet(false);
     setEditingActivity(null);
   };
+
+  /** Adding to the day's record. Sits with the record itself rather
+   *  than up beside the grade — these add notes and photos, and having
+   *  them a screen away from what they add to cost the checklist the
+   *  most valuable rows on the page. Rendered even when the record is
+   *  empty, since that's when you most need the way in. */
+  const recordActions = (
+    <View style={styles.recordButtons}>
+      <Pressable
+        onPress={() => setNoteSheet(true)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Add a note to this day"
+        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+      >
+        <AppText variant="label" color={theme.accent}>
+          + Note
+        </AppText>
+      </Pressable>
+      <Pressable
+        onPress={() => void pickPhoto()}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Add a photo to this day"
+        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+      >
+        <AppText variant="label" color={theme.accent}>
+          + Photo
+        </AppText>
+      </Pressable>
+    </View>
+  );
 
   const existingForSheet: ExistingActivity | null = editingActivity
     ? {
@@ -294,32 +340,6 @@ export default function TodayScreen() {
               </AppText>
             ) : null}
 
-            {/* ── Day record actions (journal is edit-window exempt) ── */}
-            {day.date <= day.today ? (
-              <View style={styles.recordButtons}>
-                <Pressable
-                  onPress={() => setNoteSheet(true)}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-                >
-                  <AppText variant="label" color={theme.accent}>
-                    + Note
-                  </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => void pickPhoto()}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-                >
-                  <AppText variant="label" color={theme.accent}>
-                    + Photo
-                  </AppText>
-                </Pressable>
-              </View>
-            ) : null}
-
             {/* ── Month / week navigation ── */}
             {monthOpen ? (
               <Animated.View layout={layout} style={styles.strip}>
@@ -359,7 +379,12 @@ export default function TodayScreen() {
 
             {/* ── The day's record: ahead of tasks on past days, where
                 the log leads; below them on today, where doing leads. ── */}
-            {!isToday ? <DayRecord day={day} theme={theme} /> : null}
+            {!isToday ? (
+              <>
+                <DayRecord day={day} theme={theme} />
+                {canRecord ? recordActions : null}
+              </>
+            ) : null}
 
             {/* ── Body ── */}
             {!day.hasSnapshot ? (
@@ -488,56 +513,40 @@ export default function TodayScreen() {
 
             {/* ── Today's record sits below the checklist (feedback,
                 without pushing today's tasks down). ── */}
-            {isToday ? <DayRecord day={day} theme={theme} /> : null}
+            {isToday ? (
+              <>
+                <DayRecord day={day} theme={theme} />
+                {canRecord ? recordActions : null}
+              </>
+            ) : null}
+
+            {/* Takes up whatever's left so the footer sits at the
+                bottom on a short day (an empty state, a rest day)
+                instead of floating mid-screen above blank canvas. */}
+            <View style={styles.spacer} />
 
             {/* ── Footer ── */}
             <View style={[styles.footer, { borderTopColor: theme.hairline }]}>
-              <View style={styles.footerLinks}>
-                <Pressable
-                  onPress={() => router.push("/plan" as Href)}
-                  accessibilityRole="button"
-                  style={styles.footerLink}
-                >
-                  <AppText variant="label" color={theme.muted}>
-                    Plan
-                  </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/goals" as Href)}
-                  accessibilityRole="button"
-                  style={styles.footerLink}
-                >
-                  <AppText variant="label" color={theme.muted}>
-                    Goals
-                  </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/diagnostic" as Href)}
-                  accessibilityRole="button"
-                  style={styles.footerLink}
-                >
-                  <AppText variant="label" color={theme.muted}>
-                    Diagnostic
-                  </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/portfolio" as Href)}
-                  accessibilityRole="button"
-                  style={styles.footerLink}
-                >
-                  <AppText variant="label" color={theme.muted}>
-                    Portfolio
-                  </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/settings" as Href)}
-                  accessibilityRole="button"
-                  style={styles.footerLink}
-                >
-                  <AppText variant="label" color={theme.muted}>
-                    Settings
-                  </AppText>
-                </Pressable>
+              <View style={styles.navRow}>
+                {DESTINATIONS.map((d) => (
+                  <Pressable
+                    key={d.href}
+                    onPress={() => router.push(d.href as Href)}
+                    accessibilityRole="button"
+                    accessibilityLabel={d.label}
+                    style={({ pressed }) => [
+                      styles.navChip,
+                      {
+                        backgroundColor: theme.surface,
+                        opacity: pressed ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    <AppText variant="label" color={theme.ink}>
+                      {d.label}
+                    </AppText>
+                  </Pressable>
+                ))}
               </View>
               <AppText variant="footnote" color={theme.muted}>
                 Grades are guidelines, not judgments.
@@ -746,7 +755,8 @@ function ActivityRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  container: { paddingHorizontal: space.screen },
+  container: { paddingHorizontal: space.screen, flexGrow: 1 },
+  spacer: { flexGrow: 1, minHeight: space.xl },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -760,8 +770,8 @@ const styles = StyleSheet.create({
   recordButtons: {
     flexDirection: "row",
     gap: space.xl,
-    marginTop: space.sm,
-    minHeight: 32,
+    marginTop: space.md,
+    minHeight: 44,
     alignItems: "center",
   },
   photoRow: { flexDirection: "row", gap: space.sm },
@@ -809,11 +819,18 @@ const styles = StyleSheet.create({
   activityText: { flex: 1, gap: 1 },
   logButton: { minHeight: 44, justifyContent: "center" },
   footer: {
-    marginTop: space.xl,
     paddingTop: space.lg,
     gap: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  footerLinks: { flexDirection: "row", gap: space.xl },
-  footerLink: { minHeight: 44, justifyContent: "center" },
+  /** Wraps by design: five destinations can't fit one row at any
+   *  phone width, and letting them run off the gutter was the bug
+   *  this replaced. */
+  navRow: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  navChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+  },
 });
