@@ -1,8 +1,8 @@
-# Life Strategy — Vision Document
+# Glide — Vision Document
 
 > **Status:** Draft Vision (rev. 2)\
 > **Purpose:** Define the philosophy, mechanics, and roadmap for the
-> Life Strategy application.
+> Glide application.
 
 ## Inspiration
 

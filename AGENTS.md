@@ -4,7 +4,7 @@ Orientation for AI coding agents working in this repository.
 
 ## What this project is
 
-**Life Strategy** — a personal planning app where users rate the
+**Glide** — a personal planning app where users rate the
 importance and satisfaction of 18 Strategic Life Units, and the app
 derives a 100-point daily scoring system of goals and tasks from those
 ratings. Read [vision.md](vision.md) before making any product-shaped
@@ -102,6 +102,11 @@ Use these terms consistently in code, docs, and UI copy:
 
 - Tech stack, repo layout, and tooling are decided in ADR-0001/0002 —
   follow them once accepted.
+- **Three names are compatibility surfaces, not branding, and survive
+  the rename from "Life Strategy" to Glide:** the `life-strategy.db`
+  SQLite filename, the `LSBK` magic bytes, and the `.lsbk` extension.
+  Renaming any of them orphans user data or invalidates existing
+  backups. See [docs/release.md](docs/release.md).
 - New architecturally significant decisions get an ADR in
   `docs/adr/` using [template.md](docs/adr/template.md), numbered
   sequentially, and a line in the ADR index.

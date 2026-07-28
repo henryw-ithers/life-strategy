@@ -1,5 +1,5 @@
 ---
-name: Life Strategy
+name: Glide
 description: A personal planning app that turns monthly life diagnostics into a daily checklist and a grade out of 100.
 colors:
   canvas-light: "#ffffff"
@@ -120,13 +120,13 @@ components:
     height: "44px"
 ---
 
-# Design System: Life Strategy
+# Design System: Glide
 
 ## 1. Overview
 
 **Creative North Star: "The Strategy Board"**
 
-Life Strategy is where a monthly diagnostic — importance × satisfaction
+Glide is where a monthly diagnostic — importance × satisfaction
 across 18 Strategic Life Units — turns into a daily checklist and a
 grade. The interface reads as a strategist's board, not a habit
 tracker's scoreboard: decisive color, crisp hierarchy, and one

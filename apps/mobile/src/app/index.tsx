@@ -5,12 +5,12 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
-import { weekStart, type DayScore } from "@life-strategy/scoring";
+import { weekStart, type DayScore } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { router, useFocusEffect, type Href } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { Redirect, router, useFocusEffect, type Href } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -31,12 +31,11 @@ import { MonthGrid } from "../components/today/MonthGrid";
 import { NoteSheet } from "../components/today/NoteSheet";
 import { TaskRow } from "../components/today/TaskRow";
 import { WeekStrip } from "../components/today/WeekStrip";
-import { PermissionPrescreen } from "../components/notifications/PermissionPrescreen";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { loadWeekGrade } from "../db/grades";
-import { hasAskedNotificationPermission } from "../db/settings";
+import { isOnboardingComplete } from "../db/onboarding";
 import {
   addJournalEntry,
   addPhoto,
@@ -96,7 +95,13 @@ export default function TodayScreen() {
     completed: false,
   });
   const allDoneBefore = useRef(false);
-  const [showPrescreen, setShowPrescreen] = useState(false);
+  /** null while unknown — the gate must not flash Today before it
+   *  resolves (ADR-0011 decision 1). Reads fail open. */
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void isOnboardingComplete().then(setOnboarded);
+  }, []);
 
   const reload = useCallback(async (date: string) => {
     const [next, grades, week] = await Promise.all([
@@ -118,17 +123,6 @@ export default function TodayScreen() {
           d.daily.length > 0 && d.daily.every((t) => t.completedToday);
       });
     }, [reload, selected]),
-  );
-
-  // First run of the checklist, until ADR-0011 onboarding exists
-  // (ADR-0010 §4): the in-app pre-screen has to appear before the OS
-  // permission dialog ever can.
-  useFocusEffect(
-    useCallback(() => {
-      void hasAskedNotificationPermission().then((asked) => {
-        if (!asked) setShowPrescreen(true);
-      });
-    }, []),
   );
 
   const select = (date: string) => {
@@ -269,6 +263,11 @@ export default function TodayScreen() {
         tagUnitIds: editingActivity.tags.map((t) => t.unitId),
       }
     : null;
+
+  // The onboarding gate (ADR-0011). Hooks above run unconditionally;
+  // only the render is withheld. Splash covers the null case.
+  if (onboarded === null) return null;
+  if (!onboarded) return <Redirect href="/onboarding" />;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -557,14 +556,6 @@ export default function TodayScreen() {
         )}
       </ScrollView>
 
-      <PermissionPrescreen
-        visible={showPrescreen}
-        theme={theme}
-        onDone={() => {
-          setShowPrescreen(false);
-          if (day) void reload(day.date);
-        }}
-      />
 
       {day ? (
         <>

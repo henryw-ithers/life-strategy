@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "Life Strategy",
-    "slug": "life-strategy",
+    "name": "Glide",
+    "slug": "glide",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "life-strategy",
+    "scheme": "glide",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.anonymous.life-strategy"
+      "bundleIdentifier": "com.glide.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.glide.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -43,7 +47,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Life Strategy adds the photos you choose to your day's record. They stay on your device."
+          "photosPermission": "Glide adds the photos you choose to your day's record. They stay on your device."
         }
       ],
       "expo-notifications"

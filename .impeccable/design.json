@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-07-20T00:00:00Z",
-  "title": "Design System: Life Strategy",
+  "title": "Design System: Glide",
   "extensions": {
     "colorMeta": {
       "canvas-light": { "role": "neutral", "displayName": "Pure White", "canonical": "oklch(1 0 0)" },
@@ -88,7 +88,7 @@
   ],
   "narrative": {
     "northStar": "The Strategy Board",
-    "overview": "Life Strategy is where a monthly diagnostic - importance x satisfaction across 17 Strategic Life Units - turns into a daily checklist and a grade. The interface reads as a strategist's board, not a habit tracker's scoreboard: decisive color, crisp hierarchy, and one recurring geometric motif (soft, oversized circles echoing the portfolio graph's bubbles) that carries the same strategic shape from the analytical screens onto every daily surface. Canvas stays pure - white in light mode, near-black in dark - so the six Strategic Life Area hues and the single brand teal accent are what carry identity, never a tinted background. The system explicitly rejects: Jira/Notion-style density and nested configuration; Habitica/Duolingo-style streak-shame mechanics, alarm colors on missed days, or nagging; SaaS dashboard cliches (hero metrics, gradient accents, identical stat-card grids); and any leaderboard or score-comparison surface. Warmth here comes from celebration - completed goals, special days, look-back memories - never from decoration or softened truth.",
+    "overview": "Glide is where a monthly diagnostic - importance x satisfaction across 17 Strategic Life Units - turns into a daily checklist and a grade. The interface reads as a strategist's board, not a habit tracker's scoreboard: decisive color, crisp hierarchy, and one recurring geometric motif (soft, oversized circles echoing the portfolio graph's bubbles) that carries the same strategic shape from the analytical screens onto every daily surface. Canvas stays pure - white in light mode, near-black in dark - so the six Strategic Life Area hues and the single brand teal accent are what carry identity, never a tinted background. The system explicitly rejects: Jira/Notion-style density and nested configuration; Habitica/Duolingo-style streak-shame mechanics, alarm colors on missed days, or nagging; SaaS dashboard cliches (hero metrics, gradient accents, identical stat-card grids); and any leaderboard or score-comparison surface. Warmth here comes from celebration - completed goals, special days, look-back memories - never from decoration or softened truth.",
     "keyCharacteristics": [
       "Pure canvas (true white / true near-black), brand carried entirely in hue, never in surface tint",
       "One signature backdrop motif (bubble constellation / hue wash) present on every screen",

@@ -13,7 +13,7 @@ import {
   weekStart,
   type ContentmentSample,
   type DivergenceStats,
-} from "@life-strategy/scoring";
+} from "@glide/scoring";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 

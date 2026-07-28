@@ -5,7 +5,7 @@ import {
   FORMULA_VERSION,
   rankToScore,
   recommendedTaskRange,
-} from "@life-strategy/scoring";
+} from "@glide/scoring";
 import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 

@@ -126,6 +126,76 @@ iOS as a known-degraded case) — and the ADR would then be about the
 data source only, since the scoring question would already be
 settled.
 
+## Social: accountability partners
+
+*Raised 2026-07-28.*
+
+**The idea:** let a small number of friends see something about your
+progress, so other people can hold you accountable. Instinct attached
+to it: cap the number of friends, and cap what's displayed.
+
+**Status: already inside the existing line, but the hard part is
+unsolved.** This is not a new direction — vision.md's Future
+Directions names "light community: accountability partners and shared
+goals — knowledge-sharing, never comparison." So the question was
+always *when* and *what*, not *whether*.
+
+The two caps are the right instincts, and they're the same instinct
+the existing decisions already encode. What's ruled out is specific
+and absolute — AGENTS.md's invariant ("never add leaderboards, score
+comparisons, or competitive rankings — excluded by design, not omitted
+by accident"), PRODUCT.md's social-comparison anti-reference, and
+vision.md's "personal over social. Daily grades are private by
+default."
+
+**The unsolved problem: the grade is the obvious thing to share, and
+it's the one thing that can't be shared.** A number out of 100, shown
+to a friend who also has a number out of 100, is a leaderboard with
+two rows — the mechanic is comparison whether or not it's ranked, and
+capping the friend count doesn't change that. It also breaks the
+premise underneath the number: weights are derived from *your*
+diagnostic, so two grades aren't measured on the same scale. A 70 and
+a 90 aren't comparable even in principle, which makes displaying them
+side by side not just unkind but meaningless.
+
+**So the design question is: what do you share that isn't a score?**
+Sketches worth exploring, roughly in order of how well they survive
+the invariants:
+
+- **A goal, not a grade.** Share one active goal and its status with
+  one friend — "Henry is working on: run 10k by October." The
+  accountability comes from the commitment being witnessed, which is
+  the actual mechanism in the research; the number never appears.
+- **Presence, not performance.** "Checked in today" as a binary, with
+  no score attached. Survives the invariants cleanly, but it is a step
+  toward streak-adjacent pressure, so it needs the ADR-0004 §5
+  treatment: shown, never enforced.
+- **Direction, not level.** Share that a unit is improving without
+  sharing where it sits. Dodges the incomparable-scales problem, but
+  a trend is still a metric and still invites comparison.
+- **Knowledge-sharing** — the thing vision.md actually names. Friends
+  exchange goals and tasks that worked for them, with no visibility
+  into each other's data at all. This is the safest version and is
+  really ADR-0018 (templates and sharing) wearing a social hat.
+
+**What it would cost, and why that matters more here than usual.**
+Everything in Glide is local-first: no accounts, no server, no
+telemetry, and a privacy story that currently fits in one sentence
+([ADR-0002](adr/0002-data-model-and-persistence.md); ADR-0013 is
+expected to keep it that way). Any friend graph needs an account
+system, a server, and a sync path — which drags in ADR-0012 (identity)
+and ADR-0016 (sync) as hard prerequisites, and replaces "your data
+never leaves your device" with something that needs paragraphs. That
+is the real price, and it is much larger than the feature.
+
+**Prerequisites before this is even designable:** the friends test has
+to have run (does accountability turn out to be the missing
+ingredient, or is that an assumption?), plus ADR-0012 and ADR-0016.
+If it graduates from here it becomes its own ADR, and the first
+question that ADR has to answer is not "how do we build this" but
+"what does a friend see, and can it be something other than a
+number?"
+
 ## Wrapped-style monthly and yearly recaps
 
 *Raised 2026-07-26.*

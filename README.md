@@ -1,4 +1,4 @@
-# Life Strategy
+# Glide
 
 A personal planning and reflection app that aligns daily action with
 what actually matters to you.
@@ -62,6 +62,9 @@ npm run mobile       # Expo dev server (scan QR with Expo Go)
 - [docs/adr/](docs/adr/) — architecture decision records. Several
   foundational ADRs are drafted as open questions to resolve before
   coding starts; see the [ADR index](docs/adr/README.md).
+- [docs/release.md](docs/release.md) — how builds reach a device that
+  isn't the dev machine: TestFlight, identity, versioning, and the
+  names that must never be renamed.
 - [AGENTS.md](AGENTS.md) — orientation for AI coding agents working in
   this repo.
 - [docs/backburner.md](docs/backburner.md) — parked ideas and why.

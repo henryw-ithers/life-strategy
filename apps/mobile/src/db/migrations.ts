@@ -8,7 +8,7 @@
  * flag so it runs exactly once per device, and each is written to be
  * harmless if it somehow runs twice.
  */
-import { addDays, weekStart } from "@life-strategy/scoring";
+import { addDays, weekStart } from "@glide/scoring";
 import { eq } from "drizzle-orm";
 
 import { db } from "./client";

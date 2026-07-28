@@ -1,7 +1,11 @@
 /**
  * Dev spike route: exercises the real PortfolioGraph with fake
- * snapshot history. Never linked from production navigation.
+ * snapshot history. Never linked from production navigation — but
+ * Expo Router still bundles the file, so `glide://dev/graph` would
+ * reach it in a TestFlight build. The `__DEV__` gate below closes that
+ * off without deleting the spike.
  */
+import { Redirect } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +16,12 @@ import { Button } from "../../components/ui/Button";
 import { getTheme, type ThemeName } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 
-export default function GraphSpike() {
+export default function DevGraphRoute() {
+  if (!__DEV__) return <Redirect href="/" />;
+  return <GraphSpike />;
+}
+
+function GraphSpike() {
   const systemScheme = useColorScheme();
   const [override, setOverride] = useState<ThemeName | null>(null);
   const themeName: ThemeName =

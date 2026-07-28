@@ -1,5 +1,5 @@
 {
-  "name": "life-strategy",
+  "name": "glide",
   "private": true,
   "workspaces": [
     "apps/*",

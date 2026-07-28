@@ -20,7 +20,7 @@ import {
   periodDays,
   weekStart,
   type DayScore,
-} from "@life-strategy/scoring";
+} from "@glide/scoring";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
 import { db } from "./client";

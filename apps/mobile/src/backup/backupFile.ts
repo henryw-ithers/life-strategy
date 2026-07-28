@@ -1,7 +1,7 @@
 /**
  * Export and restore (ADR-0002 "Backup (v1)", action item 3).
  *
- * Everything cryptographic lives in `@life-strategy/backup`; this file
+ * Everything cryptographic lives in `@glide/backup`; this file
  * is only the device half — getting a consistent database image out,
  * handing the sealed bytes to the share sheet, and putting a restored
  * image back safely.
@@ -19,7 +19,7 @@ import {
   readHeader,
   sealBackup,
   type BackupMeta,
-} from "@life-strategy/backup";
+} from "@glide/backup";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import { File, Paths } from "expo-file-system";
@@ -73,7 +73,9 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
     randomBytes: Crypto.getRandomBytes,
   });
 
-  const fileName = `life-strategy-${stamp(new Date())}.lsbk`;
+  // `.lsbk` predates the Glide rename and stays — see the MAGIC note in
+  // packages/backup/src/envelope.ts. Only the prefix follows the name.
+  const fileName = `glide-${stamp(new Date())}.lsbk`;
   const target = new File(Paths.cache, fileName);
   if (target.exists) target.delete();
   target.create();
@@ -82,7 +84,7 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(target.uri, {
       mimeType: "application/octet-stream",
-      dialogTitle: "Save your Life Strategy backup",
+      dialogTitle: "Save your Glide backup",
       UTI: "public.data",
     });
   }
@@ -184,7 +186,7 @@ export function describeBackupError(error: unknown): string | null {
   if (!(error instanceof BackupError)) return null;
   switch (error.code) {
     case "not-a-backup":
-      return "That file isn't a Life Strategy backup.";
+      return "That file isn't a Glide backup.";
     case "unsupported-format":
       return "This backup was written by a newer version of the app. Update first, then restore.";
     case "bad-passphrase-or-corrupt":

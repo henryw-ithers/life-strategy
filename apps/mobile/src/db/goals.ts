@@ -5,8 +5,8 @@
  * via `recomputeUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
-import type { GoalStatus, MilestoneStatus } from "@life-strategy/scoring";
-import { advanceMilestone, nextGoalStatus } from "@life-strategy/scoring";
+import type { GoalStatus, MilestoneStatus } from "@glide/scoring";
+import { advanceMilestone, nextGoalStatus } from "@glide/scoring";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 

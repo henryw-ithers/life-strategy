@@ -7,7 +7,7 @@
  */
 
 export type BackupErrorCode =
-  /** Not a Life Strategy backup at all — wrong magic, or truncated. */
+  /** Not a Glide backup at all — wrong magic, or truncated. */
   | "not-a-backup"
   /** A backup, but written by a newer format than this app knows. */
   | "unsupported-format"

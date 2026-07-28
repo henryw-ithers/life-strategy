@@ -7,7 +7,7 @@
  * `task.point_value` is kept as the sum of those rows so the scoring
  * engine and `task_completion` keep taking one number per task.
  */
-import { taskPointValues } from "@life-strategy/scoring";
+import { taskPointValues } from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 

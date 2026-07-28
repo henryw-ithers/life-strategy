@@ -1,6 +1,6 @@
 /**
  * Data layer for the daily checklist (ADR-0004/0009). Reads feed the
- * pure engine in @life-strategy/scoring; writes denormalize points at
+ * pure engine in @glide/scoring; writes denormalize points at
  * the moment they're earned and refuse to touch days outside the
  * edit window. Finalization runs lazily on load (no background job).
  */
@@ -19,7 +19,7 @@ import {
   type ActivityCredit,
   type DayScore,
   type TaskBand,
-} from "@life-strategy/scoring";
+} from "@glide/scoring";
 import { and, asc, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
