@@ -43,8 +43,11 @@ npm workspaces monorepo:
   format is testable off-device. The device half (SQLite serialize,
   share sheet, file picker) stays in `apps/mobile/src/backup/`.
 
-Root commands: `npm test` (scoring tests), `npm run typecheck` (both
-packages), `npm run mobile` (Expo dev server).
+Root commands: `npm test` (both packages, plus the pure-logic tests
+under `apps/mobile/src/lib` — ADR-0013 put a vitest runner in the app
+workspace for the crash-log redactor; anything there must stay free of
+React Native imports to be testable), `npm run typecheck` (packages and
+app), `npm run mobile` (Expo dev server).
 
 ## Domain vocabulary
 

@@ -104,6 +104,30 @@ Read Apple's questionnaire once and confirm the answer before the first
 submission. If it turns out not to apply, remove the `config` block and
 answer in App Store Connect per build.
 
+## Getting a report out of a tester
+
+There is no crash reporting service and there will not be one
+([ADR-0013](adr/0013-crash-reporting-and-telemetry.md)) — nothing
+arrives on its own. When a tester says the app broke:
+
+1. **Settings → Report a problem**, then **Send report**. It opens the
+   share sheet and they pick where it goes; the text is plain and
+   visible before they send it. That beats a screenshot, which loses
+   the stack.
+2. If that page says "Nothing recorded," the app did not crash — it
+   misbehaved, and the description in their own words is the only
+   evidence there is.
+3. The report carries its own version and build, so the
+   `Glide <version> (<build>)` line at the bottom of Settings is only
+   needed for bugs that never produced an entry.
+
+**Keep the source map for anything you ship.** Release stacks are
+minified, so without the map for that exact build a frame in a report
+reads as `<anonymous>:1:284913` and tells you nothing. Pull it from the
+build artifacts and keep it alongside the build number — this is the
+only part of ADR-0013 that lives here rather than in code, and the one
+step that cannot be done retroactively.
+
 ## Shipping a build that contains a migration
 
 Migrations are forward-only ([ADR-0002](adr/0002-data-model-and-persistence.md)).

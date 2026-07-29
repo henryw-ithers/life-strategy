@@ -8,18 +8,52 @@ import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold";
 import { Manrope_700Bold } from "@expo-google-fonts/manrope/700Bold";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
-import { useEffect, useState } from "react";
-import { StyleSheet, useColorScheme, View } from "react-native";
+import { Stack, usePathname, type ErrorBoundaryProps } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import {
+  StyleSheet,
+  useColorScheme,
+  View,
+  type ErrorUtils as RNErrorUtils,
+} from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import migrations from "../../drizzle/migrations";
 import { AppText } from "../components/ui/AppText";
+import { Button } from "../components/ui/Button";
 import { db } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { syncTaxonomy } from "../db/seed";
+import { noteRoute, recordProblem } from "../lib/problemLog";
 import { getTheme } from "../theme/colors";
 import { space } from "../theme/tokens";
+
+/**
+ * Everything React never sees — uncaught async rejections, errors in
+ * timers, native callbacks (ADR-0013 decision 4).
+ *
+ * Installed at module scope so it is in place before the first render,
+ * which is when the riskiest work in the app happens. It **always**
+ * delegates to the handler it replaced: this layer observes, it does
+ * not swallow, so the dev-time red screen still appears and a release
+ * build's fatality is unchanged.
+ *
+ * The flag makes installation idempotent. Fast Refresh re-runs this
+ * module, and without it each reload would wrap the previous wrapper —
+ * one crash, one log entry per reload since the app started.
+ */
+const globalScope = globalThis as {
+  ErrorUtils?: RNErrorUtils;
+  __glideProblemHandlerInstalled?: boolean;
+};
+if (globalScope.ErrorUtils && !globalScope.__glideProblemHandlerInstalled) {
+  globalScope.__glideProblemHandlerInstalled = true;
+  const previous = globalScope.ErrorUtils.getGlobalHandler();
+  globalScope.ErrorUtils.setGlobalHandler((error, isFatal) => {
+    recordProblem(error, "fatal");
+    previous(error, isFatal);
+  });
+}
 
 /**
  * Database and font gate: run pending migrations, seed the default
@@ -57,6 +91,16 @@ export default function RootLayout() {
   }, [success]);
 
   const fatal = migrationError ?? seedError;
+
+  // Recorded once per distinct failure, not once per render — the gate
+  // re-renders on theme changes and this screen has no other exit.
+  const recorded = useRef<Error | null>(null);
+  useEffect(() => {
+    if (!fatal || recorded.current === fatal) return;
+    recorded.current = fatal;
+    recordProblem(fatal, "startup");
+  }, [fatal]);
+
   if (fatal) {
     return (
       <View style={[styles.center, { backgroundColor: theme.canvas }]}>
@@ -82,8 +126,70 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
+      <RouteWitness />
       <Stack screenOptions={{ headerShown: false }} />
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Keeps the problem log's idea of "where the user was" current.
+ *
+ * Its own component rather than a `usePathname()` in `RootLayout`,
+ * because the hook re-renders its owner on every navigation and the
+ * gate above owns the migration and font state. Renders nothing.
+ */
+function RouteWitness() {
+  const pathname = usePathname();
+  useEffect(() => {
+    noteRoute(pathname);
+  }, [pathname]);
+  return null;
+}
+
+/**
+ * Expo Router picks this export up and wraps every route below this
+ * layout in it (ADR-0013 decision 4), so a render error becomes a
+ * screen the user can leave rather than a blank one.
+ *
+ * Copy follows docs/design/copy-guide.md: the app broke, not the user,
+ * and it says so once. The message is shown because it is occasionally
+ * the whole answer, and the tester reading it back is the fastest
+ * triage path there is.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme === "dark" ? "dark" : "light");
+
+  // Effect, not render body: recording is a side effect, and under the
+  // React Compiler a write during render is exactly what it's allowed
+  // to move.
+  useEffect(() => {
+    recordProblem(error, "render");
+  }, [error]);
+
+  return (
+    <View style={[styles.center, { backgroundColor: theme.canvas }]}>
+      <AppText variant="title" color={theme.ink}>
+        This screen ran into a problem
+      </AppText>
+      <AppText color={theme.muted} style={styles.errorBody}>
+        Your data is untouched — nothing was being saved. Try again, and
+        if it keeps happening, Settings › Report a problem has the
+        details.
+      </AppText>
+      <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
+        {error.message}
+      </AppText>
+      <View style={styles.retry}>
+        <Button
+          label="Try again"
+          variant="secondary"
+          onPress={() => void retry()}
+          theme={theme}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -97,4 +203,5 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   errorBody: { textAlign: "center" },
+  retry: { marginTop: space.lg },
 });

@@ -45,7 +45,8 @@
     "@types/react": "~19.1.10",
     "babel-plugin-inline-import": "^3.0.0",
     "drizzle-kit": "^0.31.10",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
   },
   "scripts": {
     "start": "expo start",
@@ -54,6 +55,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate"
   },
   "private": true

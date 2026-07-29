@@ -18,6 +18,7 @@
  */
 import { sql } from "drizzle-orm";
 
+import { clearProblems } from "../lib/problemLog";
 import { db, sqlite } from "./client";
 import { syncTaxonomy } from "./seed";
 
@@ -68,6 +69,12 @@ async function deletePhotoFiles(): Promise<void> {
  */
 export async function eraseAllData(): Promise<void> {
   await deletePhotoFiles();
+
+  // The problem log lives outside the database (ADR-0013 decision 2),
+  // so nothing below reaches it. Erase all data means all data, and a
+  // diagnostics file that outlived the one destructive action in the
+  // app would be a lie in the place that can least afford one.
+  clearProblems();
 
   await db.transaction(async (tx) => {
     for (const table of TABLES_IN_DELETE_ORDER) {

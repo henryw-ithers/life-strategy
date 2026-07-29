@@ -181,8 +181,9 @@ the invariants:
 **What it would cost, and why that matters more here than usual.**
 Everything in Glide is local-first: no accounts, no server, no
 telemetry, and a privacy story that currently fits in one sentence
-([ADR-0002](adr/0002-data-model-and-persistence.md); ADR-0013 is
-expected to keep it that way). Any friend graph needs an account
+([ADR-0002](adr/0002-data-model-and-persistence.md);
+[ADR-0013](adr/0013-crash-reporting-and-telemetry.md) kept it that way,
+telemetry included). Any friend graph needs an account
 system, a server, and a sync path — which drags in ADR-0012 (identity)
 and ADR-0016 (sync) as hard prerequisites, and replaces "your data
 never leaves your device" with something that needs paragraphs. That

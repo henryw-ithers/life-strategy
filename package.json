@@ -14,7 +14,7 @@
     "react-native-safe-area-context": "~5.6.0"
   },
   "scripts": {
-    "test": "npm run test -w packages/scoring && npm run test -w packages/backup",
+    "test": "npm run test -w packages/scoring && npm run test -w packages/backup && npm run test -w apps/mobile",
     "typecheck": "npm run typecheck -w packages/scoring && npm run typecheck -w packages/backup && npm run typecheck -w apps/mobile",
     "mobile": "npm run start -w apps/mobile"
   },

@@ -221,13 +221,23 @@ export default function SettingsScreen() {
         )}
 
         {/* The fuller statement onboarding's privacy screen points at
-         *  (ADR-0011 decision 4). Plain facts, no reassurance voice. */}
+         *  (ADR-0011 decision 4). Plain facts, no reassurance voice.
+         *  ADR-0013 added the crash-log paragraph: the log is the one
+         *  new thing written outside the database, so leaving it
+         *  unmentioned would make "sends nothing anywhere" a sentence
+         *  the user has to take on trust rather than check. */}
         <Group theme={theme} title="Privacy">
           <AppText color={theme.ink}>
             Everything you enter — rankings, tasks, grades, journal
             entries, photos, and contentment check-ins — is stored only on
             this device. Glide has no account and no server, and sends
             nothing anywhere.
+          </AppText>
+          <AppText color={theme.ink} style={styles.resourceLine}>
+            When something breaks, the technical details are written down
+            here too — which screen, which version. Report a problem shows
+            you that text in full, and it only goes anywhere if you send
+            it.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
             Backups are encrypted with your passphrase before they leave
@@ -241,6 +251,19 @@ export default function SettingsScreen() {
         </Group>
 
         <Group theme={theme} flush>
+          <Pressable
+            onPress={() => router.push("/problem" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Report a problem
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+          <GroupDivider theme={theme} />
           <Pressable
             onPress={() => {
               void resetOnboarding().then(() => router.replace("/onboarding"));
