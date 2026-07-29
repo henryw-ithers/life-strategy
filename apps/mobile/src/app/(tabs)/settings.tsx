@@ -240,6 +240,11 @@ export default function SettingsScreen() {
             it.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
+            Send feedback is the same: it hands what you typed to your own
+            mail app, and you send it. Neither one carries anything from
+            inside the app with it.
+          </AppText>
+          <AppText color={theme.ink} style={styles.resourceLine}>
             Backups are encrypted with your passphrase before they leave
             the app, and go wherever you choose to put them. Without that
             passphrase, nobody can open one — including us.
@@ -250,7 +255,24 @@ export default function SettingsScreen() {
           </AppText>
         </Group>
 
+        {/* Feedback sits above Report a problem, and both sit above the
+         *  data controls: during the TestFlight round these are the two
+         *  rows that matter most, and a suggestion is the far more
+         *  common thing someone has to say than a crash. */}
         <Group theme={theme} flush>
+          <Pressable
+            onPress={() => router.push("/feedback" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Send feedback
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+          <GroupDivider theme={theme} />
           <Pressable
             onPress={() => router.push("/problem" as Href)}
             accessibilityRole="button"

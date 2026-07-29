@@ -240,11 +240,19 @@ balance is worth re-checking rather than re-assuming.
   first real report that arrives carrying something it should have
   removed is a bug in decision 3, and the fix belongs in the redactor
   rather than in a note asking testers to check first.
-- Three unused dependencies surfaced during the audit
-  (`expo-web-browser`, `expo-system-ui`, `expo-status-bar` are declared
-  but imported nowhere). None of them send anything; they are listed
-  here only so the audit's negative result is reproducible, and their
-  removal is housekeeping, not part of this decision.
+- Three dependencies surfaced during the audit as imported nowhere
+  (`expo-web-browser`, `expo-system-ui`, `expo-status-bar`). None of
+  them send anything; they are listed here only so the audit's negative
+  result is reproducible, and the cleanup is housekeeping, not part of
+  this decision. Two were removed. **`expo-system-ui` was kept:** it is
+  used through config rather than imports — its autolinked config plugin
+  is what implements `userInterfaceStyle: "automatic"` on Android,
+  writing `expo_system_ui_user_interface_style` into `strings.xml`.
+  Without the package, `@expo/prebuild-config`'s unversioned fallback
+  only logs "Install expo-system-ui in your project to enable this
+  feature" and writes nothing, so Android dark mode would silently stop
+  being configured at the next prebuild. "Imported nowhere" is not the
+  same test as "unused" for any Expo package that ships a plugin.
 
 ## Action items
 

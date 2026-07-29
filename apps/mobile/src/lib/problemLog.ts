@@ -67,8 +67,10 @@ export interface ProblemEntry {
  * ------------------------------------------------------------------ */
 
 /** Matches the line at the bottom of Settings, on purpose — a report
- *  and a tester's verbal answer should be the same string. */
-function buildLabel(): string {
+ *  and a tester's verbal answer should be the same string. Exported so
+ *  the feedback screen stamps the identical label; two spellings of the
+ *  same build is a triage trap. */
+export function buildLabel(): string {
   const version = Application.nativeApplicationVersion ?? "?";
   const build = Application.nativeBuildVersion;
   return build ? `${version} (${build})` : version;
@@ -77,7 +79,7 @@ function buildLabel(): string {
 /** `modelName` ("iPhone 13"), never `deviceName` — that one is
  *  whatever the owner called their phone, which is a name and often
  *  theirs. */
-function deviceLabel(): string {
+export function deviceLabel(): string {
   const os = `${Platform.OS} ${Device.osVersion ?? "?"}`;
   return Device.modelName ? `${os} · ${Device.modelName}` : os;
 }

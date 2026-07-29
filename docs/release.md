@@ -104,6 +104,41 @@ Read Apple's questionnaire once and confirm the answer before the first
 submission. If it turns out not to apply, remove the `config` block and
 answer in App Store Connect per build.
 
+## Where tester feedback arrives
+
+**Settings → Send feedback** composes an email and opens the tester's
+own mail app; nothing is transmitted by the build
+([ADR-0013](adr/0013-crash-reporting-and-telemetry.md)). Subjects are
+tagged so an inbox filter can sort them:
+
+    Glide feedback (idea|confusing|not working) — <version> (<build>)
+
+Mail goes to **glidefeedback@gmail.com** — a dedicated inbox, not a
+personal one, because the address is compiled into every distributed
+binary. It lives in one place: `FEEDBACK_ADDRESS` in
+`apps/mobile/src/app/feedback.tsx`.
+
+**Set up forwarding into your everyday inbox, and reply from the
+feedback account, not from your own.** A reply sent from a personal
+address hands it to the tester and undoes the point of having a separate
+one. Worth moving to an address at Glide's own domain if there is ever a
+store listing — but note that the App Store requires unique app names
+and "Glide" is already a well-known product, so the domain question and
+the naming question resolve together.
+
+**Changing the address needs a new build**, and old TestFlight builds
+stay installable for 90 days, so a stale address quietly keeps
+collecting mail nobody reads. Expire old builds after such a change, the
+same rule migrations get below.
+
+Two things worth knowing when a report doesn't arrive:
+
+- A tester who taps Send feedback has *opened a draft*, not sent one.
+  The screen says so, and their note stays in the app either way, but
+  silence is not evidence they had nothing to say.
+- On a phone with no mail account the screen falls back to the share
+  sheet, so feedback can arrive over Messages instead.
+
 ## Getting a report out of a tester
 
 There is no crash reporting service and there will not be one

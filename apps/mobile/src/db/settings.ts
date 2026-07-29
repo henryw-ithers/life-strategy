@@ -5,6 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 
+import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
 import { appSetting } from "./schema";
 
@@ -54,6 +55,45 @@ export async function hasAskedNotificationPermission(): Promise<boolean> {
 
 export async function markNotificationPermissionAsked(): Promise<void> {
   await setSetting(KEY_NOTIFICATIONS_PERMISSION_ASKED, "true");
+}
+
+const KEY_FEEDBACK_DRAFT = "feedback.draft";
+const KEY_FEEDBACK_KIND = "feedback.kind";
+
+export interface FeedbackDraft {
+  kind: FeedbackKind;
+  text: string;
+}
+
+/**
+ * A half-written suggestion survives leaving the screen.
+ *
+ * Feedback gets typed in the moment something is annoying, which is
+ * exactly the moment the user is likely to be interrupted — and losing
+ * it silently teaches them not to bother a second time. It lives in
+ * `app_setting` rather than a file so `eraseAllData` takes it along
+ * without a special case.
+ */
+export async function loadFeedbackDraft(): Promise<FeedbackDraft> {
+  const [text, kind] = await Promise.all([
+    getSetting(KEY_FEEDBACK_DRAFT),
+    getSetting(KEY_FEEDBACK_KIND),
+  ]);
+  return {
+    text: text ?? "",
+    kind: FEEDBACK_KINDS.includes(kind as FeedbackKind)
+      ? (kind as FeedbackKind)
+      : "suggestion",
+  };
+}
+
+export async function saveFeedbackDraft(draft: FeedbackDraft): Promise<void> {
+  await setSetting(KEY_FEEDBACK_DRAFT, draft.text);
+  await setSetting(KEY_FEEDBACK_KIND, draft.kind);
+}
+
+export async function clearFeedbackDraft(): Promise<void> {
+  await setSetting(KEY_FEEDBACK_DRAFT, "");
 }
 
 const KEY_CALIBRATION_GAP_COEFFICIENT = "calibration.gapCoefficient";
