@@ -9,9 +9,8 @@
  * the list moves, the furniture doesn't. It also drops a whole
  * scroll-linked animation for a plain View.
  *
- * The title is Title, not Display: at 22px it still reads as the page
- * name, and the 6px it gives back is permanent screen real estate on
- * every scroll position rather than something you recover by scrolling.
+ * The title is Display (28px), matching Home and the ritual screens —
+ * every page header in the app is now one size.
  */
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,7 +37,7 @@ export function ScreenHeader({ title, theme, right }: ScreenHeaderProps) {
       ]}
     >
       <AppText
-        variant="title"
+        variant="display"
         color={theme.ink}
         accessibilityRole="header"
         numberOfLines={1}

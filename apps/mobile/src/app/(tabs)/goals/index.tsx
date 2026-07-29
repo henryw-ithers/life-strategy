@@ -17,6 +17,7 @@ import {
 import { AddGoalModal } from "../../../components/goals/AddGoalModal";
 import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
+import { Group } from "../../../components/ui/Group";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import {
   createGoal,
@@ -70,10 +71,7 @@ export default function GoalsScreen() {
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           areas.map((area) => (
-            <View
-              key={area.id}
-              style={[styles.group, { borderTopColor: theme.hairline }]}
-            >
+            <Group key={area.id} theme={theme}>
               <View style={styles.groupHeader}>
                 <View
                   style={[
@@ -154,7 +152,7 @@ export default function GoalsScreen() {
                   )}
                 </View>
               ))}
-            </View>
+            </Group>
           ))
         )}
       </ScrollView>
@@ -184,10 +182,6 @@ const styles = StyleSheet.create({
    *  list scrolls inside it while both stay put. */
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xl },
-  group: {
-    paddingVertical: space.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",

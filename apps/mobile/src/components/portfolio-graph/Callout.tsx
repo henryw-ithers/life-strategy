@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
+import { AppText } from "../ui/AppText";
 import { effortLabel } from "./geometry";
 import type { GraphPoint } from "./types";
 
@@ -26,18 +27,25 @@ export function Callout({ point, hint, theme }: CalloutProps) {
                 { backgroundColor: theme.areas[point.areaId] ?? theme.muted },
               ]}
             />
-            <Text style={[styles.name, { color: theme.ink }]} numberOfLines={1}>
+            <AppText
+              variant="headline"
+              color={theme.ink}
+              numberOfLines={1}
+              style={styles.name}
+            >
               {point.name}
-            </Text>
+            </AppText>
           </View>
-          <Text style={[styles.detail, { color: theme.muted }]}>
+          <AppText variant="caption" color={theme.muted} tabular>
             Priority {point.importance} · Satisfaction {point.satisfaction} ·{" "}
             {effortLabel(point.effort)}
             {point.includeInScoring ? "" : " · not scored"}
-          </Text>
+          </AppText>
         </>
       ) : (
-        <Text style={[styles.hint, { color: theme.muted }]}>{hint}</Text>
+        <AppText variant="caption" color={theme.muted}>
+          {hint}
+        </AppText>
       )}
     </View>
   );
@@ -47,7 +55,5 @@ const styles = StyleSheet.create({
   wrap: { minHeight: 56, justifyContent: "center", gap: 3 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  name: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  detail: { fontSize: 14 },
-  hint: { fontSize: 14 },
+  name: { flexShrink: 1 },
 });

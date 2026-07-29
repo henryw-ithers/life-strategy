@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
+import { AppText } from "../ui/AppText";
 
 export interface LegendArea {
   id: string;
@@ -42,9 +43,9 @@ export function Legend({ areas, focusAreaId, onToggle, theme }: LegendProps) {
                 { backgroundColor: theme.areas[area.id] ?? theme.muted },
               ]}
             />
-            <Text style={[styles.label, { color: theme.ink }]} numberOfLines={1}>
+            <AppText variant="caption" color={theme.ink} numberOfLines={1}>
               {area.name}
-            </Text>
+            </AppText>
           </Pressable>
         );
       })}
@@ -68,6 +69,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  label: { fontSize: 13, fontWeight: "500" },
   dimmed: { opacity: 0.45 },
 });

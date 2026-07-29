@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import {
   Easing,
   useReducedMotion,
@@ -9,6 +9,7 @@ import {
 
 import { DEFAULT_TAXONOMY } from "../../db/taxonomy";
 import type { ThemeTokens } from "../../theme/colors";
+import { AppText } from "../ui/AppText";
 import { Callout } from "./Callout";
 import { Legend } from "./Legend";
 import { ModeControl } from "./ModeControl";
@@ -93,10 +94,10 @@ export function PortfolioGraphView({ snapshots, theme }: PortfolioGraphViewProps
       />
 
       <View style={styles.metaRow}>
-        <Text style={[styles.meta, { color: theme.muted }]}>Priority ↑</Text>
-        <Text style={[styles.meta, { color: theme.muted }]}>
+        <AppText variant="footnote" color={theme.muted}>Priority ↑</AppText>
+        <AppText variant="footnote" color={theme.muted}>
           {snapshots[displayIndex]?.label ?? ""}
-        </Text>
+        </AppText>
       </View>
 
       <View onLayout={(e) => setSize(e.nativeEvent.layout.width)}>
@@ -119,7 +120,7 @@ export function PortfolioGraphView({ snapshots, theme }: PortfolioGraphViewProps
       </View>
 
       <View style={styles.metaRowEnd}>
-        <Text style={[styles.meta, { color: theme.muted }]}>Satisfaction →</Text>
+        <AppText variant="footnote" color={theme.muted}>Satisfaction →</AppText>
       </View>
 
       {mode === "playback" && count > 1 ? (
@@ -148,5 +149,4 @@ const styles = StyleSheet.create({
   wrap: { gap: 12 },
   metaRow: { flexDirection: "row", justifyContent: "space-between" },
   metaRowEnd: { flexDirection: "row", justifyContent: "flex-end" },
-  meta: { fontSize: 12 },
 });

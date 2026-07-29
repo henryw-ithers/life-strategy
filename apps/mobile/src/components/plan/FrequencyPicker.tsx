@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { fonts, radius, space } from "../../theme/tokens";
 import {
   formatFrequency,
   MAX_TIMES_PER_WEEK,
@@ -204,8 +204,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowText: {
+    // Size is tuned to the picker row rather than the scale; the
+    // family still comes from tokens.
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
     letterSpacing: -0.2,
   },
 });

@@ -15,7 +15,9 @@
  * these is a destination, so none of them gets that treatment.
  */
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
+/* The single family, not the `@expo/vector-icons` barrel — that pulls
+ * every icon font in the package into the bundle. */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useEffect } from "react";
 import { Platform, Pressable, StyleSheet, useColorScheme, View } from "react-native";

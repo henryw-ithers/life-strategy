@@ -12,6 +12,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorS
 
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../components/ui/Backdrop";
+import { Group, GroupDivider } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
@@ -121,36 +122,38 @@ export default function SettingsScreen() {
       <Backdrop circles={hueWash(theme.accent)} />
       <ScreenHeader title="Settings" theme={theme} />
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
-        <Pressable
-          onPress={() => router.push("/calibration" as Href)}
-          accessibilityRole="button"
-          style={[styles.navRow, { borderColor: theme.hairline }]}
-        >
-          <AppText color={theme.ink} style={styles.grow}>
-            Calibration
-          </AppText>
-          <AppText variant="label" color={theme.muted}>
-            ›
-          </AppText>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.push("/backup" as Href)}
-          accessibilityRole="button"
-          style={[styles.navRow, { borderColor: theme.hairline }]}
-        >
-          <AppText color={theme.ink} style={styles.grow}>
-            Your data
-          </AppText>
-          <AppText variant="label" color={theme.muted}>
-            ›
-          </AppText>
-        </Pressable>
+        <Group theme={theme} flush>
+          <Pressable
+            onPress={() => router.push("/calibration" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Calibration
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+          <GroupDivider theme={theme} />
+          <Pressable
+            onPress={() => router.push("/backup" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Your data
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+        </Group>
 
         {settings === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
-          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+          <Group theme={theme} title="Reminders">
             <View style={styles.row}>
               <AppText color={theme.ink} style={styles.grow}>
                 Daily reminder
@@ -210,15 +213,12 @@ export default function SettingsScreen() {
                 }}
               />
             ) : null}
-          </View>
+          </Group>
         )}
 
         {/* The fuller statement onboarding's privacy screen points at
          *  (ADR-0011 decision 4). Plain facts, no reassurance voice. */}
-        <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-          <AppText variant="headline" color={theme.ink}>
-            Privacy
-          </AppText>
+        <Group theme={theme} title="Privacy">
           <AppText color={theme.ink}>
             Everything you enter — rankings, tasks, grades, journal
             entries, photos, and contentment check-ins — is stored only on
@@ -234,28 +234,27 @@ export default function SettingsScreen() {
             Deleting Glide deletes its data with it. Export a backup first
             if you want to keep it.
           </AppText>
-        </View>
+        </Group>
 
-        <Pressable
-          onPress={() => {
-            void resetOnboarding().then(() => router.replace("/onboarding"));
-          }}
-          accessibilityRole="button"
-          accessibilityHint="Replays the introduction; your data is not changed"
-          style={[styles.navRow, { borderColor: theme.hairline }]}
-        >
-          <AppText color={theme.ink} style={styles.grow}>
-            Run the introduction again
-          </AppText>
-          <AppText variant="label" color={theme.muted}>
-            ›
-          </AppText>
-        </Pressable>
+        <Group theme={theme} flush>
+          <Pressable
+            onPress={() => {
+              void resetOnboarding().then(() => router.replace("/onboarding"));
+            }}
+            accessibilityRole="button"
+            accessibilityHint="Replays the introduction; your data is not changed"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Run the introduction again
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+        </Group>
 
-        <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-          <AppText variant="headline" color={theme.ink}>
-            Support resources
-          </AppText>
+        <Group theme={theme} title="Support">
           <AppText color={theme.ink}>
             These are here anytime, for anyone — not because of anything in
             your data.
@@ -269,7 +268,7 @@ export default function SettingsScreen() {
           <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
             Or talk to a doctor, therapist, or someone you trust.
           </AppText>
-        </View>
+        </Group>
 
         {buildLabel ? (
           <AppText
@@ -293,22 +292,14 @@ const styles = StyleSheet.create({
    *  settings list scrolls inside it while both stay put. */
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xl },
-  section: {
-    marginTop: space.xl,
-    paddingTop: space.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: space.sm,
-  },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
-  navRow: {
+  /** A row inside a flush Group: the group owns the fill and the side
+   *  padding, so the row only owns its height and its own contents. */
+  groupRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    minHeight: 48,
-    marginTop: space.lg,
-    paddingHorizontal: space.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
+    minHeight: 52,
   },
   grow: { flex: 1 },
   caption: { marginTop: -space.xs },

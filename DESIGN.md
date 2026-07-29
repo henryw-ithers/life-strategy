@@ -33,43 +33,43 @@ colors:
   area-leisure-creativity-dark: "#ab8be3"
 typography:
   display:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "28px"
     fontWeight: 700
     lineHeight: "34px"
     letterSpacing: "-0.5px"
   title:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "22px"
     fontWeight: 700
     lineHeight: "28px"
     letterSpacing: "-0.35px"
   headline:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "17px"
     fontWeight: 600
     lineHeight: "22px"
     letterSpacing: "-0.2px"
   body:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "16px"
     fontWeight: 400
     lineHeight: "24px"
     letterSpacing: "0px"
   label:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "15px"
     fontWeight: 600
     lineHeight: "20px"
     letterSpacing: "0px"
   caption:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "13px"
     fontWeight: 500
     lineHeight: "18px"
     letterSpacing: "0.05px"
   footnote:
-    fontFamily: "System (SF Pro on iOS, Roboto on Android)"
+    fontFamily: "Manrope (400/500/600/700, bundled)"
     fontSize: "12px"
     fontWeight: 500
     lineHeight: "16px"
@@ -188,12 +188,13 @@ Six categorical hues, one per Strategic Life Area, each lifted in lightness (not
 
 ## 3. Typography
 
-**Display/Body/Label Font:** System default — SF Pro on iOS, Roboto on Android. No custom typeface; the system font keeps the app feeling native on both platforms per the adaptive-platform brief.
+**Display/Body/Label Font:** **Manrope**, bundled at 400/500/600/700 and loaded at launch. One family in four weights — no display/body pairing, which app UI does not need. Chosen over the system font because PRODUCT.md asks the app to feel like itself rather than like a system app on either platform; chosen over Inter because Inter is the default of most modern apps and would undercut the same goal. Manrope ships `tnum`, so tabular numerals survive the switch.
 
 **Character:** Disciplined and numeric-forward. Negative letter-spacing tightens the two largest sizes so headings read as decisive rather than loose; tabular numerals keep the grade and the diagnostic's 1–10 ratings visually aligned wherever they stack.
 
 ### Hierarchy
-- **Display** (700, 28px/34px, -0.5px tracking): the grade number and top-level screen titles.
+- **Numeral** (Bold, 44px/48px, -1px tracking): the day's grade, and only that.
+- **Display** (Bold, 28px/34px, -0.5px tracking): every top-level screen title. All page headers are this one size — tabs and rituals alike.
 - **Title** (700, 22px/28px, -0.35px tracking): section headers (a diagnostic area name, a goal title).
 - **Headline** (600, 17px/22px, -0.2px tracking): primary button labels, list-item emphasis.
 - **Body** (400, 16px/24px, 0 tracking): running text, journal entries. Cap prose at 65–75ch on wide screens.
@@ -203,6 +204,8 @@ Six categorical hues, one per Strategic Life Area, each lifted in lightness (not
 
 ### Named Rules
 **The One Text Rule.** `AppText` is the only text component in the app; every string picks a variant from this scale and an explicit color. No inline font sizes, no unthemed text color.
+
+**The Family-Always Rule.** The handful of places that legitimately sit outside `AppText` — `TextInput`, and the NumberDial and FrequencyPicker whose sizes are tuned to their controls — must still take `fontFamily` from `tokens.fonts`. A custom family is not inherited: a raw size with no family silently falls back to the system face and puts two typefaces on one screen. Never pair `fontFamily` with `fontWeight`; React Native does not synthesize weights for a bundled family, and Android will fake-bold an already-bold file.
 
 ## 4. Elevation
 
@@ -236,7 +239,12 @@ The app's one rating control: a looping 1–10 carousel scroll-snapped on a `sur
 The app's identity element: soft, oversized circles in Strategic Life Area hues bleeding off the canvas edges, rendered as the first child of a container with `overflow: hidden`, alpha always in the ~2–10% range (hex `05`–`1a`). Two modes: **Constellation** — all six area hues at varied sizes, for landing/overview moments (home, diagnostic intro), with a `faint` variant that halves presence for content-heavy screens; **Hue Wash** — a single area's hue washing a focused screen, one per diagnostic area step. Never rendered behind dense data — the portfolio graph canvas itself always stays clean of it.
 
 ### Navigation
-No distinct chrome documented yet beyond Expo Router's default screen transitions; the daily/diagnostic/plan surfaces are file-based routes without a persistent tab or nav bar in the current build.
+**Bottom tab bar**, five destinations: Goals · Tasks · Home · Portfolio · Settings. Home sits centre, with the screens you edit to its left and the ones you review to its right. Icons (Ionicons, outline at rest and solid when selected) carry it; only the **active** tab shows its name, under a filled `accent` pill. Icon-only bars are the least learnable option and both HIG and Material spec labelled destinations, so naming just the selected one keeps the bar quiet without ever leaving the screen unnamed — screen readers get all five names regardless. Opaque `surface` fill with a hairline top edge, never a blur.
+
+Focused tasks — diagnostic, calibration, backup, onboarding — are pushed by the root stack and cover the bar rather than sitting beside it. A goal's detail screen pushes *inside* the Goals tab, so the bar stays put.
+
+### Group (container)
+One `surface`-filled block holding a related set, its label outside and above it — the inset-grouped-list idiom HIG names for settings-shaped content. Replaces the older top-hairline-per-section pattern, where a section's extent was implied by a line above it and you had to infer where it ended. Rows inside a flush Group separate with `GroupDivider`. **Groups never nest**, and they are not a card grid: heights vary with content and the fill stays flat.
 
 ## 6. Do's and Don'ts
 

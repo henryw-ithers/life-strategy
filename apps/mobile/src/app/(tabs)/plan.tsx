@@ -38,6 +38,7 @@ import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
+import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { UNIT_INFO } from "../../content/units";
 import {
@@ -141,7 +142,7 @@ export default function PlanScreen() {
           </View>
         ) : (
           plan.areas.map((area) => (
-            <View key={area.id} style={[styles.group, { borderTopColor: theme.hairline }]}>
+            <Group key={area.id} theme={theme}>
               <View style={styles.groupHeader}>
                 <View
                   style={[styles.dot, { backgroundColor: theme.areas[area.id] ?? theme.muted }]}
@@ -290,7 +291,7 @@ export default function PlanScreen() {
                   </Animated.View>
                 );
               })}
-            </View>
+            </Group>
           ))
         )}
       </ScrollView>
@@ -411,11 +412,6 @@ const styles = StyleSheet.create({
   centerText: { textAlign: "center" },
   // Areas breathe more than the rows inside them — the rhythm is what
   // separates six groups without six heavy dividers.
-  group: {
-    paddingTop: space.lg,
-    paddingBottom: space.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",

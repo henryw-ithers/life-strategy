@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
+import { AppText } from "../ui/AppText";
 import type { GraphMode } from "./types";
 
 const MODES: { key: GraphMode; label: string }[] = [
@@ -45,15 +46,13 @@ export function ModeControl({
               },
             ]}
           >
-            <Text
-              style={[
-                styles.label,
-                { color: active ? theme.ink : theme.muted },
-                disabled && styles.disabled,
-              ]}
+            <AppText
+              variant="label"
+              color={active ? theme.ink : theme.muted}
+              style={disabled ? styles.disabled : undefined}
             >
               {label}
-            </Text>
+            </AppText>
           </Pressable>
         );
       })}
@@ -75,6 +74,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  label: { fontSize: 14, fontWeight: "600" },
   disabled: { opacity: 0.4 },
 });

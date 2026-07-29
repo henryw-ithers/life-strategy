@@ -1,4 +1,13 @@
+/* Per-weight subpaths, not the package barrel. The barrel's index
+ * requires all seven weights, and Metro bundles every `require`d asset
+ * it can reach — importing it shipped ~290 kB of ExtraLight, Light and
+ * ExtraBold the app never renders. */
+import { Manrope_400Regular } from "@expo-google-fonts/manrope/400Regular";
+import { Manrope_500Medium } from "@expo-google-fonts/manrope/500Medium";
+import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold";
+import { Manrope_700Bold } from "@expo-google-fonts/manrope/700Bold";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, useColorScheme, View } from "react-native";
@@ -13,14 +22,26 @@ import { getTheme } from "../theme/colors";
 import { space } from "../theme/tokens";
 
 /**
- * Database gate: run pending migrations, then seed the default
- * taxonomy, before rendering any screen. Screens below this layout can
- * assume the database exists and is current.
+ * Database and font gate: run pending migrations, seed the default
+ * taxonomy, and load the type family before rendering any screen.
+ * Screens below this layout can assume the database exists, is
+ * current, and that Manrope is available.
+ *
+ * Fonts belong in the same gate as the data: rendering a frame before
+ * they resolve shows the whole app in the system face and then swaps
+ * it, which is the flash of unstyled text — worse here than a slightly
+ * longer splash, because every screen is type.
  */
 export default function RootLayout() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const { success, error: migrationError } = useMigrations(db, migrations);
+  const [fontsLoaded, fontError] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+  });
   const [seeded, setSeeded] = useState(false);
   const [seedError, setSeedError] = useState<Error | null>(null);
 
@@ -53,8 +74,11 @@ export default function RootLayout() {
     );
   }
 
-  // Splash screen stays visible while migrations/seed run.
-  if (!success || !seeded) return null;
+  // Splash screen stays visible while migrations, seed, and fonts run.
+  // A font that fails to load is deliberately *not* fatal: the system
+  // face is a perfectly readable fallback, and refusing to open the
+  // app over a typeface would be the wrong trade.
+  if (!success || !seeded || (!fontsLoaded && !fontError)) return null;
 
   return (
     <GestureHandlerRootView style={styles.root}>

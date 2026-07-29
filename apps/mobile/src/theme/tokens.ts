@@ -25,51 +25,80 @@ export const radius = {
 } as const;
 
 /**
- * Type scale: system font (SF Pro / Roboto), disciplined. Negative
- * tracking on large sizes, tabular numerals wherever numbers align.
+ * Manrope, loaded at launch (see `src/app/_layout.tsx`).
+ *
+ * React Native does **not** synthesize weights for a custom family —
+ * each weight is a separately registered family name, and setting
+ * `fontWeight` alongside one makes Android fake-bold on top of an
+ * already-bold file. So the scale names the exact face and never
+ * carries `fontWeight`.
+ *
+ * Any text outside `AppText` — a `TextInput`, or a raw `Text` inside a
+ * component with its own sizing — must still pull its family from
+ * here, or it silently falls back to the system font and the screen
+ * ends up in two typefaces.
+ */
+export const fonts = {
+  regular: "Manrope_400Regular",
+  medium: "Manrope_500Medium",
+  semibold: "Manrope_600SemiBold",
+  bold: "Manrope_700Bold",
+} as const;
+
+/**
+ * Type scale, disciplined. Negative tracking on large sizes, tabular
+ * numerals wherever numbers align (Manrope ships `tnum`).
  */
 export const type = {
   display: {
     fontSize: 28,
     lineHeight: 34,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     letterSpacing: -0.5,
   },
   title: {
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     letterSpacing: -0.35,
   },
   headline: {
     fontSize: 17,
     lineHeight: 22,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
     letterSpacing: -0.2,
   },
   body: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: "400",
+    fontFamily: fonts.regular,
     letterSpacing: 0,
   },
   label: {
     fontSize: 15,
     lineHeight: 20,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
     letterSpacing: 0,
   },
   caption: {
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "500",
+    fontFamily: fonts.medium,
     letterSpacing: 0.05,
   },
   footnote: {
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "500",
+    fontFamily: fonts.medium,
     letterSpacing: 0.1,
+  },
+  /** The day's grade. A real, recurring display size the scale was
+   *  missing — `DayNumber` had been hard-coding it. */
+  numeral: {
+    fontSize: 44,
+    lineHeight: 48,
+    fontFamily: fonts.bold,
+    letterSpacing: -1,
   },
 } as const satisfies Record<string, TextStyle>;
 

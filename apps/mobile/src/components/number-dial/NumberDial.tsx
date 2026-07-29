@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space, type as typeScale } from "../../theme/tokens";
+import { fonts, radius, space, type as typeScale } from "../../theme/tokens";
 
 const ITEM_W = 44;
 const DIAL_H = 56;
@@ -262,10 +262,14 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     marginBottom: space.xs,
   },
+  /* Dial-specific sizes: the readout and the carousel digits are tuned
+   * to the track, not to the type scale. They still take their family
+   * from `fonts` — a raw size with no family falls back to the system
+   * face and puts two typefaces on one screen. */
   readout: {
     fontSize: 20,
     lineHeight: 24,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     letterSpacing: -0.2,
     fontVariant: ["tabular-nums"],
   },
@@ -291,7 +295,7 @@ const styles = StyleSheet.create({
   },
   digit: {
     fontSize: 19,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
     fontVariant: ["tabular-nums"],
   },
 });

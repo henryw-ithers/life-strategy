@@ -60,10 +60,10 @@ export function DayNumber({ base, dormant, theme, reduceMotion }: DayNumberProps
       accessible
       accessibilityLabel={`Day grade ${base} percent`}
     >
-      <AppText color={theme.ink} tabular style={styles.number}>
+      <AppText variant="numeral" color={theme.ink} tabular>
         {shown}
       </AppText>
-      <AppText color={theme.muted} style={styles.percent}>
+      <AppText variant="title" color={theme.muted} style={styles.percent}>
         %
       </AppText>
     </Animated.View>
@@ -72,16 +72,7 @@ export function DayNumber({ base, dormant, theme, reduceMotion }: DayNumberProps
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "flex-start", gap: 2 },
-  number: {
-    fontSize: 44,
-    lineHeight: 48,
-    fontWeight: "700",
-    letterSpacing: -1,
-  },
-  percent: {
-    fontSize: 22,
-    lineHeight: 30,
-    fontWeight: "600",
-    marginTop: 4,
-  },
+  /** Optically seats the sign against the numeral's cap height rather
+   *  than its baseline box. */
+  percent: { marginTop: 6 },
 });

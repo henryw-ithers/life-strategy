@@ -32,7 +32,7 @@ import { AppText } from "../components/ui/AppText";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { getTheme, type ThemeTokens } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
+import { radius, space, type as typeScale } from "../theme/tokens";
 
 const MIN_PASSPHRASE = 8;
 
@@ -353,6 +353,9 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   input: {
+    // Passphrase fields had no type styling at all, so they were the
+    // one place still rendering in the system face.
+    ...typeScale.body,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,
     paddingHorizontal: space.md,
