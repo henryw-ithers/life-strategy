@@ -64,6 +64,16 @@ function nextFireDate(time: string, handled: boolean): Date {
 }
 
 /**
+ * Drops any scheduled nudge without scheduling a replacement. Used by
+ * the data erase: a scheduled notification lives in the OS, not in the
+ * database, so wiping the data would otherwise leave a reminder to
+ * finish a checklist that no longer exists.
+ */
+export async function cancelAllNudges(): Promise<void> {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
+
+/**
  * Re-derives the single scheduled nudge from scratch: cancels
  * whatever's currently scheduled, then — if the reminder is enabled
  * and permitted — schedules exactly one upcoming occurrence.

@@ -10,6 +10,7 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
 
+import { EraseDataModal } from "../../components/settings/EraseDataModal";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../components/ui/Group";
@@ -22,8 +23,10 @@ import {
   type NotificationSettings,
 } from "../../db/settings";
 import { resetOnboarding } from "../../db/onboarding";
+import { eraseAllData } from "../../db/reset";
 import { currentLocalDate, loadDay } from "../../db/today";
 import {
+  cancelAllNudges,
   getPermissionStatus,
   requestPermission,
   syncDailyNudge,
@@ -51,6 +54,7 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [eraseOpen, setEraseOpen] = useState(false);
 
   const reload = useCallback(async () => {
     const [loaded, status] = await Promise.all([
@@ -252,6 +256,22 @@ export default function SettingsScreen() {
               ›
             </AppText>
           </Pressable>
+          <GroupDivider theme={theme} />
+          <Pressable
+            onPress={() => setEraseOpen(true)}
+            accessibilityRole="button"
+            accessibilityHint="Deletes everything on this device and starts over"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            {/* The one destructive action in the app, and the only
+             *  place `danger` appears outside a goal being removed. */}
+            <AppText color={theme.danger} style={styles.grow}>
+              Erase all data
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
         </Group>
 
         <Group theme={theme} title="Support">
@@ -282,6 +302,22 @@ export default function SettingsScreen() {
           </AppText>
         ) : null}
       </ScrollView>
+
+      <EraseDataModal
+        visible={eraseOpen}
+        onClose={() => setEraseOpen(false)}
+        theme={theme}
+        onConfirm={async () => {
+          await eraseAllData();
+          // Scheduled nudges live in the OS, not the database, so they
+          // have to be cancelled explicitly — otherwise a wiped app
+          // keeps reminding you about a checklist that's gone.
+          await cancelAllNudges();
+          await resetOnboarding();
+          setEraseOpen(false);
+          router.replace("/onboarding");
+        }}
+      />
     </View>
   );
 }
