@@ -9,26 +9,26 @@ import * as Linking from "expo-linking";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppText } from "../components/ui/AppText";
-import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { AppText } from "../../components/ui/AppText";
+import { Backdrop, hueWash } from "../../components/ui/Backdrop";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
   setNotificationEnabled,
   setNotificationTime,
   type NotificationSettings,
-} from "../db/settings";
-import { resetOnboarding } from "../db/onboarding";
-import { currentLocalDate, loadDay } from "../db/today";
+} from "../../db/settings";
+import { resetOnboarding } from "../../db/onboarding";
+import { currentLocalDate, loadDay } from "../../db/today";
 import {
   getPermissionStatus,
   requestPermission,
   syncDailyNudge,
-} from "../notifications/dailyNudge";
-import { getTheme } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
+} from "../../notifications/dailyNudge";
+import { getTheme } from "../../theme/colors";
+import { radius, space } from "../../theme/tokens";
 
 /**
  * Version and build, for bug reports from testers ("what does the
@@ -47,8 +47,6 @@ const buildLabel = [
 export default function SettingsScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
-
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -121,28 +119,8 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(theme.accent)} />
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xl },
-        ]}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Settings
-        </AppText>
-
+      <ScreenHeader title="Settings" theme={theme} />
+      <ScrollView style={styles.body} contentContainerStyle={styles.container}>
         <Pressable
           onPress={() => router.push("/calibration" as Href)}
           accessibilityRole="button"
@@ -311,8 +289,10 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
+  /** Takes the space between the fixed header and the tab bar; the
+   *  settings list scrolls inside it while both stay put. */
+  body: { flex: 1 },
+  container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xl },
   section: {
     marginTop: space.xl,
     paddingTop: space.lg,

@@ -17,12 +17,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AbandonGoalModal } from "../../components/goals/AbandonGoalModal";
-import { CompleteGoalModal } from "../../components/goals/CompleteGoalModal";
-import { ReviseGoalModal } from "../../components/goals/ReviseGoalModal";
-import { AppText } from "../../components/ui/AppText";
-import { Backdrop, hueWash } from "../../components/ui/Backdrop";
-import { Button } from "../../components/ui/Button";
+import { AbandonGoalModal } from "../../../components/goals/AbandonGoalModal";
+import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
+import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
+import { AppText } from "../../../components/ui/AppText";
+import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
+import { Button } from "../../../components/ui/Button";
 import {
   abandonGoal,
   addMilestone,
@@ -34,9 +34,9 @@ import {
   reviveGoal,
   resumeGoal,
   type GoalDetail,
-} from "../../db/goals";
-import { getTheme } from "../../theme/colors";
-import { radius, space, type as typeScale } from "../../theme/tokens";
+} from "../../../db/goals";
+import { getTheme } from "../../../theme/colors";
+import { radius, space, type as typeScale } from "../../../theme/tokens";
 
 function statusLabel(status: GoalDetail["status"]): string {
   switch (status) {
@@ -99,7 +99,10 @@ export default function GoalDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xl },
+          // Pushed inside the Goals tab, so the bar is still on screen
+          // and owns the bottom inset. Back stays — this is a detail
+          // screen, not a destination.
+          { paddingTop: insets.top + space.md, paddingBottom: space.xl },
         ]}
       >
         <Pressable

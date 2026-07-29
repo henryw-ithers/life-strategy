@@ -24,18 +24,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
-import { ActivitySheet, type ExistingActivity } from "../components/today/ActivitySheet";
-import { DayKindSheet } from "../components/today/DayKindSheet";
-import { DayNumber } from "../components/today/DayNumber";
-import { MonthGrid } from "../components/today/MonthGrid";
-import { NoteSheet } from "../components/today/NoteSheet";
-import { TaskRow } from "../components/today/TaskRow";
-import { WeekStrip } from "../components/today/WeekStrip";
-import { AppText } from "../components/ui/AppText";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
-import { Button } from "../components/ui/Button";
-import { loadWeekGrade } from "../db/grades";
-import { isOnboardingComplete } from "../db/onboarding";
+import { ActivitySheet, type ExistingActivity } from "../../components/today/ActivitySheet";
+import { DayKindSheet } from "../../components/today/DayKindSheet";
+import { DayNumber } from "../../components/today/DayNumber";
+import { MonthGrid } from "../../components/today/MonthGrid";
+import { NoteSheet } from "../../components/today/NoteSheet";
+import { TaskRow } from "../../components/today/TaskRow";
+import { WeekStrip } from "../../components/today/WeekStrip";
+import { AppText } from "../../components/ui/AppText";
+import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { Button } from "../../components/ui/Button";
+import { loadWeekGrade } from "../../db/grades";
+import { isOnboardingComplete } from "../../db/onboarding";
 import {
   addJournalEntry,
   addPhoto,
@@ -52,25 +52,17 @@ import {
   type MonthDay,
   type TodayActivity,
   type TodayTask,
-} from "../db/today";
-import { spokenDate } from "../lib/format";
-import { syncDailyNudge } from "../notifications/dailyNudge";
-import { getTheme, type ThemeTokens } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
+} from "../../db/today";
+import { spokenDate } from "../../lib/format";
+import { syncDailyNudge } from "../../notifications/dailyNudge";
+import { getTheme, type ThemeTokens } from "../../theme/colors";
+import { radius, space } from "../../theme/tokens";
 
 type SectionKey = "everyDay" | "thisWeek" | "doneWeek" | "completed";
 
 /** Everything off the daily surface, in the order the app's own
  *  hierarchy runs: strategy (plan, goals), then the periodic ritual
  *  (diagnostic, portfolio), then settings. */
-const DESTINATIONS = [
-  { href: "/plan", label: "Plan" },
-  { href: "/goals", label: "Goals" },
-  { href: "/diagnostic", label: "Diagnostic" },
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/settings", label: "Settings" },
-] as const;
-
 export default function TodayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
@@ -272,17 +264,20 @@ export default function TodayScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xl },
-        ]}
-      >
-        {day === null ? (
-          <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxxl }} />
-        ) : (
-          <>
-            {/* ── Header ── */}
+      {day === null ? (
+        <ActivityIndicator color={theme.muted} style={styles.loading} />
+      ) : (
+        <>
+          {/* ── Fixed header ──
+              The day's identity (date, grade) and its navigation. This
+              is the one part of Home you always need in view, so it
+              stays put and the checklist scrolls beneath it. */}
+          <View
+            style={[
+              styles.header,
+              { paddingTop: insets.top + space.sm, borderBottomColor: theme.hairline },
+            ]}
+          >
             <View style={styles.headerRow}>
               <Pressable
                 onPress={() => setMonthOpen((v) => !v)}
@@ -363,7 +358,9 @@ export default function TodayScreen() {
                 />
               </Animated.View>
             )}
+          </View>
 
+          <ScrollView style={styles.body} contentContainerStyle={styles.container}>
             {day.finalized ? (
               <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
                 This week is sealed — days settle for good a few days after
@@ -525,36 +522,18 @@ export default function TodayScreen() {
                 instead of floating mid-screen above blank canvas. */}
             <View style={styles.spacer} />
 
-            {/* ── Footer ── */}
+            {/* ── Footer ──
+                The destination chips that used to live here are now
+                the tab bar; what remains is the line that has to stay
+                next to the number, not next to the navigation. */}
             <View style={[styles.footer, { borderTopColor: theme.hairline }]}>
-              <View style={styles.navRow}>
-                {DESTINATIONS.map((d) => (
-                  <Pressable
-                    key={d.href}
-                    onPress={() => router.push(d.href as Href)}
-                    accessibilityRole="button"
-                    accessibilityLabel={d.label}
-                    style={({ pressed }) => [
-                      styles.navChip,
-                      {
-                        backgroundColor: theme.surface,
-                        opacity: pressed ? 0.6 : 1,
-                      },
-                    ]}
-                  >
-                    <AppText variant="label" color={theme.ink}>
-                      {d.label}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </View>
               <AppText variant="footnote" color={theme.muted}>
                 Grades are guidelines, not judgments.
               </AppText>
             </View>
-          </>
-        )}
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
 
 
       {day ? (
@@ -747,7 +726,22 @@ function ActivityRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  container: { paddingHorizontal: space.screen, flexGrow: 1 },
+  loading: { marginTop: space.xxxl },
+  /** Fixed above the scroll region; the strip's own top margin gives
+   *  it room, so the header only pays for its bottom edge. */
+  header: {
+    paddingHorizontal: space.screen,
+    paddingBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  /** Takes the space between the fixed header and the tab bar. */
+  body: { flex: 1 },
+  container: {
+    paddingHorizontal: space.screen,
+    paddingTop: space.sm,
+    paddingBottom: space.xl,
+    flexGrow: 1,
+  },
   spacer: { flexGrow: 1, minHeight: space.xl },
   headerRow: {
     flexDirection: "row",
@@ -814,15 +808,5 @@ const styles = StyleSheet.create({
     paddingTop: space.lg,
     gap: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  /** Wraps by design: five destinations can't fit one row at any
-   *  phone width, and letting them run off the gutter was the bug
-   *  this replaced. */
-  navRow: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  navChip: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
   },
 });

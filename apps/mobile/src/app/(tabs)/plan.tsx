@@ -28,7 +28,6 @@ import Animated, {
   LinearTransition,
   useReducedMotion,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
@@ -39,6 +38,7 @@ import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { UNIT_INFO } from "../../content/units";
 import {
   addTask,
@@ -67,7 +67,6 @@ interface EditTarget {
 export default function PlanScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   // Reanimated's layout transition, matching the Today screen —
   // `LayoutAnimation` is the legacy path and behaves inconsistently
@@ -120,32 +119,12 @@ export default function PlanScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
+      <ScreenHeader title="Tasks" theme={theme} />
       <ScrollView
+        style={styles.body}
         scrollEnabled={!draggingTask}
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xxl },
-        ]}
+        contentContainerStyle={styles.container}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Plan
-        </AppText>
-        <AppText color={theme.muted} style={styles.lead}>
-          Your 100 points, given things to do.
-        </AppText>
-
         {plan === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : !plan.hasSnapshot ? (
@@ -323,7 +302,9 @@ export default function PlanScreen() {
             {
               backgroundColor: theme.surface,
               borderColor: theme.hairline,
-              bottom: insets.bottom + space.lg,
+              // Sits above the tab bar, which already clears the home
+              // indicator — adding the inset again would hide it behind.
+              bottom: space.lg,
             },
           ]}
         >
@@ -422,9 +403,10 @@ export default function PlanScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
-  lead: { marginTop: space.xs, marginBottom: space.xl },
+  /** Takes the space between the fixed header and the tab bar; the
+   *  unit list scrolls inside it while both stay put. */
+  body: { flex: 1 },
+  container: { paddingHorizontal: space.screen, paddingBottom: space.xxl },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   // Areas breathe more than the rows inside them — the rhythm is what

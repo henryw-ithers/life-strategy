@@ -13,19 +13,19 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AddGoalModal } from "../../components/goals/AddGoalModal";
-import { AppText } from "../../components/ui/AppText";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { AddGoalModal } from "../../../components/goals/AddGoalModal";
+import { AppText } from "../../../components/ui/AppText";
+import { Backdrop, constellation } from "../../../components/ui/Backdrop";
+import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import {
   createGoal,
   loadGoals,
   type GoalListItem,
   type GoalsUnit,
-} from "../../db/goals";
-import { getTheme } from "../../theme/colors";
-import { space } from "../../theme/tokens";
+} from "../../../db/goals";
+import { getTheme } from "../../../theme/colors";
+import { space } from "../../../theme/tokens";
 
 function statusLabel(status: GoalListItem["status"]): string {
   switch (status) {
@@ -45,7 +45,6 @@ function statusLabel(status: GoalListItem["status"]): string {
 export default function GoalsScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   const [areas, setAreas] = useState<Awaited<ReturnType<typeof loadGoals>>["areas"] | null>(
     null,
   );
@@ -65,32 +64,8 @@ export default function GoalsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xl },
-        ]}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Goals
-        </AppText>
-        <AppText color={theme.muted} style={styles.lead}>
-          Specific, measurable, temporary — the plans your units are working
-          toward.
-        </AppText>
-
+      <ScreenHeader title="Goals" theme={theme} />
+      <ScrollView style={styles.body} contentContainerStyle={styles.container}>
         {areas === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
@@ -205,9 +180,10 @@ export default function GoalsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
-  lead: { marginTop: space.xs, marginBottom: space.xl },
+  /** Takes the space between the fixed header and the tab bar; the
+   *  list scrolls inside it while both stay put. */
+  body: { flex: 1 },
+  container: { paddingHorizontal: space.screen, paddingBottom: space.xl },
   group: {
     paddingVertical: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
