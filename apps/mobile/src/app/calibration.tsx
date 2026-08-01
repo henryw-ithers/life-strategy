@@ -114,7 +114,7 @@ export default function CalibrationScreen() {
           Calibration
         </AppText>
         <AppText color={theme.muted} style={styles.lead}>
-          A weekly check, and — once there's enough of it — a look at whether
+          A weekly check, and once there's enough of it, a look at whether
           your grades and how your weeks actually felt agree.
         </AppText>
 
@@ -127,7 +127,7 @@ export default function CalibrationScreen() {
                 {checkin.label === "this" ? "This week" : "Last week"}
               </AppText>
               <AppText variant="caption" color={theme.muted} style={styles.checkinCaption}>
-                How content did it feel, 1–10? Skip it any time — nothing here
+                How content did it feel, 1–10? Skip it any time. Nothing here
                 is tracked as missed.
               </AppText>
               <NumberDial
@@ -168,7 +168,7 @@ export default function CalibrationScreen() {
                 )
               ) : (
                 <AppText color={theme.muted} style={styles.insightLine}>
-                  Still learning your rhythm — check in most weeks, and this
+                  Still learning your rhythm. Check in most weeks, and this
                   fills in after a couple of months.
                 </AppText>
               )}

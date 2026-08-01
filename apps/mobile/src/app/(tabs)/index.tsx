@@ -76,6 +76,9 @@ export default function TodayScreen() {
   const [weekGrade, setWeekGrade] = useState<DayScore | null>(null);
   const [monthGrades, setMonthGrades] = useState<Map<string, MonthDay>>(new Map());
   const [monthOpen, setMonthOpen] = useState(false);
+  /** Null = the month containing today. Set by the calendar's arrows;
+   *  any past month is reachable now that days never lock. */
+  const [viewMonth, setViewMonth] = useState<string | null>(null);
   const [kindSheet, setKindSheet] = useState(false);
   const [activitySheet, setActivitySheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
@@ -95,10 +98,10 @@ export default function TodayScreen() {
     void isOnboardingComplete().then(setOnboarded);
   }, []);
 
-  const reload = useCallback(async (date: string) => {
+  const reload = useCallback(async (date: string, month?: string | null) => {
     const [next, grades, week] = await Promise.all([
       loadDay(date),
-      loadCalendarGrades(currentLocalDate()),
+      loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
       loadWeekGrade(date),
     ]);
     setDay(next);
@@ -110,16 +113,18 @@ export default function TodayScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void reload(selected ?? currentLocalDate()).then((d) => {
+      void reload(selected ?? currentLocalDate(), viewMonth).then((d) => {
         allDoneBefore.current =
           d.daily.length > 0 && d.daily.every((t) => t.completedToday);
       });
-    }, [reload, selected]),
+    }, [reload, selected, viewMonth]),
   );
 
   const select = (date: string) => {
     setSelected(date === currentLocalDate() ? null : date);
-    void reload(date);
+    // Keep the browsed month — picking the 3rd of a month two years
+    // back must not snap the calendar home.
+    void reload(date, viewMonth);
   };
 
   const onToggle = async (task: TodayTask) => {
@@ -290,7 +295,7 @@ export default function TodayScreen() {
                 </AppText>
                 <AppText variant="caption" color={theme.muted}>
                   {spokenDate(day.date)}
-                  {day.finalized ? " · sealed" : ""} {monthOpen ? "▴" : "▾"}
+                  {day.finalized ? " · settled" : ""} {monthOpen ? "▴" : "▾"}
                 </AppText>
               </Pressable>
               <View style={styles.headerRight}>
@@ -338,7 +343,11 @@ export default function TodayScreen() {
             {monthOpen ? (
               <Animated.View layout={layout} style={styles.strip}>
                 <MonthGrid
-                  month={day.today}
+                  month={viewMonth ?? day.today}
+                  onChangeMonth={(m) => {
+                    setViewMonth(m);
+                    void reload(day.date, m);
+                  }}
                   grades={monthGrades}
                   selected={day.date}
                   today={day.today}
@@ -363,8 +372,8 @@ export default function TodayScreen() {
           <ScrollView style={styles.body} contentContainerStyle={styles.container}>
             {day.finalized ? (
               <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-                This week is sealed — days settle for good a few days after
-                they end. Notes and photos stay open.
+                This day has settled. You can still change it — editing it
+                now will move the week and month it belongs to.
               </AppText>
             ) : null}
 
@@ -399,7 +408,7 @@ export default function TodayScreen() {
             ) : !day.hasTasks ? (
               <View style={styles.empty}>
                 <AppText color={theme.ink} style={styles.centerText}>
-                  Your daily budget is set — now give it something to do.
+                  Your daily budget is set. Now give it something to do.
                 </AppText>
                 <Button
                   label="Plan your tasks"

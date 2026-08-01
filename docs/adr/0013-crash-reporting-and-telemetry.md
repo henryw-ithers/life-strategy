@@ -149,6 +149,21 @@ contents cannot appear because nothing reads them. ADR-0008's
 exclusion is re-confirmed and, since no network path exists, satisfied
 by construction.
 
+**Amendment (2026-07-29): the log also records that feedback was
+sent.** Settings → Send feedback arrived after this ADR, and the log
+became the natural place to answer "did I already mention this." Each
+send appends one entry: timestamp, which topic chip, whether it left by
+mail or share sheet, build, device.
+
+**It does not record the message.** The rule above is what forbids it —
+the log is shareable in one tap and records what the app did, not what
+the user wrote. A screen whose entire selling point is *this is exactly
+what gets sent* cannot quietly begin carrying authored prose, and the
+message already has a durable home in the email. The entry type has no
+text field at all, so this is enforced by shape rather than by
+discipline. Caps are per kind, so a run of feedback can never evict the
+crashes.
+
 **The redactor is the one part of this ADR that is unit-tested.** It is
 also the only part whose failure is silent and unrecoverable — a
 message that reaches a bug report cannot be unsent — so it lives in its
@@ -156,7 +171,10 @@ own importless module and gets the treatment
 [ADR-0001](0001-platform-and-tech-stack.md) reserves for pure logic.
 This is what puts a test runner in `apps/mobile` for the first time;
 its scope is pure `src/lib` code, and nothing about it makes the rest
-of the app testable off-device.
+of the app testable off-device. `src/lib/logFormat.ts` since joined it
+on the same argument — trimming and the report text are the log's other
+two silent-failure surfaces, where a dropped or mislabelled entry looks
+exactly like no entry.
 
 ### 4. A crash leaves the user somewhere kind, and recoverable
 
@@ -181,7 +199,7 @@ Two capture points sit behind it:
 
 ### 5. Sending a report is a user action, shown in full first
 
-Settings → **Report a problem** lists what has been recorded, in
+Settings → **Problem log** lists what has been recorded, in
 plain text, with the exact text that would be sent visible on screen
 before anything is shared. Sending is the OS share sheet, so the user
 picks the destination and can read it once more in whatever app they
@@ -269,9 +287,11 @@ balance is worth re-checking rather than re-assuming.
        `apps/mobile/src/app/_layout.tsx`; the current route is tracked
        by a `usePathname` witness rendered beside the `Stack` so a
        navigation doesn't re-render the gate.)*
-3. [x] Build Settings → Report a problem: the recorded entries, the
-       exact payload, share, and clear.
-       *(`apps/mobile/src/app/problem.tsx`.)*
+3. [x] Build Settings → Problem log: the recorded entries, the exact
+       payload, share, and clear.
+       *(`apps/mobile/src/app/problem.tsx`. Shipped as "Report a
+       problem"; renamed when the feedback amendment above gave the
+       screen a second kind of entry to list.)*
 4. [x] Delete the log in `eraseAllData`, and confirm the backup path
        does not include it. *(`apps/mobile/src/db/reset.ts`; backup is
        `sqlite.serializeAsync()`, so a file outside the database is

@@ -226,8 +226,8 @@ export function ActivitySheet({
               <AppText variant="caption" color={theme.muted}>
                 {creditless
                   ? dayKind === "rest"
-                    ? "Rest day — this logs without credit."
-                    : "Special day — this logs as part of the story."
+                    ? "Rest day. This logs without credit."
+                    : "Special day. This logs as part of the story."
                   : "How significant was it?"}
               </AppText>
               {!creditless ? (

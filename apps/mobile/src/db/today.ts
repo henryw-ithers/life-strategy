@@ -310,7 +310,7 @@ export async function addPhoto(date: string, sourceUri: string): Promise<void> {
 
 function assertEditable(date: string): void {
   if (!isEditable(date, currentLocalDate())) {
-    throw new Error("This day is outside the edit window.");
+    throw new Error("That day hasn't happened yet.");
   }
 }
 
@@ -456,13 +456,23 @@ export async function loadGradesBetween(
  * into the previous month (which it does for the first ~two weeks of
  * every month).
  */
+/**
+ * Grades for everything the day surface can show: the recent strip,
+ * today's month, and — since any past month is now browsable — the
+ * month currently on screen, which may be years back.
+ */
 export async function loadCalendarGrades(
   today: string,
+  viewMonth: string = today,
 ): Promise<Map<string, MonthDay>> {
   const windowDays = editWindowDays(today);
-  const start = [monthStart(today), windowDays[0]!].sort()[0]!;
-  const end = [nextMonthStart(today), addDays(windowDays[13]!, 1)].sort()[1]!;
-  return loadGradesBetween(start, end);
+  const start = [monthStart(today), monthStart(viewMonth), windowDays[0]!].sort()[0]!;
+  const ends = [
+    nextMonthStart(today),
+    nextMonthStart(viewMonth),
+    addDays(windowDays[13]!, 1),
+  ].sort();
+  return loadGradesBetween(start, ends[ends.length - 1]!);
 }
 
 export async function setDayKind(
@@ -500,6 +510,25 @@ async function cacheDayScore(date: string): Promise<void> {
   } else {
     await db.insert(dayGrade).values({ localDate: date, kind: "normal", ...values });
   }
+}
+
+/**
+ * Re-cache every stored day's score.
+ *
+ * `day_grade.points_earned/possible` is a denormalized cache, and it is
+ * only ever written for the one day being touched. The day screen's own
+ * number is computed live by `loadDay`, so the moment weights move —
+ * a new diagnostic, or a re-rank — the live number and the calendar
+ * disagree with each other and with the weekly and monthly grades built
+ * on top of the cache. This is what reconciles them.
+ *
+ * It re-derives history at today's weights, which is the same trade
+ * ADR-0004 already accepted when it dropped the edit horizon: the day's
+ * own record is what's true, and the aggregates follow from it.
+ */
+export async function recacheAllDayScores(): Promise<void> {
+  const rows = await db.select({ localDate: dayGrade.localDate }).from(dayGrade);
+  for (const r of rows) await cacheDayScore(r.localDate);
 }
 
 /** Stamp finalized_at on day rows that have left the edit window. */

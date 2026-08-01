@@ -1,21 +1,34 @@
 /**
- * Onboarding (ADR-0011): welcome → privacy → diagnostic → first tasks
- * → notification ask → done.
+ * Onboarding (ADR-0011, as amended): welcome → diagnostic → notification
+ * ask → done, then the real Tasks screen.
  *
- * The diagnostic is mandatory — there is no usable app without a
- * snapshot — but it runs as the normal `/diagnostic` route rather than
- * a copy of it, so there is only ever one diagnostic to maintain.
- * Returning from it is detected by the snapshot appearing, not by a
- * callback, which also makes the step self-skipping when onboarding is
- * re-run later against data that already exists.
+ * Four screens, down from six. Two came out because they were saying
+ * things twice:
+ *
+ * - The privacy screen folded into the welcome. It is one sentence, and
+ *   it belongs beside the reason to proceed rather than on a page of its
+ *   own that costs a tap to leave.
+ * - The screen that introduced the diagnostic is gone. `/diagnostic`
+ *   opens with the same sentence and its own Begin button, so reaching
+ *   the first question used to take two taps on two near-identical
+ *   pages. The diagnostic's intro is now the only framing.
+ *
+ * The old first-tasks step is gone too. It showed a private, lesser copy
+ * of the Tasks screen for the top three units; now onboarding hands the
+ * user to the real one, which has all eighteen and a first-run state
+ * that teaches it. Same reasoning as the diagnostic: run the real
+ * screen, don't maintain a second version of it.
+ *
+ * `step === "diagnostic"` is a waiting state rather than a screen. It
+ * means the diagnostic route is on top of us; a cold start there renders
+ * the welcome again so nobody lands on a blank page.
  */
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { router, useFocusEffect, type Href } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PermissionPrescreen } from "../components/notifications/PermissionPrescreen";
-import { AddTaskModal } from "../components/plan/AddTaskModal";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
@@ -25,12 +38,10 @@ import {
   saveOnboardingStep,
   type OnboardingStep,
 } from "../db/onboarding";
-import { addTask, loadPlan, type PlanData, type PlanUnit } from "../db/tasks";
+import { hasAskedNotificationPermission } from "../db/settings";
+import { loadPlan } from "../db/tasks";
 import { getTheme } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
-
-/** How many units the first-tasks step offers. ADR-0011 decision 3. */
-const STARTER_UNITS = 3;
+import { space } from "../theme/tokens";
 
 export default function OnboardingScreen() {
   const scheme = useColorScheme();
@@ -38,8 +49,12 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<OnboardingStep | null>(null);
-  const [plan, setPlan] = useState<PlanData | null>(null);
-  const [addingUnit, setAddingUnit] = useState<PlanUnit | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  /** Set when we push `/diagnostic`, read when we come back. A ref, not
+   *  state, so arming it cannot re-run the focus effect below and
+   *  cancel the very push it is waiting on. */
+  const awaitingDiagnostic = useRef(false);
 
   useEffect(() => {
     void loadOnboardingStep().then(setStep);
@@ -50,33 +65,58 @@ export default function OnboardingScreen() {
     void saveOnboardingStep(next);
   }, []);
 
-  /* The diagnostic writes a snapshot and pops back here. This must be
-   * a *focus* effect, not a mount effect: this screen stays mounted
-   * while `/diagnostic` is pushed on top of it, so nothing re-runs on
-   * return unless it is keyed to focus. Checking for the snapshot
-   * rather than taking a callback also makes the step self-skipping
-   * when onboarding is re-run against existing data. */
+  /* Coming back from the diagnostic. Deliberately keyed to the ref
+   * rather than to `step`: this screen stays mounted under
+   * `/diagnostic`, so the effect runs exactly once per return, and a
+   * snapshot either landed or the user backed out. */
   useFocusEffect(
     useCallback(() => {
-      if (step !== "diagnostic" && step !== "tasks") return;
+      if (!awaitingDiagnostic.current) return;
       let cancelled = false;
-      void loadPlan().then((p) => {
+      void loadPlan().then((plan) => {
         if (cancelled) return;
-        setPlan(p);
-        if (step === "diagnostic" && p.hasSnapshot) go("tasks");
-        if (step === "tasks" && !p.hasSnapshot) go("diagnostic");
+        awaitingDiagnostic.current = false;
+        go(plan.hasSnapshot ? "notify" : "welcome");
       });
       return () => {
         cancelled = true;
       };
-    }, [step, go]),
+    }, [go]),
   );
 
-  const reloadPlan = useCallback(async () => setPlan(await loadPlan()), []);
+  /* ADR-0010: an in-app "no" is final until the user visits Settings.
+   * Re-running onboarding must not ask a second time. */
+  useEffect(() => {
+    if (step !== "notify") return;
+    void hasAskedNotificationPermission().then((asked) => {
+      if (asked) go("done");
+    });
+  }, [step, go]);
+
+  const onStart = async () => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      // Re-running onboarding from Settings must not force a second
+      // diagnostic (ADR-0011 decision 6) — the monthly ritual owns that.
+      const plan = await loadPlan();
+      if (plan.hasSnapshot) {
+        go("notify");
+        return;
+      }
+      awaitingDiagnostic.current = true;
+      go("diagnostic");
+      router.push("/diagnostic" as Href);
+    } finally {
+      setStarting(false);
+    }
+  };
 
   const finish = async () => {
     await completeOnboarding();
-    router.replace("/");
+    // Tasks, not Today: the next useful act is building a plan, and
+    // Today has nothing to show until one exists.
+    router.replace("/plan" as Href);
   };
 
   const screen = [styles.screen, { backgroundColor: theme.canvas }];
@@ -93,180 +133,6 @@ export default function OnboardingScreen() {
     );
   }
 
-  if (step === "welcome") {
-    return (
-      <View style={screen}>
-        <Backdrop circles={constellation(theme.areas)} />
-        <View style={[styles.body, pad]}>
-          <View style={styles.copy}>
-            <AppText variant="display" color={theme.ink}>
-              Glide
-            </AppText>
-            <AppText color={theme.ink} style={styles.lead}>
-              Most planners start with your tasks. Glide starts with your
-              life — six areas, eighteen parts — and works out the tasks
-              from there.
-            </AppText>
-            <AppText color={theme.muted} style={styles.lead}>
-              You'll rank what matters to you. That becomes a daily
-              checklist worth 100 points.
-            </AppText>
-          </View>
-          <Button label="Next" onPress={() => go("privacy")} theme={theme} />
-        </View>
-      </View>
-    );
-  }
-
-  if (step === "privacy") {
-    return (
-      <View style={screen}>
-        <Backdrop circles={hueWash(theme.accent)} />
-        <View style={[styles.body, pad]}>
-          <View style={styles.copy}>
-            <AppText variant="display" color={theme.ink}>
-              Yours alone
-            </AppText>
-            <AppText color={theme.ink} style={styles.lead}>
-              Everything you write — ratings, journals, photos — stays on
-              this device. There's no account and no server, and none of
-              it is uploaded anywhere.
-            </AppText>
-            <AppText color={theme.muted} style={styles.lead}>
-              You can export an encrypted backup whenever you like, from
-              Settings.
-            </AppText>
-          </View>
-          <Button label="Start" onPress={() => go("diagnostic")} theme={theme} />
-        </View>
-      </View>
-    );
-  }
-
-  if (step === "diagnostic") {
-    return (
-      <View style={screen}>
-        <Backdrop circles={constellation(theme.areas)} />
-        <View style={[styles.body, pad]}>
-          <View style={styles.copy}>
-            <AppText variant="display" color={theme.ink}>
-              The diagnostic
-            </AppText>
-            <AppText color={theme.ink} style={styles.lead}>
-              Rank each part of your life against the rest — what needs
-              your attention most, and where you're most satisfied.
-            </AppText>
-            <AppText color={theme.muted} style={styles.lead}>
-              About five minutes. Everything else in Glide is built from
-              it, so this comes first.
-            </AppText>
-          </View>
-          <Button
-            label="Begin"
-            onPress={() => router.push("/diagnostic")}
-            theme={theme}
-          />
-        </View>
-      </View>
-    );
-  }
-
-  if (step === "tasks") {
-    const top = (plan?.areas ?? [])
-      .flatMap((a) => a.units)
-      .filter((u) => u.includeInScoring && u.weight !== null)
-      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-      .slice(0, STARTER_UNITS);
-
-    const allUnits = (plan?.areas ?? [])
-      .flatMap((a) => a.units)
-      .filter((u) => u.includeInScoring)
-      .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId }));
-
-    return (
-      <View style={screen}>
-        <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScrollView contentContainerStyle={[styles.scroll, pad]}>
-          <AppText variant="display" color={theme.ink}>
-            Where to start
-          </AppText>
-          <AppText color={theme.ink} style={styles.lead}>
-            Your ranking gave these three the biggest share of your daily
-            points. Add a task to each — something small and repeatable.
-          </AppText>
-
-          {plan === null ? (
-            <ActivityIndicator color={theme.muted} style={styles.loading} />
-          ) : (
-            top.map((unit) => (
-              <View
-                key={unit.id}
-                style={[styles.unitCard, { borderColor: theme.hairline }]}
-              >
-                <View style={styles.unitHeader}>
-                  <View
-                    style={[
-                      styles.areaDot,
-                      { backgroundColor: theme.areas[unit.areaId] ?? theme.muted },
-                    ]}
-                  />
-                  <AppText variant="headline" color={theme.ink} style={styles.grow}>
-                    {unit.name}
-                  </AppText>
-                  <AppText variant="label" color={theme.muted} tabular>
-                    {unit.weight} pts
-                  </AppText>
-                </View>
-
-                {unit.tasks.length > 0 ? (
-                  unit.tasks.map((t) => (
-                    <AppText key={t.id} color={theme.muted} style={styles.taskLine}>
-                      {t.title}
-                    </AppText>
-                  ))
-                ) : (
-                  <Button
-                    label="Add a task"
-                    variant="secondary"
-                    onPress={() => setAddingUnit(unit)}
-                    theme={theme}
-                  />
-                )}
-              </View>
-            ))
-          )}
-
-          <View style={styles.actions}>
-            <Button label="Continue" onPress={() => go("notify")} theme={theme} />
-            <AppText variant="caption" color={theme.muted} style={styles.footnote}>
-              You can add, change, or remove tasks any time from Plan.
-            </AppText>
-          </View>
-        </ScrollView>
-
-        {addingUnit ? (
-          <AddTaskModal
-            visible
-            onClose={() => setAddingUnit(null)}
-            existingTasks={addingUnit.tasks.map((t) => ({
-              id: t.id,
-              title: t.title,
-            }))}
-            units={allUnits}
-            homeUnitId={addingUnit.id}
-            areaColors={theme.areas}
-            accent={theme.accent}
-            theme={theme}
-            onCommit={async (title, timesPerWeek, rank, unitIds) => {
-              await addTask(unitIds, title, timesPerWeek, rank);
-              await reloadPlan();
-            }}
-          />
-        ) : null}
-      </View>
-    );
-  }
-
   if (step === "notify") {
     return (
       <View style={screen}>
@@ -276,27 +142,67 @@ export default function OnboardingScreen() {
     );
   }
 
-  // done
+  if (step === "done") {
+    return (
+      <View style={screen}>
+        <Backdrop circles={constellation(theme.areas)} />
+        <View style={[styles.body, pad]}>
+          <View style={styles.copy}>
+            <AppText variant="display" color={theme.ink}>
+              Ranking done
+            </AppText>
+            <AppText color={theme.ink} style={styles.lead}>
+              Next, add a few tasks. Something small and repeatable, for
+              the parts of your life that earned the most points.
+            </AppText>
+            <AppText color={theme.muted} style={styles.lead}>
+              Your daily score out of 100 is a guideline. It shows where
+              your attention went, nothing more.
+            </AppText>
+            {/* ADR-0008: exactly one neutral mention, framed as
+             *  availability. Reads the same for every user, always. */}
+            <AppText variant="caption" color={theme.muted} style={styles.lead}>
+              Support resources are in Settings whenever you want them.
+            </AppText>
+          </View>
+          <Button
+            label="Add your first tasks"
+            onPress={() => void finish()}
+            theme={theme}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // welcome, and the waiting state behind /diagnostic
   return (
     <View style={screen}>
       <Backdrop circles={constellation(theme.areas)} />
       <View style={[styles.body, pad]}>
         <View style={styles.copy}>
           <AppText variant="display" color={theme.ink}>
-            You're set
+            Glide
           </AppText>
           <AppText color={theme.ink} style={styles.lead}>
-            Your checklist is waiting on Today. Scores are guidelines, not
-            judgments — they're there to show you where your attention is
-            going, nothing more.
+            Most planners begin with a to-do list. Glide begins with your
+            life: six areas, eighteen parts of it.
           </AppText>
-          {/* ADR-0008: exactly one neutral mention, framed as
-           *  availability. Reads the same for every user, always. */}
-          <AppText variant="caption" color={theme.muted} style={styles.lead}>
-            Support resources are in Settings, any time.
+          <AppText color={theme.ink} style={styles.lead}>
+            You rank what matters to you. Your daily checklist comes from
+            that ranking, and it's worth 100 points.
+          </AppText>
+          <AppText color={theme.muted} style={styles.lead}>
+            Everything you enter stays on this phone. No account, no
+            server, nothing uploaded.
           </AppText>
         </View>
-        <Button label="Open Glide" onPress={() => void finish()} theme={theme} />
+        <Button
+          label="Start"
+          onPress={() => void onStart()}
+          disabled={starting}
+          theme={theme}
+        />
       </View>
     </View>
   );
@@ -308,18 +214,4 @@ const styles = StyleSheet.create({
   body: { flex: 1, paddingHorizontal: space.screen, justifyContent: "space-between" },
   copy: { flex: 1, justifyContent: "center", gap: space.md },
   lead: { maxWidth: 340 },
-  scroll: { paddingHorizontal: space.screen, gap: space.md },
-  loading: { marginTop: space.xxl },
-  unitCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: space.lg,
-    gap: space.sm,
-  },
-  unitHeader: { flexDirection: "row", alignItems: "center", gap: space.sm + 2 },
-  areaDot: { width: 10, height: 10, borderRadius: 5 },
-  grow: { flex: 1 },
-  taskLine: { marginTop: space.xs },
-  actions: { marginTop: space.lg, gap: space.sm },
-  footnote: { textAlign: "center" },
 });

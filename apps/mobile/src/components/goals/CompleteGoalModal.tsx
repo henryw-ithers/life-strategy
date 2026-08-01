@@ -179,7 +179,7 @@ export function CompleteGoalModal({
               <TextInput
                 value={newTitle}
                 onChangeText={setNewTitle}
-                placeholder={`e.g. ${goalTitle} — next stage`}
+                placeholder={`e.g. ${goalTitle}, next stage`}
                 placeholderTextColor={theme.muted}
                 autoFocus
                 style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}

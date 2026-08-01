@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DAILY_BUDGET } from "../constants";
-import { deriveWeights } from "../weights";
+import { deriveWeights, spendableWeights } from "../weights";
 import type { UnitRating } from "../types";
 
 /** Deterministic PRNG so property-style tests reproduce exactly. */
@@ -96,5 +96,94 @@ describe("deriveWeights — invariants", () => {
 
   it("returns [] for an empty portfolio", () => {
     expect(deriveWeights([])).toEqual([]);
+  });
+});
+
+describe("spendableWeights — ADR-0003 §5 amendment", () => {
+  const cover = (
+    entries: [string, number, boolean][],
+  ): { unitId: string; weight: number; covered: boolean }[] =>
+    entries.map(([unitId, weight, covered]) => ({ unitId, weight, covered }));
+
+  it("changes nothing when every unit has tasks", () => {
+    const units = cover([
+      ["a", 50, true],
+      ["b", 30, true],
+      ["c", 20, true],
+    ]);
+    const spendable = spendableWeights(units);
+    expect([...spendable.values()]).toEqual([50, 30, 20]);
+  });
+
+  it("shares an uncovered unit's weight across the covered ones", () => {
+    const units = cover([
+      ["a", 12, true],
+      ["b", 8, true],
+      ["c", 5, true],
+      ["uncovered", 75, false],
+    ]);
+    const spendable = spendableWeights(units);
+    // 25 points of coverage scale ×4 to fill the day.
+    expect(spendable.get("a")).toBe(48);
+    expect(spendable.get("b")).toBe(32);
+    expect(spendable.get("c")).toBe(20);
+    expect(spendable.get("uncovered")).toBe(0);
+  });
+
+  it("always spends exactly the daily budget when anything is covered", () => {
+    const rand = lcg(99);
+    for (let trial = 0; trial < 200; trial++) {
+      const derived = deriveWeights(randomPortfolio(rand, 18));
+      const units = derived.map((w) => ({
+        unitId: w.unitId,
+        weight: w.weight,
+        covered: rand() > 0.5,
+      }));
+      const spendable = spendableWeights(units);
+      const total = [...spendable.values()].reduce((a, b) => a + b, 0);
+      const anyCovered = units.some((u) => u.covered && u.weight > 0);
+      expect(total).toBe(anyCovered ? DAILY_BUDGET : 0);
+    }
+  });
+
+  it("preserves the diagnostic's order among covered units", () => {
+    const units = cover([
+      ["big", 20, true],
+      ["small", 4, true],
+      ["gone", 76, false],
+    ]);
+    const spendable = spendableWeights(units);
+    expect(spendable.get("big")!).toBeGreaterThan(spendable.get("small")!);
+  });
+
+  it("gives a lone covered unit the whole budget", () => {
+    const spendable = spendableWeights(
+      cover([
+        ["only", 3, true],
+        ["rest", 97, false],
+      ]),
+    );
+    expect(spendable.get("only")).toBe(DAILY_BUDGET);
+  });
+
+  it("spends nothing when no unit has a task", () => {
+    const spendable = spendableWeights(
+      cover([
+        ["a", 60, false],
+        ["b", 40, false],
+      ]),
+    );
+    expect([...spendable.values()]).toEqual([0, 0]);
+  });
+
+  it("never scales a unit that is out of scoring", () => {
+    const spendable = spendableWeights(
+      cover([
+        ["scored", 100, true],
+        ["excluded", 0, true],
+      ]),
+    );
+    expect(spendable.get("excluded")).toBe(0);
+    expect(spendable.get("scored")).toBe(DAILY_BUDGET);
   });
 });

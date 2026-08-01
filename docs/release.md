@@ -145,11 +145,13 @@ There is no crash reporting service and there will not be one
 ([ADR-0013](adr/0013-crash-reporting-and-telemetry.md)) — nothing
 arrives on its own. When a tester says the app broke:
 
-1. **Settings → Report a problem**, then **Send report**. It opens the
-   share sheet and they pick where it goes; the text is plain and
-   visible before they send it. That beats a screenshot, which loses
-   the stack.
-2. If that page says "Nothing recorded," the app did not crash — it
+1. **Settings → Problem log**, then **Send log**. It opens the share
+   sheet and they pick where it goes; the text is plain and visible
+   before they send it. That beats a screenshot, which loses the stack.
+   The log also lists the feedback they have sent — timestamps and
+   topics only, never the message — which is often how you find out a
+   crash and an email are the same story.
+2. If that page says "Nothing here yet," the app did not crash — it
    misbehaved, and the description in their own words is the only
    evidence there is.
 3. The report carries its own version and build, so the

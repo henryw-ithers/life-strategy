@@ -9,6 +9,7 @@
  * releasing would delete, so the colour is feedback, not decoration.
  */
 import * as Haptics from "expo-haptics";
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -38,6 +39,9 @@ interface TaskRowProps {
   otherUnitNames: string[];
   accent: string;
   theme: ThemeTokens;
+  /** Tinted while true: the row you just created, in a list you didn't
+   *  write in order. Held by the screen, not timed here. */
+  highlight?: boolean;
   onDelete: () => void;
   onEdit: () => void;
 }
@@ -49,12 +53,26 @@ export function TaskRow({
   otherUnitNames,
   accent,
   theme,
+  highlight = false,
   onDelete,
   onEdit,
 }: TaskRowProps) {
   const reduceMotion = useReducedMotion();
   const x = useSharedValue(0);
   const armed = useSharedValue(false);
+  /** 0 resting, 1 freshly added. Out is slower than in — arriving is an
+   *  event, leaving shouldn't be. */
+  const fresh = useSharedValue(0);
+
+  useEffect(() => {
+    // Every row mounts un-highlighted; only the one that changes state
+    // animates, rather than seventeen no-op timings per expand.
+    if (!highlight && fresh.value === 0) return;
+    const to = highlight ? 1 : 0;
+    fresh.value = reduceMotion
+      ? to
+      : withTiming(to, { duration: highlight ? 180 : 480 });
+  }, [highlight, reduceMotion, fresh]);
 
   const tick = () => {
     void Haptics.selectionAsync();
@@ -104,6 +122,8 @@ export function TaskRow({
     opacity: interpolate(x.value, [0, COMMIT_AT / 2, COMMIT_AT], [0, 0.5, 1]),
   }));
 
+  const freshTint = useAnimatedStyle(() => ({ opacity: fresh.value }));
+
   return (
     <View style={styles.root}>
       <Animated.View
@@ -132,6 +152,16 @@ export function TaskRow({
             if (e.nativeEvent.actionName === "magicTap") onDelete();
           }}
         >
+          {/* Under the content, over the fill: the row reads normally,
+              it's just briefly wearing its unit's colour. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              freshTint,
+              { backgroundColor: `${accent}33` },
+            ]}
+          />
           <View style={[styles.pip, { backgroundColor: accent }]} />
           <View style={styles.text}>
             <AppText color={theme.ink} numberOfLines={1}>

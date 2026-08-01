@@ -78,13 +78,74 @@ Within a unit, tasks are **ranked, not priced**. Point values derive
 from rank; the user never types a number (but may override one —
 invariant applies).
 
-- **Insertion:** adding a task triggers a short binary-comparison
-  flow — "Which matters more: *Strength session* or *10k steps*?" —
-  placing it by binary search in ~⌈log₂ n⌉ comparisons. With the
-  recommended 1–3 tasks per unit this is usually one question.
+- **Insertion (amended 2026-07-30):** a new task **appends last** in
+  each unit it joins, and the screen opens that unit with the row in
+  view so it can be dragged where it belongs. The original decision
+  was a binary-comparison flow at creation — "Which matters more:
+  *Strength session* or *10k steps*?", ~⌈log₂ n⌉ questions — and it
+  was built (`PairwiseRank`). It came out because the cost lands on
+  every single add, at the one moment the user is least able to pay
+  it: mid-capture, about a task they are still wording. Ranking is
+  unchanged as a concept and as maths; it moved to the list, where the
+  drag grip already lives and where you can see what you're comparing
+  against. Cost of the change: a task starts at the smallest share of
+  its unit until it's moved. The comparison UI stays in the app — the
+  diagnostic (ADR-0005 decision 7) is its remaining caller, and there
+  the ranking *is* the task rather than a toll on it.
 - **Rank → points:** linear rank shares. With `n` tasks, rank `r`
   gets share `(n + 1 − r) / (n(n+1)/2)` of the unit's weight, rounded
   by largest remainder. (n=3 → 50% / 33% / 17%.)
+- **Point floor (added 2026-07-30):** every task in a scoring unit is
+  worth **at least 1 point**. Shares alone sent the tail to zero as
+  soon as a unit's task count approached its weight — a 3-point unit
+  with three tasks paid 2/1/**0** — and a zero-point task is not a
+  small task but a dead one: `dayShare` keeps it out of the day's
+  denominator, so ticking it cannot move the grade, and the checklist
+  offers a row that does nothing. One point is reserved per task and
+  only the surplus is ranked. The worked example below is unchanged
+  (53 across 3 is still 26/18/9); small units and long lists flatten a
+  little (10 across 2 was 7/3, now 6/4), which is accepted — rank
+  orders tasks, it doesn't delete them, and near-even task values
+  within a unit are fine. Two edges: a unit with **zero weight** (not
+  in scoring) stays at zero throughout, floor included; a unit holding
+  **more tasks than points** spends `n`, a point or two above its
+  weight, which §6 already advises against and which is the better
+  trade than a dead row.
+- **Uncovered weight is reallocated (added 2026-07-30):** a unit with
+  no tasks spends nothing, so its weight is divided among the units
+  that do have tasks, **in proportion to their own weight**. Integer
+  results still sum to exactly 100 (`spendableWeights`, largest
+  remainder). One task covers a unit; a unit's own weight is untouched
+  on the diagnostic and in history — this is only the question of what
+  today's checklist is scored against.
+
+  *Why:* `dayShare` counts only tasks that exist, so an uncovered
+  unit's weight sat outside the day's denominator entirely. A
+  half-covered portfolio graded against half a plan, and a user could
+  score 100 while ignoring 60 points of what they said mattered.
+
+  *Why proportional to weight, not to task count:* routing points
+  toward whichever unit holds the most tasks would let the shape of
+  execution outrank the diagnostic — a 5-point unit with three tasks
+  would matter more in a day than a 12-point unit with one — and it
+  would reward writing more tasks, the one lever entirely under the
+  user's hand. Scaling by weight leaves the strategy's order exactly
+  as the diagnostic set it.
+
+  *Rejected for now:* grading coverage against §6's recommended counts
+  (a 15-point unit with 1 of a recommended 2 spending only half). It
+  makes adding a task to one unit quietly move points in another,
+  which is a lot of motion to explain for a nudge §6 already gives in
+  words.
+
+  *Consequences:* a unit's task points can no longer be derived from
+  that unit alone, so every recompute is portfolio-wide
+  (`recomputeAllUnitPoints`; the per-unit entry point is gone).
+  Activity credit still prices off the **raw** unit weight (ADR-0009):
+  a spontaneous act in an uncovered unit is exactly how that unit
+  earns, and those numbers were designed against a 100-point day —
+  which, before this, is not what they were landing in.
+
 - **Re-ranking:** available any time; the monthly review (ADR-0002
   decision 5) is the prompted moment. Point values recompute on any
   rank change — future days only, past completions keep their stored

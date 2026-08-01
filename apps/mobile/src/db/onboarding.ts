@@ -13,12 +13,19 @@ import { getSetting, setSetting } from "./settings";
 const COMPLETE_KEY = "onboarding.complete";
 const STEP_KEY = "onboarding.step";
 
-/** Ordered; `tasks` onward all require a saved snapshot. */
+/**
+ * Ordered. Four steps, down from six (ADR-0011 as amended): the
+ * privacy screen folded into the welcome, and the screen that
+ * introduced the diagnostic was deleted because `/diagnostic` opens
+ * with the same words and its own Begin button.
+ *
+ * `diagnostic` is a waiting state, not a screen. It means "the
+ * diagnostic route is on top of us"; a cold start there renders the
+ * welcome again rather than a blank screen.
+ */
 export const ONBOARDING_STEPS = [
   "welcome",
-  "privacy",
   "diagnostic",
-  "tasks",
   "notify",
   "done",
 ] as const;

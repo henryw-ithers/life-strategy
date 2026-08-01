@@ -7,6 +7,7 @@
  * and settings changes.
  */
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 
 import { randomNotificationLine } from "../content/notificationCopy";
 import type { DayData } from "../db/today";
@@ -20,6 +21,19 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+/**
+ * Scheduling a local notification is an OS facility with no web
+ * equivalent, and `expo-notifications` throws there rather than doing
+ * nothing — which took out the Today tab in the browser preview, since
+ * that screen re-syncs the nudge on every open.
+ *
+ * Web is a development preview surface for this app, not a target
+ * (ADR-0010 ships the nudge on device), so the schedule and cancel
+ * calls are skipped rather than shimmed against a Notification API
+ * that would behave nothing like the real one.
+ */
+const canSchedule = Platform.OS !== "web";
 
 export interface PermissionState {
   granted: boolean;
@@ -70,6 +84,7 @@ function nextFireDate(time: string, handled: boolean): Date {
  * finish a checklist that no longer exists.
  */
 export async function cancelAllNudges(): Promise<void> {
+  if (!canSchedule) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
@@ -79,6 +94,7 @@ export async function cancelAllNudges(): Promise<void> {
  * and permitted — schedules exactly one upcoming occurrence.
  */
 export async function syncDailyNudge(day: DayData): Promise<void> {
+  if (!canSchedule) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   const settings = await loadNotificationSettings();

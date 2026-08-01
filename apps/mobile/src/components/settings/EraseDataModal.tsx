@@ -68,8 +68,11 @@ export function EraseDataModal({
         ]}
       >
         <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
+        {/* Matches the Settings row that opens it ("Reset everything").
+         *  A sheet that renames the action mid-flow reads as a different
+         *  action, which is the last thing this one should read as. */}
         <AppText variant="title" color={theme.ink}>
-          Erase everything?
+          Reset everything?
         </AppText>
         <AppText color={theme.ink}>
           Your diagnostics, goals, tasks, grades, journal entries, photos and
@@ -84,10 +87,10 @@ export function EraseDataModal({
         <Button
           label={
             erasing
-              ? "Erasing…"
+              ? "Resetting…"
               : armed
-                ? "Tap again to erase"
-                : "Erase everything"
+                ? "Tap again to reset"
+                : "Reset everything"
           }
           color={theme.danger}
           disabled={erasing}

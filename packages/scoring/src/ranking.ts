@@ -7,6 +7,8 @@
  * the existing weight formula, bubble chart, and history views keep
  * working unchanged.
  */
+import { deriveWeights } from "./weights";
+import type { DerivedWeight } from "./types";
 
 /** Rank 1 (highest attention) → 10; rank `total` (lowest) → 1. A
  *  single-item set has nothing to compare against, so it scores 10. */
@@ -19,6 +21,45 @@ export function rankToScore(rank: number, total: number): number {
   }
   if (total === 1) return 10;
   return 10 - (9 * (rank - 1)) / (total - 1);
+}
+
+export interface PriorityOrderInput {
+  /**
+   * Every unit in priority order, most attention first — **including
+   * ones excluded from scoring.** The diagnostic ranks the whole set
+   * and filters afterwards, so dropping them here would shrink the
+   * rank denominator and produce different weights than the diagnostic
+   * would for the very same order.
+   */
+  order: readonly string[];
+  /** Carried from the snapshot; re-ranking never restates it. */
+  satisfaction: ReadonlyMap<string, number>;
+  /** Units that count toward the 100. */
+  scored: ReadonlySet<string>;
+  gapCoefficient?: number;
+}
+
+/**
+ * The weights a priority order produces, along the diagnostic's own
+ * path: rank across everything → `rankToScore` → filter to scored →
+ * `deriveWeights`. Lets a re-rank outside the diagnostic land on
+ * exactly the numbers the diagnostic would have given.
+ */
+export function weightsForPriorityOrder(
+  input: PriorityOrderInput,
+): DerivedWeight[] {
+  const total = input.order.length;
+  if (total === 0) return [];
+
+  const ratings = input.order
+    .map((unitId, i) => ({
+      unitId,
+      importance: rankToScore(i + 1, total),
+      satisfaction: input.satisfaction.get(unitId) ?? 1,
+    }))
+    .filter((r) => input.scored.has(r.unitId));
+
+  return deriveWeights(ratings, input.gapCoefficient);
 }
 
 export interface AreaRank {

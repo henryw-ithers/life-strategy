@@ -6,13 +6,23 @@
  * anything that opens a new surface to do it has already lost. The
  * home unit — the one the task is listed under — is whichever chip is
  * selected first, and it's labelled so that isn't a hidden rule.
+ *
+ * Every chip carries its area's hue as a leading dot, not only the
+ * selected ones. Eighteen identically-toned chips in a horizontal
+ * scroller are unreadable at rest — with the dots you scroll past six
+ * runs of colour and know roughly where you are. The dot keeps its slot
+ * when a chip fills, so selecting one never re-flows the row.
+ *
+ * When the sheet opens with a unit already chosen, the row scrolls that
+ * chip into view: it sits fourteen chips along often enough that the
+ * default view showed nothing selected and read as unset.
  */
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useRef } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Pressable } from "react-native";
 
 export interface PickableUnit {
   id: string;
@@ -41,10 +51,31 @@ export function UnitPicker({
   areaColors,
   max = DEFAULT_MAX,
 }: UnitPickerProps) {
+  const scrollRef = useRef<ScrollView>(null);
+  /** Only the unit the picker opened with; re-scrolling on every tap
+   *  would move the row out from under the finger that just tapped. */
+  const openedWith = useRef(value[0]);
+  const revealed = useRef(false);
+
+  const reveal = (id: string, x: number) => {
+    if (revealed.current || id !== openedWith.current) return;
+    revealed.current = true;
+    // The chip's layout lands before the row can scroll; one frame on,
+    // the ScrollView has its content and the offset takes.
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ x: Math.max(0, x - space.lg), animated: false });
+    });
+  };
+
+  /**
+   * The last chip clears like any other. It used to be locked, on the
+   * grounds that a task must live somewhere — but the sheet can now
+   * open with nothing chosen, and a locked first pick means the wrong
+   * tap can't be taken back. The rule it enforced still holds; it's
+   * enforced where it belongs, on the button that commits.
+   */
   const toggle = (id: string) => {
     if (value.includes(id)) {
-      // Never leave a task homeless — the last chip can't be cleared.
-      if (value.length === 1) return;
       onChange(value.filter((v) => v !== id));
       return;
     }
@@ -60,13 +91,18 @@ export function UnitPicker({
         <AppText variant="caption" color={theme.muted}>
           {value.length > 1 ? "Counts toward" : "Unit"}
         </AppText>
-        {value.length > 1 ? (
+        {value.length === 0 ? (
+          <AppText variant="footnote" color={theme.muted}>
+            Pick where it's listed
+          </AppText>
+        ) : value.length > 1 ? (
           <AppText variant="footnote" color={theme.muted}>
             Earns from each · listed under {nameOf(units, value[0])}
           </AppText>
         ) : null}
       </View>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.chips}
@@ -76,15 +112,15 @@ export function UnitPicker({
           const index = value.indexOf(u.id);
           const selected = index >= 0;
           const hue = areaColors[u.areaId] ?? theme.accent;
-          const locked = selected && value.length === 1;
           const blocked = !selected && atMax;
           return (
             <Pressable
               key={u.id}
+              onLayout={(e) => reveal(u.id, e.nativeEvent.layout.x)}
               onPress={() => toggle(u.id)}
-              disabled={locked || blocked}
+              disabled={blocked}
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected, disabled: locked || blocked }}
+              accessibilityState={{ checked: selected, disabled: blocked }}
               accessibilityLabel={
                 selected && index === 0 ? `${u.name}, listed under this unit` : u.name
               }
@@ -97,10 +133,17 @@ export function UnitPicker({
                 },
               ]}
             >
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: selected ? theme.onAccent : hue },
+                ]}
+              />
               <AppText
                 variant="label"
                 color={selected ? theme.onAccent : theme.ink}
                 numberOfLines={1}
+                style={styles.chipLabel}
               >
                 {u.name}
               </AppText>
@@ -131,11 +174,15 @@ const styles = StyleSheet.create({
   },
   chips: { gap: space.sm, paddingRight: space.sm },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
     minHeight: 40,
-    justifyContent: "center",
     paddingHorizontal: space.lg,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     maxWidth: 190,
   },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  chipLabel: { flexShrink: 1 },
 });

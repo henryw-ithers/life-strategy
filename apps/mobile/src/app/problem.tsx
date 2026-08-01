@@ -1,10 +1,15 @@
 /**
- * Report a problem (ADR-0013 decision 5).
+ * Problem log (ADR-0013 decision 5, as amended).
  *
- * Glide sends nothing on its own, so this screen is the whole reporting
- * pipeline: it shows what was recorded when something broke, shows the
- * exact text that would leave the device, and hands that text to the
- * share sheet if — and only if — the user taps send.
+ * Two things in one list, because they are read together: crashes the
+ * app caught on its own, and feedback the user sent. A crash next to a
+ * message written four minutes later is usually the whole story, and
+ * separating them would hide it.
+ *
+ * Glide sends nothing on its own, so this screen is the entire reporting
+ * pipeline: it shows what was recorded, shows the exact text that would
+ * leave the device, and hands that text to the share sheet if — and only
+ * if — the user taps send.
  *
  * **The payload is on screen before it is sent, verbatim.** That is the
  * point of the screen, not a detail of it: "we send nothing" is a claim
@@ -12,7 +17,7 @@
  * they can read it. The preview and the payload are the same
  * `formatReport` call so they cannot drift.
  */
-import { router } from "expo-router";
+import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   Pressable,
@@ -27,11 +32,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { KIND_LABEL as FEEDBACK_LABEL } from "../lib/feedback";
 import {
-  clearProblems,
+  clearLog,
   formatReport,
-  readProblems,
-  type ProblemEntry,
+  isProblem,
+  readLog,
+  type LogEntry,
+  type ProblemKind,
 } from "../lib/problemLog";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
@@ -47,27 +55,36 @@ function formatWhen(iso: string): string {
   });
 }
 
-/** Plain words for the capture point. The log stores which layer
- *  caught the error because it narrows the cause; the user gets the
- *  version of that fact which is about their experience. */
-const KIND_LABEL: Record<ProblemEntry["kind"], string> = {
-  startup: "While opening the app",
-  render: "While showing a screen",
-  fatal: "In the background",
+/** Plain words for the capture point. The log stores which layer caught
+ *  the error because it narrows the cause; the user gets the version of
+ *  that fact which is about their experience. */
+const PROBLEM_LABEL: Record<ProblemKind, string> = {
+  startup: "Wouldn't open",
+  render: "A screen broke",
+  fatal: "Something failed in the background",
 };
 
-export default function ProblemScreen() {
+export default function ProblemLogScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
 
-  // Read once per mount. The log only changes when something breaks,
-  // and re-reading a file on focus to find the same entries is work
-  // for nobody.
-  const [entries, setEntries] = useState<ProblemEntry[]>(() => readProblems());
+  const [entries, setEntries] = useState<LogEntry[]>(() => readLog());
   const [payloadShown, setPayloadShown] = useState(false);
 
+  /* Re-read on focus, not just on mount. Sending feedback adds an entry
+   * and comes straight back here, so a mount-only read would show a log
+   * that is already one behind — the exact case that makes the screen
+   * look like it isn't working. */
+  useFocusEffect(
+    useCallback(() => {
+      setEntries(readLog());
+    }, []),
+  );
+
   const report = formatReport(entries);
+  const problemCount = entries.filter(isProblem).length;
+  const feedbackCount = entries.length - problemCount;
 
   const onSend = useCallback(async () => {
     try {
@@ -79,7 +96,7 @@ export default function ProblemScreen() {
   }, [report]);
 
   const onClear = useCallback(() => {
-    clearProblems();
+    clearLog();
     setEntries([]);
     setPayloadShown(false);
   }, []);
@@ -109,61 +126,118 @@ export default function ProblemScreen() {
         </Pressable>
 
         <AppText variant="display" color={theme.ink}>
-          Report a problem
+          Problem log
         </AppText>
         <AppText color={theme.ink} style={styles.lede}>
-          When something goes wrong, Glide writes down where it happened
-          and stops there. Nothing is sent unless you send it.
+          Anything that went wrong, and any feedback you've sent. It's all
+          written down here on this phone and nowhere else.
         </AppText>
 
         {entries.length === 0 ? (
           <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-            <AppText color={theme.ink}>Nothing recorded.</AppText>
+            <AppText color={theme.ink}>Nothing here yet.</AppText>
             <AppText variant="caption" color={theme.muted}>
-              If the app did something odd without breaking, this page
-              won't know about it — that one's worth describing in your
-              own words.
+              This fills in on its own. Crashes get written down as they
+              happen, and sending feedback adds a line too. An empty list
+              means nothing has gone wrong.
             </AppText>
+            <Pressable
+              onPress={() => router.replace("/feedback" as Href)}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.crossLink,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <AppText variant="label" color={theme.accent}>
+                Send feedback ›
+              </AppText>
+            </Pressable>
           </View>
         ) : (
           <>
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
               <AppText variant="headline" color={theme.ink}>
-                {entries.length === 1
-                  ? "1 problem recorded"
-                  : `${entries.length} problems recorded`}
+                {[
+                  problemCount === 1
+                    ? "1 problem"
+                    : problemCount > 0
+                      ? `${problemCount} problems`
+                      : null,
+                  feedbackCount === 1
+                    ? "1 note sent"
+                    : feedbackCount > 0
+                      ? `${feedbackCount} notes sent`
+                      : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </AppText>
               <AppText variant="caption" color={theme.muted}>
-                The most recent ten, newest first. Older ones are dropped
-                as new ones arrive.
+                Newest first, up to ten of each. Older ones drop off as new
+                ones arrive.
               </AppText>
             </View>
 
             {entries.map((entry, index) => (
               <View
                 key={`${entry.at}-${index}`}
-                style={[styles.entry, { borderColor: theme.hairline }]}
+                style={[
+                  styles.entry,
+                  {
+                    borderColor: theme.hairline,
+                    // Feedback is the one thing in this list the user did
+                    // on purpose, so it reads as a note rather than as
+                    // another fault.
+                    backgroundColor: isProblem(entry)
+                      ? "transparent"
+                      : theme.surface,
+                  },
+                ]}
               >
-                <AppText color={theme.ink}>{KIND_LABEL[entry.kind]}</AppText>
-                <AppText variant="caption" color={theme.muted} tabular>
-                  {formatWhen(entry.at)}
-                  {entry.route ? ` · ${entry.route}` : ""} · {entry.build}
-                </AppText>
-                <AppText variant="footnote" color={theme.muted}>
-                  {entry.name}: {entry.message}
-                </AppText>
+                {isProblem(entry) ? (
+                  <>
+                    <AppText color={theme.ink}>
+                      {PROBLEM_LABEL[entry.kind]}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted} tabular>
+                      {formatWhen(entry.at)}
+                      {entry.route ? ` · ${entry.route}` : ""} · {entry.build}
+                    </AppText>
+                    <AppText variant="footnote" color={theme.muted}>
+                      {entry.name}: {entry.message}
+                    </AppText>
+                  </>
+                ) : (
+                  <>
+                    <AppText color={theme.ink}>
+                      You sent feedback: {FEEDBACK_LABEL[entry.topic]}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted} tabular>
+                      {formatWhen(entry.at)} · {entry.build}
+                    </AppText>
+                    {/* Honest about what was recorded, on both counts:
+                     *  the words aren't kept here, and opening a draft
+                     *  isn't the same as sending it. */}
+                    <AppText variant="footnote" color={theme.muted}>
+                      {entry.via === "mail"
+                        ? "Opened in your mail app. What you wrote isn't kept here."
+                        : "Handed to the share sheet. What you wrote isn't kept here."}
+                    </AppText>
+                  </>
+                )}
               </View>
             ))}
 
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
               <AppText variant="headline" color={theme.ink}>
-                Send it on
+                Send this log on
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 Sending opens the share sheet, so you choose where it
-                goes. It's plain text — technical details about the app,
-                this build, and this phone's model. Nothing you've
-                written, rated, or photographed is in it.
+                goes. It's plain text: technical details about the app, this
+                build, and this phone's model. Nothing you've written,
+                rated, or photographed is in it.
               </AppText>
 
               <Pressable
@@ -195,9 +269,9 @@ export default function ProblemScreen() {
                 </View>
               ) : null}
 
-              <Button label="Send report" onPress={() => void onSend()} theme={theme} />
+              <Button label="Send log" onPress={() => void onSend()} theme={theme} />
               <Button
-                label="Clear these"
+                label="Clear the log"
                 variant="quiet"
                 onPress={onClear}
                 theme={theme}
@@ -228,6 +302,7 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.xs,
   },
+  crossLink: { minHeight: 44, justifyContent: "center" },
   disclosure: { minHeight: 44, justifyContent: "center" },
   payload: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -91,6 +91,31 @@ diagnostic's existing intro carries the *what*; `UnitInfoSheet`
 carries per-unit detail on demand, at the moment it is actually
 wanted.
 
+> **Amendment (2026-07-30): four screens, not six.**
+>
+>     welcome → diagnostic → notification ask → done → the real Tasks screen
+>
+> The first tester walkthrough found the flow padded, and it was. Three
+> changes, all of them deletions:
+>
+> - **The privacy screen folded into the welcome.** Decision 4 below
+>   argued the privacy line belongs early, as a reason to proceed. It
+>   does; that argument never required a page of its own. It is one
+>   sentence, and it now sits under the two that explain what Glide is.
+> - **The screen introducing the diagnostic is gone.** It opened with
+>   "Rank each part of your life against the rest" above a **Begin**
+>   button, and `/diagnostic` then opened with the same sentence above
+>   another **Begin** button. Reaching the first question took four taps
+>   across four full-screen pages, two of which were near-verbatim
+>   duplicates. The diagnostic's own intro is now the only framing, and
+>   the welcome's Start pushes straight to it. Two taps.
+> - **The first-tasks step is gone**, superseding decision 3 below. See
+>   the amendment there.
+>
+> `step === "diagnostic"` survives as a waiting state rather than a
+> screen: it records that `/diagnostic` is on top of us, so a cold start
+> mid-diagnostic renders the welcome again instead of a blank page.
+
 ### 2. The diagnostic is mandatory, and onboarding resumes
 
 There is no path into the app that skips it, because there is no
@@ -122,6 +147,35 @@ rules out.
 When ADR-0006's library lands, this step keeps its shape and its
 place; only the source of the suggestions changes, from the user's
 typing to generated recommendations they accept or edit.
+
+> **Amendment (2026-07-30): the step is deleted; the real Tasks screen
+> does this job.**
+>
+> The step shipped as a private, lesser copy of the Tasks screen: three
+> unit cards, an Add-a-task button each, no expansion, no reordering, no
+> editing, no other fifteen units. A tester's words for it were "a
+> half-arsed task screen," and the diagnosis underneath that is the one
+> this ADR already made for the diagnostic in decision 1 — *run the real
+> screen, don't maintain a second version of it.* Two implementations of
+> "add a task" was one too many.
+>
+> Onboarding now ends by handing the user to `/plan`, which gained a
+> first-run state: when a snapshot exists and no task does, the screen
+> explains that every unit below holds a share of the daily 100 and
+> offers to add the first task to the highest-weighted one. The same
+> state returns if someone later deletes every task, which is the same
+> situation and deserves the same help.
+>
+> **What this keeps** from the decision above: the connection between
+> the ranking and the checklist stays visible (the weights are on
+> screen, next to the prompt), and the step is still skippable — more
+> so, since it is now just the app. **What it gives up:** the guided
+> one-unit-at-a-time sequence. The bet is that eighteen real rows with
+> live point values teach the model better than three cards did.
+>
+> ADR-0006's library still lands in the same place; the first-run block
+> is where generated suggestions surface, instead of a step that no
+> longer exists.
 
 ### 4. Privacy up front, Support Resources at the end
 
@@ -193,5 +247,16 @@ the monthly ritual's job. Completion is a single `app_setting` key.
        re-run-onboarding control. *(Settings → Privacy, and "Run the
        introduction again," which replays the flow without touching
        data.)*
-5. [ ] Rewrite the welcome copy against tester feedback once the first
-       round comes back (see Consequences).
+5. [x] Rewrite the welcome copy against tester feedback once the first
+       round comes back (see Consequences). *(Done 2026-07-30, alongside
+       the flow amendments above. The first read of it landed as
+       "written by an AI," and the specific tell was the em dash: the
+       flow used one in nearly every paragraph, as did most screens
+       around it. Those are gone from displayed copy app-wide, in favour
+       of full stops and colons. `NumberDial`'s "—" placeholder stays;
+       there it is a glyph for "no value", not prose.)*
+
+6. [ ] Watch where the shortened flow drops. Two taps now stand between
+       install and the first ranking question, so the diagnostic's own
+       five minutes is the whole remaining floor — and the first-run
+       Tasks state is untested against anyone who did not build it.

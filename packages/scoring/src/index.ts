@@ -6,12 +6,22 @@ export {
 } from "./constants";
 export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
-export { deriveWeights } from "./weights";
+export type { UnitCoverage } from "./weights";
+export { deriveWeights, spendableWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
 export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
 export { nextGoalStatus, advanceMilestone } from "./goals";
-export type { AreaRank, UnitRank, OverallUnitRank } from "./ranking";
-export { rankToScore, combineHierarchicalRank } from "./ranking";
+export type {
+  AreaRank,
+  UnitRank,
+  OverallUnitRank,
+  PriorityOrderInput,
+} from "./ranking";
+export {
+  rankToScore,
+  combineHierarchicalRank,
+  weightsForPriorityOrder,
+} from "./ranking";
 export { recommendedTaskRange } from "./taskGuidance";
 export type {
   WeeklyGradeSample,

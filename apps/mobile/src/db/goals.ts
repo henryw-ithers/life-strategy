@@ -2,7 +2,7 @@
  * Goal lifecycle & milestones (ADR-0007). Goals sit between a life
  * unit and its tasks: optional, temporary, and never scored directly
  * — all points still derive from active tasks' rank shares (ADR-0003)
- * via `recomputeUnitPoints`, which this module reuses rather than
+ * via `recomputeAllUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
 import type { GoalStatus, MilestoneStatus } from "@glide/scoring";
@@ -11,7 +11,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
-import { recomputeUnitPoints, type Tx } from "./tasks";
+import { recomputeAllUnitPoints, type Tx } from "./tasks";
 import { achievement, goal, lifeArea, lifeUnit, milestone, task } from "./schema";
 
 export type { GoalStatus, MilestoneStatus };
@@ -227,7 +227,7 @@ export async function pauseGoal(goalId: string): Promise<void> {
     for (const t of tasks) {
       await tx.update(task).set({ active: false }).where(eq(task.id, t.id));
     }
-    await recomputeUnitPoints(tx, row.unitId);
+    await recomputeAllUnitPoints(tx);
   });
 }
 
@@ -241,7 +241,7 @@ export async function resumeGoal(goalId: string): Promise<void> {
     for (const t of tasks) {
       await tx.update(task).set({ active: true }).where(eq(task.id, t.id));
     }
-    await recomputeUnitPoints(tx, row.unitId);
+    await recomputeAllUnitPoints(tx);
   });
 }
 
@@ -264,7 +264,7 @@ export async function abandonGoal(
           .where(eq(task.id, taskId));
       }
     }
-    await recomputeUnitPoints(tx, row.unitId);
+    await recomputeAllUnitPoints(tx);
   });
 }
 
@@ -311,7 +311,7 @@ export async function reviseGoal(
         .set({ goalId: carry ? newId : null, active: true })
         .where(eq(task.id, taskId));
     }
-    await recomputeUnitPoints(tx, row.unitId);
+    await recomputeAllUnitPoints(tx);
   });
   return newId;
 }
@@ -378,7 +378,7 @@ export async function completeGoal(
       successorGoalId = newId;
     }
 
-    await recomputeUnitPoints(tx, row.unitId);
+    await recomputeAllUnitPoints(tx);
     await tx.insert(achievement).values({
       id: Crypto.randomUUID(),
       goalId,

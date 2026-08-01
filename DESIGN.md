@@ -111,6 +111,13 @@ components:
     rounded: "{rounded.md}"
     padding: "0 24px"
     height: "48px"
+  button-tonal:
+    backgroundColor: "rgba(0, 122, 128, 0.12)"
+    textColor: "{colors.ink-light}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "0 24px"
+    height: "48px"
   button-quiet:
     backgroundColor: "transparent"
     textColor: "{colors.muted-light}"
@@ -220,11 +227,12 @@ Flat by default: canvas and surface differ only by tonal fill, never by shadow, 
 ## 5. Components
 
 ### Buttons
-- **Shape:** rounded rectangle, radius varies by weight — primary 14px (`rounded.lg`), secondary 12px (`rounded.md`), quiet has no fill or radius.
+- **Shape:** rounded rectangle, radius varies by weight — primary 14px (`rounded.lg`), tonal and secondary 12px (`rounded.md`), quiet has no fill or radius.
 - **Primary:** filled with `accent` (teal `#007a80`/`#3ebfc6`, or a caller-supplied color for area-specific actions), white label at Headline weight, min-height 52px, horizontal padding 24px. Press state: scales to 0.98, no color change.
+- **Tonal:** a wash of `accent` — 12% on the light canvas (`1f`), 18% on the dark one (`2e`), which swallows the lighter tint — with an **Ink** label at Label weight and an optional leading glyph, min-height 48px. Press state: opacity 0.7. For a standing action that lives on a screen permanently: loud enough to find above surface-filled content, quiet enough to see on every visit. The label is Ink, never `accent`: the accent at Label weight on its own wash reads 4.3:1, under AA.
 - **Secondary:** filled with `surface`, Ink-colored label at Label weight, min-height 48px. Press state: opacity 0.7.
 - **Quiet:** no fill, Muted-colored label at Label weight, min-height 44px, horizontal padding 16px. Press state: opacity 0.55. For tertiary/dismissive actions only.
-- **Disabled:** opacity 0.35 (primary) / 0.4 (secondary, quiet) on all variants — never a separate disabled palette.
+- **Disabled:** opacity 0.35 (primary) / 0.4 (tonal, secondary, quiet) on all variants — never a separate disabled palette.
 
 ### Inputs — NumberDial (signature)
 The app's one rating control: a looping 1–10 carousel scroll-snapped on a `surface`-filled track (56px tall, `rounded.lg`), with a haptic tick at every detent and tap-to-jump on any visible digit. The unset state shows an em dash ("—") rather than defaulting to a mid-scale value — the app never puts a thumb on the scale before the user does. Once touched, the readout and center indicator adopt the current Strategic Life Area's hue; untouched, both stay `hairline`-toned.

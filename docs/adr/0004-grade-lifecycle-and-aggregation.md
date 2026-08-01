@@ -26,7 +26,9 @@ should be able to say what they were, not just what they scored.
   times-per-week task model established). Completions can be
   back-filled or corrected and day designations changed anywhere in
   that span. When a week ends, the days of the week-before-last get
-  `finalized_at` stamped and become immutable forever.
+  `finalized_at` stamped and become immutable forever. *(The
+  immutability half of this was removed on 2026-07-30 — see the
+  amendment below.)*
 - Weeks start on **Sunday** and run to Saturday (**amended
   2026-07-27**; originally Monday-first). One definition serves task
   windows, weekly grades, the edit window, the calendar grid, and
@@ -42,6 +44,25 @@ should be able to say what they were, not just what they scored.
   still prevents retro-fiction.
 - Timezone rule: days bucket by the device's local time at logging.
   Travel does not restate past days.
+
+> **Amended 2026-07-30 (no edit horizon):** the two-week hard horizon
+> is removed. **Every day that has happened stays editable, however far
+> back**; only the future is off-limits. The horizon existed to prevent
+> retro-fiction, but its practical effect was the opposite of honesty:
+> a fortnight you forgot to log could never be corrected, so the record
+> was permanently wrong in a way the user could see and not fix.
+>
+> `finalized_at` and `isFinalized` survive as a **marker, not a lock** —
+> they mean "this day has settled," which lets the UI say so and flag a
+> late edit. `isEditable` alone decides whether an edit is allowed.
+>
+> **What this costs, accepted:** weekly and monthly grades are no
+> longer stable once computed. Editing a day in June changes June's
+> grade in August, and reproducible history was the reason for the
+> original window. The day-level record stays true — that is the trade.
+> The calendar gained month-to-month navigation in the same change,
+> since permission to edit any past day is meaningless if the UI cannot
+> reach it.
 
 ### 2. Completion is binary (v1)
 
@@ -182,6 +203,36 @@ day's daily-task points and `W` = sum of weekly-task points
 > product avoids, so the tint is a deliberate design question, not an
 > oversight — decide it when the monthly review gets built.
 
+> **Amended 2026-07-30 (missed days earn half):** an elapsed day with
+> no row now counts as **half the standard denominator earned**
+> (`MISSED_DAY_CREDIT = 0.5`), not zero. Zero was arithmetically honest
+> and read as punishment: a fortnight away returned a number in the
+> teens, which is the shape of a streak-shame mechanic even though
+> nothing was subtracted. Half credit keeps missed days inside the
+> denominator — the 2026-07-26 amendment's whole point — while making
+> absence cost something rather than everything.
+>
+> **This is a floor, and §5's "no floors, curves, or weighting tricks"
+> above no longer holds without qualification.** It applies to days the
+> user never touched; every day with a row still scores exactly what it
+> earned, and no stored grade is altered.
+>
+> **The incentive it accepts, knowingly:** a day nobody opened (50%)
+> out-scores a day someone opened and half-finished (say 30%). The
+> alternative considered was halving the day's *weight*
+> (`{ earned: 0, possible: half }`), which never rewards absence but
+> grades a sparse month far harder. Half credit was chosen for the
+> friends test on the grounds that a forgiving number is likelier to
+> keep someone using the app than a strictly-ordered one. **Watch for
+> testers who stop logging on bad days**; that is the signal the
+> incentive is biting, and the weight variant is a one-line switch in
+> `constants.ts`.
+>
+> `FORMULA_VERSION` does **not** bump: it records how *weights* were
+> derived for a snapshot, and this changes only how finished days
+> aggregate. A pinned test asserts the untouched-beats-poor ordering so
+> the trade stays deliberate.
+
 ## Schema amendments (to ADR-0002)
 
 - `day_grade` gains: `kind` (`normal|rest|special`), `title`, `note`,
@@ -212,7 +263,10 @@ day's daily-task points and `W` = sum of weekly-task points
 1. [x] Implement day lifecycle in the `scoring` package: rollover,
        edit window, finalization; property tests (finalized days never
        change; rest days never affect aggregates). *(days.ts + tests;
-       finalization stamps lazily on app open.)*
+       finalization stamps lazily on app open. **The "finalized days
+       never change" property was retired on 2026-07-30** — see the
+       amendment to decision 1. Settling is now a marker, and the tests
+       assert the opposite: a settled day is still editable.)*
 2. [x] Implement daily/weekly/monthly grade computation per §4–5 with
        the worked denominators. *(Daily: `computeDayScore`; weekly and
        monthly: `aggregateGrade` (same reduce, either period) —

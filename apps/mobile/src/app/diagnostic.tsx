@@ -292,10 +292,13 @@ export default function DiagnosticFlow() {
           <AppText variant="display" color={theme.ink}>
             Life diagnostic
           </AppText>
+          {/* The only framing the diagnostic gets. Onboarding used to
+              open with a near-identical screen of its own; that screen
+              is gone (ADR-0011 as amended), so this one carries it. */}
           <AppText color={theme.ink} style={styles.introCopy}>
-            Rank each part of your life against the rest — what needs your
-            attention most, and where you're most satisfied. No numbers, just
-            comparisons.
+            You'll compare the parts of your life against each other. Which
+            ones need your attention most, and where are you most satisfied?
+            No numbers to pick, just comparisons.
           </AppText>
           <AppText variant="caption" color={theme.muted}>
             Six areas · about five minutes
@@ -352,7 +355,7 @@ export default function DiagnosticFlow() {
 
     if (step.kind === "areas") {
       const order = areaOrder[step.axis] ?? areas.map((a) => a.id);
-      heading = `Your areas — ${AXIS_LABEL[step.axis]}`;
+      heading = `Your areas · ${AXIS_LABEL[step.axis]}`;
       content = (
         <RankGroup
           key={`areas-${step.axis}`}
@@ -507,8 +510,8 @@ export default function DiagnosticFlow() {
             What moved
           </AppText>
           <AppText color={theme.muted} style={styles.resultsLead}>
-            Since your last diagnostic. Nothing here needs action — carry
-            everything over as-is if it looks right.
+            Since your last diagnostic. Nothing here needs action. If it
+            looks right, carry it all over as it is.
           </AppText>
 
           {d.excluded.length > 0 ? (

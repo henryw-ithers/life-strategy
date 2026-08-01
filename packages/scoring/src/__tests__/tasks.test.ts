@@ -21,13 +21,41 @@ describe("taskPointValues — ADR-0003 worked example", () => {
 });
 
 describe("taskPointValues — invariants", () => {
-  it("task points always sum to exactly the unit weight", () => {
+  it("task points sum to exactly the unit weight", () => {
     for (let weight = 0; weight <= 60; weight++) {
       for (let n = 1; n <= 5; n++) {
+        // Below `n` points there is no split that both floors every
+        // task at 1 and sums to the weight; the floor wins and the
+        // unit spends `n` (see taskPointValues).
+        if (weight !== 0 && weight < n) continue;
         const points = taskPointValues(weight, n);
         expect(points.reduce((a, b) => a + b, 0)).toBe(weight);
       }
     }
+  });
+
+  it("never leaves a task worth zero in a scoring unit", () => {
+    for (let weight = 1; weight <= 60; weight++) {
+      for (let n = 1; n <= 8; n++) {
+        for (const points of [taskPointValues(weight, n)]) {
+          expect(Math.min(...points)).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it("the 3-point unit with three tasks splits 1/1/1, not 2/1/0", () => {
+    expect(taskPointValues(3, 3)).toEqual([1, 1, 1]);
+    expect(taskPointValues(5, 4)).toEqual([2, 1, 1, 1]);
+  });
+
+  it("a unit outside scoring divides nothing, floor included", () => {
+    expect(taskPointValues(0, 3)).toEqual([0, 0, 0]);
+  });
+
+  it("spends the task count when a unit holds more tasks than points", () => {
+    expect(taskPointValues(2, 3)).toEqual([1, 1, 1]);
+    expect(taskPointValues(1, 2)).toEqual([1, 1]);
   });
 
   it("higher rank never earns fewer points", () => {

@@ -1,0 +1,22 @@
+diff --git a/node_modules/expo-sqlite/web/WorkerChannel.ts b/node_modules/expo-sqlite/web/WorkerChannel.ts
+index 7fba380..c88195b 100644
+--- a/node_modules/expo-sqlite/web/WorkerChannel.ts
++++ b/node_modules/expo-sqlite/web/WorkerChannel.ts
+@@ -40,7 +40,16 @@ export function sendWorkerResult({
+     const resultJson = error != null ? serialize({ error }) : serialize({ result });
+     const resultBytes = new TextEncoder().encode(resultJson);
+     const length = resultBytes.length;
+-    resultArray.set(new Uint32Array([length]), 0);
++    // Glide patch (see docs/web-preview.md).
++    //
++    // `resultArray` is a Uint8Array, so the upstream
++    // `resultArray.set(new Uint32Array([length]), 0)` converts
++    // element-wise and writes only the LOW BYTE of the length. The
++    // reader in `invokeWorkerSync` takes 4 bytes back, so every
++    // synchronous result >= 256 bytes returned a truncated length
++    // (256 -> 0, 300 -> 44) and JSON.parse got a clipped or empty
++    // string. Write the header as an actual 32-bit value.
++    new Uint32Array(resultBuffer, 0, 1)[0] = length;
+     resultArray.set(resultBytes, 4);
+     Atomics.store(lock, 0, RESOLVED);
+   } else {

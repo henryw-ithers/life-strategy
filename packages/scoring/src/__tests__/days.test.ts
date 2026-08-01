@@ -105,10 +105,15 @@ describe("edit window (ADR-0004 §1, week-aligned)", () => {
     expect(editWindowStart(today)).toBe("2026-07-05");
   });
 
-  it("the whole previous week is editable; before that is finalized", () => {
+  it("every past day is editable, however far back", () => {
     expect(isEditable("2026-07-05", today)).toBe(true);
-    expect(isEditable("2026-07-04", today)).toBe(false);
+    expect(isEditable("2026-07-04", today)).toBe(true);
+    expect(isEditable("2019-01-01", today)).toBe(true);
+  });
+
+  it("settling is a marker, not a lock: a settled day is still editable", () => {
     expect(isFinalized("2026-07-04", today)).toBe(true);
+    expect(isEditable("2026-07-04", today)).toBe(true);
     expect(isFinalized("2026-07-05", today)).toBe(false);
   });
 

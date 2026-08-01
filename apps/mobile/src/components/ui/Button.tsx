@@ -8,22 +8,28 @@ interface ButtonProps {
   onPress: () => void;
   /**
    * primary: filled, onAccent label (fill must be an accent/area hue).
+   * tonal: a wash of the accent, ink label — a standing action that
+   *   sits on a screen all the time and shouldn't shout every visit,
+   *   but would vanish as `secondary` against surface-filled content.
    * secondary: surface-filled, ink label, for neutral actions.
    * quiet: borderless text button for tertiary actions.
    */
-  variant?: "primary" | "secondary" | "quiet";
-  /** Fill color for primary (defaults to theme.accent). */
+  variant?: "primary" | "tonal" | "secondary" | "quiet";
+  /** Fill color for primary and tonal (defaults to theme.accent). */
   color?: string;
+  /** Leading glyph for tonal, at the label's size; not announced. */
+  glyph?: string;
   disabled?: boolean;
   theme: ThemeTokens;
 }
 
-/** The app's only button. Two variants, all states. */
+/** The app's only button. Four variants, all states. */
 export function Button({
   label,
   onPress,
   variant = "primary",
   color,
+  glyph,
   disabled,
   theme,
 }: ButtonProps) {
@@ -39,6 +45,40 @@ export function Button({
         style={({ pressed }) => [styles.quiet, { opacity: disabled ? 0.4 : pressed ? 0.55 : 1 }]}
       >
         <Text style={[typeScale.label, { color: theme.muted }]}>{label}</Text>
+      </Pressable>
+    );
+  }
+
+  if (variant === "tonal") {
+    // The label stays Ink: the accent on its own wash lands at 4.3:1,
+    // under AA at this size. The tint carries which action it is; the
+    // ink carries the reading. Dark canvas swallows 12%, so it takes
+    // nearer 18% to register as a surface at all.
+    const wash = `${fill}${theme.name === "dark" ? "2e" : "1f"}`;
+    return (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: disabled === true }}
+        style={({ pressed }) => [
+          styles.tonal,
+          {
+            backgroundColor: wash,
+            opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+          },
+        ]}
+      >
+        {glyph ? (
+          <Text
+            importantForAccessibility="no"
+            style={[typeScale.label, { color: theme.ink }]}
+          >
+            {glyph}
+          </Text>
+        ) : null}
+        <Text style={[typeScale.label, { color: theme.ink }]}>{label}</Text>
       </Pressable>
     );
   }
@@ -89,6 +129,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: space.xl,
+  },
+  tonal: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.sm,
     paddingHorizontal: space.xl,
   },
   secondary: {

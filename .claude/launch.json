@@ -4,9 +4,30 @@
     {
       "name": "expo-web",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8090"],
+      "cwd": "apps/mobile",
+      "port": 8090
+    },
+    {
+      "name": "expo-go",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start"],
       "cwd": "apps/mobile",
       "port": 8081
+    },
+    {
+      "name": "expo-tunnel",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--tunnel"],
+      "cwd": "apps/mobile",
+      "port": 8081
+    },
+    {
+      "name": "expo-tunnel-8082",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--tunnel", "--port", "8082"],
+      "cwd": "apps/mobile",
+      "port": 8082
     }
   ]
 }

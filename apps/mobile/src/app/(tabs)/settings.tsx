@@ -126,6 +126,39 @@ export default function SettingsScreen() {
       <Backdrop circles={hueWash(theme.accent)} />
       <ScreenHeader title="Settings" theme={theme} />
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
+        {/* Feedback first, for the length of the TestFlight round. A
+         *  suggestion is the most common thing a tester has to say and
+         *  the easiest thing for them to give up on looking for; the
+         *  problem log sits under it because that is where a sent note
+         *  goes, so the pair reads as one thing. */}
+        <Group theme={theme} flush>
+          <Pressable
+            onPress={() => router.push("/feedback" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Send feedback
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+          <GroupDivider theme={theme} />
+          <Pressable
+            onPress={() => router.push("/problem" as Href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <AppText color={theme.ink} style={styles.grow}>
+              Problem log
+            </AppText>
+            <AppText variant="label" color={theme.muted}>
+              ›
+            </AppText>
+          </Pressable>
+        </Group>
+
         <Group theme={theme} flush>
           <Pressable
             onPress={() => router.push("/calibration" as Href)}
@@ -228,26 +261,26 @@ export default function SettingsScreen() {
          *  the user has to take on trust rather than check. */}
         <Group theme={theme} title="Privacy">
           <AppText color={theme.ink}>
-            Everything you enter — rankings, tasks, grades, journal
-            entries, photos, and contentment check-ins — is stored only on
-            this device. Glide has no account and no server, and sends
+            Everything you enter is stored only on this device: rankings,
+            tasks, grades, journal entries, photos, and contentment
+            check-ins. Glide has no account and no server, and sends
             nothing anywhere.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
             When something breaks, the technical details are written down
-            here too — which screen, which version. Report a problem shows
-            you that text in full, and it only goes anywhere if you send
-            it.
+            here too: which screen, which version. The problem log shows you
+            that text in full, and it only goes anywhere if you send it.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
-            Send feedback is the same: it hands what you typed to your own
-            mail app, and you send it. Neither one carries anything from
-            inside the app with it.
+            Send feedback hands what you typed to your own mail app, and
+            you send it. The log notes that you sent something, never what
+            you wrote. Neither one carries anything from inside the app with
+            it.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
             Backups are encrypted with your passphrase before they leave
             the app, and go wherever you choose to put them. Without that
-            passphrase, nobody can open one — including us.
+            passphrase, nobody can open one, including us.
           </AppText>
           <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
             Deleting Glide deletes its data with it. Export a backup first
@@ -255,48 +288,26 @@ export default function SettingsScreen() {
           </AppText>
         </Group>
 
-        {/* Feedback sits above Report a problem, and both sit above the
-         *  data controls: during the TestFlight round these are the two
-         *  rows that matter most, and a suggestion is the far more
-         *  common thing someone has to say than a crash. */}
+        {/* The bottom of the screen, where anything that starts over
+         *  belongs. Both rows carry a second line, because the whole
+         *  difficulty here is that their names sound interchangeable and
+         *  only one of them destroys anything. */}
         <Group theme={theme} flush>
-          <Pressable
-            onPress={() => router.push("/feedback" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Send feedback
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
-          <GroupDivider theme={theme} />
-          <Pressable
-            onPress={() => router.push("/problem" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Report a problem
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
-          <GroupDivider theme={theme} />
           <Pressable
             onPress={() => {
               void resetOnboarding().then(() => router.replace("/onboarding"));
             }}
             accessibilityRole="button"
-            accessibilityHint="Replays the introduction; your data is not changed"
+            accessibilityHint="Replays the welcome screens; your data is not changed"
             style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
           >
-            <AppText color={theme.ink} style={styles.grow}>
-              Run the introduction again
-            </AppText>
+            <View style={styles.grow}>
+              <AppText color={theme.ink}>Replay the introduction</AppText>
+              <AppText variant="caption" color={theme.muted}>
+                Walks through the welcome screens again. Nothing you've
+                entered changes.
+              </AppText>
+            </View>
             <AppText variant="label" color={theme.muted}>
               ›
             </AppText>
@@ -310,9 +321,13 @@ export default function SettingsScreen() {
           >
             {/* The one destructive action in the app, and the only
              *  place `danger` appears outside a goal being removed. */}
-            <AppText color={theme.danger} style={styles.grow}>
-              Erase all data
-            </AppText>
+            <View style={styles.grow}>
+              <AppText color={theme.danger}>Reset everything</AppText>
+              <AppText variant="caption" color={theme.muted}>
+                Deletes every rating, task, grade, and journal entry on
+                this phone, and starts you over from scratch.
+              </AppText>
+            </View>
             <AppText variant="label" color={theme.muted}>
               ›
             </AppText>
@@ -321,14 +336,14 @@ export default function SettingsScreen() {
 
         <Group theme={theme} title="Support">
           <AppText color={theme.ink}>
-            These are here anytime, for anyone — not because of anything in
+            These are here anytime, for anyone, not because of anything in
             your data.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
-            988 Suicide &amp; Crisis Lifeline — call or text 988.
+            988 Suicide &amp; Crisis Lifeline: call or text 988.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
-            Crisis Text Line — text HOME to 741741.
+            Crisis Text Line: text HOME to 741741.
           </AppText>
           <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
             Or talk to a doctor, therapist, or someone you trust.
@@ -375,12 +390,16 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   /** A row inside a flush Group: the group owns the fill and the side
-   *  padding, so the row only owns its height and its own contents. */
+   *  padding, so the row only owns its height and its own contents.
+   *  Vertical padding rather than height alone, because the rows at the
+   *  bottom carry a second explanatory line and would otherwise sit
+   *  flush against their dividers. */
   groupRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
     minHeight: 52,
+    paddingVertical: space.sm,
   },
   grow: { flex: 1 },
   caption: { marginTop: -space.xs },

@@ -14,9 +14,11 @@ import { eq } from "drizzle-orm";
 import { db } from "./client";
 import { contentmentCheckin, task, taskUnit } from "./schema";
 import { getSetting, setSetting } from "./settings";
+import { recomputeAllUnitPoints } from "./tasks";
 
 const KEY_SUNDAY_WEEKS = "migration.sundayWeeks";
 const KEY_TASK_UNITS = "migration.taskUnits";
+const KEY_TASK_POINT_FLOOR = "migration.taskPointFloor";
 
 /**
  * ADR-0004 §1 amendment (2026-07-27): weeks moved from Monday-first to
@@ -78,9 +80,33 @@ export async function backfillTaskUnits(): Promise<void> {
   await setSetting(KEY_TASK_UNITS, "done");
 }
 
+/**
+ * ADR-0003 §5 amendments (2026-07-30): every task in a scoring unit is
+ * worth at least 1 point, and the weight of units with no tasks is
+ * shared among the units that have them.
+ *
+ * Point values are denormalized onto `task_unit` and `task`, and they
+ * only re-derive when something changes — so without this, a task
+ * already sitting at zero stays at zero until its unit is next edited,
+ * and the plan would show a mix of two formulas at once.
+ *
+ * One pass puts the whole plan on the new one. Stored day grades are
+ * untouched: past days keep the points they were earned at (ADR-0002),
+ * so history stays honest about the plan it was actually scored under.
+ */
+export async function repriceTasksWithFloor(): Promise<void> {
+  if ((await getSetting(KEY_TASK_POINT_FLOOR)) === "done") return;
+  await db.transaction(async (tx) => {
+    await recomputeAllUnitPoints(tx);
+  });
+  await setSetting(KEY_TASK_POINT_FLOOR, "done");
+}
+
 /** Every pending data fixup, in order. Runs at launch behind the same
  *  gate as the schema migrations and taxonomy sync. */
 export async function runDataMigrations(): Promise<void> {
   await migrateToSundayWeeks();
   await backfillTaskUnits();
+  // Last: it reprices from whatever the memberships above settled on.
+  await repriceTasksWithFloor();
 }

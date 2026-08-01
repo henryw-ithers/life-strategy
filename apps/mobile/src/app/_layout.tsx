@@ -21,7 +21,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import migrations from "../../drizzle/migrations";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
-import { db } from "../db/client";
+import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
@@ -56,6 +56,43 @@ if (globalScope.ErrorUtils && !globalScope.__glideProblemHandlerInstalled) {
 }
 
 /**
+ * Connection gate. Native has a database the moment this module loads,
+ * but web cannot open one synchronously at all — SQLite lives in a Web
+ * Worker there, and the connection arrives a bundle-load later (see
+ * [client.web.ts](../db/client.web.ts)).
+ *
+ * It is a separate component from the gate below rather than another
+ * piece of state inside it because `useMigrations` reads `db` from an
+ * effect that runs once on mount and never retries. Mounting that gate
+ * only after the connection exists is what makes the ordering a fact
+ * rather than a race.
+ */
+export default function RootLayout() {
+  const [opened, setOpened] = useState(false);
+  const [openError, setOpenError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    openDatabase()
+      .then(() => {
+        if (live) setOpened(true);
+      })
+      .catch((e: unknown) => {
+        if (live) setOpenError(e instanceof Error ? e : new Error(String(e)));
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (openError) return <StartupFailure error={openError} />;
+  // Splash screen stays visible while the connection opens.
+  if (!opened) return null;
+
+  return <MigrationGate />;
+}
+
+/**
  * Database and font gate: run pending migrations, seed the default
  * taxonomy, and load the type family before rendering any screen.
  * Screens below this layout can assume the database exists, is
@@ -66,9 +103,7 @@ if (globalScope.ErrorUtils && !globalScope.__glideProblemHandlerInstalled) {
  * it, which is the flash of unstyled text — worse here than a slightly
  * longer splash, because every screen is type.
  */
-export default function RootLayout() {
-  const scheme = useColorScheme();
-  const theme = getTheme(scheme === "dark" ? "dark" : "light");
+function MigrationGate() {
   const { success, error: migrationError } = useMigrations(db, migrations);
   const [fontsLoaded, fontError] = useFonts({
     Manrope_400Regular,
@@ -91,32 +126,7 @@ export default function RootLayout() {
   }, [success]);
 
   const fatal = migrationError ?? seedError;
-
-  // Recorded once per distinct failure, not once per render — the gate
-  // re-renders on theme changes and this screen has no other exit.
-  const recorded = useRef<Error | null>(null);
-  useEffect(() => {
-    if (!fatal || recorded.current === fatal) return;
-    recorded.current = fatal;
-    recordProblem(fatal, "startup");
-  }, [fatal]);
-
-  if (fatal) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.canvas }]}>
-        <AppText variant="title" color={theme.ink}>
-          Couldn't open your data
-        </AppText>
-        <AppText color={theme.muted} style={styles.errorBody}>
-          Nothing is lost. Closing and reopening the app usually fixes
-          this.
-        </AppText>
-        <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
-          {fatal.message}
-        </AppText>
-      </View>
-    );
-  }
+  if (fatal) return <StartupFailure error={fatal} />;
 
   // Splash screen stays visible while migrations, seed, and fonts run.
   // A font that fails to load is deliberately *not* fatal: the system
@@ -129,6 +139,41 @@ export default function RootLayout() {
       <RouteWitness />
       <Stack screenOptions={{ headerShown: false }} />
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * The one screen shown when startup cannot finish — the connection, the
+ * migrations, or the seed. All three fail the same way from the user's
+ * side (the app has no data to show) and read the same way in copy, so
+ * they share one dead end rather than three.
+ */
+function StartupFailure({ error }: { error: Error }) {
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme === "dark" ? "dark" : "light");
+
+  // Recorded once per distinct failure, not once per render — this
+  // screen re-renders on theme changes and has no other exit.
+  const recorded = useRef<Error | null>(null);
+  useEffect(() => {
+    if (recorded.current === error) return;
+    recorded.current = error;
+    recordProblem(error, "startup");
+  }, [error]);
+
+  return (
+    <View style={[styles.center, { backgroundColor: theme.canvas }]}>
+      <AppText variant="title" color={theme.ink}>
+        Couldn't open your data
+      </AppText>
+      <AppText color={theme.muted} style={styles.errorBody}>
+        Nothing is lost. Closing and reopening the app usually fixes
+        this.
+      </AppText>
+      <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
+        {error.message}
+      </AppText>
+    </View>
   );
 }
 
@@ -174,9 +219,8 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
         This screen ran into a problem
       </AppText>
       <AppText color={theme.muted} style={styles.errorBody}>
-        Your data is untouched — nothing was being saved. Try again, and
-        if it keeps happening, Settings › Report a problem has the
-        details.
+        Your data is untouched. Nothing was being saved. Try again, and if
+        it keeps happening, Settings › Problem log has the details.
       </AppText>
       <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
         {error.message}

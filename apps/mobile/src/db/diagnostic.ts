@@ -23,8 +23,8 @@ import {
   unitWeight,
 } from "./schema";
 import { getGapCoefficientOverride } from "./settings";
-import { currentLocalDate } from "./today";
-import { loadPlan } from "./tasks";
+import { currentLocalDate, recacheAllDayScores } from "./today";
+import { loadPlan, recomputeAllUnitPoints } from "./tasks";
 
 export interface DiagnosticUnit {
   id: string;
@@ -239,7 +239,16 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         })),
       );
     }
+    // New weights mean new task points. `loadPlan` and `loadDay` read
+    // the stored `task.point_value`, so without this the checklist
+    // keeps scoring against the previous diagnostic until some
+    // unrelated task edit happens to refresh the unit.
+    await recomputeAllUnitPoints(tx);
   });
+
+  // And the cached day scores those points feed — the calendar, the
+  // week and the month all read the cache, not the live computation.
+  await recacheAllDayScores();
 
   return snapshotId;
 }

@@ -87,7 +87,7 @@ export default function BackupScreen() {
       setConfirm("");
       setMode({
         kind: "done",
-        message: `Saved ${result.fileName} — ${Math.max(1, Math.round(result.bytes / 1024))} KB. Keep it somewhere you'll still have it if this phone doesn't.`,
+        message: `Saved ${result.fileName}, ${Math.max(1, Math.round(result.bytes / 1024))} KB. Keep it somewhere you'll still have it if this phone doesn't.`,
       });
     } catch (e) {
       setError(describeBackupError(e) ?? "The backup couldn't be written.");
@@ -125,7 +125,7 @@ export default function BackupScreen() {
       }
       setMode({
         kind: "done",
-        message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again — it's still running on the old data until you do.`,
+        message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again. It's still running on the old data until you do.`,
       });
     } catch (e) {
       setError(describeBackupError(e) ?? "The backup couldn't be restored.");
@@ -179,7 +179,7 @@ export default function BackupScreen() {
             <ActivityIndicator color={theme.muted} />
             <AppText variant="caption" color={theme.muted}>
               {mode.kind === "exporting"
-                ? "Sealing your backup — this takes a few seconds."
+                ? "Sealing your backup. This takes a few seconds."
                 : "Restoring…"}
             </AppText>
           </View>
@@ -200,8 +200,8 @@ export default function BackupScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 Writes one encrypted file you can put in Files, iCloud Drive,
-                or anywhere else you keep things. Photos aren't included yet —
-                everything else is.
+                or anywhere else you keep things. Photos aren't included yet.
+                Everything else is.
               </AppText>
               <Button
                 label="Back up now"
@@ -236,7 +236,7 @@ export default function BackupScreen() {
             </AppText>
             <AppText variant="caption" color={theme.muted}>
               This is what unlocks the backup. It isn't stored anywhere and
-              can't be looked up or reset — if you lose it, the file can't be
+              can't be looked up or reset. If you lose it, the file can't be
               opened again. Write it down somewhere real.
             </AppText>
             <Field

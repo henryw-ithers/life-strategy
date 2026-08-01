@@ -49,7 +49,11 @@ import {
   mailtoUrl,
   type FeedbackKind,
 } from "../lib/feedback";
-import { buildLabel, deviceLabel } from "../lib/problemLog";
+import {
+  buildLabel,
+  deviceLabel,
+  recordFeedbackSent,
+} from "../lib/problemLog";
 import { getTheme } from "../theme/colors";
 import { radius, space, type as typeScale } from "../theme/tokens";
 
@@ -130,6 +134,7 @@ export default function FeedbackScreen() {
 
     try {
       await Linking.openURL(mailtoUrl(FEEDBACK_ADDRESS, composed));
+      recordFeedbackSent(kind, "mail");
       setStage({ kind: "handed-off", via: "mail" });
       return;
     } catch {
@@ -140,11 +145,12 @@ export default function FeedbackScreen() {
 
     try {
       await Share.share({ message: composed.body, title: composed.subject });
+      recordFeedbackSent(kind, "share");
       setStage({ kind: "handed-off", via: "share" });
     } catch {
       setStage({ kind: "writing" });
       setError(
-        `This phone wouldn't open its mail app. Your note is saved here — or send it to ${FEEDBACK_ADDRESS} any way you like.`,
+        `This phone wouldn't open its mail app. Your note is saved here. Send it to ${FEEDBACK_ADDRESS} any way you like.`,
       );
     }
   }, [kind, text]);
@@ -187,8 +193,8 @@ export default function FeedbackScreen() {
         </AppText>
         <AppText color={theme.ink} style={styles.lede}>
           Anything you'd change, anything that didn't make sense, anything
-          you wish it did. Half a sentence is plenty — there's no wrong
-          way to say it.
+          you wish it did. Half a sentence is plenty. There's no wrong way
+          to say it.
         </AppText>
 
         {error !== null ? (
@@ -304,8 +310,8 @@ export default function FeedbackScreen() {
               <AppText variant="caption" color={theme.muted}>
                 Opens your mail app with this written out, addressed to
                 Henry. Only what you typed goes in it, plus which version
-                you're on and what kind of phone this is — nothing from
-                inside the app.
+                you're on and what kind of phone this is. Nothing from inside
+                the app.
               </AppText>
             </View>
 
@@ -322,8 +328,8 @@ export default function FeedbackScreen() {
                 Did something break?
               </AppText>
               <AppText variant="caption" color={theme.muted}>
-                Report a problem sends the technical details along with
-                it, which saves a lot of guessing. ›
+                The problem log has the technical details, which saves a
+                lot of guessing. It's where your sent notes are listed too. ›
               </AppText>
             </Pressable>
           </>

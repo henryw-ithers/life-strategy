@@ -1,4 +1,4 @@
-import { EXTRA_RUN_RATE } from "./constants";
+import { EXTRA_RUN_RATE, MISSED_DAY_CREDIT } from "./constants";
 import { addDays, fortnightStart, weekStart } from "./days";
 
 /**
@@ -201,7 +201,12 @@ export interface PeriodInput {
  * the denominator — a week where four days went well and three were
  * skipped would grade like a flawless four-day week. §4 is explicit
  * that the denominator is constant across days, so an elapsed normal
- * day with no row counts as zero earned against `dailyPossible`.
+ * day with no row still occupies a full `dailyPossible`.
+ *
+ * What it *earns* is `MISSED_DAY_CREDIT` of that (ADR-0004 §5 as
+ * amended 2026-07-30): a day you never opened is treated as half a
+ * day rather than a zero. See the constant for the incentive this
+ * knowingly accepts.
  *
  * Two exclusions keep that from overreaching:
  *
@@ -232,7 +237,10 @@ export function periodDays(
     days.push(
       row
         ? { earned: row.earned, possible: row.possible }
-        : { earned: 0, possible: input.dailyPossible },
+        : {
+            earned: Math.round(input.dailyPossible * MISSED_DAY_CREDIT),
+            possible: input.dailyPossible,
+          },
     );
   }
   return days;

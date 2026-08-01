@@ -250,7 +250,7 @@ describe("periodDays", () => {
   const week = { start: "2026-07-13", end: "2026-07-20" };
   const base = { ...week, dailyPossible: 50, gradingStart: "2026-01-01" };
 
-  it("counts an elapsed day with no stored row as zero earned", () => {
+  it("counts an elapsed day with no stored row at half credit", () => {
     const days = periodDays({
       ...base,
       today: "2026-07-20", // the whole week is over
@@ -259,10 +259,10 @@ describe("periodDays", () => {
     expect(days).toHaveLength(7);
     expect(days[0]).toEqual({ earned: 50, possible: 50 });
     expect(days.slice(1)).toEqual(
-      Array.from({ length: 6 }, () => ({ earned: 0, possible: 50 })),
+      Array.from({ length: 6 }, () => ({ earned: 25, possible: 50 })),
     );
-    // One perfect day out of a seven-day week, not a perfect week.
-    expect(aggregateGrade(days).base).toBe(14);
+    // One perfect day plus six half-days: round(200/350*100).
+    expect(aggregateGrade(days).base).toBe(57);
   });
 
   it("does not let skipped days vanish from the denominator", () => {
@@ -275,7 +275,28 @@ describe("periodDays", () => {
     // The bug this guards: aggregating stored rows alone reads 100%.
     expect(aggregateGrade(recorded).base).toBe(100);
     const days = periodDays({ ...base, today: "2026-07-20", recorded });
-    expect(aggregateGrade(days).base).toBe(57); // round(200/350*100)
+    expect(aggregateGrade(days).base).toBe(79); // round(275/350*100)
+  });
+
+  /* The trade ADR-0004 §5 accepts explicitly: at half credit, a day
+   * nobody touched out-scores a day someone touched and half-finished.
+   * Pinned so the choice stays deliberate rather than drifting. */
+  it("scores an untouched day above a touched-but-poor one", () => {
+    const untouched = periodDays({
+      ...base,
+      today: "2026-07-15",
+      recorded: [{ localDate: "2026-07-13", earned: 50, possible: 50 }],
+    })[1];
+    const poor = periodDays({
+      ...base,
+      today: "2026-07-15",
+      recorded: [
+        { localDate: "2026-07-13", earned: 50, possible: 50 },
+        { localDate: "2026-07-14", earned: 10, possible: 50 },
+      ],
+    })[1];
+    expect(untouched).toEqual({ earned: 25, possible: 50 });
+    expect(poor).toEqual({ earned: 10, possible: 50 });
   });
 
   it("excludes the current day from both sides, so a rollover never drops the grade", () => {
@@ -332,7 +353,7 @@ describe("periodDays", () => {
     expect(days).toEqual([
       { earned: 0, possible: 0 },
       { earned: 80, possible: 100 },
-      { earned: 0, possible: 50 },
+      { earned: 25, possible: 50 },
     ]);
   });
 

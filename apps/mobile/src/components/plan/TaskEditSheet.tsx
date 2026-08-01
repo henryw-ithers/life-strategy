@@ -77,8 +77,13 @@ export function TaskEditSheet({
     timesPerWeek !== task.timesPerWeek ||
     unitIds.join("|") !== task.unitIds.join("|");
 
+  /** A task has to be listed somewhere, so an empty unit row can't be
+   *  saved — the picker lets you clear the last chip on the way to
+   *  choosing a different one, and this is where that lands. */
+  const savable = title.trim().length > 0 && unitIds.length > 0;
+
   const save = () => {
-    if (title.trim().length === 0) return;
+    if (!savable) return;
     onSave({ title: title.trim(), timesPerWeek, unitIds });
     onClose();
   };
@@ -142,7 +147,7 @@ export function TaskEditSheet({
           <Button
             label={dirty ? "Save changes" : "Done"}
             color={accent}
-            disabled={title.trim().length === 0}
+            disabled={!savable}
             onPress={save}
             theme={theme}
           />

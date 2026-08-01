@@ -63,8 +63,8 @@ export function PermissionPrescreen({ visible, onDone, theme }: PermissionPrescr
           A daily reminder?
         </AppText>
         <AppText color={theme.ink}>
-          One nudge a day, at a time you choose, only when today's list still
-          needs you. It never says what's on it — just a tap through to
+          One nudge a day, at a time you choose, and only when today's list
+          still needs you. It never says what's on it. Tapping it opens
           today's checklist.
         </AppText>
         <Button label="Enable" onPress={enable} disabled={busy} theme={theme} />

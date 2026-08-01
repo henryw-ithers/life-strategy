@@ -70,18 +70,40 @@ export function nextMonthStart(date: string): string {
   return format(new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1, 12)));
 }
 
-/** First editable day: Sunday of the week before `today`'s week. */
+/**
+ * Start of the *recent* window: Sunday of the week before `today`'s
+ * week. No longer a permission boundary — see `isEditable`. It still
+ * marks where a day stops being current, which drives the settled
+ * marker and the day strip's default range.
+ */
 export function editWindowStart(today: string): string {
   return addDays(weekStart(today), -7);
 }
 
-/** Editable = within the current or previous week, and not in the
- *  future. Days before the window are finalized forever. */
+/**
+ * Editable = any day that has actually happened.
+ *
+ * **Amended 2026-07-30 (ADR-0004 §3):** there is no longer a window
+ * past which a day locks. Forgetting to log for a fortnight used to
+ * mean that fortnight could never be corrected, which made the record
+ * *less* true rather than more. Only the future is off-limits.
+ *
+ * The cost, accepted: weekly and monthly grades are no longer stable
+ * once computed — editing a day in June changes June's number in
+ * August. Reproducible history was the reason for the old window.
+ */
 export function isEditable(date: string, today: string): boolean {
-  return date >= editWindowStart(today) && date <= today;
+  return date <= today;
 }
 
-/** Past the edit window: `finalized_at` is (or is due to be) stamped. */
+/**
+ * Past the recent window — `finalized_at` is (or is due to be)
+ * stamped.
+ *
+ * Since the amendment above this is a **marker, not a lock**: it means
+ * "this day has settled," so a late edit can be shown as one. It never
+ * decides whether an edit is allowed; `isEditable` does that alone.
+ */
 export function isFinalized(date: string, today: string): boolean {
   return date < editWindowStart(today);
 }

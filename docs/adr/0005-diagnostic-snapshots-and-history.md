@@ -116,6 +116,57 @@ axes**, hierarchical to keep the comparison count sane:
   a drag-to-reorder starting from the previous order is the likely
   shape, shared with the still-deferred task re-rank gesture).
 
+> **Amended 2026-07-30 (re-ranking without a diagnostic):** the
+> Portfolio tab's primary job is now the priority order, and the graph
+> is a preview that opens full-size. Priority can be re-ordered at any
+> time, as **one flat list of units**.
+>
+> *Corrected same day:* it shipped with a second "Areas" mode that
+> moved whole areas as blocks, and that mode **destroyed data**. The
+> flat list deliberately allows interleaving across areas — which is
+> exactly what the diagnostic's own final review produces and what
+> `finalOrder` treats as the source of truth — and any area-level move
+> must regroup units into contiguous blocks, silently discarding every
+> cross-area decision behind it. The two representations cannot both be
+> authoritative and the flat one determines the weights, so the mode
+> was removed rather than patched. Bringing area moves back means going
+> genuinely hierarchical (area order and within-area order stored
+> separately, composed by `combineHierarchicalRank`) and giving up
+> interleaving — a product decision, not a UI convenience.
+>
+> **A re-rank writes `unit_weight.override`; it never mints a
+> snapshot.** Snapshots are immutable and they *are* this ADR's
+> history. A re-rank is not a diagnostic: satisfaction has not been
+> re-assessed, so creating a snapshot would plot points on the
+> portfolio graph the user never gave and feed ADR-0008's divergence
+> statistic invented data. The snapshot keeps recording what was
+> actually said; the adjustment is recorded as the override the schema
+> has always had.
+>
+> - **Priority only.** Satisfaction is an assessment rather than a
+>   preference, and stays with the diagnostic that captured it — which
+>   is also what keeps the monthly ritual worth doing.
+> - **The rank denominator includes unscored units**, matching
+>   `buildEntriesFromRanking`: the diagnostic ranks everything and
+>   filters afterwards, so filtering first would hand the same order
+>   different weights. `weightsForPriorityOrder`
+>   (`packages/scoring/src/ranking.ts`) owns that rule and is tested on
+>   it.
+> - **Commits on drop, no confirm step.** A drag is already deliberate
+>   and the points beside each row move with it, so the consequence is
+>   on screen rather than in a dialog. A manual order is remembered
+>   against its snapshot id, so a fresh diagnostic supersedes it — you
+>   just restated the order in full.
+> - **A weight change refreshes both caches it feeds.**
+>   `task.point_value` (read by `loadPlan` and `loadDay`) *and*
+>   `day_grade.points_earned/possible` (read by the calendar, the week
+>   and the month). *(Both were latent bugs predating this feature:
+>   `saveDiagnostic` refreshed neither, so a new diagnostic's weights
+>   reached the checklist only when some unrelated task edit happened
+>   to touch that unit, and the calendar never agreed with the day
+>   screen's own number at all — that number is computed live while the
+>   calendar reads the cache.)*
+
 ## Consequences
 
 - **Easier:** the monthly ritual is one coherent ceremony (rate →
@@ -152,8 +203,9 @@ axes**, hierarchical to keep the comparison count sane:
        deltas, task-count prompts, and goal-aware exclusion prompts —
        `loadDiagnosticDiff()` in `apps/mobile/src/db/diagnostic.ts`,
        the `"diff"` phase in `apps/mobile/src/app/diagnostic.tsx`.
-       Override diffing has nothing to compare yet — no
-       override-editing UI exists.)
+       **Overrides gained their editor on 2026-07-30**: the Portfolio
+       tab is now a re-rankable priority list that writes
+       `unit_weight.override` — see the amendment below.)
 5. [x] Implement decision 7 (ranked, not rated): `rankToScore` +
        `combineHierarchicalRank` (`packages/scoring/src/ranking.ts`),
        the hierarchical ranking flow (`apps/mobile/src/app/diagnostic.tsx`,

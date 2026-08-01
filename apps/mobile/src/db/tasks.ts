@@ -7,7 +7,7 @@
  * `task.point_value` is kept as the sum of those rows so the scoring
  * engine and `task_completion` keep taking one number per task.
  */
-import { taskPointValues } from "@glide/scoring";
+import { spendableWeights, taskPointValues } from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
@@ -43,6 +43,13 @@ export interface PlanUnit {
   includeInScoring: boolean;
   /** Effective weight from the latest snapshot; null when excluded. */
   weight: number | null;
+  /**
+   * What the unit actually has in play — its share of the 100 once the
+   * weight of task-less units has been shared out (ADR-0003 §5
+   * amendment). 0 for a unit with no tasks: `weight` is what it would
+   * bring, `spendable` is what it currently spends.
+   */
+  spendable: number;
   tasks: PlanTask[];
 }
 
@@ -108,6 +115,17 @@ export async function loadPlan(): Promise<PlanData> {
     byTask.set(m.taskId, [...(byTask.get(m.taskId) ?? []), m]);
   }
 
+  // Only active tasks reach `memberships`, so this is coverage as the
+  // scoring engine sees it.
+  const covered = new Set(memberships.map((m) => m.unitId));
+  const spendable = spendableWeights(
+    units.map((u) => ({
+      unitId: u.id,
+      weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
+      covered: covered.has(u.id),
+    })),
+  );
+
   return {
     hasSnapshot: weights.size > 0,
     areas: areas.map((area) => ({
@@ -121,6 +139,7 @@ export async function loadPlan(): Promise<PlanData> {
           areaId: u.areaId,
           includeInScoring: u.includeInScoring,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
+          spendable: spendable.get(u.id) ?? 0,
           // A task is listed under every unit it serves, ranked by that
           // unit's own membership — not only its home unit.
           tasks: memberships
@@ -150,15 +169,51 @@ export async function loadPlan(): Promise<PlanData> {
 }
 
 /**
- * Re-derive one unit's task points from rank shares (ADR-0003), then
+ * What each unit has in play: derived weights with the share held by
+ * units that have no tasks divided among the ones that do (ADR-0003 §5
+ * amendment). A unit with no tasks spent nothing — `dayShare` only
+ * counts tasks that exist — so a half-covered portfolio graded against
+ * half a plan.
+ *
+ * The consequence for this module: a unit's task points can no longer
+ * be derived from that unit alone. Whether *any other* unit has a task
+ * moves the scale, so every recompute is a whole-portfolio recompute.
+ */
+async function spendableWeightMap(tx: Tx): Promise<Map<string, number>> {
+  const weights = await latestWeights(tx);
+  const units = await tx.select({ id: lifeUnit.id }).from(lifeUnit);
+  const covered = await tx
+    .selectDistinct({ unitId: taskUnit.unitId })
+    .from(taskUnit)
+    .innerJoin(task, eq(task.id, taskUnit.taskId))
+    .where(eq(task.active, true));
+  const coveredIds = new Set(covered.map((c) => c.unitId));
+
+  return spendableWeights(
+    units.map((u) => ({
+      unitId: u.id,
+      // No weight row means the unit is out of scoring (or predates the
+      // latest snapshot); `spendableWeights` leaves those at zero.
+      weight: weights.get(u.id) ?? 0,
+      covered: coveredIds.has(u.id),
+    })),
+  );
+}
+
+/**
+ * Split one unit's spendable weight across its ranked tasks, then
  * refresh the `task.point_value` cache for every task it touched — a
  * shared task's total is the sum of its memberships, so changing one
  * unit's ranking moves its total in the other unit's list too.
+ *
+ * Private: callers can't be trusted to know whether the portfolio-wide
+ * scale still holds, and it usually doesn't. Use `recomputeAllUnitPoints`.
  */
-export async function recomputeUnitPoints(tx: Tx, unitId: string): Promise<void> {
-  const weights = await latestWeights(tx);
-  const weight = weights.get(unitId) ?? 0;
-
+async function applyUnitPoints(
+  tx: Tx,
+  unitId: string,
+  weight: number,
+): Promise<void> {
   const rows = await tx
     .select({ taskId: taskUnit.taskId, rankInUnit: taskUnit.rankInUnit })
     .from(taskUnit)
@@ -176,6 +231,25 @@ export async function recomputeUnitPoints(tx: Tx, unitId: string): Promise<void>
   }
 
   for (const r of rows) await refreshTaskTotal(tx, r.taskId);
+}
+
+/**
+ * Re-derive every unit's task points. Runs whenever the weights move (a
+ * new diagnostic, a manual re-rank via `applyPriorityOrder`) **and
+ * whenever any task is added, archived, restored, re-ranked, or
+ * re-homed** — since the amendment above, the first task in a unit and
+ * the last one out both rescale the entire plan.
+ *
+ * `loadPlan` and `loadDay` both read the stored `task.point_value`, so
+ * anything that skips this leaves the checklist scoring against a plan
+ * that no longer exists.
+ */
+export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
+  const spendable = await spendableWeightMap(tx);
+  const units = await tx.select({ id: lifeUnit.id }).from(lifeUnit);
+  for (const u of units) {
+    await applyUnitPoints(tx, u.id, spendable.get(u.id) ?? 0);
+  }
 }
 
 /** `task.point_value` = the sum of its memberships. */
@@ -216,34 +290,47 @@ async function attachUnits(
       .insert(taskUnit)
       .values({ taskId, unitId, rankInUnit: rank, pointValue: 0 });
   }
-  for (const unitId of unitIds) await recomputeUnitPoints(tx, unitId);
+  await recomputeAllUnitPoints(tx);
 }
 
 /**
- * Create a task. `unitIds[0]` is the home unit; `rank` places it in
- * that unit's order (from the comparison flow), and it appends to the
- * end of any additional units' orders.
+ * Create a task. `unitIds[0]` is the home unit, and the task appends to
+ * the end of every unit's order.
+ *
+ * Rank is not asked for at creation. It used to be — a pairwise
+ * comparison ran before the task existed — but ranking a thing you are
+ * still in the middle of writing down is the wrong moment for it: the
+ * cost lands on every single add, and capture is the part that has to
+ * stay cheap. The task lands last, and the screen opens its unit with
+ * the row's drag handle right there.
+ *
+ * Returns the new task's id so the caller can point at it; null when
+ * there is no home unit to file it under.
  */
 export async function addTask(
   unitIds: string[],
   title: string,
   timesPerWeek: number,
-  rank: number,
-): Promise<void> {
+): Promise<string | null> {
   const home = unitIds[0];
-  if (!home) return;
+  if (!home) return null;
+  const id = Crypto.randomUUID();
   await db.transaction(async (tx) => {
-    const id = Crypto.randomUUID();
+    const siblings = await tx
+      .select()
+      .from(taskUnit)
+      .where(eq(taskUnit.unitId, home));
     await tx.insert(task).values({
       id,
       unitId: home,
       title,
       timesPerWeek,
       pointValue: 0,
-      rankInUnit: rank,
+      rankInUnit: siblings.length + 1,
     });
-    await attachUnits(tx, id, unitIds, { [home]: rank });
+    await attachUnits(tx, id, unitIds);
   });
+  return id;
 }
 
 /** Replace a task's unit membership wholesale (from the edit sheet). */
@@ -266,8 +353,9 @@ export async function setTaskUnits(
     }
     await tx.update(task).set({ unitId: home }).where(eq(task.id, taskId));
     if (added.length) await attachUnits(tx, taskId, added);
-    // Removing a task closes a rank gap in the units it left.
-    for (const unitId of removed) await recomputeUnitPoints(tx, unitId);
+    // Closes the rank gap in the units it left, and rescales the plan
+    // if it left one of them with nothing.
+    await recomputeAllUnitPoints(tx);
     await refreshTaskTotal(tx, taskId);
   });
 }
@@ -284,7 +372,7 @@ export async function reorderUnitTasks(
         .set({ rankInUnit: i + 1 })
         .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
     }
-    await recomputeUnitPoints(tx, unitId);
+    await recomputeAllUnitPoints(tx);
   });
 }
 
@@ -294,24 +382,24 @@ export async function renameTask(taskId: string, title: string): Promise<void> {
 
 export async function archiveTask(taskId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const mine = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
     await tx
       .update(task)
       .set({ active: false, archivedAt: new Date().toISOString() })
       .where(eq(task.id, taskId));
-    for (const m of mine) await recomputeUnitPoints(tx, m.unitId);
+    // Deleting the last task in a unit hands its weight to the rest of
+    // the plan, so this reaches past the units the task belonged to.
+    await recomputeAllUnitPoints(tx);
   });
 }
 
 /** Undo an archive — the same rank slots reopen (ADR-0002 soft delete). */
 export async function restoreTask(taskId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const mine = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
     await tx
       .update(task)
       .set({ active: true, archivedAt: null })
       .where(eq(task.id, taskId));
-    for (const m of mine) await recomputeUnitPoints(tx, m.unitId);
+    await recomputeAllUnitPoints(tx);
   });
 }
 

@@ -219,7 +219,7 @@ export default function GoalDetailScreen() {
               </AppText>
               {goal.milestones.length === 0 ? (
                 <AppText variant="caption" color={theme.muted} style={styles.emptyNote}>
-                  No milestones yet — a flat list of checkpoints, if this goal
+                  No milestones yet. A flat list of checkpoints, if this goal
                   wants one.
                 </AppText>
               ) : (

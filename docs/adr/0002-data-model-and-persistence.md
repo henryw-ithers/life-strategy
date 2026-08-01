@@ -116,8 +116,10 @@ partial completion.)
 - **`day_grade`** — local_date (PK), kind (`normal|rest|special`),
   points_earned, points_possible, satisfaction_rating (1–10, special
   days), title, flagged (memory flag), finalized_at (stamped when the
-  day's week is two weeks old — ADR-0004's week-aligned edit window) —
-  kind/title/rating semantics per ADR-0004.
+  day's week is two weeks old — ADR-0004's week-aligned edit window;
+  since 2026-07-30 this **marks** a settled day rather than locking it,
+  and every past day stays editable) — kind/title/rating semantics per
+  ADR-0004.
 - **`journal_entry`** — id, local_date, text, created_at. Multiple
   entries per day; **append-only** — adding a note never overwrites or
   deletes an earlier one.
@@ -217,6 +219,10 @@ later goal edits don't rewrite trophy history.
   recompute-the-past bugs; taxonomy edits are fearless; the scoring
   engine (ADR-0003) reads ratings and writes `unit_weight` rows
   through a clean seam; sync can be added without a schema rewrite.
+  *(Narrowed 2026-07-30: **snapshots and their derived weights** are
+  still immutable, which is what the fearless-taxonomy-edit property
+  rests on. Day records are not — ADR-0004 dropped the edit horizon, so
+  weekly and monthly grades can move when an old day is corrected.)*
 - **Harder:** denormalization means "fix history" requires explicit
   migration tooling if a real bug ever corrupts grades; materialized
   weights add a review-step UI obligation (the override reset flow);
