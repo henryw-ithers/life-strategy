@@ -55,6 +55,12 @@ export async function loadGraphSnapshots(): Promise<GraphSnapshot[]> {
       (monthCounts.get(monthKey(s.takenAt)) ?? 1) > 1
         ? dayLabel(s.takenAt)
         : monthLabel(s.takenAt),
+    // v4 rated satisfaction instead of ranking it (ADR-0022). Older
+    // snapshots keep their stored numbers — history never restates —
+    // but their x-axis means something different, so the graph flags a
+    // span that crosses the boundary rather than tweening through it.
+    satisfactionScale:
+      s.formulaVersion >= 4 ? ("rated" as const) : ("ranked" as const),
     points: ratings
       .filter((r) => r.snapshotId === s.id)
       .flatMap((r) => {

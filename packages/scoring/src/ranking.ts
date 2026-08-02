@@ -1,11 +1,20 @@
 /**
- * Rank-derived diagnostic scores. The diagnostic ranks units instead
- * of rating them on an absolute 1–10 scale (fixes ceiling-clustering:
- * ranking guarantees full-range spread every time, regardless of how
- * "important" everything subjectively feels). `rankToScore` converts
- * a rank position back into a continuous 1–10-equivalent number so
- * the existing weight formula, bubble chart, and history views keep
- * working unchanged.
+ * Rank-derived diagnostic scores, for **priority only** (ADR-0022).
+ *
+ * Priority is ranked rather than rated because it fixes
+ * ceiling-clustering: when most units genuinely feel important, most
+ * dials land 6–10 and the gap term ends up doing all the differentiating
+ * work. Ranking guarantees full-range spread every time.
+ * `rankToScore` converts a rank position back into a continuous
+ * 1–10-equivalent number so the weight formula, bubble chart, and
+ * history views keep working unchanged.
+ *
+ * **Satisfaction is deliberately not ranked.** Ranking both axes over
+ * the same units forces identical value multisets onto each, so
+ * `Σ I = Σ S` and the mean of `I − S` is exactly 0 — the gap term
+ * collapses into a measure of disagreement between two orderings, and
+ * how satisfied the user actually is cancels out. Satisfaction arrives
+ * here as an absolute 1–10 rating instead.
  */
 import { deriveWeights } from "./weights";
 import type { DerivedWeight } from "./types";

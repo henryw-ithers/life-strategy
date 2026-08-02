@@ -197,6 +197,83 @@ question that ADR has to answer is not "how do we build this" but
 "what does a friend see, and can it be something other than a
 number?"
 
+## Subtasks: breaking a task into smaller steps
+
+*Raised 2026-08-02.*
+
+**The idea:** let a task contain sub-tasks — a series of smaller steps
+inside one checklist row. Motivating example: "Skincare" containing
+each product in the routine.
+
+**Status: split into three, and only one of them is worth building.**
+"Subtasks" is a single name over three different features, and the
+motivating example belongs to the cheapest one.
+
+**1. Defining what a task means — accepted 2026-08-02.** Promoted out
+of here; the build plan lives in
+[task-setup-brief.md](design/task-setup-brief.md#task-description). The
+reasoning is kept below because it is why the other two stay parked.
+
+**1. Defining what a task means — build this, it's a text field.**
+The real problem under the skincare example isn't structure, it's that
+*"Skincare" is a vague promise to yourself*. Ticked, it could mean the
+full routine or a face wash, and the grade cannot tell the difference —
+which erodes the honesty the whole record depends on. Writing down what
+the task consists of is a self-contract, and it wants a **description
+on `task`**, not a tree under it. `goal.description` already exists;
+`task` has no notes field at all. One column, one input in
+`TaskEditSheet`, rendered on the plan screen and on tap-to-expand from
+Today — never as extra rows in the checklist. It also gives ADR-0006's
+recommendation library somewhere to put per-task guidance when it
+ships.
+
+**2. Wanting 3-of-5 to score differently from 5-of-5 — that is
+[ADR-0014](adr/README.md), and it has a written trigger.** Partial
+credit is already reserved and deliberately deferred; ADR-0004 §2's
+trigger is calibration data (ADR-0008) showing binary completion
+diverging from felt contentment. Subtasks-with-progress is that
+decision made accidentally, with the fraction living in a subtask table
+instead of on `task_completion` where the model wants it. Pulling the
+trigger early is allowed — it is Henry's app — but it is an ADR, not a
+migration.
+
+**3. Steps that are independently worth doing — already supported.**
+ADR-0003 ranks tasks within a unit. Several tasks is the answer, the
+same way ADR-0007 §3 answers nesting for goals ("if a plan genuinely
+needs nesting, it's usually two goals"). The cost being avoided is
+checklist length, and the answer to *that* is grouping and collapsing
+in the UI, not a new level in the data model.
+
+**Why the plain version is parked:**
+
+- **It collides with the scoring model, not just the UI.** A task's
+  points come from `rank_in_unit`, and a unit's weight is *fully spent*
+  across its ranked tasks (ADR-0003 §5, with the 1-point floor and
+  uncovered-weight reallocation on top). Scored subtasks mean a second
+  ranking layer inside an already-allocated weight, a two-level
+  largest-remainder pass per unit, and a second denormalized
+  points-earned table beside `task_completion`. Unscored subtasks are
+  notes — see 1.
+- **It is the product's first anti-reference, on the surface least able
+  to carry it.** PRODUCT.md names "Jira/Notion-style density, nested
+  configuration"; DESIGN.md says Groups never nest; design principle 2
+  puts the daily surface at under a minute. ADR-0007 §3 already refused
+  recursive trees for goals, which have a stronger claim to them than
+  tasks do.
+- **The motivating example argues against itself.** Cleanser → serum →
+  moisturiser → SPF is one decision, not five. Nobody does the cleanser
+  and skips the moisturiser as a scored choice, so five taps record one
+  action — friction, not information.
+
+**The one case a description doesn't cover:** losing your place
+mid-session in a genuinely long routine (six physio exercises). That
+wants *ephemeral* tick state — not persisted, not scored, discarded on
+completion — which is a smaller and different feature. Worth waiting to
+see whether it's actually missed.
+
+**Prerequisite before revisiting 2:** ADR-0008 calibration data, the
+trigger already written for ADR-0014.
+
 ## Wrapped-style monthly and yearly recaps
 
 *Raised 2026-07-26.*
@@ -236,3 +313,187 @@ memory does, not like an audit."
   the thing worth building, but it is a genuinely different artifact
   from its reference. Worth being clear that only the *form* is being
   borrowed.
+
+## Satisfaction: rated 1–10, not ranked
+
+*Raised 2026-08-02. **Accepted the same day** — shipped as
+[ADR-0022](adr/0022-satisfaction-is-rated-not-ranked.md). Kept here for
+the working-out.*
+
+**The idea:** keep priority ranked, but return satisfaction to an
+absolute 1–10 rating — reversing half of
+[ADR-0005](adr/0005-diagnostic-snapshots-and-history.md) §7.
+
+**Status: recommended, and the arithmetic is decisive.** Both axes run
+the same `rankToScore` over the same 18 units, so they produce
+*identical multisets of values*. Verified: `Σ I = Σ S = 99` and the mean
+of `I − S` is exactly 0, every diagnostic, for every user. Therefore
+`Σ max(0, I − S) = ½ Σ|I − S|` — **the gap term measures only the
+disagreement between the two orderings.** Whether the user is actually
+satisfied cancels out by construction.
+
+Three stated commitments this breaks:
+
+- **vision.md's mechanism is currently false.** "As satisfaction
+  improves in later diagnostics, the boost naturally shrinks and points
+  flow to the next gap." It cannot: if life improves uniformly and the
+  order holds, `S` is bit-identical and so are the derived weights.
+- **The portfolio graph's x-axis is pinned.** ADR-0005 and vision.md
+  both call watching bubbles migrate toward the top-right "the
+  emotional payoff of the whole system." Under ranked satisfaction the
+  x-axis is a permutation of the same 18 values every snapshot —
+  bubbles swap places, the cloud never drifts right. A year of real
+  improvement renders as a reshuffle. **The asymmetry is the point:**
+  y being a permutation is *correct*, because a priority shift genuinely
+  is a reordering and there is no absolute scale of "how important is
+  friendship." x being a permutation is a defect.
+- **Forced spread invents a crisis and hides a real one.** Someone
+  always ranks last, so some unit always sits at S=1 — manufacturing a
+  large gap boost in a life where nothing is wrong. In reverse, the
+  least-bad thing in a bad life sits at S=10 and gets no boost at all.
+
+**ADR-0005 already wrote down the distinction that justifies this.** Its
+2026-07-30 amendment, explaining why re-ranking is priority-only:
+"Satisfaction is an assessment rather than a preference." That is the
+argument for rating it.
+
+**Why the original reason for ranking doesn't carry over.** §7 adopted
+ranking to kill ceiling-clustering — "most units genuinely feel
+important, most dials land 6–10." Clustering on **importance is
+measurement failure**: you cannot discriminate between things that are
+all genuinely important. Clustering on **satisfaction is a finding** —
+it means life is going well, and the correct response is flatter gap
+boosts with importance driving, which is what the formula already does
+unaided. The defect ranking fixed is specific to the priority axis.
+
+**Costs, honestly:**
+
+- **History gains a scale boundary — the significant one.** A stored
+  satisfaction of 3 means "3rd-lowest of 18" before and "quite
+  dissatisfied" after. Snapshots are immutable (ADR-0002) and compare
+  mode and playback tween *across* the changeover, so bubbles will jump
+  on x for reasons that aren't life. Do **not** rewrite history — that
+  invents data. `snapshot.formula_version` already stamps per snapshot,
+  so mark the boundary in the scrubber and compare mode.
+  `FORMULA_VERSION` bumps 3 → 4: the arithmetic is unchanged, but the
+  inputs change meaning. How much this costs depends entirely on how
+  many real snapshots exist at the time of the change.
+- **Self-report drift.** S=6 in January versus June assumes a stable
+  internal ruler — precisely what ranking sidestepped. The obvious
+  mitigation (prefill last month's value) is anchoring bias against a
+  fresh assessment, so satisfaction should stay cold-start even once
+  priority carry-over prefill ships.
+- **The flow goes asymmetric** — priority ranked, satisfaction rated.
+  `NumberDial` already exists and ships in `calibration.tsx` and
+  `DayKindSheet`, so component cost is ~0, but eighteen dials needs a
+  shape. Six screens of three, grouped and hued by area, matches the
+  existing `ProgressDots` step model — and is one more *presentational*
+  job for SLAs, tying into the entry below.
+
+**What it simplifies:** the satisfaction half of the ranking machinery
+retires — `DiagnosticAxis` collapses toward priority-only,
+`suggestOverallOrder`/`combineHierarchicalRank` lose their satisfaction
+caller, and `buildSequence` drops from five steps to three.
+`weightsForPriorityOrder` already takes satisfaction as a
+`ReadonlyMap` carried from the snapshot, so the re-rank path is
+*already* shaped for satisfaction-as-absolute.
+
+**No migration.** `rating.satisfaction` is already `real` (widened by
+§7); integers store in it fine.
+
+**Next step:** an ADR amending ADR-0005 §7 and bumping
+`FORMULA_VERSION` to 4. Open question for that ADR beyond the decision
+itself: how the graph presents the pre/post scale boundary.
+
+## Demoting SLAs: areas as presentation, not structure
+
+*Raised 2026-08-02. **Accepted the same day** — shipped as
+[ADR-0021](adr/0021-areas-are-presentational.md). Kept here for the
+working-out.*
+
+**The idea:** units are what matter; areas are really just a way to
+categorize them. Make SLAs cosmetic, or remove them.
+
+**Status: the first half already happened, twice, without anyone
+writing it down.** Areas contribute **nothing to any stored score
+today**. The evidence, in the code rather than the docs:
+
+- The diagnostic calls
+  `buildEntriesFromRanking(areas, {}, areaOrder, finalOrder)` — the
+  `unitOrderByArea` argument is literally `{}`. The per-area unit
+  ranking passes were removed (see `buildSequence`'s header comment in
+  `apps/mobile/src/app/diagnostic.tsx`), because a strict area-primary
+  composition can put a low unit of a top area above the best unit of a
+  lower one anyway. What scores is `finalOrder`: **one flat list of 18
+  units**, per axis.
+- [ADR-0005](adr/0005-diagnostic-snapshots-and-history.md)'s 2026-07-30
+  amendment removed the Portfolio tab's area-level re-rank mode
+  *because it destroyed data* — any area-level move has to regroup
+  units into contiguous blocks, silently discarding every cross-area
+  decision behind it. The flat list determines the weights, so the
+  hierarchical representation lost.
+
+So the live question is not "should areas be cosmetic" — they are. It
+is **"what is an area still allowed to determine, and is that written
+down anywhere?"** It isn't, which is how the area re-rank mode got
+built and shipped.
+
+**What areas still genuinely do, and should keep doing:**
+
+- **Colour. This is the big one and it is a hard limit, not a
+  preference.** DESIGN.md's entire secondary palette is six categorical
+  area hues at matched perceptual weight, AA in both themes, carrying
+  identity everywhere — checklist circles, task pips, bubbles, legend,
+  the NumberDial readout. Eighteen mutually distinguishable hues that
+  survive light *and* dark and stay AA does not exist. **Areas are the
+  colour system**, and removing them means either 18 indistinguishable
+  colours or no colour identity at all.
+- **Grouping.** Plan, Goals, the diagnostic diff and the weight summary
+  all render 6 collapsible sections rather than 18 flat rows.
+- **The diagnostic's cold-start seed.** Ranking 6 areas orders the
+  18-unit list you then drag. This is the one removal that would
+  actually cost something: dragging 18 units into order from nothing,
+  twice per diagnostic.
+- **The 6-area rollup** on the portfolio graph (ADR-0005 §5).
+- **Taxonomy completeness** — vision.md's "the app always starts from
+  this structure so nothing important is silently forgotten." Six areas
+  is the mental checklist that makes 18 units feel surveyed rather than
+  arbitrary.
+
+**The evolution worth building instead of a removal.** The area step
+isn't earning its place as a permanent fixture; it's earning it as a
+*cold-start* seed. ADR-0005 §7 already names the replacement as an
+acknowledged gap — "carry-over prefill for rankings… not built this
+pass," with drag-to-reorder from the previous order as the likely
+shape. Ship that, and the area ranking fires only on a first-ever
+diagnostic, where there is no prior order to seed from. Every
+subsequent diagnostic opens on last month's order, which is both a
+better seed than an area composition and the convenience the dial era
+had and the ranking era lost.
+
+**The decision that should be written down either way**, because it is
+an invariant and it has already been violated once in shipped code:
+
+> An area may determine **colour, grouping, and the diagnostic's
+> opening seed**. It may never determine weight, rank, points, or any
+> stored value.
+
+**What that unlocks** — and this is the real product payoff, not
+tidiness: `life_unit.area_id` becomes a *soft* attribute. Units can be
+re-homed freely, custom units can be filed anywhere (or nowhere, into
+an "Other" bucket), and areas can be renamed or reordered, all with
+zero scoring consequence. vision.md already promises this ("the
+taxonomy is the default, not a cage"); today it's quietly risky,
+because area order feeds the seed.
+
+**What not to do:** drop the `life_area` table. It is the colour key,
+the grouping key, and the presentation of every historical snapshot.
+Deleting it is a destructive migration with no upside — "cosmetic"
+means demoted, not removed.
+
+**Next step:** this is architecturally significant (it constrains what
+may influence scoring), so it wants an ADR rather than a code change —
+**ADR-0021, "Strategic Life Areas are presentational."** Reserved
+numbers 0012 and 0014–0018 stay reserved for their own triggers; 0021
+is the next free slot, following the precedent set when 0019 and 0020
+were written ahead of them.

@@ -24,9 +24,13 @@ step before a build becomes installable.
 |---|---|
 | Display name | Glide |
 | Bundle identifier (iOS) | `com.glide.app` |
-| Package name (Android) | `com.glide.app` |
 | Expo slug | `glide` |
 | URL scheme | `glide://` |
+
+**iOS only** since [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
+The Android package name is gone along with the `android` block; if
+Android ever returns it needs a new ADR, because the export exemption
+above is Apple-specific and a second platform forfeits it.
 
 Changing the bundle identifier after a build reaches App Store Connect
 means a new app record and a reinstall for every tester — their local
@@ -56,14 +60,25 @@ all be on the same build.
 
 | Profile | Use |
 |---|---|
-| `development` | Dev client, internal. Not the daily workflow — see below. |
-| `preview` | Internal distribution; Android APK for a quick sideload. |
+| `development` | Dev client, internal. Required for any backup work — see below. |
+| `preview` | Internal distribution; iOS simulator build for a quick check on the Mac. |
 | `production` | Store build; what goes to TestFlight. Auto-increments. |
 
-**Expo Go stays the day-to-day workflow.** The SDK 54 pin exists to
-keep it working ([ADR-0001](adr/0001-platform-and-tech-stack.md)); the
-`development` profile is there for when a native module eventually
-forces a dev client, not as a replacement for `npm run mobile`.
+**Expo Go is still the day-to-day workflow, but it no longer covers
+everything.** The SDK 54 pin keeps it working
+([ADR-0001](adr/0001-platform-and-tech-stack.md)) and `npm run mobile`
+remains the default loop. What changed is that
+[ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md) put
+the backup cryptography in a native module, and Expo Go cannot load
+custom native code — so **backup and restore only work in a
+`development`, `preview`, or TestFlight build.** The screen says so
+rather than failing at the passphrase prompt.
+
+Anything touching `packages/backup`, `src/backup/`, or
+`modules/glide-crypto` therefore needs a dev client to verify. That
+build is also the only place the Swift runs at all: the vitest suite
+pins the envelope format against Node's AES-GCM and PBKDF2, which
+catches format drift but never executes CryptoKit.
 
 ## First run through
 
@@ -88,21 +103,45 @@ and later builds inherit the approval.
 Credentials: EAS can manage signing automatically. The app schedules
 **local** notifications only, so no APNs push key is needed.
 
-## Export compliance — verify this yourself
+## Export compliance
 
 `app.json` declares `ios.config.usesNonExemptEncryption: false`, which
 answers App Store Connect's export-compliance question on every upload
-instead of prompting.
+instead of leaving each build flagged "Missing Compliance" until
+someone clicks through the questionnaire.
 
-The app does ship encryption: AES-256-GCM and Argon2id, used solely to
-encrypt the user's own backup file
-([ADR-0002](adr/0002-data-model-and-persistence.md) as amended).
-Standard cryptography protecting a user's own data at rest is the
-textbook exemption, which is why the flag is set that way — **but this
-is a legal declaration made in your name, not an engineering default.**
-Read Apple's questionnaire once and confirm the answer before the first
-submission. If it turns out not to apply, remove the `config` block and
-answer in App Store Connect per build.
+**It says `false` because every cryptographic operation in the app is
+Apple's own** — AES-256-GCM from CryptoKit and PBKDF2-HMAC-SHA256 from
+CommonCrypto, through the `glide-crypto` module in
+`apps/mobile/modules/`. Cryptography performed via Apple's frameworks
+is squarely inside the exemption, so there is no BIS filing, no
+self-classification report, and no annual return.
+
+**This is a decision, not a default, and it is load-bearing.** The same
+flag previously read `false` by inheritance while the app shipped
+Argon2id and AES from `@noble` — which was simply wrong, and would have
+been an inaccurate declaration attached to the developer account. The
+full reasoning is [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
+
+**What would break it.** Adding *any* bundled third-party cryptographic
+implementation — a JS cipher, a hashing library used for anything
+security-bearing, an SDK that encrypts — makes the app
+export-controlled again and this declaration false. It would then need
+`true` plus a mass-market self-classification (ECCN 5D992.c under EAR
+§740.17(b)(1)): a CSV to BIS and the ENC Request Coordinator, then an
+annual filing. Neither is onerous; both are silent failures if nobody
+notices the flag no longer matches the binary.
+
+So: **if a change adds a crypto dependency, it also changes this
+file.** `packages/backup` carries the same warning at the top of
+`envelope.ts` and in its package description, and
+`src/backup/crypto.ts` names the specific tempting mistake — adding a
+JS fallback so backup works in Expo Go again.
+
+Apple declines to interpret the EAR and puts liability for an
+inaccurate claim on the developer, so if the crypto stack ever moves
+back off Apple's frameworks, confirm the classification with someone
+qualified rather than inheriting it from this file.
 
 ## Where tester feedback arrives
 

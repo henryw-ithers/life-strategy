@@ -1,18 +1,24 @@
 /**
- * The diagnostic flow (ADR-0005, ranked per the ADR-0003 amendment):
- * intro → rank the six areas by priority, then order all seventeen
- * units by priority → the same two passes for satisfaction → review →
+ * The diagnostic flow (ADR-0005, as amended by ADR-0022): intro → rank
+ * the six areas by priority → order every unit by priority → rate each
+ * unit's satisfaction 1–10, one screen per area → review →
  * transactional save → results with derived weights and the portfolio
- * graph on real data. See `buildSequence` for why the per-area unit
- * passes were dropped.
+ * graph on real data.
  *
- * Ranking (not absolute 1–10 dials) guarantees full-range spread every
- * time, regardless of how "important" everything subjectively feels —
- * `buildEntriesFromRanking` (db/diagnostic.ts) converts the finished
- * order back into the same importance/satisfaction numbers the
- * weight formula and portfolio graph have always consumed. The area
- * ranking seeds the unit list's opening order; the unit list is what
- * scores.
+ * **The two axes are deliberately different instruments.** Priority is
+ * a preference and only means anything relative to the rest of the
+ * list, so it is ranked — which also guarantees full-range spread
+ * regardless of how important everything subjectively feels.
+ * Satisfaction is an assessment with an absolute referent, and the
+ * weight formula subtracts it as if it were one, so it is rated.
+ * Ranking both collapsed the gap term into a measure of disagreement
+ * between two orderings and cancelled out how satisfied the user
+ * actually was — see ADR-0022.
+ *
+ * `buildEntries` (db/diagnostic.ts) converts the finished order plus the
+ * ratings into the importance/satisfaction numbers the weight formula
+ * and portfolio graph have always consumed. The area ranking seeds the
+ * unit list's opening order; the unit list is what scores.
  */
 import { useNavigation, usePreventRemove } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
@@ -37,13 +43,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RankGroup } from "../components/diagnostic/RankGroup";
 import { ProgressDots } from "../components/diagnostic/ProgressDots";
 import { UnitInfoSheet } from "../components/diagnostic/UnitInfoSheet";
+import { NumberDial } from "../components/number-dial/NumberDial";
 import { PortfolioGraphView, type GraphSnapshot } from "../components/portfolio-graph";
 import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { UNIT_INFO } from "../content/units";
 import {
-  buildEntriesFromRanking,
+  buildEntries,
   loadDiagnosticAreas,
   loadDiagnosticDiff,
   loadWeightSummary,
@@ -51,7 +58,6 @@ import {
   suggestOverallOrder,
   type AreaWeightGroup,
   type DiagnosticArea,
-  type DiagnosticAxis,
   type DiagnosticDiff,
 } from "../db/diagnostic";
 import { loadGraphSnapshots } from "../db/graph";
@@ -61,56 +67,44 @@ import { radius, space } from "../theme/tokens";
 type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "diff" | "results";
 
 type Step =
-  | { kind: "areas"; axis: DiagnosticAxis }
-  | { kind: "final"; axis: DiagnosticAxis }
+  | { kind: "areas" }
+  | { kind: "priority" }
+  | { kind: "satisfaction"; areaId: string }
   | { kind: "review" };
 
 /**
- * Coarse then fine, once per axis.
+ * Priority coarse-then-fine, then satisfaction area by area.
  *
- * Ranking each area's two or three units separately, then the areas,
- * then confirming the composition, meant seventeen steps to express
- * what the last screen could express directly — and the per-area
- * passes were the ones doing the least work, since a strict
- * area-primary composition can put a low unit of a top area above the
- * best unit of a lower one anyway. Ranking the areas now seeds the
- * order of the full unit list, and that list is where the answer is
+ * **Priority (two steps).** Ranking each area's two or three units
+ * separately, then the areas, then confirming the composition, meant
+ * seventeen steps to express what one screen could express directly —
+ * and the per-area passes were the ones doing the least work, since a
+ * strict area-primary composition can put a low unit of a top area
+ * above the best unit of a lower one anyway. Ranking the areas seeds
+ * the order of the full unit list, and that list is where the answer is
  * actually given.
  *
- * Grouped by axis rather than by scope: all the "what matters"
- * thinking, then all the "how is it going" thinking. The unit list
- * opens ordered by the area ranking made immediately before it, so
- * the seed is legible instead of arriving two screens late.
+ * **Satisfaction (one step per area).** Rated, not ranked (ADR-0022),
+ * so there is no list to compose and nothing to seed. Paged by area
+ * rather than shown as one long scroll of eighteen dials: each rating
+ * is an independent judgement, three at a time is a screen you can
+ * finish without scrolling, and it puts `ProgressDots` back on the job
+ * it was built for — one dot per area, wearing that area's hue.
+ * Grouping and colour are exactly the presentational work areas are
+ * still allowed to do (ADR-0021).
  */
-function buildSequence(): Step[] {
+function buildSequence(areas: DiagnosticArea[]): Step[] {
   return [
-    { kind: "areas", axis: "priority" },
-    { kind: "final", axis: "priority" },
-    { kind: "areas", axis: "satisfaction" },
-    { kind: "final", axis: "satisfaction" },
+    { kind: "areas" },
+    { kind: "priority" },
+    ...areas.map((a) => ({ kind: "satisfaction" as const, areaId: a.id })),
     { kind: "review" },
   ];
 }
 
-const AXIS_LABEL: Record<DiagnosticAxis, string> = {
-  priority: "Priority",
-  satisfaction: "Satisfaction",
-};
-
-const AREA_PROMPT: Record<DiagnosticAxis, string> = {
-  priority: "Which area needs more attention right now?",
-  satisfaction: "Which area are you more satisfied with overall?",
-};
-
-const FINAL_PROMPT: Record<DiagnosticAxis, string> = {
-  priority: "Everything, in order of attention",
-  satisfaction: "Everything, in order of satisfaction",
-};
-
-const FINAL_HEADING: Record<DiagnosticAxis, string> = {
-  priority: "Your priorities",
-  satisfaction: "Your satisfaction",
-};
+const AREA_PROMPT = "Which area needs more attention right now?";
+const PRIORITY_PROMPT = "Everything, in order of attention";
+const PRIORITY_HEADING = "Your priorities";
 
 interface DiffRowProps {
   areaColor: string;
@@ -171,21 +165,20 @@ export default function DiagnosticFlow() {
   const [areas, setAreas] = useState<DiagnosticArea[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
-  const [areaOrder, setAreaOrder] = useState<Partial<Record<DiagnosticAxis, string[]>>>(
-    {},
-  );
+  const [areaOrder, setAreaOrder] = useState<string[] | undefined>(undefined);
+  /** Unit id → satisfaction 1–10. Absent means not yet rated, which the
+   *  dial shows as "—" and the Continue button refuses to pass. */
+  const [satisfaction, setSatisfaction] = useState<Record<string, number>>({});
   const [results, setResults] = useState<{
     weights: AreaWeightGroup[];
     graph: GraphSnapshot[];
   } | null>(null);
   const [diff, setDiff] = useState<DiagnosticDiff | null>(null);
-  /** The reviewed overall order per axis — set when the final step is
-   *  first shown, then edited by dragging. Cleared whenever an upstream
-   *  ranking changes, so going back and reordering an area produces a
-   *  fresh suggestion rather than silently keeping a stale one. */
-  const [finalOrder, setFinalOrder] = useState<
-    Partial<Record<DiagnosticAxis, string[]>>
-  >({});
+  /** The reviewed priority order — set when the priority step is first
+   *  shown, then edited by dragging. Cleared whenever the area ranking
+   *  changes, so going back and reordering areas produces a fresh
+   *  suggestion rather than silently keeping a stale one. */
+  const [finalOrder, setFinalOrder] = useState<string[] | undefined>(undefined);
   /** The unit whose guidelines sheet is open, if any — carrying its
    *  area hue so the sheet stays colour-coded now that steps aren't. */
   const [infoUnit, setInfoUnit] = useState<{
@@ -214,20 +207,39 @@ export default function DiagnosticFlow() {
     ]);
   });
 
-  const sequence = useMemo(() => buildSequence(), []);
+  const sequence = useMemo(() => buildSequence(areas), [areas]);
 
-  /** One dot per ranking step; review shares the last one. */
-  const dotIds = useMemo(
-    () => sequence.filter((s) => s.kind !== "review").map((s) => `${s.kind}-${s.axis}`),
-    [sequence],
+  /** One dot per step; review shares the last one. Priority steps take
+   *  the app accent — they are about the whole portfolio, not any one
+   *  area — and each satisfaction step wears its own area's hue. */
+  const dotHues = useMemo(
+    () =>
+      sequence
+        .filter((s) => s.kind !== "review")
+        .map((s) =>
+          s.kind === "satisfaction"
+            ? (theme.areas[s.areaId] ?? theme.accent)
+            : theme.accent,
+        ),
+    [sequence, theme],
   );
-  const currentDotIndex = Math.min(stepIndex, dotIds.length - 1);
+  const currentDotIndex = Math.min(stepIndex, dotHues.length - 1);
   /** Dragging is optional — the suggested order is already a valid
    *  answer — so a stage counts as done once it has been passed, not
-   *  once something has been moved. */
+   *  once something has been moved. Satisfaction has no default, so its
+   *  dots fill only once every unit in the area carries a number. */
   const dotCompleted = useMemo(
-    () => dotIds.map((_, i) => i < currentDotIndex),
-    [dotIds, currentDotIndex],
+    () =>
+      sequence
+        .filter((s) => s.kind !== "review")
+        .map((s, i) =>
+          s.kind === "satisfaction"
+            ? (areas
+                .find((a) => a.id === s.areaId)
+                ?.units.every((u) => satisfaction[u.id] !== undefined) ?? false)
+            : i < currentDotIndex,
+        ),
+    [sequence, areas, satisfaction, currentDotIndex],
   );
 
   const goToStep = (next: number) => {
@@ -238,9 +250,13 @@ export default function DiagnosticFlow() {
   const save = async () => {
     setPhase("saving");
     try {
-      // No within-area pass any more — the reviewed unit order is the
-      // ranking, and `finalOrder` is what scores.
-      const entries = buildEntriesFromRanking(areas, {}, areaOrder, finalOrder);
+      // The reviewed unit order is the priority ranking; satisfaction
+      // comes through as the rated 1–10 (ADR-0022).
+      const entries = buildEntries(
+        areas,
+        finalOrder ?? suggestOverallOrder(areas, areaOrder),
+        satisfaction,
+      );
       const snapshotId = await saveDiagnostic(entries);
       const [weights, graph, snapshotDiff] = await Promise.all([
         loadWeightSummary(snapshotId),
@@ -296,9 +312,9 @@ export default function DiagnosticFlow() {
               open with a near-identical screen of its own; that screen
               is gone (ADR-0011 as amended), so this one carries it. */}
           <AppText color={theme.ink} style={styles.introCopy}>
-            You'll compare the parts of your life against each other. Which
-            ones need your attention most, and where are you most satisfied?
-            No numbers to pick, just comparisons.
+            First you'll put the parts of your life in order — which ones
+            need your attention most. Then you'll rate how satisfied you
+            are with each one out of ten.
           </AppText>
           <AppText variant="caption" color={theme.muted}>
             Six areas · about five minutes
@@ -354,61 +370,109 @@ export default function DiagnosticFlow() {
     const AREA_HINT = "Drag the handle to reorder";
 
     if (step.kind === "areas") {
-      const order = areaOrder[step.axis] ?? areas.map((a) => a.id);
-      heading = `Your areas · ${AXIS_LABEL[step.axis]}`;
+      const order = areaOrder ?? areas.map((a) => a.id);
+      heading = "Your areas · Priority";
       content = (
         <RankGroup
-          key={`areas-${step.axis}`}
+          key="areas"
           items={order.map((id) => {
             const a = areas.find((x) => x.id === id)!;
             return { id: a.id, label: a.name, accent: theme.areas[a.id] };
           })}
-          prompt={AREA_PROMPT[step.axis]}
+          prompt={AREA_PROMPT}
           hint={AREA_HINT}
           theme={theme}
           onChange={(next) => {
-            setAreaOrder((prev) => ({ ...prev, [step.axis]: next }));
-            setFinalOrder((prev) => ({ ...prev, [step.axis]: undefined }));
+            setAreaOrder(next);
+            setFinalOrder(undefined);
           }}
         />
       );
-    } else if (step.kind === "final") {
+    } else if (step.kind === "priority") {
       // Opens ordered by the area ranking made on the previous screen,
       // units in taxonomy order within each. Every row wears its own
       // area's hue, which is the explanation for where it landed — and
       // the cue for whether a move you want is really a correction to
       // the area ranking one step back.
-      const order =
-        finalOrder[step.axis] ?? suggestOverallOrder(areas, {}, areaOrder, step.axis);
-      heading = FINAL_HEADING[step.axis];
+      const order = finalOrder ?? suggestOverallOrder(areas, areaOrder);
+      heading = PRIORITY_HEADING;
       content = (
         <RankGroup
-          key={`final-${step.axis}`}
+          key="priority"
           items={order.map(unitRow)}
-          prompt={FINAL_PROMPT[step.axis]}
+          prompt={PRIORITY_PROMPT}
           hint={UNIT_HINT}
           theme={theme}
           onPressItem={openInfo}
           detailHint="what this unit covers"
-          onChange={(next) =>
-            setFinalOrder((prev) => ({ ...prev, [step.axis]: next }))
-          }
+          onChange={setFinalOrder}
         />
+      );
+    } else if (step.kind === "satisfaction") {
+      // Rated, not ranked (ADR-0022): an absolute judgement per unit,
+      // three at a time, so the screen never scrolls. No prefill and no
+      // default — the dial reads "—" until touched, because the app
+      // never puts a thumb on the scale before the user does.
+      const area = areas.find((a) => a.id === step.areaId)!;
+      const hue = theme.areas[area.id] ?? theme.accent;
+      heading = `${area.name} · Satisfaction`;
+      content = (
+        <View style={styles.dials}>
+          <AppText color={theme.muted}>
+            How satisfied are you with each of these right now?
+          </AppText>
+          {area.units.map((u) => (
+            <Pressable
+              key={u.id}
+              onPress={
+                UNIT_INFO[u.id]
+                  ? () => openInfo({ id: u.id, label: u.name })
+                  : undefined
+              }
+              accessibilityRole={UNIT_INFO[u.id] ? "button" : undefined}
+              accessibilityHint={
+                UNIT_INFO[u.id] ? "Read what this unit covers" : undefined
+              }
+            >
+              <NumberDial
+                label={u.name}
+                a11yName={`${u.name} — satisfaction`}
+                value={satisfaction[u.id] ?? null}
+                onChange={(v) =>
+                  setSatisfaction((prev) => ({ ...prev, [u.id]: v }))
+                }
+                accent={hue}
+                theme={theme}
+                reduceMotion={reduceMotion}
+              />
+            </Pressable>
+          ))}
+        </View>
       );
     } else {
       heading = "Ready";
       content = (
         <AppText color={theme.ink}>
-          Every area is ranked. Save this snapshot to see your portfolio.
+          Your priorities are ranked and every unit is rated. Save this
+          snapshot to see your portfolio.
         </AppText>
       );
     }
+
+    /** Satisfaction has no sensible default, so its steps gate. An
+     *  unrated unit would fall back to a number the user never gave and
+     *  quietly move their weights. */
+    const blocked =
+      step.kind === "satisfaction" &&
+      !areas
+        .find((a) => a.id === step.areaId)!
+        .units.every((u) => satisfaction[u.id] !== undefined);
 
     return (
       <View style={screen}>
         <Backdrop circles={constellation(theme.areas, { faint: true })} />
         <ProgressDots
-          areaIds={dotIds}
+          hues={dotHues}
           currentIndex={currentDotIndex}
           completed={dotCompleted}
           theme={theme}
@@ -423,7 +487,7 @@ export default function DiagnosticFlow() {
               </AppText>
             </View>
             <View style={{ height: space.md }} />
-            {step.kind === "review" ? (
+            {step.kind === "review" || step.kind === "satisfaction" ? (
               <ScrollView showsVerticalScrollIndicator={false}>{content}</ScrollView>
             ) : (
               content
@@ -442,6 +506,7 @@ export default function DiagnosticFlow() {
           ) : (
             <Button
               label="Continue"
+              disabled={blocked}
               onPress={() => goToStep(stepIndex + 1)}
               theme={theme}
             />
@@ -694,6 +759,7 @@ const styles = StyleSheet.create({
   introCopy: { maxWidth: 320 },
   step: { flex: 1 },
   stepInner: { flex: 1, paddingBottom: space.lg },
+  dials: { gap: space.lg, paddingBottom: space.lg },
   areaHeader: {
     flexDirection: "row",
     alignItems: "baseline",

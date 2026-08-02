@@ -184,15 +184,26 @@ later goal edits don't rewrite trophy history.
 >   `.lsbk` file and hands it to `expo-sharing`; the user puts it in
 >   Files, iCloud Drive, or anywhere else. No provider, no account, no
 >   retention policy — ADR-0012 stays parked and untouched.
-> - **Cipher and library:** AES-256-GCM from `@noble/ciphers`, Argon2id
->   from `@noble/hashes`. Both pure JS. The native alternative
+> - **Cipher and library:** ~~AES-256-GCM from `@noble/ciphers`,
+>   Argon2id from `@noble/hashes`. Both pure JS. The native alternative
 >   (`react-native-quick-crypto`) is faster but needs a development
 >   build, which would end the Expo Go workflow the SDK 54 pin exists
->   to protect (ADR-0001). Speed was not worth that.
+>   to protect (ADR-0001). Speed was not worth that.~~
+>   **Superseded by [ADR-0020](0020-backup-cryptography-and-export-exemption.md):**
+>   AES-256-GCM from CryptoKit and PBKDF2-HMAC-SHA256 from
+>   CommonCrypto, via a local native module. Shipping only Apple's
+>   cryptographic frameworks is what makes the app export-exempt;
+>   bundling any JavaScript cipher puts it back under EAR reporting.
+>   The reasoning above was sound on its own terms and simply did not
+>   price export compliance, which was not visible until the first
+>   submission. Backup consequently does not work in Expo Go.
 > - **KDF parameters travel in the file header**, not in a constant, so
 >   they can be raised later without stranding existing backups. The
->   defaults (OWASP's Argon2id minimum: 19 MiB, t=2, p=1) are ~0.5 s on
->   a laptop and want re-benchmarking on the test device.
+>   defaults were OWASP's Argon2id minimum (19 MiB, t=2, p=1);
+>   [ADR-0020](0020-backup-cryptography-and-export-exemption.md) makes
+>   them OWASP's PBKDF2-HMAC-SHA256 minimum (600,000 iterations). This
+>   header-carries-its-own-parameters design is what made that swap
+>   survivable, and it still wants re-benchmarking on the test device.
 > - **Database only.** Photos stay excluded per the `photo` note above,
 >   so a restore onto a fresh device leaves `file_uri` rows pointing at
 >   files that do not exist; the day view renders those as a

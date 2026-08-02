@@ -68,14 +68,29 @@ export function PortfolioGraphView({ snapshots, theme }: PortfolioGraphViewProps
     : null;
 
   const compareOldIndex = Math.max(0, latest - 1);
+
+  /** True when what's on screen spans the ADR-0022 satisfaction change.
+   *  Compare shows two named snapshots; playback runs the whole set. */
+  const crossesScaleChange =
+    (mode === "compare" &&
+      snapshots[compareOldIndex]?.satisfactionScale !==
+        snapshots[latest]?.satisfactionScale) ||
+    (mode === "playback" &&
+      snapshots.some((s) => s.satisfactionScale === "ranked") &&
+      snapshots.some((s) => s.satisfactionScale === "rated"));
+
   const hint =
     count === 1
       ? "Bubbles grow as you log."
-      : mode === "compare"
-        ? `Trails show movement since ${snapshots[compareOldIndex]?.label ?? "last time"}.`
-        : mode === "playback"
-          ? "Drag the timeline to move through time."
-          : "Tap a bubble to see its unit.";
+      : // Said before the mode's own hint, because it changes what the
+        // movement means rather than adding to it.
+        crossesScaleChange
+        ? "Satisfaction used to be ranked, not rated — sideways movement across that change isn't real."
+        : mode === "compare"
+          ? `Trails show movement since ${snapshots[compareOldIndex]?.label ?? "last time"}.`
+          : mode === "playback"
+            ? "Drag the timeline to move through time."
+            : "Tap a bubble to see its unit.";
 
   const legendAreas = useMemo(
     () => DEFAULT_TAXONOMY.map((a) => ({ id: a.id, name: a.name })),

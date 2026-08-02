@@ -72,8 +72,14 @@ constraint.
 
 ## Decision
 
-**Expo (React Native) with TypeScript**, targeting iOS and Android
-from one codebase.
+**Expo (React Native) with TypeScript**, ~~targeting iOS and Android
+from one codebase~~ **targeting iOS only** — amended by
+[ADR-0020](0020-backup-cryptography-and-export-exemption.md)
+(2026-08-01). Android was never tested on a device and the Play Store
+was never on the roadmap, so the option had stopped paying for itself;
+dropping it made an Apple-frameworks-only backup, and the export
+exemption that comes with it, worth the native module. React Native
+remains the framework — this narrows the targets, not the stack.
 
 - **Framework:** Expo managed workflow, Expo Router, EAS for builds.
   Prebuild/eject remains available if a native module demands it.
@@ -116,7 +122,13 @@ from one codebase.
 
 1. [x] Scaffold Expo + TypeScript app (Expo Router; EAS still pending).
        *Note: pinned to SDK 54 for now — the store build of Expo Go on
-       the test iPhone maxes out there. Root package.json `overrides`
+       the test iPhone maxes out there. **The pin no longer covers the
+       whole app:** [ADR-0020](0020-backup-cryptography-and-export-exemption.md)
+       added a native module, so backup and restore need a development
+       build. Everything else still runs in Expo Go and `npm run
+       mobile` is still the daily workflow — the pin is worth keeping
+       for that, but it now protects most of the app rather than all
+       of it. Root package.json `overrides`
        hold the pin; revert them when upgrading. Pinned exactly to
        `expo@54.0.2` (not a `~54.x` range) — the test iPhone's Expo
        Go build only opens projects at that exact patch; a later 54.x

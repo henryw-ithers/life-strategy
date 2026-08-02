@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   describeBackupError,
   exportBackup,
+  isCryptoAvailable,
   pickBackup,
   restoreBackup,
   type BackupPreview,
@@ -192,7 +193,22 @@ export default function BackupScreen() {
           </View>
         ) : null}
 
-        {mode.kind === "idle" ? (
+        {/* Only ever true in Expo Go or the web preview: the crypto is a
+            native module (ADR-0020), which neither can load. A tester on
+            a real build never sees this. */}
+        {!isCryptoAvailable ? (
+          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+            <AppText variant="headline" color={theme.ink}>
+              Not available here
+            </AppText>
+            <AppText color={theme.ink}>
+              Backup and restore need a development or TestFlight build. This
+              one can't do the encryption.
+            </AppText>
+          </View>
+        ) : null}
+
+        {mode.kind === "idle" && isCryptoAvailable ? (
           <>
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
               <AppText variant="headline" color={theme.ink}>

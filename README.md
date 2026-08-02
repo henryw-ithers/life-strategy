@@ -39,8 +39,14 @@ contentment check-in → portfolio graph.
 
 The workspace: `apps/mobile` (Expo SDK 54 — pinned, see
 [ADR-0001](docs/adr/0001-platform-and-tech-stack.md) — with
-Drizzle/SQLite) and `packages/scoring` (the pure scoring engine,
-formula v3, tested).
+Drizzle/SQLite), `packages/scoring` (the pure scoring engine, formula
+v3, tested), and `packages/backup` (the backup envelope format).
+
+**iOS only** ([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md)).
+Backup encryption is Apple's CryptoKit and CommonCrypto through a small
+native module, which is what keeps the app clear of US export-control
+paperwork — and which means backup and restore need a development or
+TestFlight build rather than Expo Go.
 
 Not built yet: the recommendation library
 ([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md) — every
@@ -50,8 +56,8 @@ any look-back over the life log, onboarding
 
 ```
 npm install          # once
-npm test             # scoring engine tests
-npm run typecheck    # both packages
+npm test             # scoring, backup, and the app's pure-logic tests
+npm run typecheck    # all three workspaces
 npm run mobile       # Expo dev server (scan QR with Expo Go)
 ```
 

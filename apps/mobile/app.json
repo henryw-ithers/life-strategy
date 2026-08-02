@@ -7,25 +7,15 @@
     "icon": "./assets/images/icon.png",
     "scheme": "glide",
     "userInterfaceStyle": "automatic",
+    "platforms": [
+      "ios",
+      "web"
+    ],
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.glide.app",
       "config": {
         "usesNonExemptEncryption": false
       }
-    },
-    "android": {
-      "package": "com.glide.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
-      ]
     },
     "web": {
       "output": "static",

@@ -3,16 +3,20 @@ import { StyleSheet, View } from "react-native";
 import type { ThemeTokens } from "../../theme/colors";
 
 interface ProgressDotsProps {
-  areaIds: string[];
+  /** One hue per step, already resolved by the caller — an area's hue
+   *  for the steps that belong to an area, the app accent otherwise.
+   *  Resolving here meant looking every id up in `theme.areas` and
+   *  silently falling back to grey for any step that wasn't an area. */
+  hues: string[];
   currentIndex: number;
-  /** Per-area: all its units rated. */
+  /** Per step: its work is finished. */
   completed: boolean[];
   theme: ThemeTokens;
 }
 
-/** Six area dots, each wearing its area's hue as it completes. */
+/** One dot per step, each wearing its step's hue as it completes. */
 export function ProgressDots({
-  areaIds,
+  hues,
   currentIndex,
   completed,
   theme,
@@ -22,15 +26,14 @@ export function ProgressDots({
       style={styles.row}
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel={`Area ${currentIndex + 1} of ${areaIds.length}`}
+      accessibilityLabel={`Step ${currentIndex + 1} of ${hues.length}`}
     >
-      {areaIds.map((areaId, i) => {
-        const hue = theme.areas[areaId] ?? theme.muted;
+      {hues.map((hue, i) => {
         const isCurrent = i === currentIndex;
         const isDone = completed[i] === true;
         return (
           <View
-            key={areaId}
+            key={i}
             style={[
               styles.dot,
               isDone

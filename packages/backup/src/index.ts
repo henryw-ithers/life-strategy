@@ -1,6 +1,7 @@
 export type { BackupErrorCode } from "./errors";
 export { BackupError } from "./errors";
 export type {
+  BackupCrypto,
   KdfParams,
   BackupMeta,
   SealedHeader,

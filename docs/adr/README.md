@@ -20,10 +20,42 @@ status to *Accepted*.
 | [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
 | [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
 | [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
+| [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
+| [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
+| [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
 carries the accumulated schema amendments from 0003–0009.
+
+## Work not tracked by any action item
+
+Each ADR's own action items are the checklist for that decision. These
+three gaps are **accepted decisions with no unchecked box anywhere**,
+because they surfaced as parentheticals inside completed items. Recorded
+here so they stop being invisible.
+
+- **The monthly review ritual is unbuilt.** ADR-0002 decision 5 (as
+  amended by ADR-0005) defines it as one ceremony: diagnostic → new
+  weights beside old overrides → settle goal statuses → adjust tasks →
+  monthly grade and achievements. Every piece it needs exists and
+  `loadMonthGrade` still has no caller. It is the single largest unbuilt
+  thing in the product, and it is the landing place ADR-0003 §2's
+  "unearnable points" nudge and ADR-0005 §2's carry-over prompts were
+  both designed to appear in.
+- **Nothing reads the life log back.** `journal_entry`, `photo`, and
+  `achievement` rows are written and never queried outside the day they
+  belong to — `achievement` is insert-only, touched by nothing but
+  `goals.ts` and the data reset. Design principle 5 ("the log is a
+  record of a life") has no surface yet, and the look-back views that
+  memory flags and special days feed do not exist.
+- **The calendar tint for untouched past days is undecided.** ADR-0004's
+  2026-07-26 amendment left it open on purpose: a past day with no row
+  renders blank rather than as its half credit, so a week can read below
+  100% with no visibly imperfect day behind it. Rendering twenty skipped
+  days as a wall of red is the presentation this product avoids, so it
+  needs deciding rather than defaulting — when the monthly review gets
+  built.
 
 ## Planned ADRs
 
@@ -41,12 +73,19 @@ code.
 | 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
 | 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
 
-**0019 was written ahead of its reserved numbers.** The remaining
-reserved slots stay reserved for the triggers listed above; multi-unit
-tasks simply came up first, and renumbering reserved slots to keep the
-sequence tidy would break every reference already pointing at them.
+**0019–0022 were written ahead of the reserved numbers.** The
+remaining reserved slots stay reserved for the triggers listed above;
+multi-unit tasks, the crypto swap, and the two 2026-08-02 diagnostic
+decisions simply came up first, and renumbering reserved slots to keep
+the sequence tidy would break every reference already pointing at them.
 (0011 and 0013 have since been written — both triggers fired when the
 app went to friends.)
+
+**0016's trigger changed.** Multi-device sync was already deferred;
+[ADR-0020](0020-backup-cryptography-and-export-exemption.md) makes the
+app iOS-only, so if that ADR is ever opened it inherits an
+Apple-frameworks-only crypto stack and an export exemption that a
+second platform would forfeit.
 
 Deliberately **not** ADRs: release operations (EAS/TestFlight/store
 listings), testing conventions, and code style — those live in repo

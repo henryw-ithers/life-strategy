@@ -46,9 +46,9 @@ import {
   addTask,
   archiveTask,
   loadPlan,
-  renameTask,
   reorderUnitTasks,
   restoreTask,
+  setTaskDetails,
   setTaskFrequency,
   setTaskUnits,
   type PlanData,
@@ -536,6 +536,7 @@ export default function PlanScreen() {
             {
               id: editing.task.id,
               title: editing.task.title,
+              description: editing.task.description,
               timesPerWeek: editing.task.timesPerWeek,
               unitIds: editing.task.unitIds,
             } satisfies EditableTask
@@ -547,7 +548,9 @@ export default function PlanScreen() {
           onClose={() => setEditing(null)}
           onSave={async (next) => {
             const t = editing.task;
-            if (next.title !== t.title) await renameTask(t.id, next.title);
+            if (next.title !== t.title || next.description !== t.description) {
+              await setTaskDetails(t.id, next.title, next.description);
+            }
             if (next.timesPerWeek !== t.timesPerWeek) {
               await setTaskFrequency(t.id, next.timesPerWeek);
             }

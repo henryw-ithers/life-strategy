@@ -37,18 +37,26 @@ npm workspaces monorepo:
   scoring`). **No React Native imports allowed here, ever** (ADR-0001).
   All derivation/grading math lives here as pure functions with vitest
   tests.
-- `packages/backup` — the pure backup envelope (`@life-strategy/
-  backup`): AES-256-GCM sealing, Argon2id key derivation, header
-  encode/decode. Same rule — **no React Native imports** — so the
-  format is testable off-device. The device half (SQLite serialize,
+- `packages/backup` — the pure backup envelope (`@glide/backup`):
+  header encode/decode and the seal/open flow. Same rule — **no React
+  Native imports** — so the format is testable off-device. It
+  **performs no cryptography**: AES-256-GCM and PBKDF2 arrive injected
+  as a `BackupCrypto` (ADR-0020). The device half (SQLite serialize,
   share sheet, file picker) stays in `apps/mobile/src/backup/`.
+- `apps/mobile/modules/glide-crypto` — a local Expo module wrapping
+  **Apple's** CryptoKit and CommonCrypto. Swift, iOS-only, deliberately
+  thin. Because it is custom native code, **backup and restore do not
+  work in Expo Go** — they need a development or TestFlight build.
 
-The app also runs in a browser as a **development preview only** — a
-way to look at UI without a device, never a target. It needs three
-pieces of setup that are easy to break; read
+**iOS is the only target** (ADR-0020 amended ADR-0001; Android was
+dropped along with its `android` block and adaptive icons). The app
+also runs in a browser as a **development preview only** — a way to
+look at UI without a device, never a target. It needs three pieces of
+setup that are easy to break; read
 [docs/web-preview.md](docs/web-preview.md) before touching
 `metro.config.js`, `src/db/client.web.ts`, or the `expo-sqlite` patch
-in `patches/`.
+in `patches/`. Backup does not work there either — same native-module
+reason as Expo Go.
 
 Root commands: `npm test` (both packages, plus the pure-logic tests
 under `apps/mobile/src/lib` — ADR-0013 put a vitest runner in the app
@@ -105,8 +113,22 @@ Use these terms consistently in code, docs, and UI copy:
   discoverable, never reactively surfaced. Calibration suggestions
   apply only on explicit user confirmation, and dismissed suggestions
   never re-appear unless the user seeks them out.
+- **Areas are presentational** (ADR-0021). An SLA may determine colour,
+  grouping, and the diagnostic's opening seed — never weight, rank,
+  points, or any stored score. `life_unit.area_id` is a soft attribute:
+  re-homing a unit is a label change, like a rename. No UI may let the
+  user re-rank, re-weight, or reorder *areas* into a stored value; that
+  has been built once and it destroyed data.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
+- **All cryptography is Apple's, and adding any bundled crypto library
+  is a decision with legal consequences** (ADR-0020). Shipping only
+  CryptoKit/CommonCrypto is what makes the app export-exempt and lets
+  `app.json` declare `usesNonExemptEncryption: false` honestly. A JS
+  cipher — most temptingly, a fallback so backup works in Expo Go
+  again — silently makes that declaration false and pulls the app back
+  under EAR reporting. If you genuinely need one, say so and update
+  [docs/release.md](docs/release.md); do not add it quietly.
 
 ## Conventions
 
@@ -121,9 +143,10 @@ Use these terms consistently in code, docs, and UI copy:
   `docs/adr/` using [template.md](docs/adr/template.md), numbered
   sequentially, and a line in the ADR index.
 - Keep documents wrapped at ~72–80 columns to match existing files.
-- **Never run `npm audit fix --force`.** `npm audit` reports ~39
-  findings; they collapse to five CVEs (brace-expansion, postcss ×3,
-  uuid, esbuild) and npm's stated fix for all but one is
+- **Never run `npm audit fix --force`.** `npm audit` reports ~21
+  findings (down from ~39 since ADR-0020 dropped `@noble`); they
+  collapse to a handful of CVEs (brace-expansion, postcss ×3, uuid,
+  esbuild) and npm's stated fix for all but one is
   `expo@57.0.8` — it would silently undo the SDK 54 pin. Every one of
   them is in build tooling (dev server, PostCSS, CLI globbing), not in
   anything that ships in the app, and nothing here is

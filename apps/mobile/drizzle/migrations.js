@@ -8,6 +8,7 @@ import m0003 from './0003_tense_mystique.sql';
 import m0004 from './0004_giant_black_bolt.sql';
 import m0005 from './0005_material_wiccan.sql';
 import m0006 from './0006_plain_war_machine.sql';
+import m0007 from './0007_square_piledriver.sql';
 
   export default {
     journal,
@@ -18,7 +19,8 @@ m0002,
 m0003,
 m0004,
 m0005,
-m0006
+m0006,
+m0007
     }
   }
   

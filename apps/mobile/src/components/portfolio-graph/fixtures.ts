@@ -57,6 +57,9 @@ export function makeFixtureSnapshots(seed = 7): GraphSnapshot[] {
     snapshots.push({
       id: `snapshot-${month}`,
       label: MONTH_LABELS[month] ?? `Month ${month + 1}`,
+      // The demo is all one scale — it exists to show migration, and a
+      // fabricated scale boundary would only show the warning about it.
+      satisfactionScale: "rated",
       points: units.map((u): GraphPoint => ({ ...u })),
     });
   }

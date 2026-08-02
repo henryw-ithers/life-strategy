@@ -28,6 +28,12 @@ export const MISSED_DAY_CREDIT = 0.5;
  *  point_value × times_per_week ÷ 7 per day; completions earn full
  *  value on their day; daily grades may exceed 100 (ADR-0004 §4).
  *  v3 (2026-07-17): bonus pool retired — extra-run and activity
- *  credit add directly to the day's earned points (ADR-0009). */
-export const FORMULA_VERSION = 3;
+ *  credit add directly to the day's earned points (ADR-0009).
+ *  v4 (2026-08-02): satisfaction is an absolute 1–10 rating rather than
+ *  a rank-derived score (ADR-0022). The arithmetic is untouched; the
+ *  *inputs* change meaning, which is exactly what this version stamp
+ *  exists to record. A stored satisfaction of 3 means "3rd-lowest of
+ *  18" in v≤3 and "quite dissatisfied" in v4, so the two eras are not
+ *  comparable on the graph's x-axis. */
+export const FORMULA_VERSION = 4;
 export const DAILY_BUDGET = 100;

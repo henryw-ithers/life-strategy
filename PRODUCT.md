@@ -19,8 +19,10 @@ strategy piece, journaling apps, or habit trackers but wanted the
 "why" layer those tools lack. When real use and hypothetical users
 conflict, real use wins.
 
-The app ships one custom design language on both iOS and Android — it
-should feel like itself, not like a system app on either platform.
+The app ships one custom design language — it should feel like itself,
+not like a system app. (It targets iOS only since
+[ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md);
+the design intent predates that and is unchanged by it.)
 
 ## Product Purpose
 

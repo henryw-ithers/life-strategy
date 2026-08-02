@@ -24,6 +24,8 @@ import {
 export interface PlanTask {
   id: string;
   title: string;
+  /** What the task involves; null when never written. Never scored. */
+  description: string | null;
   /** Times per week: 1–7 (7 = daily); 0 = once every two weeks. */
   timesPerWeek: number;
   /** Total across every unit this task serves. */
@@ -150,6 +152,7 @@ export async function loadPlan(): Promise<PlanData> {
               return {
                 id: t.id,
                 title: t.title,
+                description: t.description,
                 timesPerWeek: t.timesPerWeek,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
@@ -376,8 +379,19 @@ export async function reorderUnitTasks(
   });
 }
 
-export async function renameTask(taskId: string, title: string): Promise<void> {
-  await db.update(task).set({ title }).where(eq(task.id, taskId));
+/** Title and description are edited in the same sheet, so they save
+ *  together — two calls would be two writes for one gesture. An empty
+ *  description stores as null: "" and "never written" mean the same
+ *  thing here, and only one of them needs representing. */
+export async function setTaskDetails(
+  taskId: string,
+  title: string,
+  description: string | null,
+): Promise<void> {
+  await db
+    .update(task)
+    .set({ title, description: description?.trim() ? description.trim() : null })
+    .where(eq(task.id, taskId));
 }
 
 export async function archiveTask(taskId: string): Promise<void> {

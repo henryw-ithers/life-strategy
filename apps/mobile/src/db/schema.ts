@@ -145,6 +145,10 @@ export const task = sqliteTable("task", {
   /** Nullable: habit tasks attach directly to their unit (ADR-0002 §1). */
   goalId: text("goal_id").references(() => goal.id),
   title: text("title").notNull(),
+  /** What the task actually involves — the products in the routine, what
+   *  counts as done. Never scored: a title is a promise to yourself and
+   *  this is where the fine print goes, not a progress mechanism. */
+  description: text("description"),
   /** Times per week: 1–7 (7 = daily); 0 = once every two weeks. */
   timesPerWeek: integer("times_per_week").notNull().default(7),
   pointValue: integer("point_value").notNull(),

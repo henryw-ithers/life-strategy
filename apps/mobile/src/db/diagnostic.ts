@@ -70,76 +70,72 @@ export interface DiagnosticEntry {
   includeInScoring: boolean;
 }
 
-/** "priority" ranks feed `importance`; "satisfaction" ranks feed
- *  `satisfaction` — both amended to rank-derived scores (ADR-0003
- *  amendment: ranked diagnostic). */
-export type DiagnosticAxis = "priority" | "satisfaction";
-
-const AXES: readonly DiagnosticAxis[] = ["priority", "satisfaction"];
-
 /**
- * The app's proposed overall order for one axis: every unit in one
- * list, area rank primary and within-area rank secondary. This is what
- * the final review step opens with, and what the user then drags into
- * shape if the composition got something wrong.
+ * The app's proposed priority order: every unit in one list, area rank
+ * primary and taxonomy order within each area secondary. This is what
+ * the priority step opens with, and what the user then drags into shape
+ * if the composition got something wrong.
+ *
+ * Priority only. Satisfaction is rated, not ranked (ADR-0022) — it has
+ * no order to seed.
  */
 export function suggestOverallOrder(
   areas: DiagnosticArea[],
-  unitOrderByArea: Record<string, Partial<Record<DiagnosticAxis, string[]>>>,
-  areaOrder: Partial<Record<DiagnosticAxis, string[]>>,
-  axis: DiagnosticAxis,
+  areaOrder: string[] | undefined,
 ): string[] {
-  const areaIds = areaOrder[axis] ?? areas.map((a) => a.id);
+  const areaIds = areaOrder ?? areas.map((a) => a.id);
   const areaRanks = areaIds.map((areaId, i) => ({ areaId, rank: i + 1 }));
   const unitRanksByArea: Record<string, { unitId: string; rank: number }[]> = {};
   for (const area of areas) {
-    const order = unitOrderByArea[area.id]?.[axis] ?? area.units.map((u) => u.id);
-    unitRanksByArea[area.id] = order.map((unitId, i) => ({ unitId, rank: i + 1 }));
+    unitRanksByArea[area.id] = area.units.map((u, i) => ({
+      unitId: u.id,
+      rank: i + 1,
+    }));
   }
   return combineHierarchicalRank(areaRanks, unitRanksByArea).map((o) => o.unitId);
 }
 
 /**
- * Turns a completed ranking into the same `DiagnosticEntry` shape
- * `saveDiagnostic` has always taken — `deriveWeights`, the
- * `rating`/`unit_weight` tables, and the portfolio graph never need to
- * know the numbers came from ranks rather than absolute dials.
+ * Turns a finished diagnostic into the `DiagnosticEntry` shape
+ * `saveDiagnostic` has always taken. The two axes arrive by different
+ * routes now (ADR-0022):
  *
- * `finalOrder` is the reviewed overall order per axis. It is the
- * source of truth where present: the area and within-area rankings
- * build the *suggestion*, but what the user confirmed on the last
- * screen is what scores. Falling back to the composed order keeps this
- * correct for a snapshot saved without a review pass.
+ * - **Importance** comes from `priorityOrder` via `rankToScore` —
+ *   priority is a preference, and only means anything relative to the
+ *   rest of the list.
+ * - **Satisfaction** comes straight through as the 1–10 the user
+ *   rated. It is an assessment with an absolute referent, and the gap
+ *   term subtracts it as if it were one.
+ *
+ * `deriveWeights`, the `rating`/`unit_weight` tables, and the portfolio
+ * graph are unchanged: both numbers still land in the same 1–10 range.
  */
-export function buildEntriesFromRanking(
+export function buildEntries(
   areas: DiagnosticArea[],
-  unitOrderByArea: Record<string, Partial<Record<DiagnosticAxis, string[]>>>,
-  areaOrder: Partial<Record<DiagnosticAxis, string[]>>,
-  finalOrder: Partial<Record<DiagnosticAxis, string[]>> = {},
+  priorityOrder: string[],
+  satisfaction: Readonly<Record<string, number>>,
 ): DiagnosticEntry[] {
-  const scoreByAxis: Record<DiagnosticAxis, Map<string, number>> = {
-    priority: new Map(),
-    satisfaction: new Map(),
-  };
-
-  for (const axis of AXES) {
-    if (!areaOrder[axis] && !finalOrder[axis]) continue;
-    const ordered =
-      finalOrder[axis] ??
-      suggestOverallOrder(areas, unitOrderByArea, areaOrder, axis);
-    const total = ordered.length;
-    ordered.forEach((unitId, i) => {
-      scoreByAxis[axis].set(unitId, rankToScore(i + 1, total));
-    });
-  }
+  const importance = new Map<string, number>();
+  const total = priorityOrder.length;
+  priorityOrder.forEach((unitId, i) => {
+    importance.set(unitId, rankToScore(i + 1, total));
+  });
 
   return areas.flatMap((area) =>
-    area.units.map((u) => ({
-      unitId: u.id,
-      importance: scoreByAxis.priority.get(u.id) ?? 1,
-      satisfaction: scoreByAxis.satisfaction.get(u.id) ?? 1,
-      includeInScoring: u.includeInScoring,
-    })),
+    area.units.map((u) => {
+      const i = importance.get(u.id) ?? 1;
+      return {
+        unitId: u.id,
+        importance: i,
+        // An unrated unit falls back to its own importance, which makes
+        // the gap exactly 0: no boost, no penalty. The flow gates on all
+        // units being rated, so this should never fire — but of the
+        // available wrong answers, the neutral one is the only one that
+        // neither manufactures a crisis nor hides one.
+        satisfaction: satisfaction[u.id] ?? i,
+        includeInScoring: u.includeInScoring,
+      };
+    }),
   );
 }
 

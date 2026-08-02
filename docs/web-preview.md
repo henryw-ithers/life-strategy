@@ -6,6 +6,13 @@ product ships to iOS via Expo Go / TestFlight; nothing here implies a
 supported web build, and no product decision should be made to
 accommodate a browser.
 
+**Backup and restore do not work here.** The cryptography is a native
+module wrapping Apple's frameworks
+([ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md)),
+which a browser has no equivalent of. The screen detects this and says
+so. Do not "fix" it with a JavaScript cipher — that would put the app
+back under export control (see [release.md](release.md)).
+
 ```bash
 npm run start -w apps/mobile -- --web
 ```
@@ -100,3 +107,13 @@ preview surface:
   origin fails to open the database with `NoModificationAllowedError`.
   Close the other tab — and note that another dev server on the *same*
   port shares that origin.
+- **`NumberDial` renders its track but no digits.** The digit strip is
+  gated on `containerW > 0`, and the `onLayout` that sets it doesn't
+  produce a width here — so the label, the "—" readout and the detent
+  indicator all render, and the 1–10 carousel inside them does not.
+  Affects every screen that rates something: the diagnostic's
+  satisfaction steps, the weekly contentment check-in, and the
+  special-day rating in `DayKindSheet`. **Layout and gating can still be
+  checked in the browser; the value can only be set on device.**
+  Verified as a web-only quirk (the same component behaves identically
+  on `/calibration`), not a regression.

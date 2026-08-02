@@ -87,6 +87,17 @@ computed on demand, never stored (ADR-0002 decision 6).
 
 ### 7. Ranked, not rated (amended 2026-07-22)
 
+> **Superseded in part 2026-08-02 by
+> [ADR-0022](0022-satisfaction-is-rated-not-ranked.md): satisfaction is
+> rated 1–10 again; only priority stays ranked.** Ranking both axes over
+> the same units forced identical value multisets onto each, so
+> `Σ I = Σ S` and `mean(I − S) = 0` on every diagnostic — the gap term
+> collapsed into a measure of disagreement between two orderings and
+> cancelled out how satisfied the user actually was, which pinned the
+> portfolio graph's x-axis and made vision.md's "the boost naturally
+> shrinks as satisfaction improves" untrue. Everything below still holds
+> for **priority**; read every "both axes" as "the priority axis."
+
 Absolute 1–10 dials for importance and satisfaction had no guard
 against ceiling-clustering: when most units genuinely feel important,
 most dials land 6–10, and the gap term becomes the only thing doing

@@ -1,10 +1,16 @@
 /**
  * Export and restore (ADR-0002 "Backup (v1)", action item 3).
  *
- * Everything cryptographic lives in `@glide/backup`; this file
- * is only the device half — getting a consistent database image out,
- * handing the sealed bytes to the share sheet, and putting a restored
- * image back safely.
+ * The envelope format lives in `@glide/backup` and the cryptography in
+ * the `glide-crypto` native module (ADR-0020); this file is only the
+ * device half — getting a consistent database image out, handing the
+ * sealed bytes to the share sheet, and putting a restored image back
+ * safely.
+ *
+ * Because the crypto is a native module, **backup and restore need a
+ * development or TestFlight build** — Expo Go cannot load custom native
+ * code. `isCryptoAvailable` is re-exported so the UI can say so plainly
+ * instead of failing at the moment someone types a passphrase.
  *
  * Scope, deliberately: **manual, local, database-only.** No storage
  * provider, no account, no automatic upload — those are ADR-0012's
@@ -27,6 +33,9 @@ import * as Sharing from "expo-sharing";
 
 import migrations from "../../drizzle/migrations";
 import { sqlite } from "../db/client";
+import { deviceCrypto } from "./crypto";
+
+export { isCryptoAvailable } from "./crypto";
 
 /** `drizzle/migrations.js` ships `{ journal, migrations }`; the
  *  journal's entry count is the schema generation a file was written
@@ -62,7 +71,7 @@ export interface ExportResult {
 export async function exportBackup(passphrase: string): Promise<ExportResult> {
   const payload = await sqlite.serializeAsync();
 
-  const sealed = sealBackup({
+  const sealed = await sealBackup({
     payload,
     passphrase,
     meta: {
@@ -70,6 +79,7 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
       migrationCount: migrationCount(),
       createdAt: new Date().toISOString(),
     },
+    crypto: deviceCrypto,
     randomBytes: Crypto.getRandomBytes,
   });
 
@@ -149,7 +159,7 @@ export async function restoreBackup(
   passphrase: string,
 ): Promise<RestoreOutcome> {
   const envelope = await new File(preview.uri).bytes();
-  const opened = openBackup(envelope, passphrase); // throws BackupError
+  const opened = await openBackup(envelope, passphrase, deviceCrypto); // throws BackupError
 
   if (opened.meta.migrationCount > migrationCount()) {
     return {
