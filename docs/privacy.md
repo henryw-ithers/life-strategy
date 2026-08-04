@@ -20,8 +20,13 @@ lives in a database inside the app's own storage, which no other app
 can read.
 
 When something breaks, the technical details are written down on the
-device too — which screen, which version. **Settings → Problem log**
-shows you that text in full. It only goes anywhere if you send it.
+device too: the time, the error and the code it came from, the screen
+you were on, the app version and build, and your iOS version and phone
+model — for example `ios 18.5 · iPhone 13`. Anything that looks like
+something you typed is stripped out before the entry is written.
+
+**Settings → Problem log** shows you that text in full, exactly as it
+would be sent. It only goes anywhere if you send it.
 
 ## Photos
 
@@ -60,8 +65,8 @@ Deleting Glide deletes its data with it, permanently. Export a backup
 first from **Settings → Your data** if you want to keep it. Updating
 the app preserves your data; deleting it does not.
 
-**Settings → Reset** erases everything Glide has stored and starts over,
-without deleting the app.
+**Settings → Reset everything** erases what Glide has stored and starts
+you over, without deleting the app.
 
 ## Children
 
