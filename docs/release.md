@@ -24,7 +24,7 @@ step before a build becomes installable.
 |---|---|
 | Display name (home screen) | Glide |
 | App Store Connect name | Glide: Life Strategy |
-| Bundle identifier (iOS) | `com.glide.app` |
+| Bundle identifier (iOS) | `com.glidelifestrategy.app` |
 | Expo slug | `glide` |
 | URL scheme | `glide://` |
 
@@ -44,6 +44,14 @@ above is Apple-specific and a second platform forfeits it.
 Changing the bundle identifier after a build reaches App Store Connect
 means a new app record and a reinstall for every tester — their local
 data does not come with it.
+
+The identifier is **not** `com.glide.app`, which was the intended one
+until the first build attempt (2026-08-04) failed: App IDs are unique
+across every Apple developer account and another team already holds it.
+The whole `com.glide.*` prefix is avoided rather than just that one
+string, since the block may be a wildcard App ID covering all of it.
+Nothing had reached App Store Connect yet, so the change cost nothing —
+which is the only reason this paragraph is a note and not an incident.
 
 Three names are **older than the rename and must stay** — they are
 compatibility surfaces, not branding:
@@ -96,7 +104,8 @@ Steps 1–2 are external and block everything else.
 1. **Enrol in the Apple Developer Program** ($99/yr, individual is
    fine). Identity verification can add days — start it first.
 2. **Create the app record** in App Store Connect using
-   `com.glide.app`.
+   `com.glidelifestrategy.app`. `eas submit` will offer to create it
+   for you, which is easier than doing it by hand.
 3. `eas init` — writes `extra.eas.projectId` into `app.json`. Commit it.
 4. `eas build --platform ios --profile production`
 5. `eas submit --platform ios --profile production`

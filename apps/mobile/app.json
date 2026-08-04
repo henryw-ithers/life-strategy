@@ -12,7 +12,7 @@
       "web"
     ],
     "ios": {
-      "bundleIdentifier": "com.glide.app",
+      "bundleIdentifier": "com.glidelifestrategy.app",
       "config": {
         "usesNonExemptEncryption": false
       }
