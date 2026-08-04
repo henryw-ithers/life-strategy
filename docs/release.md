@@ -22,10 +22,19 @@ step before a build becomes installable.
 
 | | |
 |---|---|
-| Display name | Glide |
+| Display name (home screen) | Glide |
+| App Store Connect name | Glide: Life Strategy |
 | Bundle identifier (iOS) | `com.glide.app` |
 | Expo slug | `glide` |
 | URL scheme | `glide://` |
+
+The two names differ on purpose. `expo.name` in `app.json` is the home
+screen label, where iOS truncates anything long, so it stays **Glide**.
+The App Store Connect name has to be unique across the store and
+"Glide" alone is taken, so the listing is **Glide: Life Strategy** —
+which is also the app's own older name, not a new one invented for the
+listing. Only the App Store name can be changed later, and only through
+review; the display name is bound to the binary.
 
 **iOS only** since [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
 The Android package name is gone along with the `android` block; if

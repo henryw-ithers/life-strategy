@@ -48,11 +48,16 @@ native module, which is what keeps the app clear of US export-control
 paperwork — and which means backup and restore need a development or
 TestFlight build rather than Expo Go.
 
+Onboarding
+([ADR-0011](docs/adr/0011-onboarding-and-first-run.md)) and backup
+([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md))
+are built; backup needs a development or TestFlight build to run, for
+the reason above.
+
 Not built yet: the recommendation library
 ([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md) — every
 goal and task is currently hand-entered), the monthly review ritual,
-any look-back over the life log, onboarding
-(planned ADR-0011), and backup (ADR-0002 action item 3).
+and any look-back over the life log.
 
 ```
 npm install          # once
