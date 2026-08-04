@@ -36,7 +36,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Glide adds the photos you choose to your day's record. They stay on your device."
+          "photosPermission": "Glide adds the photos you choose to your day's record. They stay on your device.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-notifications"

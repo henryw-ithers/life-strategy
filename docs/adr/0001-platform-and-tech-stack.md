@@ -132,7 +132,11 @@ remains the framework — this narrows the targets, not the stack.
        hold the pin; revert them when upgrading. Pinned exactly to
        `expo@54.0.2` (not a `~54.x` range) — the test iPhone's Expo
        Go build only opens projects at that exact patch; a later 54.x
-       patch (tried 2026-07-21) fails to connect.*
+       patch (tried 2026-07-21) fails to connect. `expo` is also
+       listed in `expo.install.exclude` in `apps/mobile/package.json`,
+       so `npx expo install --fix` and `expo-doctor` leave the pin
+       alone instead of quietly bumping it to the SDK's current patch;
+       remove that entry when upgrading too.*
 2. [x] Add `expo-sqlite` + Drizzle; prove a migration runs on device.
 3. [x] Spike the Skia bubble chart: 16 animated bubbles with
        importance/satisfaction axes, before any other UI. **Verified
