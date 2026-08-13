@@ -182,11 +182,11 @@ export default function OnboardingScreen() {
       <View style={[styles.body, pad]}>
         <View style={styles.copy}>
           <AppText variant="display" color={theme.ink}>
-            Glide
+            Life Strategy
           </AppText>
           <AppText color={theme.ink} style={styles.lead}>
-            Most planners begin with a to-do list. Glide begins with your
-            life: six areas, eighteen parts of it.
+            Most planners begin with a to-do list. This one begins with
+            your life: six areas, eighteen parts of it.
           </AppText>
           <AppText color={theme.ink} style={styles.lead}>
             You rank what matters to you. Your daily checklist comes from

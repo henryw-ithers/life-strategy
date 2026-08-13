@@ -115,7 +115,7 @@ export function formatReport(
   entries: LogEntry[],
   context: ReportContext,
 ): string {
-  const header = `Glide problem report · ${context.build} · ${context.device}`;
+  const header = `Life Strategy problem report · ${context.build} · ${context.device}`;
   if (entries.length === 0) {
     return `${header}\n\nNothing recorded.`;
   }

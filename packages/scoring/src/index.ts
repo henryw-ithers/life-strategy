@@ -63,4 +63,5 @@ export {
   dayShare,
   extraRunPoints,
   specialDayBonus,
+  storedDayScore,
 } from "./grade";

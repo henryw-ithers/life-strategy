@@ -45,7 +45,7 @@ import { BackupError } from "./errors";
 
 // "LSBK" — from the app's former name, kept deliberately. The magic
 // bytes and the `.lsbk` extension identify the file format, not the
-// product; changing them on the Glide rename would have made every
+// product; changing them on either rename would have made every
 // backup already written unopenable for no user-visible gain.
 const MAGIC = new Uint8Array([0x4c, 0x53, 0x42, 0x4b]);
 
@@ -186,7 +186,7 @@ export function readHeader(envelope: Uint8Array): SealedHeader & {
   if (!MAGIC.every((b, i) => envelope[i] === b)) {
     throw new BackupError(
       "not-a-backup",
-      "File does not look like a Glide backup.",
+      "File does not look like a Life Strategy backup.",
     );
   }
 

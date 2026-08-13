@@ -67,7 +67,7 @@ type NativeDb = typeof import("./client").db;
 function notReady<T extends object>(name: string): T {
   const fail = (): never => {
     throw new Error(
-      `Glide: "${name}" was used before the database finished opening. ` +
+      `Life Strategy: "${name}" was used before the database finished opening. ` +
         `On web the connection is asynchronous — await openDatabase() ` +
         `before running queries (see src/db/client.web.ts).`,
     );
@@ -75,7 +75,7 @@ function notReady<T extends object>(name: string): T {
   return new Proxy({} as T, { get: fail, set: fail, has: fail, apply: fail });
 }
 
-// The filename predates the Glide rename and must not change: it is the
+// The filename predates both renames and must not change: it is the
 // stored path to the user's data. Renaming it would leave every
 // existing database orphaned and open an empty one in its place.
 const DATABASE_NAME = "life-strategy.db";

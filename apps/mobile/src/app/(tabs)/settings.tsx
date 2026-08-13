@@ -263,8 +263,8 @@ export default function SettingsScreen() {
           <AppText color={theme.ink}>
             Everything you enter is stored only on this device: rankings,
             tasks, grades, journal entries, photos, and contentment
-            check-ins. Glide has no account and no server, and sends
-            nothing anywhere.
+            check-ins. Life Strategy has no account and no server, and
+            sends nothing anywhere.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
             When something breaks, the technical details are written down
@@ -283,8 +283,8 @@ export default function SettingsScreen() {
             passphrase, nobody can open one, including us.
           </AppText>
           <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
-            Deleting Glide deletes its data with it. Export a backup first
-            if you want to keep it.
+            Deleting Life Strategy deletes its data with it. Export a
+            backup first if you want to keep it.
           </AppText>
         </Group>
 
@@ -357,7 +357,7 @@ export default function SettingsScreen() {
             style={styles.build}
             tabular
           >
-            Glide {buildLabel}
+            Life Strategy {buildLabel}
           </AppText>
         ) : null}
       </ScrollView>

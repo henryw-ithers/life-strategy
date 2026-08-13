@@ -63,7 +63,7 @@ import { radius, space, type as typeScale } from "../theme/tokens";
  *
  * Changing it needs a new build, and old TestFlight builds stay
  * installable for 90 days — so a stale address keeps collecting mail
- * nobody reads. Worth moving to an address at Glide's own domain if the
+ * nobody reads. Worth moving to an address on the app's own domain if the
  * app ever gets a store listing; it is one constant, and
  * [docs/release.md](../../../../docs/release.md) carries the note.
  */

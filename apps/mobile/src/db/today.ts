@@ -16,6 +16,7 @@ import {
   localDateOf,
   monthStart,
   nextMonthStart,
+  storedDayScore,
   weekStart,
   type ActivityCredit,
   type DayScore,
@@ -281,19 +282,28 @@ export async function loadDay(date: string): Promise<DayData> {
     )
     .reduce((sum, c) => sum + c.pointsEarned, 0);
 
-  const score = computeDayScore({
-    kind,
-    satisfactionRating: dayRow?.satisfactionRating ?? null,
-    tasks: todayTasks.map((t) => ({
-      unitId: t.unitId,
-      pointValue: t.pointValue,
-      timesPerWeek: t.timesPerWeek,
-      completedToday: t.completedToday,
-      extraToday: t.extraToday,
-    })),
-    extraRunCredit,
-    activities: activityCredits,
-  });
+  // A settled day reads its grade back; only a live one is computed.
+  // Grades finalize (ADR-0002), so a past day's number must not move
+  // when a diagnostic changes the weights under it — and must not be
+  // restated under ADR-0023's formula v5, which that day was never
+  // scored by. `recacheAllDayScores` leaves the same rows alone, so
+  // the day screen, the calendar tint, and the weekly and monthly
+  // grades all read the one stored number.
+  const score = dayRow?.finalizedAt
+    ? storedDayScore({ earned: dayRow.pointsEarned, possible: dayRow.pointsPossible })
+    : computeDayScore({
+        kind,
+        satisfactionRating: dayRow?.satisfactionRating ?? null,
+        tasks: todayTasks.map((t) => ({
+          unitId: t.unitId,
+          pointValue: t.pointValue,
+          timesPerWeek: t.timesPerWeek,
+          completedToday: t.completedToday,
+          extraToday: t.extraToday,
+        })),
+        extraRunCredit,
+        activities: activityCredits,
+      });
 
   return {
     date,
@@ -558,12 +568,24 @@ async function cacheDayScore(date: string): Promise<void> {
  * disagree with each other and with the weekly and monthly grades built
  * on top of the cache. This is what reconciles them.
  *
- * It re-derives history at today's weights, which is the same trade
- * ADR-0004 already accepted when it dropped the edit horizon: the day's
- * own record is what's true, and the aggregates follow from it.
+ * **Finalized days are excluded.** Grades finalize (ADR-0002), so a
+ * settled day is a historical fact and re-deriving it at today's
+ * weights would silently restate the past. That mattered less when the
+ * only drift was a weight change; after ADR-0023 bumped
+ * `FORMULA_VERSION` to 5 it would also re-score days under a formula
+ * they were never graded by — a tester's rated special day would
+ * collapse from `rating × 10` to tasks-plus-a-capped-bonus, weeks
+ * after the fact. `loadDay` reads the same rows back rather than
+ * recomputing them, so the two stay in agreement.
+ *
+ * What remains is exactly the reconciliation this exists for: the days
+ * still inside the edit window, which are live anyway.
  */
 export async function recacheAllDayScores(): Promise<void> {
-  const rows = await db.select({ localDate: dayGrade.localDate }).from(dayGrade);
+  const rows = await db
+    .select({ localDate: dayGrade.localDate })
+    .from(dayGrade)
+    .where(isNull(dayGrade.finalizedAt));
   for (const r of rows) await cacheDayScore(r.localDate);
 }
 

@@ -2,7 +2,7 @@
   "name": "@glide/backup",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure backup envelope for Glide: header encode/decode and the seal/open flow. Performs no cryptography itself - AES-256-GCM and PBKDF2 arrive injected as a BackupCrypto, Apple's on a device (ADR-0020). No React Native imports allowed (ADR-0001), and no JavaScript cipher may be added back.",
+  "description": "Pure backup envelope for Life Strategy: header encode/decode and the seal/open flow. Performs no cryptography itself - AES-256-GCM and PBKDF2 arrive injected as a BackupCrypto, Apple's on a device (ADR-0020). No React Native imports allowed (ADR-0001), and no JavaScript cipher may be added back.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {

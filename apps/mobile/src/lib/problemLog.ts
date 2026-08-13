@@ -1,7 +1,7 @@
 /**
  * The on-device problem log (ADR-0013).
  *
- * Glide sends nothing anywhere, so the only way a tester's crash
+ * Life Strategy sends nothing anywhere, so the only way a tester's crash
  * reaches a developer is that the tester chooses to send it. This is
  * the record that makes choosing possible: what broke, on which build,
  * on which screen.

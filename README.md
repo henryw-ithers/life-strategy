@@ -1,4 +1,4 @@
-# Glide
+# Life Strategy
 
 A personal planning and reflection app that aligns daily action with
 what actually matters to you.

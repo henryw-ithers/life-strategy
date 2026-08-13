@@ -93,7 +93,7 @@ describe("trimLog", () => {
 describe("formatReport", () => {
   it("says so plainly when there is nothing", () => {
     expect(formatReport([], CONTEXT)).toBe(
-      "Glide problem report · 1.0.0 (3) · ios 18.5 · iPhone 13\n\nNothing recorded.",
+      "Life Strategy problem report · 1.0.0 (3) · ios 18.5 · iPhone 13\n\nNothing recorded.",
     );
   });
 

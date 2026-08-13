@@ -19,10 +19,10 @@ describe("composeFeedback", () => {
     expect(
       composeFeedback({ kind: "suggestion", text: "more colours", ...context })
         .subject,
-    ).toBe("Glide feedback (idea) — 1.0.0 (3)");
+    ).toBe("Life Strategy feedback (idea) — 1.0.0 (3)");
     expect(
       composeFeedback({ kind: "wrong", text: "broken", ...context }).subject,
-    ).toBe("Glide feedback (not working) — 1.0.0 (3)");
+    ).toBe("Life Strategy feedback (not working) — 1.0.0 (3)");
   });
 
   it("passes the user's words through untouched", () => {
@@ -50,7 +50,7 @@ describe("composeFeedback", () => {
       text: "hi",
       ...context,
     });
-    expect(body).toBe("hi\n\n—\nGlide 1.0.0 (3)\nios 18.5 · iPhone 13");
+    expect(body).toBe("hi\n\n—\nLife Strategy 1.0.0 (3)\nios 18.5 · iPhone 13");
   });
 
   it("caps the message so the mailto URL stays openable", () => {

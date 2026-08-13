@@ -4,7 +4,7 @@ Orientation for AI coding agents working in this repository.
 
 ## What this project is
 
-**Glide** — a personal planning app where users rate the
+**Life Strategy** — a personal planning app where users rate the
 importance and satisfaction of 18 Strategic Life Units, and the app
 derives a 100-point daily scoring system of goals and tasks from those
 ratings. Read [vision.md](vision.md) before making any product-shaped
@@ -33,8 +33,9 @@ npm workspaces monorepo:
   schema at `src/db/schema.ts`, migrations generated into `drizzle/`
   via `npm run db:generate -w apps/mobile` (never hand-edit or delete
   past migrations — forward-only, ADR-0002).
-- `packages/scoring` — the pure scoring engine (`@life-strategy/
-  scoring`). **No React Native imports allowed here, ever** (ADR-0001).
+- `packages/scoring` — the pure scoring engine (`@glide/scoring` — an
+  internal name the rename deliberately left alone, see Conventions).
+  **No React Native imports allowed here, ever** (ADR-0001).
   All derivation/grading math lives here as pure functions with vitest
   tests.
 - `packages/backup` — the pure backup envelope (`@glide/backup`):
@@ -141,11 +142,24 @@ Use these terms consistently in code, docs, and UI copy:
 
 - Tech stack, repo layout, and tooling are decided in ADR-0001/0002 —
   follow them once accepted.
-- **Three names are compatibility surfaces, not branding, and survive
-  the rename from "Life Strategy" to Glide:** the `life-strategy.db`
-  SQLite filename, the `LSBK` magic bytes, and the `.lsbk` extension.
-  Renaming any of them orphans user data or invalidates existing
-  backups. See [docs/release.md](docs/release.md).
+- **The app is called Life Strategy.** It was Life Strategy, became
+  Glide, and was renamed back on 2026-08-13. Only user-facing strings
+  moved. **Every internal `glide` identifier deliberately stayed** —
+  the bundle id `com.glidelifestrategy.app` (changing it costs every
+  tester their data), the Expo slug, the `glide://` URL scheme, the
+  `@glide/*` package names, the `glide-crypto` native module, and
+  `glidefeedback@gmail.com`. Do not "finish" the rename by changing
+  them; the reasoning for each is in
+  [docs/release.md](docs/release.md).
+- **Accepted ADRs still say "Glide" and are not rewritten.** They are
+  dated records of decisions made under that name, and editing them
+  would be rewriting history — the same principle ADR-0022 applies to
+  the snapshot scale. Read "Glide" in an ADR as "this app."
+- **Three names are compatibility surfaces, not branding, and predate
+  both renames:** the `life-strategy.db` SQLite filename, the `LSBK`
+  magic bytes, and the `.lsbk` extension. Renaming any of them orphans
+  user data or invalidates existing backups. See
+  [docs/release.md](docs/release.md).
 - New architecturally significant decisions get an ADR in
   `docs/adr/` using [template.md](docs/adr/template.md), numbered
   sequentially, and a line in the ADR index.

@@ -179,7 +179,7 @@ the invariants:
   really ADR-0018 (templates and sharing) wearing a social hat.
 
 **What it would cost, and why that matters more here than usual.**
-Everything in Glide is local-first: no accounts, no server, no
+Everything in Life Strategy is local-first: no accounts, no server, no
 telemetry, and a privacy story that currently fits in one sentence
 ([ADR-0002](adr/0002-data-model-and-persistence.md);
 [ADR-0013](adr/0013-crash-reporting-and-telemetry.md) kept it that way,

@@ -1,8 +1,8 @@
 # Release
 
-How Glide gets onto a device that isn't the dev machine. Deliberately
-not an ADR — release operations were excluded from the ADR set (see the
-[ADR index](adr/README.md)); this is the runbook.
+How Life Strategy gets onto a device that isn't the dev machine.
+Deliberately not an ADR — release operations were excluded from the ADR
+set (see the [ADR index](adr/README.md)); this is the runbook.
 
 ## Distribution model
 
@@ -22,28 +22,57 @@ step before a build becomes installable.
 
 | | |
 |---|---|
-| Display name (home screen) | Glide |
-| App Store Connect name | Glide: Life Strategy |
+| Display name (home screen) | Strategy |
+| App Store Connect name | Life Strategy |
+| In-app copy | Life Strategy |
 | Bundle identifier (iOS) | `com.glidelifestrategy.app` |
 | Expo slug | `glide` |
 | URL scheme | `glide://` |
 
-The two names differ on purpose. `expo.name` in `app.json` is the home
-screen label, where iOS truncates anything long, so it stays **Glide**.
-The App Store Connect name has to be unique across the store and
-"Glide" alone is taken, so the listing is **Glide: Life Strategy** —
-which is also the app's own older name, not a new one invented for the
-listing. Only the App Store name can be changed later, and only through
-review; the display name is bound to the binary.
+**Renamed back to Life Strategy on 2026-08-13.** The app was called
+Life Strategy, became Glide, and is now Life Strategy again. What that
+rename may and may not touch is the whole point of this section.
+
+**The home screen label is deliberately shorter than the app's name.**
+`expo.name` in `app.json` is that label and is **bound to the binary**
+— changing it takes a new build. iOS truncates long labels under the
+icon: at default text size roughly twelve characters survive, so
+"Life Strategy" (13) would have rendered elided. **"Strategy"** fits
+whole. This is the same split the previous name used for the same
+reason, and it costs nothing: the label is the only place the short
+form appears. Everything the user *reads* — onboarding, Settings,
+backups, feedback mail — says Life Strategy.
+
+The App Store Connect name has to be unique across the whole store.
+"Glide" alone was taken, which is why the listing used to read
+"Glide: Life Strategy". **"Life Strategy" must be confirmed available
+in App Store Connect** — if it is taken the listing needs a
+distinguishing suffix and this table changes, while the home screen
+label stays "Strategy" regardless. Only the App Store name can be
+changed after the fact, and only through review.
+
+**Three identifiers deliberately did *not* change with the rename**,
+and none of them is visible to a user:
+
+- **Bundle identifier `com.glidelifestrategy.app`.** Changing it after
+  a build has reached App Store Connect means a new app record and a
+  reinstall for every tester — and their local data does not come
+  with it. It carries the old name forever; that is the correct
+  trade.
+- **Expo slug `glide`** — paired with `extra.eas.projectId`. Renaming
+  it risks breaking the EAS project link for nothing.
+- **URL scheme `glide://`** — any link already shared would stop
+  resolving.
+
+The internal package names (`@glide/scoring`, `@glide/backup`, the
+root workspace, and the `glide-crypto` native module) also stayed.
+Renaming the native module would mean touching the Swift module name,
+the podspec, and autolinking — real risk, zero user-visible benefit.
 
 **iOS only** since [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
 The Android package name is gone along with the `android` block; if
 Android ever returns it needs a new ADR, because the export exemption
 above is Apple-specific and a second platform forfeits it.
-
-Changing the bundle identifier after a build reaches App Store Connect
-means a new app record and a reinstall for every tester — their local
-data does not come with it.
 
 The identifier is **not** `com.glide.app`, which was the intended one
 until the first build attempt (2026-08-04) failed: App IDs are unique
@@ -69,9 +98,9 @@ number and the `production` profile auto-increments it. `version` in
 `app.json` (currently `1.0.0`) is the user-facing string and moves by
 hand.
 
-Settings shows `Glide <version> (<build>)` at the bottom, selectable —
-ask testers for that line when triaging a report, since they will not
-all be on the same build.
+Settings shows `Life Strategy <version> (<build>)` at the bottom,
+selectable — ask testers for that line when triaging a report, since
+they will not all be on the same build.
 
 ## Build profiles
 
@@ -168,7 +197,7 @@ own mail app; nothing is transmitted by the build
 ([ADR-0013](adr/0013-crash-reporting-and-telemetry.md)). Subjects are
 tagged so an inbox filter can sort them:
 
-    Glide feedback (idea|confusing|not working) — <version> (<build>)
+    Life Strategy feedback (idea|confusing|not working) — <version> (<build>)
 
 Mail goes to **glidefeedback@gmail.com** — a dedicated inbox, not a
 personal one, because the address is compiled into every distributed
@@ -178,10 +207,11 @@ binary. It lives in one place: `FEEDBACK_ADDRESS` in
 **Set up forwarding into your everyday inbox, and reply from the
 feedback account, not from your own.** A reply sent from a personal
 address hands it to the tester and undoes the point of having a separate
-one. Worth moving to an address at Glide's own domain if there is ever a
-store listing — but note that the App Store requires unique app names
-and "Glide" is already a well-known product, so the domain question and
-the naming question resolve together.
+one. Worth moving to an address on the app's own domain if there is
+ever a store listing. The address itself still says `glide` and stays
+that way — it is compiled into every distributed binary, and changing
+it needs a new build while old builds keep collecting mail nobody
+reads (see the rule below).
 
 **Changing the address needs a new build**, and old TestFlight builds
 stay installable for 90 days, so a stale address quietly keeps
@@ -212,7 +242,7 @@ arrives on its own. When a tester says the app broke:
    misbehaved, and the description in their own words is the only
    evidence there is.
 3. The report carries its own version and build, so the
-   `Glide <version> (<build>)` line at the bottom of Settings is only
+   `Life Strategy <version> (<build>)` line at the bottom of Settings is only
    needed for bugs that never produced an entry.
 
 **Keep the source map for anything you ship.** Release stacks are

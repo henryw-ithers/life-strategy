@@ -6,7 +6,7 @@
  * message written four minutes later is usually the whole story, and
  * separating them would hide it.
  *
- * Glide sends nothing on its own, so this screen is the entire reporting
+ * Life Strategy sends nothing on its own, so this screen is the entire reporting
  * pipeline: it shows what was recorded, shows the exact text that would
  * leave the device, and hands that text to the share sheet if — and only
  * if — the user taps send.

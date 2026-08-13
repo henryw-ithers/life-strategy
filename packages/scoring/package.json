@@ -2,7 +2,7 @@
   "name": "@glide/scoring",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure scoring engine for Glide: weight derivation, rounding, rank shares. No React Native imports allowed.",
+  "description": "Pure scoring engine for Life Strategy: weight derivation, rounding, rank shares. No React Native imports allowed.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {

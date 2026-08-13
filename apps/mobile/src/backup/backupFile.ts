@@ -83,9 +83,12 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
     randomBytes: Crypto.getRandomBytes,
   });
 
-  // `.lsbk` predates the Glide rename and stays — see the MAGIC note in
-  // packages/backup/src/envelope.ts. Only the prefix follows the name.
-  const fileName = `glide-${stamp(new Date())}.lsbk`;
+  // `.lsbk` predates both renames and stays — see the MAGIC note in
+  // packages/backup/src/envelope.ts. Only the prefix follows the name,
+  // and it is safe to move: a reader identifies a backup by its magic
+  // bytes, never by its filename, so files written under the old prefix
+  // still open.
+  const fileName = `life-strategy-${stamp(new Date())}.lsbk`;
   const target = new File(Paths.cache, fileName);
   if (target.exists) target.delete();
   target.create();
@@ -94,7 +97,7 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(target.uri, {
       mimeType: "application/octet-stream",
-      dialogTitle: "Save your Glide backup",
+      dialogTitle: "Save your Life Strategy backup",
       UTI: "public.data",
     });
   }
@@ -196,7 +199,7 @@ export function describeBackupError(error: unknown): string | null {
   if (!(error instanceof BackupError)) return null;
   switch (error.code) {
     case "not-a-backup":
-      return "That file isn't a Glide backup.";
+      return "That file isn't a Life Strategy backup.";
     case "unsupported-format":
       return "This backup was written by a newer version of the app. Update first, then restore.";
     case "bad-passphrase-or-corrupt":

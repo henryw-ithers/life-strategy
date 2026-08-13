@@ -85,12 +85,12 @@ export function composeFeedback(input: FeedbackInput): ComposedFeedback {
   const text = input.text.trim().slice(0, MAX_FEEDBACK_LENGTH);
 
   return {
-    subject: `Glide feedback (${KIND_TAG[input.kind]}) — ${input.build}`,
+    subject: `Life Strategy feedback (${KIND_TAG[input.kind]}) — ${input.build}`,
     body: [
       text,
       "",
       "—",
-      `Glide ${input.build}`,
+      `Life Strategy ${input.build}`,
       input.device,
     ].join("\n"),
   };

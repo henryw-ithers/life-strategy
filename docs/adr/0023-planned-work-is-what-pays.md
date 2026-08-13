@@ -170,10 +170,25 @@ that were never in play cannot be earned.
 ### 6. `FORMULA_VERSION` bumps 4 → 5
 
 The day's arithmetic changes materially: a stored `earned` from v4 and
-one from v5 are not comparable. **History is not rewritten.** Grades
-finalize (ADR-0002), stored `day_grade` rows keep the numbers the user
-actually saw, and aggregates read those rows — so no past day
-re-scores. The seam is real and stays visible, like ADR-0022's.
+one from v5 are not comparable. **History is not rewritten.** The seam
+is real and stays visible, like ADR-0022's.
+
+That claim was not free, and on first writing it was **false**.
+`recacheAllDayScores()` re-derived every stored day at current weights
+— a deliberate, documented trade while the only drift was a weight
+change, but under a formula-version bump it would have re-scored a
+tester's whole history weeks after the fact, collapsing v4 special
+days from `rating × 10` the next time they ran a diagnostic. Two
+changes make finalization mean what ADR-0002 always said it did:
+
+- `recacheAllDayScores` **skips rows with `finalized_at` set**,
+  reconciling only the days still inside the edit window.
+- `loadDay` **reads a finalized day's grade back** from its stored row
+  (`storedDayScore`) instead of recomputing it, so the day screen, the
+  calendar tint, and the weekly and monthly grades all report the one
+  historical number.
+
+A settled day is now a fact rather than a function of today's weights.
 
 ## Consequences
 
@@ -208,9 +223,13 @@ re-scores. The seam is real and stays visible, like ADR-0022's.
 4. [x] Rename `rest` to "Day off" in all copy and widen its
        description. *(`components/today/DayKindSheet.tsx`,
        `content/notificationCopy.ts`, `app/(tabs)/index.tsx`.)*
-5. [x] Tests: pool never exceeds `UNPLANNED_CAP`; extra runs are
+5. [x] Freeze finalized days: guard `recacheAllDayScores` on
+       `finalized_at` and read stored grades back in `loadDay`, so the
+       version bump cannot restate history. *(`db/today.ts`,
+       `storedDayScore` in `packages/scoring/src/grade.ts`.)*
+6. [x] Tests: pool never exceeds `UNPLANNED_CAP`; extra runs are
        exempt; a special day with no completions scores its bonus
        alone; an untasked unit credits zero.
-6. [ ] Make "Day off" discoverable enough to carry its new load — the
+7. [ ] Make "Day off" discoverable enough to carry its new load — the
        consequence above is the one most likely to bite. Needs a real
        look at the day-kind sheet, not just the rename.

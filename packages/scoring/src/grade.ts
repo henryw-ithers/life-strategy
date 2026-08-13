@@ -139,6 +139,34 @@ export interface DayScore extends Grade {
   unplannedForgone: number;
 }
 
+/**
+ * The score of a **finalized** day, read back from its stored row
+ * rather than recomputed.
+ *
+ * Grades finalize (ADR-0002): once a day is past the edit window its
+ * number is a historical fact, not a function of whatever the weights
+ * and formula happen to be today. Recomputing it would silently
+ * restate the past every time a diagnostic moved the weights — and,
+ * after ADR-0023's `FORMULA_VERSION` 5, would restate it under a
+ * formula that day was never scored by.
+ *
+ * `unplanned` is not stored and reads back as 0. Only the day's grade
+ * is a historical fact; the breakdown behind it is live-computed
+ * detail, and no surface shows it for a settled day.
+ */
+export function storedDayScore(row: {
+  earned: number;
+  possible: number;
+}): DayScore {
+  return {
+    possible: row.possible,
+    earned: row.earned,
+    base: row.possible > 0 ? Math.round((row.earned / row.possible) * 100) : null,
+    unplanned: 0,
+    unplannedForgone: 0,
+  };
+}
+
 /** Rating → its draw on the unplanned pool (ADR-0023 §3). A 10-rated
  *  special day contributes the whole cap, a 6-rated one 60% of it. */
 export function specialDayBonus(rating: number | null | undefined): number {

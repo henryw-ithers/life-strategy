@@ -76,7 +76,7 @@ export function EraseDataModal({
         </AppText>
         <AppText color={theme.ink}>
           Your diagnostics, goals, tasks, grades, journal entries, photos and
-          check-ins are all deleted from this device. Glide starts again from
+          check-ins are all deleted from this device. The app starts again from
           the introduction.
         </AppText>
         <AppText variant="caption" color={theme.muted}>

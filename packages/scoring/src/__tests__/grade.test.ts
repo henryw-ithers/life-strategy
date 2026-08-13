@@ -8,6 +8,7 @@ import {
   extraRunPoints,
   periodDays,
   specialDayBonus,
+  storedDayScore,
 } from "../grade";
 
 const date = "2026-07-17"; // Friday; week starts 07-13
@@ -252,6 +253,26 @@ describe("computeDayScore (unified denominator, ADR-0004 §4 amendment)", () => 
       unplanned: 0,
       unplannedForgone: 0,
     });
+  });
+
+  it("a finalized day reads its stored grade back, not a recomputation", () => {
+    // The v4-era special day this exists to protect: 80 earned out of a
+    // 100 denominator. Under v5 the same inputs would score far lower,
+    // and re-deriving it weeks later would restate the tester's past.
+    const s = storedDayScore({ earned: 80, possible: 100 });
+    expect(s.base).toBe(80);
+    expect(s.earned).toBe(80);
+    expect(s.possible).toBe(100);
+  });
+
+  it("a stored day off stays ungraded", () => {
+    expect(storedDayScore({ earned: 0, possible: 0 }).base).toBeNull();
+  });
+
+  it("a stored day above its denominator keeps its number", () => {
+    // Extra runs are uncapped (ADR-0023 §2), so >100 is legitimate and
+    // must survive the round trip rather than being clamped.
+    expect(storedDayScore({ earned: 75, possible: 50 }).base).toBe(150);
   });
 
   it("specialDayBonus scales the rating across the cap", () => {
