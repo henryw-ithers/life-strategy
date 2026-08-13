@@ -1,6 +1,11 @@
 /**
  * Task creation: what it is, which units it serves, how often. One
- * screenful, one commit.
+ * dialog, one commit.
+ *
+ * A centred card rather than a bottom sheet. Adding a task is a small,
+ * four-field errand, and a sheet that rises over the whole screen
+ * frames it as leaving the plan behind — the card keeps the list
+ * visible around it, which is the truer scale of the action.
  *
  * Two things used to sit between typing a task and having one. The
  * first was the unit: the sheet could only be opened from inside an
@@ -38,6 +43,7 @@ import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { FrequencyPicker } from "./FrequencyPicker";
+import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 interface AddTaskModalProps {
@@ -106,50 +112,66 @@ export function AddTaskModal({
     void onCommit(committedTitle, committedTimes, committedUnits);
   };
 
+  const remaining = TASK_TITLE_MAX - title.length;
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <KeyboardAvoidingView
+        style={styles.center}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        {/* Behind the card, not above it: the dialog is centred, so the
+            backdrop has to be a sibling underneath rather than the
+            layout parent it was when this slid up from the bottom. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={close}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
         <View
           style={[
-            styles.sheet,
+            styles.card,
             {
               backgroundColor: theme.canvas,
               borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
+              // Only matters on a short screen, where the keyboard
+              // pushes the card up against the home indicator.
+              marginBottom: insets.bottom,
             },
           ]}
         >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-
           <AppText variant="title" color={theme.ink}>
             New task
           </AppText>
 
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g. 30 minutes of movement"
-            placeholderTextColor={theme.muted}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={commit}
-            accessibilityLabel="Task name"
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                color: theme.ink,
-              },
-            ]}
-          />
+          <View style={styles.field}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g. 30 minutes of movement"
+              placeholderTextColor={theme.muted}
+              autoFocus
+              maxLength={TASK_TITLE_MAX}
+              returnKeyType="done"
+              onSubmitEditing={commit}
+              accessibilityLabel="Task name"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface,
+                  color: theme.ink,
+                },
+              ]}
+            />
+            {/* Silent until the cap is in sight — a counter on a
+                five-word title is noise. */}
+            {remaining <= TASK_TITLE_COUNTER_AT ? (
+              <AppText variant="footnote" color={theme.muted} style={styles.counter}>
+                {remaining} left
+              </AppText>
+            ) : null}
+          </View>
 
           <UnitPicker
             units={units}
@@ -171,15 +193,23 @@ export function AddTaskModal({
             />
           </View>
 
-          <Button
-            label="Add task"
-            color={accent}
-            disabled={!ready}
-            onPress={commit}
-            theme={theme}
-          />
-
-          <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
+          {/* Side by side: the card is short enough that stacking two
+              full-width buttons would make the actions the tallest
+              thing in it. */}
+          <View style={styles.actions}>
+            <View style={styles.action}>
+              <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
+            </View>
+            <View style={styles.action}>
+              <Button
+                label="Add task"
+                color={accent}
+                disabled={!ready}
+                onPress={commit}
+                theme={theme}
+              />
+            </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -187,21 +217,28 @@ export function AddTaskModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  /** Centres the card and carries the scrim, so the backdrop can sit
+   *  behind it as an absolutely-filled sibling. */
+  center: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: space.screen,
+  },
+  /** A dialog, not a sheet: rounded on all four corners, only as tall
+   *  as its contents, capped so it doesn't stretch on a large screen. */
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
+    paddingVertical: space.xl,
     gap: space.lg,
   },
-  grabber: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
+  field: { gap: space.xs },
+  counter: { alignSelf: "flex-end" },
   input: {
     ...typeScale.body,
     minHeight: 48,
@@ -209,4 +246,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
   },
   repeatBlock: { gap: space.sm },
+  actions: { flexDirection: "row", alignItems: "center", gap: space.md },
+  action: { flex: 1 },
 });

@@ -33,22 +33,36 @@ interface DayKindSheetProps {
   ) => void;
 }
 
+/**
+ * The three kinds divide by the question each one asks (ADR-0023 §4),
+ * not by scoring mechanics. "Day off" is the widest of them on
+ * purpose: it covers rest, illness, travel, a wedding, a funeral —
+ * anything where grading isn't a meaningful question. It carries the
+ * load that special days used to, so its description names the range
+ * rather than leaving "rest" to imply leisure.
+ *
+ * The stored value is still `rest`; the rename is a label
+ * (ADR-0021's reasoning), so no migration.
+ */
 const KIND_OPTIONS: { kind: DayKind; label: string; detail: string }[] = [
   { kind: "normal", label: "Normal day", detail: "Graded on your tasks." },
   {
-    kind: "rest",
-    label: "Rest day",
-    detail: "Nothing counts today; anything you do still logs.",
-  },
-  {
     kind: "special",
     label: "Special day",
-    detail: "The day gets its own story, and you rate how it was.",
+    detail:
+      "Still graded on your tasks, plus a bit for how the day was. It gets its own story.",
+  },
+  {
+    kind: "rest",
+    label: "Day off",
+    detail:
+      "Rest, illness, travel, a wedding, a funeral — no grade at all. Anything you do still logs.",
   },
 ];
 
-/** Declare what a day is (ADR-0004 §3): normal, rest, or special —
- *  special days carry a title and a 1–10 satisfaction rating. */
+/** Declare what a day is (ADR-0004 §3, ADR-0023 §4): normal, special,
+ *  or a day off — special days carry a title and a 1–10 rating, which
+ *  now tops up the day's grade rather than replacing it. */
 export function DayKindSheet({
   visible,
   dayLabel,

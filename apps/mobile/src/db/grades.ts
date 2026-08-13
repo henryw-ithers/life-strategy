@@ -19,7 +19,7 @@ import {
   nextMonthStart,
   periodDays,
   weekStart,
-  type DayScore,
+  type Grade,
 } from "@glide/scoring";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
@@ -59,7 +59,7 @@ async function gradingStart(): Promise<string | null> {
   return first ? localDateOf(new Date(first.takenAt)) : null;
 }
 
-async function loadRangeGrade(start: string, end: string): Promise<DayScore> {
+async function loadRangeGrade(start: string, end: string): Promise<Grade> {
   const [rows, dailyPossible, start0] = await Promise.all([
     db
       .select()
@@ -86,12 +86,12 @@ async function loadRangeGrade(start: string, end: string): Promise<DayScore> {
 
 /** The week containing `date` (Sunday-first, ADR-0004 §1 as
  *  amended 2026-07-27). */
-export async function loadWeekGrade(date: string): Promise<DayScore> {
+export async function loadWeekGrade(date: string): Promise<Grade> {
   const start = weekStart(date);
   return loadRangeGrade(start, addDays(start, 7));
 }
 
 /** The calendar month containing `date`. */
-export async function loadMonthGrade(date: string): Promise<DayScore> {
+export async function loadMonthGrade(date: string): Promise<Grade> {
   return loadRangeGrade(monthStart(date), nextMonthStart(date));
 }

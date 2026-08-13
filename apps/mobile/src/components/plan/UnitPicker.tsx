@@ -119,6 +119,7 @@ export function UnitPicker({
               onLayout={(e) => reveal(u.id, e.nativeEvent.layout.x)}
               onPress={() => toggle(u.id)}
               disabled={blocked}
+              hitSlop={{ top: 6, bottom: 6 }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: selected, disabled: blocked }}
               accessibilityLabel={
@@ -140,7 +141,7 @@ export function UnitPicker({
                 ]}
               />
               <AppText
-                variant="label"
+                variant="caption"
                 color={selected ? theme.onAccent : theme.ink}
                 numberOfLines={1}
                 style={styles.chipLabel}
@@ -173,16 +174,18 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   chips: { gap: space.sm, paddingRight: space.sm },
+  /** 32pt drawn, 44pt tappable — the chip carries `hitSlop` to make up
+   *  the difference, so shrinking the row costs nothing at the finger. */
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,
-    minHeight: 40,
-    paddingHorizontal: space.lg,
+    minHeight: 32,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    maxWidth: 190,
+    maxWidth: 160,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
   chipLabel: { flexShrink: 1 },
 });

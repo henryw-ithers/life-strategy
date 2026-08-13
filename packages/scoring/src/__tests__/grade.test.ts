@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { UNPLANNED_CAP } from "../constants";
 import {
   aggregateGrade,
   computeDayScore,
   deriveChecklist,
   extraRunPoints,
   periodDays,
+  specialDayBonus,
 } from "../grade";
 
 const date = "2026-07-17"; // Friday; week starts 07-13
@@ -153,13 +155,111 @@ describe("computeDayScore (unified denominator, ADR-0004 §4 amendment)", () => 
     expect(s.earned).toBe(0);
   });
 
-  it("special days grade rating × 10, unrated shows nothing", () => {
-    expect(
-      computeDayScore({ kind: "special", satisfactionRating: 8, tasks: [] }).base,
-    ).toBe(80);
-    expect(
-      computeDayScore({ kind: "special", satisfactionRating: null, tasks: [] }).base,
-    ).toBeNull();
+  // ── ADR-0023: planned work is what pays ──
+
+  it("special days grade on their tasks, plus a rating bonus", () => {
+    // One daily task worth 10: denominator 10, done = 10 earned.
+    const tasks = [
+      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
+    ];
+    const s = computeDayScore({ kind: "special", satisfactionRating: 8, tasks });
+    // 10 from the plan + round(8/10 × 25) = 20 from the rating.
+    expect(s.unplanned).toBe(20);
+    expect(s.earned).toBe(30);
+    expect(s.base).toBe(300);
+  });
+
+  it("a special day with nothing done earns only its rating bonus", () => {
+    // The vacation case ADR-0023 exists to fix: a 10-rated day with the
+    // checklist untouched used to score 100. It now scores the cap.
+    const tasks = [
+      { unitId: "growth", pointValue: 100, timesPerWeek: 7, completedToday: false },
+    ];
+    const s = computeDayScore({ kind: "special", satisfactionRating: 10, tasks });
+    expect(s.unplanned).toBe(UNPLANNED_CAP);
+    expect(s.earned).toBe(UNPLANNED_CAP);
+    expect(s.base).toBe(25);
+  });
+
+  it("an unrated special day draws nothing from the pool", () => {
+    const tasks = [
+      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
+    ];
+    const s = computeDayScore({ kind: "special", satisfactionRating: null, tasks });
+    expect(s.unplanned).toBe(0);
+    expect(s.earned).toBe(10);
+  });
+
+  it("unplanned credit never exceeds the cap, and reports what it dropped", () => {
+    const tasks = [
+      { unitId: "growth", pointValue: 20, timesPerWeek: 7, completedToday: false },
+    ];
+    const s = computeDayScore({
+      kind: "special",
+      satisfactionRating: 10, // 25 on its own
+      tasks,
+      activities: [[{ unitId: "growth", pointsCredited: 18 }]],
+    });
+    expect(s.unplanned).toBe(UNPLANNED_CAP);
+    expect(s.unplannedForgone).toBe(18); // 43 raw − 25 paid
+    expect(s.earned).toBe(UNPLANNED_CAP);
+  });
+
+  it("activities alone are capped on a normal day", () => {
+    const tasks = [
+      { unitId: "growth", pointValue: 40, timesPerWeek: 7, completedToday: false },
+    ];
+    const s = computeDayScore({
+      kind: "normal",
+      tasks,
+      activities: [
+        [{ unitId: "growth", pointsCredited: 20 }],
+        [{ unitId: "growth", pointsCredited: 20 }],
+      ],
+    });
+    expect(s.unplanned).toBe(UNPLANNED_CAP);
+    expect(s.earned).toBe(UNPLANNED_CAP);
+  });
+
+  it("extra runs sit outside the cap — the plan done harder is uncapped", () => {
+    const tasks = [
+      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
+    ];
+    const s = computeDayScore({
+      kind: "normal",
+      tasks,
+      extraRunCredit: 40,
+      activities: [[{ unitId: "growth", pointsCredited: 60 }]],
+    });
+    // 10 planned + 40 extra runs (uncapped) + 25 capped unplanned.
+    expect(s.unplanned).toBe(UNPLANNED_CAP);
+    expect(s.earned).toBe(75);
+  });
+
+  it("a day off earns nothing and stays out of the pool", () => {
+    const s = computeDayScore({
+      kind: "rest",
+      satisfactionRating: 10,
+      tasks: [
+        { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
+      ],
+      activities: [[{ unitId: "growth", pointsCredited: 20 }]],
+    });
+    expect(s).toEqual({
+      possible: 0,
+      earned: 0,
+      base: null,
+      unplanned: 0,
+      unplannedForgone: 0,
+    });
+  });
+
+  it("specialDayBonus scales the rating across the cap", () => {
+    expect(specialDayBonus(10)).toBe(UNPLANNED_CAP);
+    expect(specialDayBonus(6)).toBe(15);
+    expect(specialDayBonus(1)).toBe(3);
+    expect(specialDayBonus(null)).toBe(0);
+    expect(specialDayBonus(undefined)).toBe(0);
   });
 
   it("a day with no tasks has no base grade", () => {
@@ -229,14 +329,17 @@ describe("aggregateGrade — ADR-0004 §5 (weekly/monthly: earned ÷ possible ov
     expect(withRest).toEqual(withoutRest);
   });
 
-  it("a special day (rating × 10 earned / 100 possible) contributes correctly", () => {
+  it("a special day carries its own denominator into the period", () => {
+    // Post-ADR-0023 a special day is an ordinary {earned, possible}
+    // pair like any other — it grades on its tasks and adds its capped
+    // bonus, so aggregation needs no special case at all.
     const s = aggregateGrade([
       { earned: 50, possible: 50 }, // a normal day at 100%
-      { earned: 80, possible: 100 }, // special day, rating 8
+      { earned: 70, possible: 50 }, // special day: 50 planned + 20 bonus
     ]);
-    expect(s.earned).toBe(130);
-    expect(s.possible).toBe(150);
-    expect(s.base).toBe(87); // round(130/150*100)
+    expect(s.earned).toBe(120);
+    expect(s.possible).toBe(100);
+    expect(s.base).toBe(120);
   });
 
   it("matches the ADR's own worked identity: a perfect balanced week totals 100", () => {

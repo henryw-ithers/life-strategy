@@ -7,6 +7,7 @@
 import {
   addDays,
   computeDayScore,
+  dayShare,
   deriveChecklist,
   editWindowStart,
   fortnightStart,
@@ -97,6 +98,40 @@ const SIZE_RATE: Record<ActivitySize, number> = {
   normal: 0.5,
   big: 1,
 };
+
+/**
+ * Each scored unit's own contribution to a day's denominator — the sum
+ * of `dayShare` over its tasks (ADR-0023 §5).
+ *
+ * This, not the unit's portfolio weight, is what activity credit is
+ * denominated in. Weights sum to `DAILY_BUDGET` across the whole plan,
+ * while the day's denominator spreads each task's weekly commitment
+ * over seven days; crediting a full weight against that denominator
+ * paid one logged activity more than a unit's entire day of planned
+ * work. Same scale on both sides now.
+ *
+ * A task counts toward its home unit only, matching
+ * `standardDayPossible` — a multi-unit task (ADR-0019) must not enter
+ * the denominator twice.
+ *
+ * A unit with no tasks maps to nothing and credits zero: ADR-0003 §5
+ * already reallocated its weight to units that do have tasks, so it
+ * holds no share of the day to earn against.
+ */
+async function unitDailyShares(): Promise<Map<string, number>> {
+  const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
+  const scored = new Set(units.filter((u) => u.includeInScoring).map((u) => u.id));
+  const tasks = await db.select().from(task).where(eq(task.active, true));
+  const shares = new Map<string, number>();
+  for (const t of tasks) {
+    if (!scored.has(t.unitId)) continue;
+    shares.set(
+      t.unitId,
+      (shares.get(t.unitId) ?? 0) + dayShare(t.pointValue, t.timesPerWeek),
+    );
+  }
+  return shares;
+}
 
 async function latestWeights(): Promise<Map<string, number>> {
   const [latest] = await db.query.snapshot.findMany({
@@ -355,13 +390,13 @@ export async function logActivity(
 
   const tags = unitIds.slice(0, 3);
   if (tags.length > 0) {
-    const weights = await latestWeights();
+    const shares = await unitDailyShares();
     const rate = size ? SIZE_RATE[size] : 0;
     for (const unitId of tags) {
       await db.insert(activityTag).values({
         activityId: id,
         unitId,
-        pointsCredited: Math.round(rate * (weights.get(unitId) ?? 0)),
+        pointsCredited: Math.round(rate * (shares.get(unitId) ?? 0)),
       });
     }
   }
@@ -376,7 +411,8 @@ export async function deleteActivity(activityId: string, date: string): Promise<
 }
 
 /** Edit a logged activity: tags are replaced and credit re-denormalized
- *  at current weights (the edit window is live; sealed days can't get here). */
+ *  at current daily shares (the edit window is live; sealed days can't
+ *  get here). */
 export async function updateActivity(
   activityId: string,
   date: string,
@@ -394,13 +430,13 @@ export async function updateActivity(
 
   const tags = unitIds.slice(0, 3);
   if (tags.length > 0) {
-    const weights = await latestWeights();
+    const shares = await unitDailyShares();
     const rate = size ? SIZE_RATE[size] : 0;
     for (const unitId of tags) {
       await db.insert(activityTag).values({
         activityId,
         unitId,
-        pointsCredited: Math.round(rate * (weights.get(unitId) ?? 0)),
+        pointsCredited: Math.round(rate * (shares.get(unitId) ?? 0)),
       });
     }
   }

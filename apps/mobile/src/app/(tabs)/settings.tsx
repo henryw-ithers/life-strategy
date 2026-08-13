@@ -335,11 +335,10 @@ export default function SettingsScreen() {
         </Group>
 
         <Group theme={theme} title="Support">
+          {/* No `resourceLine` on the first: the negative margin exists
+              to tighten each line against the one above it, and this
+              one now sits directly under the group title. */}
           <AppText color={theme.ink}>
-            These are here anytime, for anyone, not because of anything in
-            your data.
-          </AppText>
-          <AppText color={theme.ink} style={styles.resourceLine}>
             988 Suicide &amp; Crisis Lifeline: call or text 988.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>

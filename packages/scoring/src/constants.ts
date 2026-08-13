@@ -5,8 +5,25 @@
  * (BONUS_CAP retired in v3 — credit is additive, no separate pool.)
  */
 export const GAP_COEFFICIENT = 0.5;
-/** Credit rate for task runs beyond the weekly goal (ADR-0004 §4). */
+/** Credit rate for task runs beyond the weekly goal (ADR-0004 §4).
+ *  Deliberately *outside* `UNPLANNED_CAP` (ADR-0023 §2): a fourth run
+ *  of a 3×/week task is the plan done harder, not spontaneity. */
 export const EXTRA_RUN_RATE = 0.5;
+
+/**
+ * The most a day can earn from work it didn't plan (ADR-0023 §1).
+ *
+ * One shared pool: activity credit and the special-day rating bonus
+ * draw from the same 25, so a memorable day can't stack a full rating
+ * bonus on top of a full day of logged activities. Extra runs are
+ * exempt — see `EXTRA_RUN_RATE`.
+ *
+ * Replaces ADR-0009's `BONUS_CAP`, which formula v3 retired and whose
+ * absence let vacation days score above 100 with the checklist
+ * untouched. Named, because ADR-0008's calibration may argue for
+ * moving it.
+ */
+export const UNPLANNED_CAP = 25;
 
 /**
  * What an elapsed day with no stored row earns, as a fraction of the
@@ -34,6 +51,13 @@ export const MISSED_DAY_CREDIT = 0.5;
  *  *inputs* change meaning, which is exactly what this version stamp
  *  exists to record. A stored satisfaction of 3 means "3rd-lowest of
  *  18" in v≤3 and "quite dissatisfied" in v4, so the two eras are not
- *  comparable on the graph's x-axis. */
-export const FORMULA_VERSION = 4;
+ *  comparable on the graph's x-axis.
+ *  v5 (2026-08-13): planned work is what pays (ADR-0023). Unplanned
+ *  credit — activities and the special-day rating bonus — shares one
+ *  `UNPLANNED_CAP` pool; extra runs sit outside it; special days are
+ *  graded on their tasks plus that bonus rather than `rating × 10`;
+ *  activity credit is denominated in a unit's daily share rather than
+ *  its portfolio weight. A stored `earned` from v4 and one from v5 are
+ *  not comparable. History is not rewritten — grades finalize. */
+export const FORMULA_VERSION = 5;
 export const DAILY_BUDGET = 100;

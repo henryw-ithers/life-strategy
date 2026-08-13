@@ -5,7 +5,7 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
-import { weekStart, type DayScore } from "@glide/scoring";
+import { specialDayBonus, weekStart, type Grade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -73,7 +73,7 @@ export default function TodayScreen() {
    *  a date = the user navigated somewhere in the edit window. */
   const [selected, setSelected] = useState<string | null>(null);
   const [day, setDay] = useState<DayData | null>(null);
-  const [weekGrade, setWeekGrade] = useState<DayScore | null>(null);
+  const [weekGrade, setWeekGrade] = useState<Grade | null>(null);
   const [monthGrades, setMonthGrades] = useState<Map<string, MonthDay>>(new Map());
   const [monthOpen, setMonthOpen] = useState(false);
   /** Null = the month containing today. Set by the calendar's arrows;
@@ -301,7 +301,7 @@ export default function TodayScreen() {
               <View style={styles.headerRight}>
                 {day.kind === "rest" ? (
                   <AppText variant="title" color={theme.muted}>
-                    Rest
+                    Day off
                   </AppText>
                 ) : (
                   <DayNumber
@@ -416,27 +416,38 @@ export default function TodayScreen() {
                   theme={theme}
                 />
               </View>
-            ) : day.kind === "special" ? (
-              <View style={styles.special}>
-                <AppText variant="title" color={theme.ink}>
-                  {day.title ?? "A special day"}
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  {day.satisfactionRating !== null
-                    ? `Rated ${day.satisfactionRating} of 10`
-                    : "Tasks are off. When it's over, rate how it was."}
-                </AppText>
-                {day.editable ? (
-                  <Button
-                    label={day.satisfactionRating === null ? "Rate the day" : "Edit the day"}
-                    variant="secondary"
-                    onPress={() => setKindSheet(true)}
-                    theme={theme}
-                  />
-                ) : null}
-              </View>
             ) : (
-              sections.map((s) => (
+              <>
+                {/* A special day keeps its checklist (ADR-0023 §3). The
+                    story sits above the tasks rather than replacing
+                    them: the rating tops the day up, it doesn't stand
+                    in for the work. */}
+                {day.kind === "special" ? (
+                  <View style={styles.special}>
+                    <AppText variant="title" color={theme.ink}>
+                      {day.title ?? "A special day"}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted}>
+                      {day.satisfactionRating !== null
+                        ? `Rated ${day.satisfactionRating} of 10 · worth ${specialDayBonus(
+                            day.satisfactionRating,
+                          )} points`
+                        : "When it's over, rate how it was."}
+                    </AppText>
+                    {day.editable ? (
+                      <Button
+                        label={
+                          day.satisfactionRating === null ? "Rate the day" : "Edit the day"
+                        }
+                        variant="secondary"
+                        onPress={() => setKindSheet(true)}
+                        theme={theme}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {sections.map((s) => (
                 <Animated.View
                   key={s.key}
                   layout={layout}
@@ -473,7 +484,8 @@ export default function TodayScreen() {
                       ))
                     : null}
                 </Animated.View>
-              ))
+                ))}
+              </>
             )}
 
             {/* ── Activities ── */}

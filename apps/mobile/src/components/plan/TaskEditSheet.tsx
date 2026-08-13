@@ -31,6 +31,7 @@ import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { FrequencyPicker } from "./FrequencyPicker";
+import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 export interface EditableTask {
@@ -122,16 +123,24 @@ export function TaskEditSheet({
             Edit task
           </AppText>
 
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Task name"
-            placeholderTextColor={theme.muted}
-            returnKeyType="done"
-            onSubmitEditing={save}
-            accessibilityLabel="Task name"
-            style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
-          />
+          <View style={styles.field}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Task name"
+              placeholderTextColor={theme.muted}
+              maxLength={TASK_TITLE_MAX}
+              returnKeyType="done"
+              onSubmitEditing={save}
+              accessibilityLabel="Task name"
+              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+            />
+            {TASK_TITLE_MAX - title.length <= TASK_TITLE_COUNTER_AT ? (
+              <AppText variant="footnote" color={theme.muted} style={styles.counter}>
+                {TASK_TITLE_MAX - title.length} left
+              </AppText>
+            ) : null}
+          </View>
 
           {/* What the task involves — the fine print behind the title, so
               ticking it means the same thing every time. Three lines and
@@ -204,6 +213,8 @@ const styles = StyleSheet.create({
     gap: space.lg,
   },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
+  field: { gap: space.xs },
+  counter: { alignSelf: "flex-end" },
   input: {
     ...typeScale.body,
     minHeight: 48,

@@ -164,7 +164,16 @@ export function TaskRow({
           />
           <View style={[styles.pip, { backgroundColor: accent }]} />
           <View style={styles.text}>
-            <AppText color={theme.ink} numberOfLines={1}>
+            {/* Two lines when the title is all there is, one when it
+                shares the row with the multi-unit line. Rows are a
+                uniform height — `ReorderableList` positions them by
+                index — so the budget is fixed and this is how it gets
+                spent. The title's length is capped at `TASK_TITLE_MAX`
+                so two lines is always enough to show the whole thing. */}
+            <AppText
+              color={theme.ink}
+              numberOfLines={otherUnitNames.length > 0 ? 1 : 2}
+            >
               {title}
             </AppText>
             {otherUnitNames.length > 0 ? (
@@ -186,7 +195,9 @@ export function TaskRow({
 }
 
 const styles = StyleSheet.create({
-  root: { overflow: "hidden", borderRadius: radius.sm },
+  /** Fills the slot the list gives it, so the swipe backing behind the
+   *  surface is never visible around its edges. */
+  root: { flex: 1, overflow: "hidden", borderRadius: radius.sm },
   backing: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "flex-end",
@@ -198,7 +209,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    minHeight: 48,
+    height: "100%",
     paddingLeft: space.sm,
     paddingRight: space.sm,
   },

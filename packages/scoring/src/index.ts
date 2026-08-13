@@ -1,6 +1,7 @@
 export {
   GAP_COEFFICIENT,
   EXTRA_RUN_RATE,
+  UNPLANNED_CAP,
   FORMULA_VERSION,
   DAILY_BUDGET,
 } from "./constants";
@@ -50,6 +51,7 @@ export type {
   ActivityCredit,
   DayScoreInput,
   DayScore,
+  Grade,
   RecordedDay,
   PeriodInput,
 } from "./grade";
@@ -60,4 +62,5 @@ export {
   aggregateGrade,
   dayShare,
   extraRunPoints,
+  specialDayBonus,
 } from "./grade";

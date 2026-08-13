@@ -58,8 +58,11 @@ import {
 import { getTheme } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 
-/** Uniform, because the drag maths depends on it. */
-const TASK_ROW_HEIGHT = 52;
+/** Uniform, because the drag maths depends on it. Sized for two lines
+ *  of body text (24 × 2) plus the row's own padding — titles wrap now,
+ *  and a variable-height row would break `ReorderableList`, which
+ *  positions every row from its index. */
+const TASK_ROW_HEIGHT = 64;
 
 interface EditTarget {
   task: PlanTask;

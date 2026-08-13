@@ -77,7 +77,7 @@ export function WeekStrip({
                     accessibilityState={{ selected: isSelected, disabled: isFuture }}
                     accessibilityLabel={`${spokenDate(date)}${isToday ? ", today" : ""}${
                       day?.grade != null ? `, ${day.grade} percent` : ""
-                    }${day?.kind === "rest" ? ", rest day" : ""}`}
+                    }${day?.kind === "rest" ? ", day off" : ""}`}
                     style={[
                       styles.chip,
                       // Solid outline = today; broken outline = selected day.
