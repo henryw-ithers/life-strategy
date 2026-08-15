@@ -53,7 +53,10 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "_eas_note": "eas:* run from this workspace, so EAS always finds apps/mobile/eas.json. Never run eas from the repo root - it scaffolds a stub app.json there and builds the wrong project.",
+    "eas:build": "npx eas-cli@latest build --platform ios --profile production",
+    "eas:submit": "npx eas-cli@latest submit --platform ios --profile production"
   },
   "private": true,
   "expo": {

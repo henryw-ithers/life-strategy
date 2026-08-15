@@ -102,6 +102,36 @@ Settings shows `Life Strategy <version> (<build>)` at the bottom,
 selectable — ask testers for that line when triaging a report, since
 they will not all be on the same build.
 
+## Never run `eas` from the repo root
+
+Use the root scripts, from anywhere in the repo:
+
+    npm run build:ios      # eas build  --platform ios --profile production
+    npm run submit:ios     # eas submit --platform ios --profile production
+
+They delegate through `npm -w apps/mobile`, which runs with the
+workspace as the working directory, so EAS always finds
+`apps/mobile/eas.json` and `apps/mobile/app.json`.
+
+**This is a guard, not a convenience.** Run `eas` from the repo root
+and it finds no project, silently **scaffolds a stub `app.json`
+there**, and works from that instead. It has happened twice:
+
+- The stub carries a *different* bundle identifier
+  (`com.henrywithers.glide`). A build from it is a **separate app** —
+  new App Store Connect record, no existing testers, and none of their
+  data. The first attempt failed in Prebuild, which is the only reason
+  it did no damage.
+- With no root `eas.json`, `submit` just errors: *"eas.json could not
+  be found at …/framework/eas.json."*
+
+If a stray `app.json` or `eas.json` appears at the repo root, it is
+that scaffold. Delete it; neither belongs there.
+
+Note for Windows: `cd path && cmd` is a parse error in Windows
+PowerShell 5.1, which silently leaves you in the wrong directory —
+part of how this happened. The npm scripts sidestep it entirely.
+
 ## Build profiles
 
 | Profile | Use |
@@ -136,8 +166,8 @@ Steps 1–2 are external and block everything else.
    `com.glidelifestrategy.app`. `eas submit` will offer to create it
    for you, which is easier than doing it by hand.
 3. `eas init` — writes `extra.eas.projectId` into `app.json`. Commit it.
-4. `eas build --platform ios --profile production`
-5. `eas submit --platform ios --profile production`
+4. `npm run build:ios`
+5. `npm run submit:ios`
 6. In App Store Connect, add the build to TestFlight, fill the test
    details, and submit for **Beta App Review**.
 7. Once approved, enable the **public link** and send it to testers.

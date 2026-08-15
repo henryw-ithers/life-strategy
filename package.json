@@ -17,7 +17,9 @@
     "postinstall": "patch-package",
     "test": "npm run test -w packages/scoring && npm run test -w packages/backup && npm run test -w apps/mobile",
     "typecheck": "npm run typecheck -w packages/scoring && npm run typecheck -w packages/backup && npm run typecheck -w apps/mobile",
-    "mobile": "npm run start -w apps/mobile"
+    "mobile": "npm run start -w apps/mobile",
+    "build:ios": "npm run eas:build -w apps/mobile",
+    "submit:ios": "npm run eas:submit -w apps/mobile"
   },
   "version": "1.0.0",
   "devDependencies": {
