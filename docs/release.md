@@ -199,19 +199,21 @@ tagged so an inbox filter can sort them:
 
     Life Strategy feedback (idea|confusing|not working) — <version> (<build>)
 
-Mail goes to **glidefeedback@gmail.com** — a dedicated inbox, not a
-personal one, because the address is compiled into every distributed
-binary. It lives in one place: `FEEDBACK_ADDRESS` in
+Mail goes to **henrywithersfeedback@gmail.com** — a dedicated inbox,
+not a personal one, because the address is compiled into every
+distributed binary. It lives in one place: `FEEDBACK_ADDRESS` in
 `apps/mobile/src/app/feedback.tsx`.
+
+**Changed 2026-08-13** from `glidefeedback@gmail.com`, which the
+rename left behind. Per the rule below, every TestFlight build that
+shipped before this one still mails the old address — **keep that
+inbox alive until those builds expire**, or expire the builds.
 
 **Set up forwarding into your everyday inbox, and reply from the
 feedback account, not from your own.** A reply sent from a personal
-address hands it to the tester and undoes the point of having a separate
-one. Worth moving to an address on the app's own domain if there is
-ever a store listing. The address itself still says `glide` and stays
-that way — it is compiled into every distributed binary, and changing
-it needs a new build while old builds keep collecting mail nobody
-reads (see the rule below).
+address hands it to the tester and undoes the point of having a
+separate one. Worth moving to an address on the app's own domain if
+there is ever a store listing.
 
 **Changing the address needs a new build**, and old TestFlight builds
 stay installable for 90 days, so a stale address quietly keeps

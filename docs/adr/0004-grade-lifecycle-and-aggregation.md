@@ -233,6 +233,82 @@ day's daily-task points and `W` = sum of weekly-task points
 > aggregate. A pinned test asserts the untouched-beats-poor ordering so
 > the trade stays deliberate.
 
+> **Amended 2026-08-13 (a missed day is a zero):** the half-credit
+> fill is **retired**; `MISSED_DAY_CREDIT` is gone. An elapsed day with
+> no row **occupies a full denominator and earns nothing.**
+>
+> This is the third answer to one question, and the reasoning matters
+> more than the number. Zero was the original. Half credit replaced it
+> on 2026-07-30 as too punishing. **N/A replaced that earlier the same
+> day** — the argument being that real use had put a scale on the
+> numbers where 50 means "you did the basics; it's a pass," so filling
+> an unopened day with exactly 50 reported a passing day that never
+> happened. That argument still holds and is why 0.5 is not coming
+> back. But N/A made skipping *free*, which is the opposite incentive
+> from the one the product wants: the weekly and monthly numbers
+> should reward showing up every day.
+>
+> **What makes zero fair rather than punitive is that there is an
+> opt-out, and it is now a real one.** A declared day off
+> ([ADR-0023](0023-planned-work-is-what-pays.md) §4) is stored as
+> {0, 0} and leaves the aggregate entirely, and it covers rest,
+> illness, travel, a wedding, a funeral. The rule is therefore
+> **record something, or mark the day off** — only silence costs you.
+> Critically, `isEditable` is `date <= today` (2026-07-30, above):
+> there is no window past which a day locks, so a forgotten fortnight
+> can always be marked off after the fact.
+>
+> That last point had a bug. The finalized-day freeze introduced by
+> ADR-0023 made `cacheDayScore` read a settled day's *stored* score,
+> so marking an old day off changed its kind and left its cached
+> points in place — the day kept counting. `loadDay` now takes a
+> `recompute` flag that only `cacheDayScore` passes: settling a day
+> protects it from weights drifting underneath it, never from its
+> owner correcting it.
+>
+> `FORMULA_VERSION` still does not bump — this changes how finished
+> days aggregate, not how weights derive. `PeriodGrade.gradedDays`
+> stays, now as an honest count of what is behind a number rather than
+> a warning about absence.
+>
+> **This is not the retune the scale needs.** The planned side is
+> still too generous — a completion pays `7 ÷ times_per_week` of its
+> share of the day — and that stays in
+> [backburner.md](../backburner.md).
+
+> **Amended 2026-08-13 (history is re-derivable, and only on
+> purpose):** two columns on `day_grade` settle how scoring changes
+> meet existing data.
+>
+> - **`formula_version`** — which formula produced the stored points,
+>   mirroring what `snapshot.formula_version` has always recorded for
+>   weights. Null means "unknown era, do not compare."
+> - **`plan_snapshot`** — the day's own task set as JSON
+>   (`taskId, unitId, pointValue, timesPerWeek`), rewritten on every
+>   `cacheDayScore` so the last touch before a day settles is the plan
+>   that sticks to it.
+>
+> **The second is the load-bearing one.** Re-scoring a past day needs
+> the tasks *that day* had. `recacheAllDayScores` never had them: it
+> re-derived against the *current* plan, so a task added last week got
+> applied to a day last month and a deleted one vanished from days it
+> was part of. That was tolerable as a cache reconciliation and is not
+> tolerable as a migration — "update all past scores" would have meant
+> "pretend today's plan was always in force."
+>
+> With the snapshot, `recomputeAllGrades()` re-derives each day from
+> stored history alone: tasks from the snapshot, completions from
+> `task_completion`, and activity credit recomputed from each
+> activity's `size` against *that day's* unit shares rather than the
+> credit denormalized under whatever rule was in force then.
+>
+> **It is explicit, and it is the only way in.** Nothing calls it
+> automatically; a formula change must never restate history on its
+> own. It lives in Settings → Recompute past grades, and it reports
+> how many days it could not re-derive — days written before these
+> columns existed keep their stored grade rather than being
+> approximated. An honest gap beats an invented number.
+
 ## Schema amendments (to ADR-0002)
 
 - `day_grade` gains: `kind` (`normal|rest|special`), `title`, `note`,

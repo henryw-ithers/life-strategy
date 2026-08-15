@@ -26,21 +26,26 @@ export const EXTRA_RUN_RATE = 0.5;
 export const UNPLANNED_CAP = 25;
 
 /**
- * What an elapsed day with no stored row earns, as a fraction of the
- * standard daily denominator (ADR-0004 §5 as amended 2026-07-30).
+ * `MISSED_DAY_CREDIT` **retired 2026-08-13.** An elapsed day with no
+ * stored row was filled at 0.5 of the standard denominator so skipped
+ * days could not vanish from it. Two problems ended it:
  *
- * Not a derivation change, so `FORMULA_VERSION` deliberately does not
- * move: that version is stamped on snapshots to record how *weights*
- * were derived, and this only affects how finished days aggregate.
+ * - It paid for absence. A day nobody opened out-scored a day someone
+ *   opened and half-finished — 50% against 30% — which the constant
+ *   already flagged as a knowingly accepted trade.
+ * - Worse, it collided with what the scale is *for*. On the intended
+ *   reading, 50 means "you did the basics; it's a pass." Filling an
+ *   unopened day with exactly 50 asserted the one thing there was no
+ *   evidence for.
  *
- * **Known trade, accepted deliberately.** At 0.5 a day you never
- * opened out-scores a day where you opened the app and completed some
- * of your tasks (50% versus, say, 30%). Halving the day's *weight*
- * instead — `{ earned: 0, possible: dailyPossible / 2 }` — softens a
- * missed day without ever paying you to skip one, and is the one-line
- * change if the incentive turns out to bite in real use.
+ * A day with no row is now not a graded day at all. The denominator
+ * it used to occupy is gone with it, so `PeriodGrade.gradedDays`
+ * carries how many days a period grade stands on — see `periodDays`.
+ *
+ * Not a derivation change either way: `FORMULA_VERSION` does not move
+ * for this. That stamp records how *weights* were derived; this only
+ * affects how finished days aggregate.
  */
-export const MISSED_DAY_CREDIT = 0.5;
 /** v2 (2026-07-17): unified day denominator — every task contributes
  *  point_value × times_per_week ÷ 7 per day; completions earn full
  *  value on their day; daily grades may exceed 100 (ADR-0004 §4).

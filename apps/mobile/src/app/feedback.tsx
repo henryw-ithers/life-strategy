@@ -67,7 +67,7 @@ import { radius, space, type as typeScale } from "../theme/tokens";
  * app ever gets a store listing; it is one constant, and
  * [docs/release.md](../../../../docs/release.md) carries the note.
  */
-const FEEDBACK_ADDRESS = "glidefeedback@gmail.com";
+const FEEDBACK_ADDRESS = "henrywithersfeedback@gmail.com";
 
 type Stage =
   | { kind: "writing" }

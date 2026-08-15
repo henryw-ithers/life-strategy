@@ -121,11 +121,21 @@ partial completion.)
   and every past day stays editable) — kind/title/rating semantics per
   ADR-0004.
 - **`journal_entry`** — id, local_date, text, created_at. Multiple
-  entries per day; **append-only** — adding a note never overwrites or
-  deletes an earlier one.
+  entries per day; ~~**append-only**~~ — see the amendment below.
 - **`photo`** — id, local_date, file_uri (app-managed on-device copy),
   caption, created_at. Included in encrypted backup as a separately
   toggleable (and much larger) payload.
+
+  > **Amended 2026-08-13: `file_uri` is app-relative** (`photos/<id>
+  > .<ext>`), resolved against `documentDirectory` at read time. It
+  > previously stored the absolute URI, which **loses every photo on
+  > an app update**: iOS containers live at
+  > `…/Containers/Data/Application/<UUID>/Documents/` and that UUID is
+  > reassigned on reinstall and can change across updates, so the
+  > stored path points at a directory that no longer exists. Reads
+  > keep only the tail after `photos/`, so rows written before this
+  > heal themselves without a data migration guessing at a stale
+  > container path. **Never store an absolute container path.**
 
 Journal entries, photos, and flags stay addable after finalization:
 **grades finalize; memories don't.** An entry or photo added after the
@@ -133,6 +143,33 @@ day's 3-day edit window is displayed with a **retroactive marker**
 ("added later") — derived from `created_at` vs. the window, no extra
 column. What you recorded at the time stays distinguishable from what
 you added from memory.
+
+> **Amended 2026-08-13 (journal entries are editable and deletable):**
+> the append-only rule above is **retired**. Notes can be rewritten in
+> place and removed, and photos can be removed; both are reached by
+> pressing and holding the item in the day's record.
+>
+> Append-only was there to keep the log a faithful record. In practice
+> it protected nothing and cost something real: there was no editing
+> affordance at all, so a typo was permanent and the day's record could
+> only grow. Fidelity that cannot be corrected reads as a bug, and the
+> log is only trustworthy if the person who wrote it recognises it.
+>
+> Deletes are **hard deletes**, not the soft deletes used elsewhere in
+> this ADR. A journal entry has no downstream reader — see the ADR
+> index's "nothing reads the life log back" — so there is no
+> referential integrity to preserve and nothing a tombstone would
+> serve. Removing a photo also unlinks its file: the row is the only
+> record of where the app-managed copy lives.
+>
+> Neither is gated on the edit window. Grades finalize; memories don't,
+> and a note touches no score.
+>
+> **The retroactive marker above is still unbuilt**, and this makes it
+> slightly less meaningful — an edited entry keeps its original
+> `created_at`, so "added later" will describe when a note was first
+> written, not when it was last changed. Worth deciding when the
+> look-back views that consume the marker actually get built.
 - **`activity`** — id, local_date, title, note, size
   (`quick|normal|big`, nullable = journal-only), flagged (memory
   flag), created_at (ADR-0009)

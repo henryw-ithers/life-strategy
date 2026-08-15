@@ -52,6 +52,7 @@ export type {
   DayScoreInput,
   DayScore,
   Grade,
+  PeriodGrade,
   RecordedDay,
   PeriodInput,
 } from "./grade";

@@ -275,6 +275,50 @@ describe("computeDayScore (unified denominator, ADR-0004 §4 amendment)", () => 
     expect(storedDayScore({ earned: 75, possible: 50 }).base).toBe(150);
   });
 
+  /* The calendar-vs-header bug: `day_grade` stores earned and possible
+   * as integers, so anything deriving `base` from the raw floats
+   * disagrees with anything deriving it from the stored row. Pinned on
+   * a deliberately fractional portfolio — sevenths never divide
+   * evenly — because the two surfaces only drifted on the days where
+   * rounding actually bit. */
+  it("a day's grade survives the round trip through storage", () => {
+    const tasks = [
+      { unitId: "a", pointValue: 13, timesPerWeek: 3, completedToday: true },
+      { unitId: "b", pointValue: 11, timesPerWeek: 2, completedToday: false },
+      { unitId: "c", pointValue: 7, timesPerWeek: 5, completedToday: true },
+      { unitId: "d", pointValue: 4, timesPerWeek: 0, completedToday: false },
+    ];
+    const live = computeDayScore({ kind: "normal", tasks });
+    // What `cacheDayScore` writes, read back the way the calendar reads.
+    const stored = storedDayScore({
+      earned: Math.round(live.earned),
+      possible: Math.round(live.possible),
+    });
+    expect(stored.base).toBe(live.base);
+    // And the stored pair is already integral, so caching is lossless.
+    expect(Number.isInteger(live.earned)).toBe(true);
+    expect(Number.isInteger(live.possible)).toBe(true);
+  });
+
+  it("a special day round-trips too, at its real score not rating × 10", () => {
+    const tasks = [
+      { unitId: "a", pointValue: 13, timesPerWeek: 3, completedToday: true },
+      { unitId: "b", pointValue: 9, timesPerWeek: 4, completedToday: false },
+    ];
+    const live = computeDayScore({
+      kind: "special",
+      satisfactionRating: 9,
+      tasks,
+    });
+    const stored = storedDayScore({
+      earned: live.earned,
+      possible: live.possible,
+    });
+    expect(stored.base).toBe(live.base);
+    // The retired model would have read 90 here regardless of the plan.
+    expect(live.base).not.toBe(90);
+  });
+
   it("specialDayBonus scales the rating across the cap", () => {
     expect(specialDayBonus(10)).toBe(UNPLANNED_CAP);
     expect(specialDayBonus(6)).toBe(15);
@@ -337,17 +381,23 @@ describe("aggregateGrade — ADR-0004 §5 (weekly/monthly: earned ÷ possible ov
     expect(aggregateGrade([]).base).toBeNull();
   });
 
-  it("rest days ({0,0}) drop out without needing special-casing", () => {
-    const withRest = aggregateGrade([
+  it("days off ({0,0}) drop out of the grade without special-casing", () => {
+    const withOff = aggregateGrade([
       { earned: 10, possible: 10 },
-      { earned: 0, possible: 0 }, // rest day
-      { earned: 10, possible: 10 },
-    ]);
-    const withoutRest = aggregateGrade([
-      { earned: 10, possible: 10 },
+      { earned: 0, possible: 0 }, // day off
       { earned: 10, possible: 10 },
     ]);
-    expect(withRest).toEqual(withoutRest);
+    const withoutOff = aggregateGrade([
+      { earned: 10, possible: 10 },
+      { earned: 10, possible: 10 },
+    ]);
+    expect(withOff.base).toBe(withoutOff.base);
+    expect(withOff.earned).toBe(withoutOff.earned);
+    expect(withOff.possible).toBe(withoutOff.possible);
+    // But a declared day off is still a day the user showed up for,
+    // so it counts toward what the grade stands on.
+    expect(withOff.gradedDays).toBe(3);
+    expect(withoutOff.gradedDays).toBe(2);
   });
 
   it("a special day carries its own denominator into the period", () => {
@@ -374,7 +424,9 @@ describe("periodDays", () => {
   const week = { start: "2026-07-13", end: "2026-07-20" };
   const base = { ...week, dailyPossible: 50, gradingStart: "2026-01-01" };
 
-  it("counts an elapsed day with no stored row at half credit", () => {
+  // ── A missed day is a zero (amended 2026-08-13) ──
+
+  it("scores an elapsed day with no stored row as zero over a full day", () => {
     const days = periodDays({
       ...base,
       today: "2026-07-20", // the whole week is over
@@ -383,34 +435,15 @@ describe("periodDays", () => {
     expect(days).toHaveLength(7);
     expect(days[0]).toEqual({ earned: 50, possible: 50 });
     expect(days.slice(1)).toEqual(
-      Array.from({ length: 6 }, () => ({ earned: 25, possible: 50 })),
+      Array.from({ length: 6 }, () => ({ earned: 0, possible: 50 })),
     );
-    // One perfect day plus six half-days: round(200/350*100).
-    expect(aggregateGrade(days).base).toBe(57);
+    // One perfect day, six silent ones: round(50/350*100).
+    expect(aggregateGrade(days).base).toBe(14);
   });
 
-  it("does not let skipped days vanish from the denominator", () => {
-    const recorded = [
-      { localDate: "2026-07-13", earned: 50, possible: 50 },
-      { localDate: "2026-07-14", earned: 50, possible: 50 },
-      { localDate: "2026-07-15", earned: 50, possible: 50 },
-      { localDate: "2026-07-16", earned: 50, possible: 50 },
-    ];
-    // The bug this guards: aggregating stored rows alone reads 100%.
-    expect(aggregateGrade(recorded).base).toBe(100);
-    const days = periodDays({ ...base, today: "2026-07-20", recorded });
-    expect(aggregateGrade(days).base).toBe(79); // round(275/350*100)
-  });
-
-  /* The trade ADR-0004 §5 accepts explicitly: at half credit, a day
-   * nobody touched out-scores a day someone touched and half-finished.
-   * Pinned so the choice stays deliberate rather than drifting. */
-  it("scores an untouched day above a touched-but-poor one", () => {
-    const untouched = periodDays({
-      ...base,
-      today: "2026-07-15",
-      recorded: [{ localDate: "2026-07-13", earned: 50, possible: 50 }],
-    })[1];
+  it("never pays for an untouched day", () => {
+    // The incentive the whole change exists for: showing up and doing
+    // very little must beat not showing up.
     const poor = periodDays({
       ...base,
       today: "2026-07-15",
@@ -419,8 +452,51 @@ describe("periodDays", () => {
         { localDate: "2026-07-14", earned: 10, possible: 50 },
       ],
     })[1];
-    expect(untouched).toEqual({ earned: 25, possible: 50 });
+    const untouched = periodDays({
+      ...base,
+      today: "2026-07-15",
+      recorded: [{ localDate: "2026-07-13", earned: 50, possible: 50 }],
+    })[1];
     expect(poor).toEqual({ earned: 10, possible: 50 });
+    expect(untouched).toEqual({ earned: 0, possible: 50 });
+    expect(poor!.earned).toBeGreaterThan(untouched!.earned);
+  });
+
+  it("a declared day off is the opt-out, and costs nothing", () => {
+    // Same week, same effort — the only difference is that the user
+    // said so. Marked off: 100%. Silent: dragged to 25%.
+    const marked = aggregateGrade(
+      periodDays({
+        ...base,
+        today: "2026-07-17",
+        recorded: [
+          { localDate: "2026-07-13", earned: 50, possible: 50 },
+          { localDate: "2026-07-14", earned: 0, possible: 0 }, // day off
+          { localDate: "2026-07-15", earned: 0, possible: 0 }, // day off
+          { localDate: "2026-07-16", earned: 50, possible: 50 },
+        ],
+      }),
+    );
+    const silent = aggregateGrade(
+      periodDays({
+        ...base,
+        today: "2026-07-17",
+        recorded: [
+          { localDate: "2026-07-13", earned: 50, possible: 50 },
+          { localDate: "2026-07-16", earned: 50, possible: 50 },
+        ],
+      }),
+    );
+    expect(marked.base).toBe(100);
+    expect(silent.base).toBe(50); // round(100/200*100)
+  });
+
+  it("a period with nothing recorded scores zero, not nothing", () => {
+    const empty = aggregateGrade(
+      periodDays({ ...base, today: "2026-07-20", recorded: [] }),
+    );
+    expect(empty.base).toBe(0);
+    expect(empty.gradedDays).toBe(7);
   });
 
   it("excludes the current day from both sides, so a rollover never drops the grade", () => {
@@ -444,11 +520,18 @@ describe("periodDays", () => {
   });
 
   it("ignores days before the first diagnostic", () => {
+    // Every day of the week is recorded; only those on or after the
+    // grading start may count.
+    const recorded = [13, 14, 15, 16, 17, 18, 19].map((d) => ({
+      localDate: `2026-07-${d}`,
+      earned: 25,
+      possible: 50,
+    }));
     const days = periodDays({
       ...base,
       gradingStart: "2026-07-16",
       today: "2026-07-20",
-      recorded: [],
+      recorded,
     });
     expect(days).toHaveLength(4); // 16th through 19th
   });
@@ -464,20 +547,20 @@ describe("periodDays", () => {
     expect(aggregateGrade(days).base).toBeNull();
   });
 
-  it("keeps stored rest and special days as stored", () => {
+  it("keeps stored days off and special days as stored", () => {
     const days = periodDays({
       ...base,
       today: "2026-07-16",
       recorded: [
-        { localDate: "2026-07-13", earned: 0, possible: 0 }, // rest
-        { localDate: "2026-07-14", earned: 80, possible: 100 }, // special, 8/10
-        // 07-15 untouched → filled
+        { localDate: "2026-07-13", earned: 0, possible: 0 }, // day off
+        { localDate: "2026-07-14", earned: 70, possible: 50 }, // special
+        // 07-15 untouched → zero over a full day
       ],
     });
     expect(days).toEqual([
       { earned: 0, possible: 0 },
-      { earned: 80, possible: 100 },
-      { earned: 25, possible: 50 },
+      { earned: 70, possible: 50 },
+      { earned: 0, possible: 50 },
     ]);
   });
 

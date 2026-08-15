@@ -40,10 +40,11 @@ your device. It never asks for camera or microphone access.
 Only when you send it, and only where you send it. There are three
 ways that can happen, and you start all three:
 
-- **Send feedback** hands what you typed to your own mail app, addressed
-  to glidefeedback@gmail.com, and you send it. Nothing is transmitted by
-  the app itself. The problem log notes that you sent something — the
-  timestamp and the topic — never what you wrote.
+- **Send feedback** hands what you typed to your own mail app,
+  addressed to henrywithersfeedback@gmail.com, and you send it.
+  Nothing is transmitted by the app itself. The problem log notes that
+  you sent something — the timestamp and the topic — never what you
+  wrote.
 - **Send log** opens the share sheet with the problem log's text and you
   choose where it goes. The text is plain and visible before you send.
 - **Backups** are encrypted with a passphrase you choose before they
@@ -86,4 +87,4 @@ If this policy changes, the date at the top changes with it.
 
 ## Contact
 
-glidefeedback@gmail.com
+henrywithersfeedback@gmail.com

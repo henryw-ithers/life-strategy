@@ -15,17 +15,29 @@ interface NoteSheetProps {
   visible: boolean;
   /** "today" or a spoken date. */
   dayLabel: string;
+  /** The note being rewritten. Absent when adding a new one. */
+  initialBody?: string;
   theme: ThemeTokens;
   onClose: () => void;
   onCommit: (body: string) => void;
 }
 
-/** Add a journal note to a day. Entries are append-only (ADR-0002) —
- *  the sheet always opens blank; the day's record only grows. */
-export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteSheetProps) {
+/** Write a journal note, or rewrite one.
+ *
+ *  Entries used to be append-only (ADR-0002) and this sheet always
+ *  opened blank. That was retired on 2026-08-13 — pass `initialBody`
+ *  and the same sheet edits in place. */
+export function NoteSheet({
+  visible,
+  dayLabel,
+  initialBody,
+  theme,
+  onClose,
+  onCommit,
+}: NoteSheetProps) {
   const insets = useSafeAreaInsets();
   const keyboard = useAnimatedKeyboard();
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody ?? "");
   const inputRef = useRef<TextInput>(null);
 
   const keyboardStyle = useAnimatedStyle(() => ({
@@ -35,9 +47,11 @@ export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteS
       Math.max(keyboard.height.value - insets.bottom, 0),
   }));
 
+  // Re-seed each time it opens: blank for a new note, the existing
+  // text when rewriting one.
   useEffect(() => {
-    if (visible) setBody("");
-  }, [visible]);
+    if (visible) setBody(initialBody ?? "");
+  }, [visible, initialBody]);
 
   const commit = () => {
     const trimmed = body.trim();
@@ -70,7 +84,7 @@ export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteS
       >
         <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
         <AppText variant="title" color={theme.ink}>
-          A note on {dayLabel}
+          {initialBody === undefined ? `A note on ${dayLabel}` : "Edit note"}
         </AppText>
         <TextInput
           ref={inputRef}
@@ -82,7 +96,7 @@ export function NoteSheet({ visible, dayLabel, theme, onClose, onCommit }: NoteS
           style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
         />
         <Button
-          label="Save note"
+          label={initialBody === undefined ? "Save note" : "Save changes"}
           disabled={body.trim().length === 0}
           onPress={commit}
           theme={theme}

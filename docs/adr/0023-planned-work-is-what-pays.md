@@ -210,6 +210,15 @@ A settled day is now a fact rather than a function of today's weights.
   instrument that can check it. Also if "Day off" usage stays near zero
   while low-scoring special days appear in the log: that is the
   discoverability failure above, showing up as data.
+- **Already known to be unfinished.** This ADR fixed the *unplanned*
+  side. Real use the same day surfaced a second generosity, in the
+  planned side: a completion pays `7 ÷ times_per_week` of its share of
+  the day, so three weekly tasks can outweigh five skipped daily ones
+  (a bare-minimum day scored 78). Self-consistent over a week, lumpy
+  on a day. Written up in
+  [backburner.md](../backburner.md#the-daily-number-is-too-generous-and-80-doesnt-mean-much)
+  and deliberately not batched into v5 — it wants calibration data and
+  its own formula version, not a third seam in one fortnight.
 
 ## Action items
 

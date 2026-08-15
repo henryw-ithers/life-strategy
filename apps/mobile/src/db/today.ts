@@ -10,6 +10,8 @@ import {
   dayShare,
   deriveChecklist,
   editWindowStart,
+  extraRunPoints,
+  FORMULA_VERSION,
   fortnightStart,
   isEditable,
   isFinalized,
@@ -145,7 +147,20 @@ async function latestWeights(): Promise<Map<string, number>> {
   return new Map(rows.map((w) => [w.unitId, Math.round(w.override ?? w.derived)]));
 }
 
-export async function loadDay(date: string): Promise<DayData> {
+/**
+ * @param recompute Ignore the finalized-day freeze and score the day
+ *   from its current contents. Only `cacheDayScore` passes this, and
+ *   only because the user just edited *this* day: settling a day
+ *   protects it from weights drifting underneath it, never from its
+ *   owner correcting it (ADR-0004 §3 — "only the future is
+ *   off-limits"). Without this, marking a settled day off would change
+ *   its kind and leave its cached score in place, so the day would
+ *   keep counting.
+ */
+export async function loadDay(
+  date: string,
+  { recompute = false }: { recompute?: boolean } = {},
+): Promise<DayData> {
   const today = currentLocalDate();
   await finalizePastDays(today);
 
@@ -231,11 +246,18 @@ export async function loadDay(date: string): Promise<DayData> {
     .from(journalEntry)
     .where(eq(journalEntry.localDate, date))
     .orderBy(asc(journalEntry.createdAt));
-  const photos = await db
+  const photoRows = await db
     .select()
     .from(photo)
     .where(eq(photo.localDate, date))
     .orderBy(asc(photo.createdAt));
+  // Rebuilt against this launch's container, not the one the row was
+  // written under — see `documentsDir`.
+  const docs = photoRows.length > 0 ? await documentsDir() : "";
+  const photos = photoRows.map((p) => ({
+    ...p,
+    uri: `${docs}${toRelativePhotoPath(p.fileUri)}`,
+  }));
 
   const dayActivities = await db
     .select()
@@ -289,21 +311,22 @@ export async function loadDay(date: string): Promise<DayData> {
   // scored by. `recacheAllDayScores` leaves the same rows alone, so
   // the day screen, the calendar tint, and the weekly and monthly
   // grades all read the one stored number.
-  const score = dayRow?.finalizedAt
-    ? storedDayScore({ earned: dayRow.pointsEarned, possible: dayRow.pointsPossible })
-    : computeDayScore({
-        kind,
-        satisfactionRating: dayRow?.satisfactionRating ?? null,
-        tasks: todayTasks.map((t) => ({
-          unitId: t.unitId,
-          pointValue: t.pointValue,
-          timesPerWeek: t.timesPerWeek,
-          completedToday: t.completedToday,
-          extraToday: t.extraToday,
-        })),
-        extraRunCredit,
-        activities: activityCredits,
-      });
+  const score =
+    dayRow?.finalizedAt && !recompute
+      ? storedDayScore({ earned: dayRow.pointsEarned, possible: dayRow.pointsPossible })
+      : computeDayScore({
+          kind,
+          satisfactionRating: dayRow?.satisfactionRating ?? null,
+          tasks: todayTasks.map((t) => ({
+            unitId: t.unitId,
+            pointValue: t.pointValue,
+            timesPerWeek: t.timesPerWeek,
+            completedToday: t.completedToday,
+            extraToday: t.extraToday,
+          })),
+          extraRunCredit,
+          activities: activityCredits,
+        });
 
   return {
     date,
@@ -321,7 +344,7 @@ export async function loadDay(date: string): Promise<DayData> {
     doneThisWeek: todayTasks.filter((t) => t.band === "doneThisWeek"),
     activities,
     journal: journal.map((j) => ({ id: j.id, body: j.body })),
-    photos: photos.map((p) => ({ id: p.id, uri: p.fileUri, caption: p.caption })),
+    photos: photos.map((p) => ({ id: p.id, uri: p.uri, caption: p.caption })),
     units: units
       .filter((u) => u.includeInScoring)
       .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
@@ -339,18 +362,95 @@ export async function addJournalEntry(date: string, body: string): Promise<void>
   });
 }
 
+/**
+ * Rewrite a note in place.
+ *
+ * **Journal entries were append-only** (ADR-0002) on the grounds that
+ * the log should be a faithful record. That was retired on 2026-08-13:
+ * a typo you cannot fix is not fidelity, and the append-only rule had
+ * no editing affordance to soften it — the day's record simply grew.
+ *
+ * Deliberately **not** gated on the edit window. Grades finalize;
+ * memories don't (ADR-0002), and notes touch no score, so there is
+ * nothing here that settling a day needs to protect.
+ */
+export async function updateJournalEntry(id: string, body: string): Promise<void> {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) {
+    await deleteJournalEntry(id);
+    return;
+  }
+  await db.update(journalEntry).set({ body: trimmed }).where(eq(journalEntry.id, id));
+}
+
+/** Remove a note. Hard delete: a journal entry has no downstream
+ *  reader (see the ADR index's "nothing reads the life log back"), so
+ *  there is nothing a soft delete would preserve. */
+export async function deleteJournalEntry(id: string): Promise<void> {
+  await db.delete(journalEntry).where(eq(journalEntry.id, id));
+}
+
+/** Remove a photo, and the file behind it — the row is the only thing
+ *  that knows where the copy lives, so leaving the file would orphan
+ *  it in app storage forever. A failed unlink is not worth surfacing:
+ *  the user asked for the photo to be gone from their day, and it is. */
+export async function deletePhoto(id: string): Promise<void> {
+  const [row] = await db.select().from(photo).where(eq(photo.id, id));
+  await db.delete(photo).where(eq(photo.id, id));
+  if (row) {
+    const FileSystem = await import("expo-file-system/legacy");
+    // Resolved, not stored: the row holds a relative path now, and an
+    // old absolute one would point at a container that no longer
+    // exists anyway.
+    await FileSystem.deleteAsync(await resolvePhotoUri(row.fileUri), {
+      idempotent: true,
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Where photos live, resolved fresh each launch.
+ *
+ * **iOS moves the app container.** `documentDirectory` is
+ * `file:///var/mobile/Containers/Data/Application/<UUID>/Documents/`,
+ * and that UUID is reassigned on reinstall and can change across
+ * updates. Anything that stored the absolute path is pointing at a
+ * directory that no longer exists — which is exactly why photos
+ * vanished after an update. Only the app-relative tail is durable.
+ */
+async function documentsDir(): Promise<string> {
+  const FileSystem = await import("expo-file-system/legacy");
+  return FileSystem.documentDirectory ?? "";
+}
+
+/** `photos/<id>.<ext>` — what actually goes in the database. Tolerates
+ *  the absolute URIs written before 2026-08-13 by keeping only the
+ *  tail, so old rows heal on read instead of needing a data migration
+ *  that would itself have to guess at a stale container path. */
+function toRelativePhotoPath(stored: string): string {
+  const marker = "photos/";
+  const i = stored.lastIndexOf(marker);
+  return i >= 0 ? stored.slice(i) : stored;
+}
+
+/** Absolute URI for display, rebuilt against this launch's container. */
+export async function resolvePhotoUri(stored: string): Promise<string> {
+  return `${await documentsDir()}${toRelativePhotoPath(stored)}`;
+}
+
 /** Copies the picked image into app storage (picker URIs are cache)
- *  and records it against the day. */
+ *  and records it against the day. Stores the **relative** path — see
+ *  `documentsDir`. */
 export async function addPhoto(date: string, sourceUri: string): Promise<void> {
   if (date > currentLocalDate()) throw new Error("Can't add a photo to a future day.");
   const FileSystem = await import("expo-file-system/legacy");
   const dir = `${FileSystem.documentDirectory}photos`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
   const id = Crypto.randomUUID();
-  const ext = sourceUri.split(".").pop()?.toLowerCase() ?? "jpg";
-  const dest = `${dir}/${id}.${ext.length <= 4 ? ext : "jpg"}`;
-  await FileSystem.copyAsync({ from: sourceUri, to: dest });
-  await db.insert(photo).values({ id, localDate: date, fileUri: dest });
+  const raw = sourceUri.split(".").pop()?.toLowerCase() ?? "jpg";
+  const name = `${id}.${raw.length <= 4 ? raw : "jpg"}`;
+  await FileSystem.copyAsync({ from: sourceUri, to: `${dir}/${name}` });
+  await db.insert(photo).values({ id, localDate: date, fileUri: `photos/${name}` });
 }
 
 function assertEditable(date: string): void {
@@ -476,21 +576,25 @@ export async function loadGradesBetween(
     .select()
     .from(dayGrade)
     .where(and(gte(dayGrade.localDate, start), lt(dayGrade.localDate, end)));
+  // One derivation, shared with `loadDay`'s finalized path, with no
+  // per-kind branching left here at all.
+  //
+  // This used to re-derive the grade itself, and got two things wrong.
+  // It scored special days as `rating × 10` — the model ADR-0023
+  // retired — so a special day showed one number in the calendar and a
+  // completely different one above it. And it divided the *stored
+  // integers* while the day screen divided the raw floats, which put
+  // ordinary days a point apart. A day off needs no special case
+  // either: it is stored as {0, 0} and `storedDayScore` returns null.
   return new Map(
     rows.map((r) => [
       r.localDate,
       {
         kind: r.kind,
-        grade:
-          r.kind === "rest"
-            ? null
-            : r.kind === "special"
-              ? r.satisfactionRating !== null
-                ? r.satisfactionRating * 10
-                : null
-              : r.pointsPossible > 0
-                ? Math.round((r.pointsEarned / r.pointsPossible) * 100)
-                : null,
+        grade: storedDayScore({
+          earned: r.pointsEarned,
+          possible: r.pointsPossible,
+        }).base,
       },
     ]),
   );
@@ -544,11 +648,46 @@ export async function setDayKind(
 
 /** Cache the day's earned/possible on day_grade (calendar tinting will
  *  read it); the live screen always recomputes via the engine. */
+/** One task as it stood on a given day (`day_grade.plan_snapshot`). */
+export interface PlanSnapshotTask {
+  taskId: string;
+  unitId: string;
+  pointValue: number;
+  timesPerWeek: number;
+}
+
+function readPlanSnapshot(json: string | null): PlanSnapshotTask[] | null {
+  if (!json) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as PlanSnapshotTask[]) : null;
+  } catch {
+    // A snapshot that won't parse is worth ignoring, not crashing over:
+    // the day still has its stored grade, which is what surfaces read.
+    return null;
+  }
+}
+
 async function cacheDayScore(date: string): Promise<void> {
-  const day = await loadDay(date);
+  // `recompute`: this only ever runs straight after the user changed
+  // something about this day, and that edit must land even on a day
+  // that has settled.
+  const day = await loadDay(date, { recompute: true });
+  const plan: PlanSnapshotTask[] = [...day.daily, ...day.week, ...day.doneThisWeek].map(
+    (t) => ({
+      taskId: t.id,
+      unitId: t.unitId,
+      pointValue: t.pointValue,
+      timesPerWeek: t.timesPerWeek,
+    }),
+  );
   const values = {
     pointsEarned: Math.round(day.score.earned),
     pointsPossible: Math.round(day.score.possible),
+    formulaVersion: FORMULA_VERSION,
+    // Re-written on every touch, so the last edit before a day settles
+    // is the plan that sticks with it.
+    planSnapshot: JSON.stringify(plan),
   };
   const [existing] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
   if (existing) {
@@ -556,6 +695,146 @@ async function cacheDayScore(date: string): Promise<void> {
   } else {
     await db.insert(dayGrade).values({ localDate: date, kind: "normal", ...values });
   }
+}
+
+/**
+ * Re-score one settled day against the plan it actually had.
+ *
+ * This is the operation `plan_snapshot` exists for. Everything the
+ * formula needs is reconstructed from stored history rather than from
+ * the current plan: the task set and its point values come from the
+ * snapshot, completions from `task_completion`, and activity credit is
+ * re-derived from each activity's `size` against that day's own unit
+ * shares — not the credit denormalized at log time, which was computed
+ * under whatever rule was in force then.
+ *
+ * Returns false when the day has no snapshot (written before the
+ * column existed, or never touched). Those days keep their stored
+ * grade; inventing inputs for them would be worse than leaving an
+ * honest gap.
+ */
+async function rederiveDay(row: typeof dayGrade.$inferSelect): Promise<boolean> {
+  const plan = readPlanSnapshot(row.planSnapshot);
+  if (plan === null) return false;
+  const date = row.localDate;
+
+  const windowStart = fortnightStart(date);
+  const completions = await db
+    .select()
+    .from(taskCompletion)
+    .where(
+      and(
+        gte(taskCompletion.localDate, windowStart),
+        lte(taskCompletion.localDate, date),
+      ),
+    );
+
+  const statuses = deriveChecklist(
+    plan.map((t) => ({
+      taskId: t.taskId,
+      unitId: t.unitId,
+      pointValue: t.pointValue,
+      timesPerWeek: t.timesPerWeek,
+    })),
+    completions.map((c) => ({ taskId: c.taskId, localDate: c.localDate })),
+    date,
+  );
+  const statusById = new Map(statuses.map((s) => [s.taskId, s]));
+
+  // The day's unit shares, from the day's own plan — this is what
+  // activity credit is denominated in (ADR-0023 §5).
+  const shares = new Map<string, number>();
+  for (const t of plan) {
+    shares.set(
+      t.unitId,
+      (shares.get(t.unitId) ?? 0) + dayShare(t.pointValue, t.timesPerWeek),
+    );
+  }
+
+  const dayActivities = await db
+    .select()
+    .from(activity)
+    .where(eq(activity.localDate, date))
+    .orderBy(asc(activity.createdAt));
+  const tagRows = dayActivities.length
+    ? await db
+        .select()
+        .from(activityTag)
+        .where(inArray(activityTag.activityId, dayActivities.map((a) => a.id)))
+    : [];
+  const activities: ActivityCredit[] = dayActivities.map((a) => {
+    const rate = a.size ? SIZE_RATE[a.size] : 0;
+    return tagRows
+      .filter((t) => t.activityId === a.id)
+      .map((t) => ({
+        unitId: t.unitId,
+        pointsCredited: Math.round(rate * (shares.get(t.unitId) ?? 0)),
+      }))
+      .filter((t) => t.pointsCredited > 0);
+  });
+
+  const extraRunCredit = plan.reduce((sum, t) => {
+    const s = statusById.get(t.taskId);
+    return s?.completedToday && s.extraToday
+      ? sum + extraRunPoints(t.pointValue)
+      : sum;
+  }, 0);
+
+  const score = computeDayScore({
+    kind: row.kind,
+    satisfactionRating: row.satisfactionRating,
+    tasks: plan.map((t) => {
+      const s = statusById.get(t.taskId);
+      return {
+        unitId: t.unitId,
+        pointValue: t.pointValue,
+        timesPerWeek: t.timesPerWeek,
+        completedToday: s?.completedToday ?? false,
+        extraToday: s?.extraToday ?? false,
+      };
+    }),
+    extraRunCredit,
+    activities,
+  });
+
+  await db
+    .update(dayGrade)
+    .set({
+      pointsEarned: Math.round(score.earned),
+      pointsPossible: Math.round(score.possible),
+      formulaVersion: FORMULA_VERSION,
+    })
+    .where(eq(dayGrade.localDate, date));
+  return true;
+}
+
+export interface RecomputeResult {
+  /** Days re-scored against their own stored plan. */
+  rederived: number;
+  /** Days left alone: no plan snapshot to re-derive from. */
+  skipped: number;
+}
+
+/**
+ * Re-score **every** stored day under the current formula.
+ *
+ * Deliberately explicit and deliberately rare. Nothing calls this on
+ * its own: a formula change must not silently restate history, which
+ * is the failure `recacheAllDayScores` used to cause and
+ * `finalized_at` now guards against. This is the sanctioned way to
+ * opt in, and it is honest about what it cannot do — days with no
+ * `plan_snapshot` are counted and skipped rather than approximated
+ * against today's plan.
+ */
+export async function recomputeAllGrades(): Promise<RecomputeResult> {
+  const rows = await db.select().from(dayGrade);
+  let rederived = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    if (await rederiveDay(row)) rederived += 1;
+    else skipped += 1;
+  }
+  return { rederived, skipped };
 }
 
 /**

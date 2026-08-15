@@ -1,4 +1,4 @@
-import { EXTRA_RUN_RATE, MISSED_DAY_CREDIT, UNPLANNED_CAP } from "./constants";
+import { EXTRA_RUN_RATE, UNPLANNED_CAP } from "./constants";
 import { addDays, fortnightStart, weekStart } from "./days";
 
 /**
@@ -228,10 +228,17 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   const unplanned = Math.min(unplannedRaw, UNPLANNED_CAP);
 
   const earned = earnedDirect + (input.extraRunCredit ?? 0) + unplanned;
+
+  // Rounded here, at the source, and `base` derived from the rounded
+  // pair. `possible` is a sum of sevenths so it is almost never a whole
+  // number, and `day_grade` stores both as integers — deriving `base`
+  // from the raw floats here and from the stored integers there made
+  // the same day read one point apart on the day screen and in the
+  // calendar. One rounding, one number, everywhere.
+  const roundedPossible = Math.round(possible);
+  const roundedEarned = Math.round(earned);
   return {
-    possible,
-    earned,
-    base: possible > 0 ? Math.round((earned / possible) * 100) : null,
+    ...storedDayScore({ earned: roundedEarned, possible: roundedPossible }),
     unplanned,
     unplannedForgone: unplannedRaw - unplanned,
   };
@@ -252,7 +259,8 @@ export interface PeriodInput {
   today: string;
   /** Stored day rows falling inside the period, in any order. */
   recorded: RecordedDay[];
-  /** The standard day denominator — constant across days (§4, v3). */
+  /** The standard day denominator — constant across days (§4, v2). An
+   *  elapsed day with no row occupies a full one and earns nothing. */
   dailyPossible: number;
   /** The first day the app could grade at all: the local date of the
    *  first diagnostic. Null when no diagnostic has been taken. */
@@ -263,18 +271,33 @@ export interface PeriodInput {
  * The days of a period that count toward its grade (ADR-0004 §5).
  *
  * A stored row exists only for a day the user touched, so aggregating
- * over stored rows alone would quietly drop every ignored day out of
- * the denominator — a week where four days went well and three were
- * skipped would grade like a flawless four-day week. §4 is explicit
- * that the denominator is constant across days, so an elapsed normal
- * day with no row still occupies a full `dailyPossible`.
+ * stored rows alone would quietly drop every ignored day out of the
+ * denominator — a week with four good days and three skipped ones
+ * grading like a flawless four-day week.
  *
- * What it *earns* is `MISSED_DAY_CREDIT` of that (ADR-0004 §5 as
- * amended 2026-07-30): a day you never opened is treated as half a
- * day rather than a zero. See the constant for the incentive this
- * knowingly accepts.
+ * **An elapsed day with no row therefore occupies a full
+ * `dailyPossible` and earns nothing.** It scores zero.
  *
- * Two exclusions keep that from overreaching:
+ * This is the third answer to the same question and the strictest.
+ * Zero was the original; half credit replaced it on 2026-07-30 as too
+ * punishing; N/A replaced *that* earlier on 2026-08-13, on the
+ * grounds that a 50 asserted a passing day that never happened. N/A
+ * in turn made skipping free, which is the opposite incentive from
+ * the one the product wants. Zero is chosen deliberately now: the
+ * weekly and monthly numbers should reward showing up every day.
+ *
+ * **The escape hatch is "Day off"** (ADR-0023 §4) — a declared day is
+ * stored as {0, 0} and leaves the aggregate entirely. So the rule is
+ * *record something, or mark the day off*; only silence costs you.
+ * That only works while a day off can still be declared, which the
+ * edit window bounds — see the ADR-0004 amendment.
+ *
+ * `gradedDays` still travels with the result. It no longer guards
+ * against a grade resting on two days (every elapsed day counts now),
+ * but it remains the honest denominator for anything that wants to
+ * say how much of a period is actually behind its number.
+ *
+ * Two exclusions:
  *
  * - **Days before `gradingStart`** never counted; there was no plan to
  *   fall short of yet.
@@ -286,9 +309,9 @@ export interface PeriodInput {
  *   loss-aversion pattern the product excludes by design. Today is
  *   excluded from *both* sides, so it neither drags nor flatters.
  *
- * Rest days are stored as {0, 0} and stay neutral; special days carry
- * their rating in the stored row. Recorded rows always win over the
- * fill.
+ * Days off are stored as {0, 0} and stay neutral; special days carry
+ * their tasks and bonus in the stored row like any other. Recorded
+ * rows always win over the fill.
  */
 export function periodDays(
   input: PeriodInput,
@@ -303,31 +326,40 @@ export function periodDays(
     days.push(
       row
         ? { earned: row.earned, possible: row.possible }
-        : {
-            earned: Math.round(input.dailyPossible * MISSED_DAY_CREDIT),
-            possible: input.dailyPossible,
-          },
+        : // Silence costs a full day. Mark it off to opt out.
+          { earned: 0, possible: input.dailyPossible },
     );
   }
   return days;
 }
 
+export interface PeriodGrade extends Grade {
+  /**
+   * How many days the grade stands on — every elapsed day since the
+   * first diagnostic, minus days off. Not a warning any more (a
+   * skipped day is a zero, not an absence), just the honest count of
+   * what is behind the number.
+   */
+  gradedDays: number;
+}
+
 /**
  * Weekly and monthly grades (ADR-0004 §5): points earned ÷ points
  * possible over the period, purely additive — no curves or weighting.
- * Every day already reduces to an {earned, possible} pair (rest days
+ * Every day already reduces to an {earned, possible} pair (days off
  * are {0, 0} and drop out on their own), so this one reduce serves
  * both periods; only the input range differs. Feed it `periodDays`,
  * not the stored rows directly — see the note there.
  */
 export function aggregateGrade(
   days: { earned: number; possible: number }[],
-): Grade {
+): PeriodGrade {
   const earned = days.reduce((a, d) => a + d.earned, 0);
   const possible = days.reduce((a, d) => a + d.possible, 0);
   return {
     possible,
     earned,
     base: possible > 0 ? Math.round((earned / possible) * 100) : null,
+    gradedDays: days.length,
   };
 }

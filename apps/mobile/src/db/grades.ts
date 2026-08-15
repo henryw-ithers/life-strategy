@@ -5,10 +5,12 @@
  * it in sync with the engine after every mutation.
  *
  * A row exists only for a day the user touched, so the stored rows are
- * not the period on their own: `periodDays` fills the elapsed days
- * that have none, which is what keeps a skipped day in the denominator
- * instead of silently shrinking the week. See its doc comment for the
- * two exclusions (pre-diagnostic days, and the unfinished current day).
+ * not the period on their own: `periodDays` fills each elapsed day
+ * that has none with a **zero against a full denominator**, which is
+ * what keeps a skipped day costing something instead of silently
+ * shrinking the week. A day the user marked off is stored as {0, 0}
+ * and drops out — that is the opt-out. See `periodDays` for the two
+ * exclusions (pre-diagnostic days, and the unfinished current day).
  */
 import {
   addDays,
@@ -19,7 +21,7 @@ import {
   nextMonthStart,
   periodDays,
   weekStart,
-  type Grade,
+  type PeriodGrade,
 } from "@glide/scoring";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
@@ -28,7 +30,7 @@ import { dayGrade, lifeUnit, task } from "./schema";
 import { currentLocalDate } from "./today";
 
 /**
- * The denominator every normal day shares (ADR-0004 §4, formula v3):
+ * The denominator every normal day shares (ADR-0004 §4, formula v2):
  * each active task's weekly commitment spread across the week. Rounded
  * to match how `cacheDayScore` stores it, so a filled day and a stored
  * day weigh the same.
@@ -59,7 +61,7 @@ async function gradingStart(): Promise<string | null> {
   return first ? localDateOf(new Date(first.takenAt)) : null;
 }
 
-async function loadRangeGrade(start: string, end: string): Promise<Grade> {
+async function loadRangeGrade(start: string, end: string): Promise<PeriodGrade> {
   const [rows, dailyPossible, start0] = await Promise.all([
     db
       .select()
@@ -86,12 +88,12 @@ async function loadRangeGrade(start: string, end: string): Promise<Grade> {
 
 /** The week containing `date` (Sunday-first, ADR-0004 §1 as
  *  amended 2026-07-27). */
-export async function loadWeekGrade(date: string): Promise<Grade> {
+export async function loadWeekGrade(date: string): Promise<PeriodGrade> {
   const start = weekStart(date);
   return loadRangeGrade(start, addDays(start, 7));
 }
 
 /** The calendar month containing `date`. */
-export async function loadMonthGrade(date: string): Promise<Grade> {
+export async function loadMonthGrade(date: string): Promise<PeriodGrade> {
   return loadRangeGrade(monthStart(date), nextMonthStart(date));
 }

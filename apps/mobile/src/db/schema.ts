@@ -217,6 +217,29 @@ export const dayGrade = sqliteTable("day_grade", {
   flagged: integer("flagged", { mode: "boolean" }).notNull().default(false),
   /** Stamped at the third rollover after the day ends (ADR-0004 §1). */
   finalizedAt: text("finalized_at"),
+  /**
+   * Which scoring formula produced `points_earned`/`points_possible`.
+   * Null on rows written before this column existed — treat those as
+   * "unknown era, do not compare." Mirrors `snapshot.formula_version`,
+   * which has always recorded the same thing for weights.
+   */
+  formulaVersion: integer("formula_version"),
+  /**
+   * The plan as it stood on this day, JSON:
+   * `[{ taskId, unitId, pointValue, timesPerWeek }]`.
+   *
+   * Re-deriving a past day needs the tasks *that day* had, not the
+   * ones the plan has now — otherwise a task added last week gets
+   * applied to a day last month, and a deleted one vanishes from days
+   * it was part of. Without this, "recompute history" can only ever
+   * mean "score old days as if today's plan had always been in
+   * force," which is an approximation dressed as a correction.
+   *
+   * Written on every `cacheDayScore`, so the last touch before a day
+   * settles is what sticks. Null for days that predate the column, and
+   * for days never touched (which score zero regardless of the plan).
+   */
+  planSnapshot: text("plan_snapshot"),
   ...timestamps,
 });
 

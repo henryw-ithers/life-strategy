@@ -497,3 +497,140 @@ may influence scoring), so it wants an ADR rather than a code change —
 numbers 0012 and 0014–0018 stay reserved for their own triggers; 0021
 is the next free slot, following the precedent set when 0019 and 0020
 were written ahead of them.
+
+## The daily number is too generous, and 80 doesn't mean much
+
+*Raised 2026-08-13, from real use — after
+[ADR-0023](adr/0023-planned-work-is-what-pays.md), not instead of it.*
+
+**The report:** a day with 5 of 10 daily tasks done and 3 weekly tasks
+knocked out scored **78**, on a day that felt bare-minimum and
+unproductive. ADR-0023 closed the *unplanned* leaks (activities and
+special days); this is a separate one, and it is in the planned side
+of the formula.
+
+**The mechanism, exactly.** ADR-0004 §4 (formula v2) made the day's
+denominator the weekly commitment spread evenly — `dayShare` is
+`point_value × times_per_week ÷ 7` — while a completion still earns
+its **full `point_value`** on the day it happens. So for a task of
+frequency `f`, completing it pays
+
+    payout ÷ its share of the day = p ÷ (p·f/7) = 7 ÷ f
+
+| Frequency | A completion pays |
+|---|---|
+| 7×/week (daily) | 1× its daily share — fair |
+| 3×/week | **2.3×** |
+| 1×/week | **7×** |
+| fortnightly (`f = 0`) | **14×** |
+
+Three weekly tasks in one day can therefore out-earn five skipped
+daily tasks several times over, which is exactly the reported day.
+
+**This is not a bug — it is self-consistent over a week.** A 1×/week
+task contributes `p/7` to each of seven denominators (total `p`) and
+pays `p` once. The week balances exactly, which is what makes the
+weekly grade the plain average of daily grades. **The day is where it
+goes wrong:** an amortized denominator against un-amortized payouts is
+lumpy by construction, and the lump lands on whichever day you
+happened to do the weekly work.
+
+**A second, independent compression.** `MISSED_DAY_CREDIT = 0.5` means
+a day you never opened contributes 50% to weekly and monthly grades.
+The constant's own comment already flags the incentive problem; the
+effect here is that aggregates live in a **50–100 band**, so 78 sits
+much closer to "did nothing" than it reads. If 80 is to hold weight,
+the floor matters as much as the ceiling.
+
+**Directions, none chosen:**
+
+- **Pay weekly tasks their daily share on the day, and the remainder
+  on the week.** Keeps "every check moves the number" but makes the
+  day honest. Most faithful to the current model; the arithmetic for
+  the remainder needs care.
+- **Grade the day on daily tasks only**, weekly work landing in the
+  weekly grade. This is what ADR-0004 §4 said *before* the v2
+  amendment superseded it — worth re-reading that section before
+  reinventing it, including why it was dropped.
+- **Show two numbers**: the day's planned-work completion and its
+  points. Presentation-only, changes no arithmetic.
+- **Revisit `MISSED_DAY_CREDIT`.** The constant already documents the
+  one-line alternative: `{ earned: 0, possible: dailyPossible / 2 }`
+  softens a missed day without paying you to skip one.
+
+**Why it's parked, not fixed:** it is a third formula version in a
+fortnight (v4 → v5 already landed on 2026-08-13), each one a seam in
+history that cannot be re-derived. Worth batching with ADR-0008's
+calibration data, which is the instrument that can actually say
+whether the number tracks how the day felt — which is the complaint.
+
+### The scale this should be tuned against
+
+*Henry, 2026-08-13.* The target meaning of a daily grade. This is the
+objective function for any retune — the arithmetic above is the
+mechanism, this is the goal:
+
+| Grade | Means |
+|---|---|
+| **50** | Standard. You did the basic things — a pass, and it doesn't hurt you. |
+| **60** | Solid. Basic upkeep plus one or two bonus items. |
+| **70** | Good. All your basic upkeep, plus some of the week's other tasks. |
+| **80** | Very good. |
+| **90** | Amazing — working or doing something basically the whole day. |
+
+**The gap is large, and it is not a rounding issue.** Under the
+current formula, a day where every daily task is done and *no* weekly
+work happens scores
+
+    Σ_daily p ÷ (Σ_daily p + Σ_weekly p·f/7)
+
+which for a plan split evenly between daily and weekly work at an
+average `f` of 2–3 lands near **75–80**. On the scale above that same
+day is a **60**. ADR-0004 §4's v2 amendment did intend "only your
+dailies" to sit below 100 — but it sits far higher than intended, and
+the top of the range is consequently unreachable in any meaningful
+sense: if bare upkeep is 78, there is nowhere for "amazing" to go.
+
+### ~~Missed days should be N/A, not 50%~~ — **done 2026-08-13, as a zero**
+
+**Shipped**, but stricter than N/A. It went out as true N/A first;
+within the hour the incentive was reconsidered — N/A makes skipping
+free, and the weekly and monthly numbers should reward showing up
+every day. An unrecorded elapsed day now takes a **full denominator
+and earns nothing**. `MISSED_DAY_CREDIT` is gone either way; the
+argument against 50 (it reports a passing day that never happened)
+was what killed it and still stands.
+
+The opt-out is a **declared day off**, which leaves the aggregate
+entirely and can be set on any past day — `isEditable` is
+`date <= today`, with no lock. Recorded as an amendment to
+[ADR-0004 §5](adr/0004-grade-lifecycle-and-aggregation.md). Needed no
+`FORMULA_VERSION` bump. The original reasoning follows.
+
+*Henry, 2026-08-13.* `MISSED_DAY_CREDIT = 0.5` is not merely generous,
+it **collides with the scale above**: 50 is defined as "you did the
+basic things and passed," and a day the user never opened is scored at
+exactly that. The fill silently asserts the one thing it has no
+evidence for.
+
+The counter-argument is real and is written into `periodDays`: drop
+missed days entirely and a week with four good days and three ignored
+ones grades like a flawless four-day week, so skipping becomes free.
+Three ways out, none chosen:
+
+- **True N/A** — `{0, 0}`, excluded exactly like a day off. Matches
+  the request most literally; makes skipping free. Probably needs a
+  companion signal (days-graded count shown beside the grade) so an
+  aggregate can't quietly rest on two days.
+- **Half weight, no credit** — `{0, dailyPossible / 2}`. The
+  alternative `MISSED_DAY_CREDIT`'s own comment already names. A
+  missed day drags, at half force, and can never *pay* you.
+- **Full weight, no credit** — `{0, dailyPossible}`. Honest and harsh;
+  probably too harsh for a product whose first invariant is that it
+  never shames.
+
+**Cheap to change, and seam-free.** `MISSED_DAY_CREDIT` is not part of
+weight derivation, so moving it does **not** bump `FORMULA_VERSION` —
+the constant says so explicitly. It only affects how finished days
+aggregate, so unlike the rest of this section it could ship on its own
+without adding a version boundary to history.

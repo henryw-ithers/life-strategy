@@ -5,7 +5,7 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
-import { specialDayBonus, weekStart, type Grade } from "@glide/scoring";
+import { specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -41,6 +41,8 @@ import {
   addPhoto,
   currentLocalDate,
   deleteActivity,
+  deleteJournalEntry,
+  deletePhoto,
   editWindowDays,
   loadDay,
   loadCalendarGrades,
@@ -48,6 +50,7 @@ import {
   setDayKind,
   toggleCompletion,
   updateActivity,
+  updateJournalEntry,
   type DayData,
   type MonthDay,
   type TodayActivity,
@@ -55,7 +58,7 @@ import {
 } from "../../db/today";
 import { spokenDate } from "../../lib/format";
 import { syncDailyNudge } from "../../notifications/dailyNudge";
-import { getTheme, type ThemeTokens } from "../../theme/colors";
+import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 
 type SectionKey = "everyDay" | "thisWeek" | "doneWeek" | "completed";
@@ -73,7 +76,7 @@ export default function TodayScreen() {
    *  a date = the user navigated somewhere in the edit window. */
   const [selected, setSelected] = useState<string | null>(null);
   const [day, setDay] = useState<DayData | null>(null);
-  const [weekGrade, setWeekGrade] = useState<Grade | null>(null);
+  const [weekGrade, setWeekGrade] = useState<PeriodGrade | null>(null);
   const [monthGrades, setMonthGrades] = useState<Map<string, MonthDay>>(new Map());
   const [monthOpen, setMonthOpen] = useState(false);
   /** Null = the month containing today. Set by the calendar's arrows;
@@ -82,6 +85,11 @@ export default function TodayScreen() {
   const [kindSheet, setKindSheet] = useState(false);
   const [activitySheet, setActivitySheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
+  /** Set while the note sheet is rewriting an existing entry rather
+   *  than writing a new one. */
+  const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(
+    null,
+  );
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
   const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
     everyDay: false,
@@ -330,12 +338,22 @@ export default function TodayScreen() {
 
             {/* Days count once they're over (ADR-0004 §5 / periodDays),
                 so today is not in this number yet — say so rather than
-                let a completed task appear to do nothing. */}
+                let a completed task appear to do nothing.
+
+                The day count is not decoration: an unrecorded day is no
+                longer graded at all, so this average can stand on two
+                days as easily as seven. Stating what it rests on is
+                what keeps it honest. */}
             {weekGrade?.base !== null && weekGrade?.base !== undefined ? (
               <AppText variant="caption" color={theme.muted} style={styles.weekStat}>
                 {weekStart(day.date) === weekStart(day.today)
                   ? `This week, through yesterday · ${weekGrade.base}%`
                   : `That week · ${weekGrade.base}%`}
+                {weekGrade.gradedDays > 0
+                  ? ` · ${weekGrade.gradedDays} ${
+                      weekGrade.gradedDays === 1 ? "day" : "days"
+                    }`
+                  : ""}
               </AppText>
             ) : null}
 
@@ -387,7 +405,20 @@ export default function TodayScreen() {
                 the log leads; below them on today, where doing leads. ── */}
             {!isToday ? (
               <>
-                <DayRecord day={day} theme={theme} />
+                <DayRecord
+                  day={day}
+                  theme={theme}
+                  onEditNote={(note) => {
+                    setEditingNote(note);
+                    setNoteSheet(true);
+                  }}
+                  onDeleteNote={(id) => {
+                    void deleteJournalEntry(id).then(() => reload(day.date));
+                  }}
+                  onDeletePhoto={(id) => {
+                    void deletePhoto(id).then(() => reload(day.date));
+                  }}
+                />
                 {canRecord ? recordActions : null}
               </>
             ) : null}
@@ -533,7 +564,20 @@ export default function TodayScreen() {
                 without pushing today's tasks down). ── */}
             {isToday ? (
               <>
-                <DayRecord day={day} theme={theme} />
+                <DayRecord
+                  day={day}
+                  theme={theme}
+                  onEditNote={(note) => {
+                    setEditingNote(note);
+                    setNoteSheet(true);
+                  }}
+                  onDeleteNote={(id) => {
+                    void deleteJournalEntry(id).then(() => reload(day.date));
+                  }}
+                  onDeletePhoto={(id) => {
+                    void deletePhoto(id).then(() => reload(day.date));
+                  }}
+                />
                 {canRecord ? recordActions : null}
               </>
             ) : null}
@@ -559,13 +603,22 @@ export default function TodayScreen() {
 
       {day ? (
         <>
+          {/* One sheet, both jobs: blank to add, seeded to rewrite.
+              `editingNote` is what tells them apart. */}
           <NoteSheet
             visible={noteSheet}
             dayLabel={isToday ? "today" : spokenDate(day.date).split(",")[0] ?? day.date}
+            initialBody={editingNote?.body}
             theme={theme}
-            onClose={() => setNoteSheet(false)}
+            onClose={() => {
+              setNoteSheet(false);
+              setEditingNote(null);
+            }}
             onCommit={(body) => {
-              void addJournalEntry(day.date, body).then(() => reload(day.date));
+              const write = editingNote
+                ? updateJournalEntry(editingNote.id, body)
+                : addJournalEntry(day.date, body);
+              void write.then(() => reload(day.date));
             }}
           />
           <DayKindSheet
@@ -613,9 +666,31 @@ export default function TodayScreen() {
 /** The day's journal notes and photos. Rendered before the checklist
  *  on past days (the log leads) and after it on today (feedback).
  *  Tapping a photo opens it full-screen; tap again to close. */
-function DayRecord({ day, theme }: { day: DayData; theme: ThemeTokens }) {
+/** What a long press opened the options for. */
+type RecordTarget =
+  | { kind: "note"; id: string; body: string }
+  | { kind: "photo"; id: string };
+
+function DayRecord({
+  day,
+  theme,
+  onEditNote,
+  onDeleteNote,
+  onDeletePhoto,
+}: {
+  day: DayData;
+  theme: ThemeTokens;
+  onEditNote: (note: { id: string; body: string }) => void;
+  onDeleteNote: (id: string) => void;
+  onDeletePhoto: (id: string) => void;
+}) {
   const [viewing, setViewing] = useState<string | null>(null);
   const [missingPhotos, setMissingPhotos] = useState<Set<string>>(new Set());
+  /** Long-press target. Press-and-hold rather than a visible control
+   *  per item: the record is meant to read as a record, and a row of
+   *  edit/delete glyphs beside every note would make it read as a
+   *  list of things to manage. */
+  const [target, setTarget] = useState<RecordTarget | null>(null);
   if (day.journal.length === 0 && day.photos.length === 0) return null;
   return (
     <View style={[styles.band, { borderTopColor: theme.hairline }]}>
@@ -629,8 +704,18 @@ function DayRecord({ day, theme }: { day: DayData; theme: ThemeTokens }) {
               <Pressable
                 key={p.id}
                 onPress={() => setViewing(p.uri)}
+                onLongPress={() => {
+                  void Haptics.selectionAsync();
+                  setTarget({ kind: "photo", id: p.id });
+                }}
+                delayLongPress={350}
                 accessibilityRole="imagebutton"
                 accessibilityLabel={p.caption ?? "Photo from this day. Opens full screen."}
+                accessibilityHint="Press and hold to delete"
+                accessibilityActions={[{ name: "magicTap", label: "Delete photo" }]}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === "magicTap") onDeletePhoto(p.id);
+                }}
                 style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
               >
                 <Image
@@ -657,10 +742,93 @@ function DayRecord({ day, theme }: { day: DayData; theme: ThemeTokens }) {
         </ScrollView>
       ) : null}
       {day.journal.map((j) => (
-        <AppText key={j.id} color={theme.ink}>
-          {j.body}
-        </AppText>
+        <Pressable
+          key={j.id}
+          onLongPress={() => {
+            void Haptics.selectionAsync();
+            setTarget({ kind: "note", id: j.id, body: j.body });
+          }}
+          delayLongPress={350}
+          accessibilityRole="button"
+          accessibilityLabel={j.body}
+          accessibilityHint="Press and hold to edit or delete this note"
+          // Screen readers cannot long-press, so the same two actions
+          // are exposed as accessibility actions.
+          accessibilityActions={[
+            { name: "activate", label: "Edit note" },
+            { name: "magicTap", label: "Delete note" },
+          ]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "activate") {
+              onEditNote({ id: j.id, body: j.body });
+            }
+            if (e.nativeEvent.actionName === "magicTap") onDeleteNote(j.id);
+          }}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <AppText color={theme.ink}>{j.body}</AppText>
+        </Pressable>
       ))}
+
+      {/* Options for whatever was held. Deliberately a plain sheet
+          rather than a destructive-action confirm: deleting one note
+          is small and the alternative is a two-step flow on the most
+          common case. */}
+      <Modal
+        visible={target !== null}
+        transparent
+        statusBarTranslucent
+        animationType="fade"
+        onRequestClose={() => setTarget(null)}
+      >
+        <Pressable
+          style={styles.menuBackdrop}
+          onPress={() => setTarget(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <View
+            style={[
+              styles.menuCard,
+              { backgroundColor: theme.canvas, borderColor: theme.hairline },
+            ]}
+          >
+            {target?.kind === "note" ? (
+              <Pressable
+                onPress={() => {
+                  const t = target;
+                  setTarget(null);
+                  onEditNote({ id: t.id, body: t.body });
+                }}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+              >
+                <AppText color={theme.ink}>Edit</AppText>
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                const t = target;
+                setTarget(null);
+                if (!t) return;
+                if (t.kind === "note") onDeleteNote(t.id);
+                else onDeletePhoto(t.id);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+            >
+              <AppText color={theme.danger}>Delete</AppText>
+            </Pressable>
+            <Pressable
+              onPress={() => setTarget(null)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+            >
+              <AppText color={theme.muted}>Cancel</AppText>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={viewing !== null}
@@ -790,6 +958,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: space.xs,
+  },
+  /** Centred card, and the backdrop is the dismiss target. */
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: space.screen,
+  },
+  menuCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space.xs,
+  },
+  menuRow: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
   photoViewer: {
     flex: 1,
