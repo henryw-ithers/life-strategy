@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -129,15 +129,16 @@ export function PastDaySheet({
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={`${MONTH_SHORT[mo.m - 1]} ${mo.y}`}
-                style={[
+                style={({ pressed }) => [
                   styles.monthChip,
+                  pressed && { opacity: 0.7 },
                   {
-                    backgroundColor: on ? accent : theme.surface,
+                    backgroundColor: on ? wash(accent, theme) : theme.surface,
                     borderColor: on ? accent : theme.hairline,
                   },
                 ]}
               >
-                <AppText variant="caption" color={on ? theme.onAccent : theme.ink}>
+                <AppText variant="caption" color={theme.ink}>
                   {MONTH_SHORT[mo.m - 1]}
                 </AppText>
               </Pressable>
@@ -156,17 +157,18 @@ export function PastDaySheet({
                   accessibilityRole="radio"
                   accessibilityState={{ selected: on }}
                   accessibilityLabel={`${d} ${MONTH_SHORT[sel.m - 1]}`}
-                  style={[
+                  style={({ pressed }) => [
                     styles.dayChip,
+                    pressed && { opacity: 0.7 },
                     {
-                      backgroundColor: on ? accent : theme.surface,
+                      backgroundColor: on ? wash(accent, theme) : theme.surface,
                       borderColor: on ? accent : "transparent",
                     },
                   ]}
                 >
                   <AppText
                     variant="caption"
-                    color={on ? theme.onAccent : theme.ink}
+                    color={theme.ink}
                     tabular
                   >
                     {d}
@@ -207,7 +209,7 @@ const styles = StyleSheet.create({
   monthRow: { flexDirection: "row", gap: space.sm },
   monthChip: {
     flex: 1,
-    height: 40,
+    height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",
@@ -219,8 +221,8 @@ const styles = StyleSheet.create({
     // Seven across at any phone width, without a breakpoint.
     flexGrow: 1,
     flexBasis: "11%",
-    minWidth: 40,
-    height: 40,
+    minWidth: 44,
+    height: 44,
     borderRadius: radius.sm,
     borderWidth: 1.5,
     alignItems: "center",

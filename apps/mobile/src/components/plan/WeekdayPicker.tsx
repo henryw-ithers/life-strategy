@@ -12,7 +12,7 @@
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import type { ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import {
@@ -58,9 +58,12 @@ export function WeekdayPicker({
             style={({ pressed }) => [
               styles.chip,
               {
-                backgroundColor: on ? accent : theme.surface,
+                // A wash with an Ink label, not a solid hue with
+                // `onAccent`: four of the six area hues fail AA behind
+                // small text in light theme. See `wash`.
+                backgroundColor: on ? wash(accent, theme) : theme.surface,
                 borderColor: on ? accent : theme.hairline,
-                opacity: pressed ? 0.65 : 1,
+                opacity: pressed ? 0.7 : 1,
               },
               // Nudges the row's outer chips to the gutter without a
               // wrapper, so the seven stay evenly divided.
@@ -70,7 +73,7 @@ export function WeekdayPicker({
           >
             <AppText
               variant="label"
-              color={on ? theme.onAccent : theme.muted}
+              color={on ? theme.ink : theme.muted}
               style={styles.letter}
             >
               {WEEKDAY_LETTER[day]}

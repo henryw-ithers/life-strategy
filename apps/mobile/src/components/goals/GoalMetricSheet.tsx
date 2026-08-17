@@ -22,7 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MetricKind } from "@glide/scoring";
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -172,15 +172,16 @@ export function GoalMetricSheet({
                     accessibilityRole="radio"
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={`${k.label}. ${k.hint}`}
-                    style={[
+                    style={({ pressed }) => [
                       styles.kindRow,
+                      pressed && { opacity: 0.7 },
                       {
                         backgroundColor: theme.surface,
                         borderColor: on ? accent : "transparent",
                       },
                     ]}
                   >
-                    <AppText variant="label" color={on ? accent : theme.ink}>
+                    <AppText variant="label" color={on ? theme.accent : theme.ink}>
                       {k.label}
                     </AppText>
                     <AppText variant="footnote" color={theme.muted}>
@@ -251,8 +252,9 @@ export function GoalMetricSheet({
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on }}
                       accessibilityLabel={`Count ${t.title}`}
-                      style={[
+                      style={({ pressed }) => [
                         styles.taskRow,
+                        pressed && { opacity: 0.7 },
                         {
                           backgroundColor: theme.surface,
                           borderColor: on ? accent : "transparent",
@@ -261,7 +263,7 @@ export function GoalMetricSheet({
                     >
                       <AppText
                         variant="label"
-                        color={on ? accent : theme.ink}
+                        color={on ? theme.accent : theme.ink}
                         numberOfLines={1}
                       >
                         {t.title}
@@ -289,7 +291,7 @@ export function GoalMetricSheet({
                     accessibilityLabel="Clear the deadline"
                     hitSlop={8}
                   >
-                    <AppText variant="caption" color={accent}>
+                    <AppText variant="caption" color={theme.accent}>
                       Clear
                     </AppText>
                   </Pressable>
@@ -305,15 +307,16 @@ export function GoalMetricSheet({
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on }}
                       accessibilityLabel={String(y)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.yearChip,
+                        pressed && { opacity: 0.7 },
                         {
-                          backgroundColor: on ? accent : theme.surface,
+                          backgroundColor: on ? wash(accent, theme) : theme.surface,
                           borderColor: on ? accent : theme.hairline,
                         },
                       ]}
                     >
-                      <AppText variant="caption" color={on ? theme.onAccent : theme.ink} tabular>
+                      <AppText variant="caption" color={theme.ink} tabular>
                         {y}
                       </AppText>
                     </Pressable>
@@ -331,15 +334,16 @@ export function GoalMetricSheet({
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on }}
                       accessibilityLabel={`${label} ${year}`}
-                      style={[
+                      style={({ pressed }) => [
                         styles.monthChip,
+                        pressed && { opacity: 0.7 },
                         {
-                          backgroundColor: on ? accent : theme.surface,
+                          backgroundColor: on ? wash(accent, theme) : theme.surface,
                           borderColor: on ? accent : "transparent",
                         },
                       ]}
                     >
-                      <AppText variant="caption" color={on ? theme.onAccent : theme.ink}>
+                      <AppText variant="caption" color={theme.ink}>
                         {label}
                       </AppText>
                     </Pressable>
@@ -410,7 +414,7 @@ const styles = StyleSheet.create({
   yearRow: { flexDirection: "row", gap: space.sm },
   yearChip: {
     flex: 1,
-    height: 40,
+    height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
     // Four across at any phone width, without a breakpoint.
     flexGrow: 1,
     flexBasis: "22%",
-    height: 40,
+    height: 44,
     borderRadius: radius.sm,
     borderWidth: 1.5,
     alignItems: "center",

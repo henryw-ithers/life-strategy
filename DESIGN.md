@@ -181,6 +181,37 @@ Six categorical hues, one per Strategic Life Area, each lifted in lightness (not
   rows, so a rename is a label change and the hue travels with it)
 - **Violet** (`#7d5fad` / `#ab8be3`) — Leisure & Creativity
 
+**Area hues are identity, not text, and not a fill behind text.** They
+are tuned as *bubbles, pips, borders and washes*, and in the light
+theme four of the six fall under 4.5:1 against canvas or surface.
+Measured, light theme, hue as small text or as a solid fill behind
+`onAccent`:
+
+| Hue | on canvas | on surface |
+|---|---|---|
+| Teal (Mental wellbeing) | 5.13 ✅ | 4.51 ✅ |
+| Violet (Leisure) | 5.11 ✅ | 4.50 ❌ |
+| Blue (Work & money) | 4.85 ✅ | 4.27 ❌ |
+| Rose (Relationships) | 4.57 ✅ | 4.03 ❌ |
+| Green (Physical health) | 3.78 ❌ | 3.33 ❌ |
+| Amber (Wellness) | 3.16 ❌ | 2.78 ❌ |
+
+Dark theme clears AA on all six (6.6:1 and up), so this is a
+light-theme constraint only.
+
+**So:** a selectable chip, segment, or row uses `wash(hue, theme)`
+(`theme/colors.ts`) with an **Ink** label — 12% in light, 18% in dark,
+the same alphas the Tonal button uses. Never a solid hue behind small
+text. Ink on a wash never drops below 13.9:1 in either theme. Inline
+*action* text is the brand teal, never the area hue.
+
+⚠️ **Known gap, not yet resolved:** `Button`'s primary variant renders
+its label in `onAccent` at Headline size on whatever fill it is given,
+and several screens pass an area hue. On Green and Amber that is 3.78:1
+and 3.16:1. It predates the 2026-08-16 polish pass and is app-wide, so
+it wants a deliberate decision — restrict primary fills to the accent,
+or give the variant a wash treatment — rather than a per-screen patch.
+
 ### Neutral
 - **Canvas** (`#ffffff` / `#070707`): the base screen fill. Pure white or pure near-black — never tinted toward any hue.
 - **Surface** (`#eef1f1` / `#111416`): the one step of tonal lift above canvas — cards, dial tracks, secondary buttons.

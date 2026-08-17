@@ -17,7 +17,7 @@
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import type { ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { ANYTIME_LABEL, PART_OF_DAY_LABEL, PART_OF_DAY_ORDER, type PartOfDay } from "./planning";
@@ -53,14 +53,22 @@ export function PartOfDayPicker({
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             accessibilityLabel={label}
-            style={[
+            style={({ pressed }) => [
               styles.segment,
-              on && { backgroundColor: accent },
+              pressed && { opacity: 0.7 },
+              // A wash plus a hairline, so the selected segment reads
+              // as raised out of the groove without putting caption
+              // text on a hue that can't carry it (see `wash`).
+              on && {
+                backgroundColor: wash(accent, theme),
+                borderColor: accent,
+                borderWidth: 1,
+              },
             ]}
           >
             <AppText
               variant="caption"
-              color={on ? theme.onAccent : theme.muted}
+              color={on ? theme.ink : theme.muted}
               numberOfLines={1}
               style={styles.label}
             >
@@ -84,7 +92,8 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    height: 38,
+    // 44 is the HIG floor for a tappable control.
+    height: 44,
     borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",

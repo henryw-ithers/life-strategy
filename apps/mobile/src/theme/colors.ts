@@ -94,6 +94,26 @@ export function getTheme(name: ThemeName): ThemeTokens {
 const GRADE_RAMP_LIGHT = ["#c2453c", "#c07a2b", "#a38f1f", "#4a925c", "#31a352", "#2b7fdd"];
 const GRADE_RAMP_DARK = ["#ef7a6d", "#e59a4a", "#d9c04b", "#6fc082", "#52d97e", "#58b0ff"];
 
+/**
+ * A hue as a selectable surface: 12% on the light canvas, 18% on the
+ * dark one, which swallows the lighter tint (DESIGN.md, Tonal button).
+ *
+ * **Pair it with an Ink label, never `onAccent` on the solid hue.**
+ * Four of the six area hues fall under 4.5:1 in light theme when used
+ * as a fill behind small text — Physical health lands at 3.78:1 and
+ * Wellness at 3.16:1 — so a solid-fill chip is an AA failure for a
+ * third of the taxonomy. On a wash, Ink never drops below 13.9:1 in
+ * either theme.
+ *
+ * DESIGN.md states the underlying rule twice: the tonal button's label
+ * "is Ink, never `accent`", and the calendar ramp's numerals render in
+ * Ink "because the mid-band hues sit under 4.5:1 at footnote size".
+ * This is that rule, shared rather than retyped.
+ */
+export function wash(hue: string, theme: ThemeTokens): string {
+  return `${hue}${theme.name === "dark" ? "2e" : "1f"}`;
+}
+
 export function gradeColor(grade: number, theme: ThemeTokens): string {
   const ramp = theme.name === "dark" ? GRADE_RAMP_DARK : GRADE_RAMP_LIGHT;
   const band =

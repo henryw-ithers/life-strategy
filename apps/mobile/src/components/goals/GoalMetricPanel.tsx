@@ -20,7 +20,7 @@ import {
   type Streak,
 } from "@glide/scoring";
 import type { GoalMilestone, GoalProgressEntry } from "../../db/goals";
-import type { ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -141,7 +141,7 @@ export function GoalMetricPanel({
           accessibilityLabel="Edit how this goal is measured"
           hitSlop={8}
         >
-          <AppText variant="caption" color={accent}>
+          <AppText variant="caption" color={theme.accent}>
             Edit
           </AppText>
         </Pressable>
@@ -158,7 +158,7 @@ export function GoalMetricPanel({
             {days(streak?.current ?? 0)}
           </AppText>
           {atBest ? (
-            <AppText variant="label" color={accent}>
+            <AppText variant="label" color={theme.accent}>
               Your longest run so far.
             </AppText>
           ) : null}
@@ -204,7 +204,7 @@ export function GoalMetricPanel({
           state it has (decided 2026-08-16). */}
       {state?.met && editable ? (
         <View style={styles.invite}>
-          <AppText variant="label" color={accent}>
+          <AppText variant="label" color={theme.accent}>
             Target reached.
           </AppText>
           <Button
@@ -215,7 +215,7 @@ export function GoalMetricPanel({
           />
         </View>
       ) : state?.met ? (
-        <AppText variant="label" color={accent}>
+        <AppText variant="label" color={theme.accent}>
           Target reached.
         </AppText>
       ) : null}
@@ -281,12 +281,14 @@ export function GoalMetricPanel({
             style={({ pressed }) => [
               styles.addButton,
               {
-                backgroundColor: accent,
+                backgroundColor: wash(accent, theme),
+                borderColor: accent,
+                borderWidth: 1,
                 opacity: !canAdd ? 0.35 : pressed ? 0.7 : 1,
               },
             ]}
           >
-            <AppText variant="label" color={theme.onAccent}>
+            <AppText variant="label" color={theme.ink}>
               Log
             </AppText>
           </Pressable>

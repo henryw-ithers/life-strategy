@@ -28,7 +28,7 @@ import { useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -115,13 +115,13 @@ export function CompletionTagSheet({
                 style={({ pressed }) => [
                   styles.chip,
                   {
-                    backgroundColor: on ? hue : theme.surface,
+                    backgroundColor: on ? wash(hue, theme) : theme.surface,
                     borderColor: on ? hue : theme.hairline,
-                    opacity: pressed ? 0.65 : 1,
+                    opacity: pressed ? 0.7 : 1,
                   },
                 ]}
               >
-                <AppText variant="label" color={on ? theme.onAccent : theme.ink}>
+                <AppText variant="label" color={theme.ink}>
                   {u.name}
                 </AppText>
               </Pressable>
