@@ -1,14 +1,18 @@
 /**
- * The daily nudge's copy pool (ADR-0010 §3). Generic only — never a
- * task name, unit name, or count, and every line must read equally
- * well on a good day or a bad one (the ambient-kindness test,
- * ADR-0008). One is picked at random per schedule.
+ * GENERATED FILE — DO NOT EDIT.
+ *
+ * Source: docs/content/notifications.md
+ * Regenerate: npm run content:build
+ *
+ * Edits here are lost on the next build, and `npm run content:check`
+ * fails the moment this file and its source disagree.
  */
+
 export const NOTIFICATION_COPY: readonly string[] = [
   "Today's list is ready.",
   "Your day's checklist is waiting, whenever works.",
   "A few minutes for today's list.",
-  "Today's checklist — take a look when you're ready.",
+  "Today's checklist — take a look when you're ready."
 ];
 
 export function randomNotificationLine(): string {

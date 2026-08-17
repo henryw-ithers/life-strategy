@@ -1,7 +1,7 @@
 # Content inventory — every string, and where to edit it
 
 A map of all written content in the app: what it is, where it is
-defined, and where the user sees it. Written so a copy edit starts with
+edited, and where the user sees it. Written so a copy edit starts with
 a lookup rather than a grep.
 
 Companion doc: [library-outline.md](library-outline.md) is the writing
@@ -14,24 +14,44 @@ one.* If it would land differently, rewrite it.
 
 ---
 
-## 1. Centralised content — edit in one place
+## 1. The content pipeline — edit the markdown, not the code
 
-These four files are the whole of the app's *editable content layer*.
-Everything in them is data, not markup, and changing a string here
-changes it everywhere it appears.
+Four docs in this folder are the **source of truth**. Editing one and
+running the build regenerates its TypeScript counterpart, which carries
+a DO-NOT-EDIT banner and is overwritten on every build.
 
-| Content | File | Shown in | Decided by |
+```bash
+npm run content:build
+```
+
+| Edit this | Generates | Shown in | Decided by |
 |---|---|---|---|
-| **Unit descriptions & guidelines** (18 units) | `src/content/units.ts` | `UnitInfoSheet` — reachable from the diagnostic, Plan, and anywhere a unit is rated | ADR-0006 §1 |
-| **Daily nudge pool** (4 lines) | `src/content/notificationCopy.ts` | The one daily notification | ADR-0010 §3 |
-| **Activity keyword map** (18 units) | `src/content/tagKeywords.ts` | Tag suggestions in `ActivitySheet` when logging an activity | ADR-0009 §1 |
-| **Area & unit names** (6 + 18) | `src/db/taxonomy.ts` | Everywhere — checklist grouping, Plan, Goals, the portfolio graph and its legend | vision.md taxonomy |
+| **[units.md](units.md)** — 18 descriptions & guidelines | `src/content/units.ts` | `UnitInfoSheet` — from the diagnostic, Plan, and anywhere a unit is rated | ADR-0006 §1 |
+| **[library.md](library.md)** — goal & task templates | `src/content/library.ts` | The starter plan and per-unit suggestions | ADR-0006 §1–2 |
+| **[notifications.md](notifications.md)** — the nudge pool | `src/content/notificationCopy.ts` | The one daily notification | ADR-0010 §3 |
+| **[keywords.md](keywords.md)** — activity keyword map | `src/content/tagKeywords.ts` | Tag suggestions in `ActivitySheet` | ADR-0009 §1 |
+
+The generated files are **committed**, because Metro has no build step
+to hang codegen off and a bundler shelling out to a parser is a worse
+trade than a file in git. `npm test` runs `content:check` first, so the
+two halves cannot drift silently — that is the failure mode every
+codegen setup dies of.
+
+`content:build` also reports progress against ADR-0006 §4's launch bar
+and refuses to generate a task under a communal unit (ADR-0025 §5).
+
+### Still hand-written
+
+| Content | File | Why it isn't generated |
+|---|---|---|
+| **Area & unit names** (6 + 18) | `src/db/taxonomy.ts` | Structure, not content — ids are load-bearing and the seed sync reads them at launch |
 
 ⚠️ **`taxonomy.ts` ids are load-bearing and names are not.** Renaming a
 unit is a label change and safe. Changing an **id** orphans every
-rating, weight, task, and snapshot that references it. Units that
-continue a life dimension keep their id across revisions — which is why
-Wellness still carries the `home-environment` id.
+rating, weight, task, and snapshot that references it — *and* silently
+detaches its entry in every doc above, since those are keyed by id.
+Units that continue a life dimension keep their id across revisions,
+which is why Wellness still carries the `home-environment` id.
 
 ---
 
@@ -43,7 +63,7 @@ record, the file is the behaviour.
 
 | Content | Guide section | Implemented in |
 |---|---|---|
-| Daily nudge pool | Daily nudge pool | `src/content/notificationCopy.ts` |
+| Daily nudge pool | Daily nudge pool | **[notifications.md](notifications.md)** → generated |
 | Check-in prompt | Calibration copy | `src/app/calibration.tsx` |
 | Calibration cold-start line | Calibration copy | `src/app/calibration.tsx` |
 | Insight lines (higher / lower / aligned) | Calibration copy | `src/app/calibration.tsx` |
@@ -99,11 +119,11 @@ the Skia charts.
 
 ## 4. Not yet written
 
-| Content | Amount | Brief | Blocks |
+| Content | Amount | Write it in | Blocks |
 |---|---|---|---|
-| Goal templates | 54–90 | [library-outline.md §5](library-outline.md) | ADR-0006 §4 launch bar |
-| Task templates | 90–150 (15 units) | [library-outline.md §5](library-outline.md) | ADR-0006 §4 launch bar |
-| Editorial notes | 7 units | [library-outline.md §6](library-outline.md) | ADR-0025 §13 |
+| Goal templates | 54–90 | **[library.md](library.md)** | ADR-0006 §4 launch bar |
+| Task templates | 90–150 (15 units) | **[library.md](library.md)** | ADR-0006 §4 launch bar |
+| Editorial notes | 7 units | not yet wired — see [library-outline.md §6](library-outline.md) | ADR-0025 §13 |
 | Part-of-day section labels | 4 | ADR-0024 §3 | Checklist regroup |
 | "· not scored" treatment | 1 | ADR-0025 §5 | Excluded-unit task rows |
 | Progress & deadline copy | small set | ADR-0015 §§2–5 | Metric goals |

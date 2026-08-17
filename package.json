@@ -15,7 +15,9 @@
   },
   "scripts": {
     "postinstall": "patch-package",
-    "test": "npm run test -w packages/scoring && npm run test -w packages/backup && npm run test -w apps/mobile",
+    "content:build": "node scripts/content/build.mjs",
+    "content:check": "node scripts/content/build.mjs --check",
+    "test": "npm run content:check && npm run test -w packages/scoring && npm run test -w packages/backup && npm run test -w apps/mobile",
     "typecheck": "npm run typecheck -w packages/scoring && npm run typecheck -w packages/backup && npm run typecheck -w apps/mobile",
     "mobile": "npm run start -w apps/mobile",
     "build:ios": "npm run eas:build -w apps/mobile",

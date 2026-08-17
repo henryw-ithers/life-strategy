@@ -5,8 +5,10 @@ whose action item 2 is the largest unwritten thing in the product.
 ADR-0006 §4 makes this a **launch deliverable with the same weight as
 code** — v1 does not ship until the bar in §3 below is met.
 
-Companion doc: [inventory.md](inventory.md) lists every string the app
-already displays and where to edit it.
+**Write it in [library.md](library.md)**, which is the source of truth —
+`npm run content:build` turns it into typed data, validates it, and
+prints what is still short of the bar. Companion doc:
+[inventory.md](inventory.md) maps every string the app displays.
 
 ## 1. What the package is
 
@@ -71,9 +73,10 @@ templates and ≥6 tasks, across all three profile tags*.
 
 ## 4. The shape of an entry
 
-ADR-0006 action item 1 asks for the package schema. This is it —
-proposed here so the writing has a fixed target; it lands in
-`apps/mobile/src/content/` as typed data, not JSON on disk.
+ADR-0006 action item 1 asked for the package schema. **This is it, and
+it is built** — the types below are generated into
+`apps/mobile/src/content/library.ts` from [library.md](library.md),
+whose header documents the markdown fields that map onto them.
 
 ```ts
 type Profile = "gap-closing" | "maintenance" | "light";
