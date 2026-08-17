@@ -564,34 +564,28 @@ history that cannot be re-derived. Worth batching with ADR-0008's
 calibration data, which is the instrument that can actually say
 whether the number tracks how the day felt — which is the complaint.
 
-**2026-08-16: a second change now waits on this same batch.**
-[ADR-0025 §12](adr/0025-communal-units-are-dimensions.md)
-deferred restoring **fill-first activity credit** here rather than
-shipping it alone. vision.md still describes fill-first ("activity
-credit first *fills* the tagged units' unearned planned points") while
-`packages/scoring/src/grade.ts` implements ADR-0023's flat capped pool
-— so **vision.md is known-stale on this point** and should not be read
-as describing shipped behaviour until this batch lands. It was briefly
-decided the same day, on the argument that communal units needed to
-earn against their own weight; ADR-0025 §3 then supplied that a
-different way (their weight is exempt from reallocation, and one tag
-earns it), which dissolved the reason. What remains is the weaker
-instrumental case — golf standing in for a skipped workout — which
-does not justify a `FORMULA_VERSION` bump on its own.
+**2026-08-16: fill-first was briefly queued here, and is now closed.**
+Restoring it was decided on the reading that vision.md described
+intended behaviour and the code had drifted. That was backwards —
+ADR-0023 removed fill-first *on purpose*, and vision.md was simply
+never updated. Building it proved the point: a day with no planned work
+done and two activities logged scored **100**. vision.md has been
+corrected; ADR-0023 stands as written. See
+[ADR-0025 §12](adr/0025-communal-units-are-dimensions.md).
 
 **2026-08-16: the batch ran, and only one of the three shipped.**
 
 - **Communal weight — shipped as `FORMULA_VERSION` 6.** Landed as a
   *definition* rather than an exemption: a communal unit is covered,
   because tagging is always available to it. ADR-0003 §5 amended.
-- **Fill-first — built and pulled.** It scored a day with no planned
-  work done and two activities logged at **100**, which is the failure
-  ADR-0023 exists to prevent and a plain contradiction of AGENTS.md's
-  cap invariant. The live question is now sharper than "restore it":
-  *is credit that substitutes for planned work still unplanned?*
-  ADR-0023 says yes, vision.md says no, and whichever wins the answer
-  needs a bound — unbounded fill makes `UNPLANNED_CAP` decorative.
-  vision.md stays known-stale until that is settled.
+- **Fill-first — built, pulled, and now closed for good.** It scored a
+  day with no planned work done and two activities logged at **100**,
+  which is the failure ADR-0023 exists to prevent. The premise behind
+  restoring it turned out to be backwards: ADR-0023 *deliberately*
+  removed fill-first and vision.md was simply never updated, so there
+  was no drift to correct and no question to answer. **vision.md is now
+  fixed** — along with two other passages the same version left stale
+  (special-day grading, and rest days). ADR-0023 stands as written.
 - **The daily denominator — untouched**, because it was never decided.
   The four directions below are still four directions.
 

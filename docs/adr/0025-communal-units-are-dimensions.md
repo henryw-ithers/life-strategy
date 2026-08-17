@@ -338,31 +338,30 @@ Fill-first retains an independent case for instrumental units — golf
 standing in for a skipped workout — but that does not by itself justify
 a fourth `FORMULA_VERSION` in a fortnight.
 
-**Deferred to the parked "daily number is too generous" retune**
-([backburner.md](../backburner.md)). vision.md's activity-credit
-paragraph is **known-stale until then** and must not be read as
-describing shipped behaviour.
+*Superseded by the note below — vision.md was the stale half, and the
+code was right all along.*
 
-> **Built and pulled, 2026-08-16.** Fill-first went into the v6 batch
-> and came straight back out. Implementing it made the conflict
-> measurable: with a task worth 40 points uncompleted and two
-> activities logged against its unit, the day scored **100 with no
-> planned work done at all**. That is the exact failure ADR-0023 was
-> written from — Henry "scoring 100+ while skipping his routines" — and
-> it contradicts AGENTS.md's invariant in as many words: *at most
-> `UNPLANNED_CAP` points of a day may come from anything the user
-> didn't plan.*
+> **Closed, 2026-08-16: fill-first is not coming back, and this was
+> never a live question.** It went into the v6 batch and came straight
+> back out. Implementing it made the conflict measurable: with a task
+> worth 40 points uncompleted and two activities logged against its
+> unit, the day scored **100 with no planned work done at all** — the
+> exact failure ADR-0023 was written from, and a contradiction of
+> AGENTS.md's invariant in as many words. The two existing cap tests in
+> `grade.test.ts` failed on precisely this.
 >
-> The two existing cap tests in `grade.test.ts` failed on exactly this,
-> which is what surfaced it.
+> **The premise behind restoring it was wrong.** The decision rested on
+> "vision.md describes the intended behaviour and the code drifted."
+> The reverse was true: ADR-0023 *deliberately removed* fill-first, and
+> vision.md was simply never updated to match. Henry, on being shown
+> the number: *"the whole point of changing the formula was that I felt
+> it was too easy to just substitute every planned task, and getting a
+> score from stuff you weren't even planning defeats the whole purpose
+> of the app."*
 >
-> **The live question is no longer "restore it or not" but "is filled
-> credit planned work?"** ADR-0023 says an activity is unplanned
-> however well it substitutes; vision.md says credit that stands in for
-> the skipped workout is the same unit's work done differently. Both
-> are defensible and they cannot both hold. Whichever wins, the answer
-> has to be a bound — unbounded fill makes `UNPLANNED_CAP` decorative.
-> **Henry's call, and it now has a number attached to it.**
+> vision.md has been corrected — along with two other passages ADR-0023
+> left stale (special-day grading, and rest days). **ADR-0023 stands
+> unamended**; there is no cap question outstanding.
 
 ### 13. The app explains its thinking — and that is all "autotelic" is
 

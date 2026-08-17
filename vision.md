@@ -227,12 +227,24 @@ with a friend, an afternoon volunteering — **activities** are logged
 in a few taps, tagged to the units they served (up to three), and
 sized quick/normal/big.
 
-Activity credit first *fills* the tagged units' unearned planned
-points — golf can honestly stand in for the workout you skipped — and
-anything beyond that becomes a small visible bonus above 100, capped
-so grades stay meaningful ("92 +6"). The point is to encourage
-actually doing things, and to make people mindful of how their time
-maps onto what they said matters.
+**Activity credit is a bonus, never a substitute.** Everything you
+did without planning it — activities, and a special day's rating —
+draws on one small shared pool, capped, and shows above the day's own
+number ("92 +6"). It cannot replace the plan.
+
+That cap is the whole point, and it was learned the hard way. An
+earlier version let activity credit *fill* a unit's unearned planned
+points, on the theory that golf could honestly stand in for the
+workout you skipped. In real use it made it far too easy to score well
+while skipping the routines the diagnostic had asked for — and a good
+score you got from things you were never planning defeats the purpose
+of the app. **Planned work is what pays**
+([ADR-0023](docs/adr/0023-planned-work-is-what-pays.md)). The one
+uncapped route above 100 is doing more of your own plan.
+
+Logging is still worth doing: it is how the portfolio graph learns
+where your effort actually went, and how you notice the gap between
+your time and what you said mattered.
 
 Activities can also be logged without credit as pure journal lines —
 they're part of the log of your life either way.
@@ -253,9 +265,11 @@ line, and rolling averages — so consistency and drift are both visible.
 
 - The grade measures **consistency of intentional behavior**, not
   productivity or hustle.
-- The grade should never punish planned rest: **rest days** are
+- The grade should never punish planned rest: a **day off** is
   declared (in advance or retroactively) and excluded from aggregates
-  entirely.
+  entirely. An elapsed day you simply never opened is not the same
+  thing — it takes a full denominator and earns nothing, so skipping
+  is never quietly free.
 - Weekly and monthly grades are straight point totals — transparent
   and predictable. Consistency is shown as separate statistics, never
   baked invisibly into the grade.
@@ -273,9 +287,14 @@ presentation stays gentle.
 ### The grade log is a log of your life
 
 Not every day is a task day. **Special days** — a wedding, a summit, a
-day that was entirely its own thing — get a title and note in the log,
-suspend regular tasks, and are graded by how satisfying the day was
-(rated 1–10). Years later, the grade log reads back as a record of a
+day that was entirely its own thing — get a title and a note in the
+log. They are graded like any other day, on the tasks you did, **plus**
+a bonus scaled by how satisfying the day was (rated 1–10) and drawn
+from the same capped pool as activities. The rating used to *be* the
+grade; that let a memorable day score 100 with the checklist untouched,
+which is the same leak the paragraph on activities describes. A day
+where grading isn't a meaningful question is a **day off**, not a
+special day. Years later, the grade log reads back as a record of a
 life, not a spreadsheet of checkboxes: you can scroll to any day and
 see what it was.
 
