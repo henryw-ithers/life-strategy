@@ -96,6 +96,22 @@ export interface DayTaskInput {
 /** One credited activity's tags, in log order. */
 export type ActivityCredit = { unitId: string; pointsCredited: number }[];
 
+/**
+ * A unit that is a **dimension rather than a container** (ADR-0025 §1):
+ * it holds no tasks, so anything may tag it instead.
+ *
+ * It keeps the weight the diagnostic gave it — being task-less does not
+ * make it uncovered, because tagging is always available — and a single
+ * tag anywhere in the day earns that share in full (§3).
+ */
+export interface CommunalUnitInput {
+  unitId: string;
+  /** Its full daily share of the 100. */
+  share: number;
+  /** Tagged today, on a completion or an activity. */
+  tagged: boolean;
+}
+
 export interface DayScoreInput {
   /** `rest` is stored; the UI calls it "Day off" (ADR-0023 §4). */
   kind: "normal" | "rest" | "special";
@@ -109,6 +125,8 @@ export interface DayScoreInput {
   extraRunCredit?: number;
   /** Credited activities, chronological (ADR-0009 §3). */
   activities?: ActivityCredit[];
+  /** Task-less units earned by tagging (ADR-0025 §3). */
+  communalUnits?: CommunalUnitInput[];
 }
 
 /** Points earned out of points possible, plus the rendered grade.
@@ -183,17 +201,23 @@ export function dayShare(pointValue: number, timesPerWeek: number): number {
 }
 
 /**
- * The day's number (ADR-0004 §4 as amended, formula v5): one
+ * The day's number (ADR-0004 §4 as amended, formula v6): one
  * denominator for everything. Each task contributes its per-day share
  * of the weekly commitment to `possible`; any within-goal completion
  * earns its full point value that day and extra runs earn their
  * reduced credit, both without limit.
  *
+ * **Communal units join the denominator directly** (ADR-0025 §3).
+ * They hold no tasks, so being task-less does not make them uncovered
+ * — tagging is always available — and one tag anywhere in the day
+ * earns their share in full.
+ *
  * Everything the user did *not* plan — activity credit, and a special
  * day's rating bonus — draws from one shared pool capped at
  * `UNPLANNED_CAP` (ADR-0023). Credit applies chronologically and
  * truncates at the cap, so the first thing logged is the thing that
- * pays; re-ordering the log can't buy more points.
+ * pays; re-ordering the log can't buy more points. Fill-first was
+ * attempted for v6 and pulled — see the note in the body.
  *
  * Special days are graded like normal days and *add* their rating
  * bonus, rather than replacing the grade with `rating × 10`. A day
@@ -206,18 +230,38 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     return { possible: 0, earned: 0, base: null, unplanned: 0, unplannedForgone: 0 };
   }
 
-  const possible = input.tasks.reduce(
-    (a, t) => a + dayShare(t.pointValue, t.timesPerWeek),
-    0,
-  );
+  const communal = input.communalUnits ?? [];
+
+  // Communal units hold no tasks, so their share joins the denominator
+  // directly rather than through one (ADR-0025 §3).
+  const possible =
+    input.tasks.reduce((a, t) => a + dayShare(t.pointValue, t.timesPerWeek), 0) +
+    communal.reduce((a, u) => a + u.share, 0);
+
   const earnedDirect = input.tasks.reduce(
     (a, t) => a + (t.completedToday && !t.extraToday ? t.pointValue : 0),
     0,
   );
 
+  // One tag earns the whole share. Not proportional, deliberately:
+  // relationships are not dose-dependent — one real contact is
+  // qualitatively different from none, and the tenth is not much
+  // different from the second. A proportional rule would leave a solo
+  // day structurally capped, every day, for someone living alone.
+  const communalEarned = communal.reduce((a, u) => a + (u.tagged ? u.share : 0), 0);
+
   // The pool, in the order it was earned: activities as logged, then
   // the special day's own rating. The rating goes last because it is
   // the one credit that isn't tied to a moment in the day.
+  //
+  // **Fill-first is deliberately NOT here** — see ADR-0025 §12's
+  // 2026-08-16 note. Building it showed it undoes ADR-0023: letting
+  // activity credit fill a unit's unearned planned share without limit
+  // scored a day with *no* tasks completed and two activities logged
+  // at 100, which is the exact failure ADR-0023 was written from
+  // ("scoring 100+ while skipping his routines"). It also contradicts
+  // AGENTS.md's invariant in as many words: at most `UNPLANNED_CAP`
+  // points of a day may come from anything the user didn't plan.
   const activityCredit = (input.activities ?? []).reduce(
     (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
     0,
@@ -227,7 +271,8 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   const unplannedRaw = activityCredit + ratingBonus;
   const unplanned = Math.min(unplannedRaw, UNPLANNED_CAP);
 
-  const earned = earnedDirect + (input.extraRunCredit ?? 0) + unplanned;
+  const earned =
+    earnedDirect + communalEarned + (input.extraRunCredit ?? 0) + unplanned;
 
   // Rounded here, at the source, and `base` derived from the rounded
   // pair. `possible` is a sum of sevenths so it is almost never a whole

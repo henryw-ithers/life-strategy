@@ -579,15 +579,24 @@ earns it), which dissolved the reason. What remains is the weaker
 instrumental case — golf standing in for a skipped workout — which
 does not justify a `FORMULA_VERSION` bump on its own.
 
-**A third change waits on the same batch:** ADR-0025 §3's exemption of
-communal units from `spendableWeights`' uncovered-weight reallocation,
-plus the one-tag-earns-the-day rule. That needs an **ADR-0003 §5
-amendment** as well as a version bump.
+**2026-08-16: the batch ran, and only one of the three shipped.**
 
-So this batch now carries three things — the daily denominator,
-fill-first, and the communal weight rule. It should carry them in
-**one `FORMULA_VERSION`, not three**; that is the whole reason any of
-them are parked here rather than shipped.
+- **Communal weight — shipped as `FORMULA_VERSION` 6.** Landed as a
+  *definition* rather than an exemption: a communal unit is covered,
+  because tagging is always available to it. ADR-0003 §5 amended.
+- **Fill-first — built and pulled.** It scored a day with no planned
+  work done and two activities logged at **100**, which is the failure
+  ADR-0023 exists to prevent and a plain contradiction of AGENTS.md's
+  cap invariant. The live question is now sharper than "restore it":
+  *is credit that substitutes for planned work still unplanned?*
+  ADR-0023 says yes, vision.md says no, and whichever wins the answer
+  needs a bound — unbounded fill makes `UNPLANNED_CAP` decorative.
+  vision.md stays known-stale until that is settled.
+- **The daily denominator — untouched**, because it was never decided.
+  The four directions below are still four directions.
+
+So the seam count is one, not three, and the two open items below are
+open *questions* rather than queued work.
 
 ### The scale this should be tuned against
 

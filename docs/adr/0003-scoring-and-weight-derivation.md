@@ -124,6 +124,17 @@ invariant applies).
   half-covered portfolio graded against half a plan, and a user could
   score 100 while ignoring 60 points of what they said mattered.
 
+  **Amended 2026-08-16 (formula v6,
+  [ADR-0025 §3](0025-communal-units-are-dimensions.md)): "covered"
+  means the unit has somewhere to spend its weight — not that it holds
+  tasks.** A **communal** unit holds no tasks and never will, but
+  tagging is always available to it, so its weight *is* earnable and it
+  is covered. Reading coverage as "holds tasks" made the three
+  Relationships units donate their weight to chores, which inverted the
+  product's founding claim that this app starts with what matters.
+  `spendableWeights` is unchanged; the definition its callers pass in
+  is what moved.
+
   *Why proportional to weight, not to task count:* routing points
   toward whichever unit holds the most tasks would let the shape of
   execution outrank the diagnostic — a 5-point unit with three tasks

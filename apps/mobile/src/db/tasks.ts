@@ -42,6 +42,23 @@ export interface PlanTask {
   otherUnitNames: string[];
 }
 
+/**
+ * Coverage, as ADR-0003 §5 means it — does this unit have somewhere to
+ * spend its weight? — amended by ADR-0025 §3 (formula v6).
+ *
+ * A **communal** unit holds no tasks and never will, but it is not
+ * uncovered: tagging is always available, so its weight is genuinely
+ * earnable and must not be shared out to units that happen to hold
+ * tasks. Reading it as uncovered is what made the three Relationships
+ * units silently donate their weight to chores.
+ */
+function isCovered(
+  unit: { id: string; motivationKind: string },
+  withTasks: ReadonlySet<string>,
+): boolean {
+  return unit.motivationKind === "communal" || withTasks.has(unit.id);
+}
+
 export interface PlanUnit {
   id: string;
   name: string;
@@ -134,7 +151,7 @@ export async function loadPlan(): Promise<PlanData> {
     units.map((u) => ({
       unitId: u.id,
       weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
-      covered: covered.has(u.id),
+      covered: isCovered(u, covered),
     })),
   );
 
@@ -197,7 +214,9 @@ export async function loadPlan(): Promise<PlanData> {
  */
 async function spendableWeightMap(tx: Tx): Promise<Map<string, number>> {
   const weights = await latestWeights(tx);
-  const units = await tx.select({ id: lifeUnit.id }).from(lifeUnit);
+  const units = await tx
+    .select({ id: lifeUnit.id, motivationKind: lifeUnit.motivationKind })
+    .from(lifeUnit);
   const covered = await tx
     .selectDistinct({ unitId: taskUnit.unitId })
     .from(taskUnit)
@@ -211,7 +230,7 @@ async function spendableWeightMap(tx: Tx): Promise<Map<string, number>> {
       // No weight row means the unit is out of scoring (or predates the
       // latest snapshot); `spendableWeights` leaves those at zero.
       weight: weights.get(u.id) ?? 0,
-      covered: coveredIds.has(u.id),
+      covered: isCovered(u, coveredIds),
     })),
   );
 }

@@ -63,6 +63,22 @@ export const UNPLANNED_CAP = 25;
  *  graded on their tasks plus that bonus rather than `rating × 10`;
  *  activity credit is denominated in a unit's daily share rather than
  *  its portfolio weight. A stored `earned` from v4 and one from v5 are
- *  not comparable. History is not rewritten — grades finalize. */
-export const FORMULA_VERSION = 5;
+ *  not comparable. History is not rewritten — grades finalize.
+ *  v6 (2026-08-16): **communal units earn by being tagged**
+ *  (ADR-0025 §3). The three Relationships units hold no tasks, so they
+ *  are *covered by definition* rather than donating their weight to
+ *  units that do, and a single tag anywhere in the day earns that
+ *  share in full. Not proportional: relationships are not
+ *  dose-dependent, and a proportional rule would cap a solo day
+ *  structurally — the shame surface AGENTS.md forbids, arriving
+ *  through arithmetic instead of copy.
+ *  Two things were expected in this version and are **not** in it.
+ *  *Fill-first activity credit* (ADR-0025 §12) was built and pulled:
+ *  it scored a day with no tasks completed and two activities logged
+ *  at 100, which is the failure ADR-0023 exists to prevent, and it
+ *  contradicts AGENTS.md's cap invariant outright. *The
+ *  daily-denominator retune* was never decided — docs/backburner.md
+ *  lists four directions and none was chosen — so there was nothing to
+ *  build. Both are open questions, not omissions. */
+export const FORMULA_VERSION = 6;
 export const DAILY_BUDGET = 100;

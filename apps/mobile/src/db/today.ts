@@ -285,6 +285,7 @@ export async function loadDay(
   const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
   const kind: DayKind = dayRow?.kind ?? "normal";
 
+
   const journal = await db
     .select()
     .from(journalEntry)
@@ -348,6 +349,27 @@ export async function loadDay(
     )
     .reduce((sum, c) => sum + c.pointsEarned, 0);
 
+  /**
+   * Communal units and whether today touched them (ADR-0025 §3).
+   *
+   * Tagged from either route — a task completion or an activity — and
+   * collapsed to a boolean here, because one tag earns the whole share
+   * and there is deliberately no count to inflate.
+   *
+   * Declared *after* `tagRows`, not beside the other unit lists: it
+   * reads that array inside a `.map` callback, which TypeScript will
+   * not order-check but which runs immediately.
+   */
+  const communalScoring = units
+    .filter((u) => u.motivationKind === "communal" && u.includeInScoring)
+    .map((u) => ({
+      unitId: u.id,
+      share: weights.get(u.id) ?? 0,
+      tagged:
+        tagRowsForDay.some((r) => r.unitId === u.id) ||
+        tagRows.some((t) => t.unitId === u.id),
+    }));
+
   // A settled day reads its grade back; only a live one is computed.
   // Grades finalize (ADR-0002), so a past day's number must not move
   // when a diagnostic changes the weights under it — and must not be
@@ -370,6 +392,7 @@ export async function loadDay(
           })),
           extraRunCredit,
           activities: activityCredits,
+          communalUnits: communalScoring,
         });
 
   return {
@@ -884,9 +907,50 @@ async function rederiveDay(row: typeof dayGrade.$inferSelect): Promise<boolean> 
       : sum;
   }, 0);
 
+  /**
+   * Communal units, reconstructed the same way (ADR-0025 §3).
+   *
+   * The tags themselves are real history — `task_completion_tag` and
+   * `activity_tag` rows written on the day. Their *share* is not in
+   * `plan_snapshot`, which only ever carried tasks, so it comes from
+   * the current weights. That is exactly what this operation already
+   * promises: "re-scores every past day under the current scoring,
+   * using the plan each day actually had."
+   *
+   * Omitting them would be worse than the approximation: a recomputed
+   * day would drop the communal share from its denominator while a
+   * live day keeps it, so recomputing would silently inflate history.
+   */
+  const communalWeights = await latestWeights();
+  const communalUnitRows = await db
+    .select()
+    .from(lifeUnit)
+    .where(and(eq(lifeUnit.motivationKind, "communal"), isNull(lifeUnit.archivedAt)));
+  const completionTagRows = completions.length
+    ? await db
+        .select()
+        .from(taskCompletionTag)
+        .where(
+          inArray(
+            taskCompletionTag.completionId,
+            completions.filter((c) => c.localDate === date).map((c) => c.id),
+          ),
+        )
+    : [];
+  const communalUnits = communalUnitRows
+    .filter((u) => u.includeInScoring)
+    .map((u) => ({
+      unitId: u.id,
+      share: communalWeights.get(u.id) ?? 0,
+      tagged:
+        completionTagRows.some((r) => r.unitId === u.id) ||
+        tagRows.some((t) => t.unitId === u.id),
+    }));
+
   const score = computeDayScore({
     kind: row.kind,
     satisfactionRating: row.satisfactionRating,
+    communalUnits,
     tasks: plan.map((t) => {
       const s = statusById.get(t.taskId);
       return {

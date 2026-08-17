@@ -109,12 +109,19 @@ Two things follow that no previous draft could reach:
 
 ### 3. They keep their weight, and one tag earns the day
 
-Communal units keep the weight the diagnostic gives them. They are
-**exempt from `spendableWeights`' uncovered-weight reallocation**
-(ADR-0003 §5 as amended 2026-07-30), which would otherwise hand their
-weight to units that hold tasks — leaving nothing for a tag to earn.
-A communal unit contributes its full daily share to `possible` every
-day.
+Communal units keep the weight the diagnostic gives them, and
+contribute their full daily share to `possible` every day.
+
+> **Implemented 2026-08-16 as a definition, not an exemption.** The
+> draft called for exempting them from `spendableWeights`'
+> uncovered-weight reallocation (ADR-0003 §5 as amended 2026-07-30).
+> Building it showed the simpler and truer framing: **a communal unit
+> is *covered*.** ADR-0003 §5 asks whether a unit has anywhere to spend
+> its weight, and a communal unit does — tagging, always. Reading
+> "covered" as "holds tasks" is what made the three Relationships units
+> silently donate their weight to chores. So `spendableWeights` needed
+> no change at all; only its caller's definition of coverage did, which
+> is where the bug actually was. **This amends ADR-0003 §5.**
 
 **A single tag anywhere in the day earns that unit's share in full.**
 
@@ -318,6 +325,27 @@ a fourth `FORMULA_VERSION` in a fortnight.
 paragraph is **known-stale until then** and must not be read as
 describing shipped behaviour.
 
+> **Built and pulled, 2026-08-16.** Fill-first went into the v6 batch
+> and came straight back out. Implementing it made the conflict
+> measurable: with a task worth 40 points uncompleted and two
+> activities logged against its unit, the day scored **100 with no
+> planned work done at all**. That is the exact failure ADR-0023 was
+> written from — Henry "scoring 100+ while skipping his routines" — and
+> it contradicts AGENTS.md's invariant in as many words: *at most
+> `UNPLANNED_CAP` points of a day may come from anything the user
+> didn't plan.*
+>
+> The two existing cap tests in `grade.test.ts` failed on exactly this,
+> which is what surfaced it.
+>
+> **The live question is no longer "restore it or not" but "is filled
+> credit planned work?"** ADR-0023 says an activity is unplanned
+> however well it substitutes; vision.md says credit that stands in for
+> the skipped workout is the same unit's work done differently. Both
+> are defensible and they cannot both hold. Whichever wins, the answer
+> has to be a bound — unbounded fill makes `UNPLANNED_CAP` decorative.
+> **Henry's call, and it now has a number attached to it.**
+
 ### 13. The app explains its thinking — and that is all "autotelic" is
 
 The reasoning about these units should be visible in the app, not only
@@ -449,9 +477,12 @@ Learning & growth; anyone proposes named people (§4) or gives
 6. [ ] Write the two §13 notes into
        [copy-guide.md](../design/copy-guide.md); surface in
        `UnitInfoSheet`.
-7. [ ] **Retune batch:** §3's reallocation exemption + one-tag rule,
-       §12's fill-first, and the parked daily-denominator retune — one
-       `FORMULA_VERSION`, with an ADR-0003 §5 amendment.
+7. [~] **Retune batch.** §3's rule **shipped as `FORMULA_VERSION` 6**
+       — communal units are covered by definition rather than exempted
+       (see §3's note), one tag earns the share, with 7 tests. §12's
+       fill-first was built and **pulled** (see its note); the
+       daily-denominator retune was never decided, so there was nothing
+       to build. ADR-0003 §5 amended.
 8. [ ] Open ADR-0015 — its trigger fired in §11.
 9. [x] Add a line to ADR-0024 recording that §1 was challenged on
        2026-08-16 and reaffirmed (§7 here).
