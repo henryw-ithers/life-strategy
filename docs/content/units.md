@@ -91,7 +91,7 @@ People you enjoy spending time with and people who actually know you.
 
 ### Note
 
-There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: anything you log can count toward this as well — most of what people do with friends is something else, done together. A day that does earns this unit's points in full.
+There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: anything you log can count toward this as well. Most of what people do with friends is something else, done together. A day that does earns this unit's points in full.
 
 ## exercise-fitness — Exercise & fitness
 
@@ -204,7 +204,7 @@ Things you do and make for their own sake: projects, crafts, skills.
 
 ### Note
 
-Two things are true here and they pull against each other. Things you do for their own sake are the first to lose to whatever's urgent, because they're never urgent themselves — so it's worth putting them in the week on purpose. They're also the easiest things to spoil by turning them into a list. Plan enough that it happens, not so much that it becomes homework.
+Two things are true here and they pull against each other. Things you do for their own sake are the first to lose to whatever's urgent, because they're never urgent themselves, so it's worth putting them in the week on purpose. They're also the easiest things to spoil by turning them into a list. Plan enough that it happens, not so much that it becomes homework.
 
 ## art-media — Art & media
 

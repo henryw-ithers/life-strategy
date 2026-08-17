@@ -48,6 +48,13 @@ read a few entries there before writing anything new.
   identically well on a good week and a bad one. If it would land
   differently, rewrite it.
 
+> **Written 2026-08-16.** All 18 units are done: **71 goals and 110
+> tasks**, split 23 habit / 24 cumulative / 24 target. The brief below
+> is kept as the standard to edit against. Two of its rules changed
+> during the writing and the amended versions are in
+> [library.md](library.md): there is **no fixed count** per unit, and
+> **habit goals** are a third metric kind.
+
 ## 3. The launch bar, and how much is left
 
 ADR-0006 §4 set the bar at *every one of the 18 units has ≥3 goal
@@ -67,8 +74,8 @@ templates and ≥6 tasks, across all three profile tags*.
 | Unit descriptions | 18 | 18 | ✅ done — `content/units.ts` |
 | Unit guidelines | 18 sets | 18 | ✅ done — `content/units.ts` |
 | Activity keyword map | common activities | 18 units seeded | ✅ done — `content/tagKeywords.ts`, extend as gaps appear |
-| **Goal templates** | ≥3 per unit × 18 | **54–90** | ❌ none written |
-| **Tasks** | ≥6 per unit × 15 | **90–150** | ❌ none written |
+| Goal templates | no fixed count | **71** | ✅ done — [library.md](library.md) |
+| Tasks | no fixed count | **110** | ✅ done — [library.md](library.md) |
 | Editorial notes (ADR-0025 §13) | 7 units | 7 | ✅ done — [units.md](units.md), under `### Note` |
 
 ## 4. The shape of an entry

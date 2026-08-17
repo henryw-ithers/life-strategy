@@ -79,10 +79,27 @@ are pull, not push: available when a unit is opened, silent otherwise
 
 ### 4. Launch content bar
 
-v1 ships only when every one of the 18 SLUs has at least 3 goal
-templates and 6 tasks across all three profile tags, and the keyword
+~~v1 ships only when every one of the 18 SLUs has at least 3 goal
+templates and 6 tasks across all three profile tags~~, and the keyword
 map covers common activities. Content is a launch deliverable with the
 same weight as code.
+
+**Amended 2026-08-16: the numeric bar is dropped.** Writing to a quota
+is how a library fills with padding, and padding is the thing that
+reads as generated. Henry, mid-writing: *"they don't need 3 or some
+number, just put as many relevant generic ones we need to give people
+ideas."* What still holds is **coverage** — every unit has something,
+and every unit offers something to each of the three profiles.
+`scripts/content/build.mjs` reports against that instead of a count.
+
+**Two rules the writing itself produced**, now recorded in
+[library.md](../content/library.md):
+
+- **Never characterise the reader.** "Ship the thing you keep not
+  shipping" assumes the person is behind; the app does not get to
+  imply that. This is the never-shames invariant reaching content.
+- **No em dashes in app copy.** The clearest single tell that a line
+  was generated rather than written.
 
 ## Consequences
 
@@ -102,15 +119,19 @@ same weight as code.
 
 ## Action items
 
-1. [ ] Define the content-package schema (goal templates, tasks,
+1. [x] Define the content-package schema (goal templates, tasks,
        profile tags, default ranks, keyword map, content_version).
-2. [ ] Write the library: 18 units × (3–5 goals + 6–10 tasks), with a
-       hand-review pass on sensitive units. (18 — earlier drafts of this
-       ADR said 16, and the count has moved with the taxonomy; the
-       seeded default is 6 areas × 18 units as of the 2026-07-27
-       Wellness revision. `UNIT_INFO` in
-       `apps/mobile/src/content/units.ts` already covers all 18 and is
-       the first slice of this package.)
+       (Shipped: `docs/content/library.md` is the source of truth and
+       `scripts/content/build.mjs` generates
+       `apps/mobile/src/content/library.ts` from it.)
+2. [x] Write the library, with a hand-review pass on sensitive units.
+       (Shipped 2026-08-16: **71 goals and 110 tasks** across all 18
+       units, written line by line with Henry. Mental & emotional
+       health, Spirituality and Significant other took the sensitive
+       pass; Finances carries no investment advice. Numbers are
+       grounded in real recommendations rather than folklore, which
+       moved steps from 10,000 to 8,000 and set the habit ladder at
+       7/30/66 from Lally.)
 3. [ ] Implement starter-plan generation (profile matching + ADR-0003
        bands) as a pure function in the `scoring`/content layer.
 4. [ ] Wire recommendation surfacing into the post-diagnostic diff and

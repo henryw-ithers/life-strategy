@@ -50,7 +50,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
       "You can be yourself without fear of judgement.",
       "Spending time with others is enjoyable, not draining."
     ],
-    "note": "There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: anything you log can count toward this as well — most of what people do with friends is something else, done together. A day that does earns this unit's points in full."
+    "note": "There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: anything you log can count toward this as well. Most of what people do with friends is something else, done together. A day that does earns this unit's points in full."
   },
   "exercise-fitness": {
     "description": "Movement, strength, and what your body can do.",
@@ -157,7 +157,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
       "You make things, not just consume them. Creative activity helps you recover from work.",
       "Leisure has protected time. Scheduled leisure happens. Unscheduled leisure loses to everything."
     ],
-    "note": "Two things are true here and they pull against each other. Things you do for their own sake are the first to lose to whatever's urgent, because they're never urgent themselves — so it's worth putting them in the week on purpose. They're also the easiest things to spoil by turning them into a list. Plan enough that it happens, not so much that it becomes homework."
+    "note": "Two things are true here and they pull against each other. Things you do for their own sake are the first to lose to whatever's urgent, because they're never urgent themselves, so it's worth putting them in the week on purpose. They're also the easiest things to spoil by turning them into a list. Plan enough that it happens, not so much that it becomes homework."
   },
   "art-media": {
     "description": "The culture you take in: books, film, music, games, podcasts.",

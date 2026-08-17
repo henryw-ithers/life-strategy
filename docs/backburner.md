@@ -62,6 +62,34 @@ existing decisions draw:
   *observed*. That's the loss-aversion mechanic PRODUCT.md names as
   an anti-reference, and vision.md's "no streak guilt."
 
+**Decided 2026-08-16, during the content-library session. Not yet
+built — recorded here so a long writing session can't lose it.**
+
+- **Habit goals are a third metric kind** alongside ADR-0015's
+  `cumulative` and `target`. **No target value, milestones only** —
+  Henry: *"the idea is you make it a permanent habit."* That cuts
+  against ADR-0007's "goals are temporary" and wants an amendment
+  there when it lands. A habit goal never auto-completes.
+- **Default milestone ladder: 7 · 30 · 66 days.** 66 is Lally's median
+  to automaticity, so the top rung is a research number rather than a
+  round one (the same instruction that replaced 10,000 steps with
+  8,000).
+- **Streaks also appear on daily tasks**, not only on habit goals.
+- **Strict consecutive days. One miss resets.** A declared day off is
+  skipped entirely, never a break (ADR-0004 §3 already requires this).
+  Lally's finding that a single miss doesn't materially affect habit
+  formation would have supported forgiveness; Henry chose strict
+  anyway, which is his call and makes the **break copy carry all the
+  weight this entry warns about below.** Whoever builds it writes that
+  copy rule into the copy guide first: no alarm colour, no mourning, no
+  language that makes the number feel lost rather than restarted.
+- Still bound by ADR-0004 §5: a streak is **shown, never enforced**,
+  and never touches the grade.
+
+**Badges are deliberately not decided.** They need a look-back surface
+to live in, and the `achievement` table is still write-only. Revisit
+once the monthly review exists.
+
 **The design risk worth naming before building it:** a streak is the
 single most load-bearing shame surface in habit apps, and its
 emotional weight comes almost entirely from the break, not the count.

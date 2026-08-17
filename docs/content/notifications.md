@@ -22,9 +22,14 @@ Adding a line here is safe. Adding a *variable* is not: there is
 currently no code path that could put a task name on the lock screen,
 and that is a property worth keeping.
 
+**No em dashes anywhere in app copy** (2026-08-16). They are one of the
+clearest tells that a line was generated rather than written. A comma,
+a full stop, or a colon does the job in almost every case, and if none
+of them fit, the sentence wants rewriting rather than punctuating.
+
 ## Lines
 
 - Today's list is ready.
 - Your day's checklist is waiting, whenever works.
 - A few minutes for today's list.
-- Today's checklist — take a look when you're ready.
+- Today's checklist is there when you want it.

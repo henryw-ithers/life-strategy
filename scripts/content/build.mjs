@@ -172,7 +172,14 @@ function parseNotifications() {
 }
 
 const PROFILES = new Set(["gap-closing", "maintenance", "light"]);
-const METRIC_KINDS = new Set(["cumulative", "target"]);
+/**
+ * `habit` is ADR-0015's third kind, decided 2026-08-16 and not yet
+ * built (see docs/backburner.md). It carries **no target** — a habit
+ * goal is meant to be permanent, so it never completes — and its
+ * milestones are day counts, 7 · 30 · 66 by default. 66 is Lally's
+ * median to automaticity, so even the top rung is a research number.
+ */
+const METRIC_KINDS = new Set(["cumulative", "target", "habit"]);
 /** ADR-0025 §5: the library never proposes a task for these. */
 const COMMUNAL = new Set(["significant-other", "family", "friendship"]);
 
@@ -235,7 +242,19 @@ function finishEntry(e, unitId, kind) {
     if (e.fields.metric) {
       const [mk, unit, target] = list(e.fields.metric);
       if (!METRIC_KINDS.has(mk)) {
-        fail(`${where}: metric kind must be cumulative or target, got "${mk}"`);
+        fail(
+          `${where}: metric kind must be cumulative, target or habit, got "${mk}"`,
+        );
+      } else if (mk === "habit") {
+        // A habit has no finish line, so `metric: habit` takes no unit
+        // and no number. Rungs are days, and they live in `milestones`.
+        if (unit || target) {
+          fail(`${where}: a habit metric takes no unit or target — just "metric: habit"`);
+        }
+        if (goal.milestones.length === 0) {
+          fail(`${where}: a habit goal needs milestones (days), e.g. "milestones: 7, 30, 66"`);
+        }
+        goal.metric = { kind: mk, unit: "days", suggestedTarget: null };
       } else if (!unit) {
         fail(`${where}: metric needs a unit label, e.g. "cumulative, books, 24"`);
       } else {
@@ -331,23 +350,40 @@ function crossCheck({ units, keywords, library }) {
   }
 }
 
-/** ADR-0006 §4's launch bar, as a report rather than a failure. */
-function reportBar(units, library) {
-  const short = [];
+/**
+ * What's missing, as a report rather than a failure.
+ *
+ * **No fixed count.** ADR-0006 §4 set a bar of ≥3 goals and ≥6 tasks
+ * per unit; Henry dropped it on 2026-08-16 — *"they don't need 3 or
+ * some number, just put as many relevant generic ones we need to give
+ * people ideas."* Writing to a quota is how a library fills up with
+ * padding, and padding is exactly what reads as generated.
+ *
+ * What still matters is **coverage**: a unit with nothing in it has
+ * nothing to offer, and a unit whose entries all carry one profile tag
+ * has nothing to offer whoever isn't in that situation.
+ */
+function reportGaps(units, library) {
+  const gaps = [];
   for (const id of Object.keys(units)) {
     const entry = library[id] ?? { goals: [], tasks: [] };
-    const needTasks = COMMUNAL.has(id) ? 0 : 6;
     const missingProfiles = [...PROFILES].filter(
       (p) => ![...entry.goals, ...entry.tasks].some((x) => x.profiles.includes(p)),
     );
-    if (entry.goals.length < 3 || entry.tasks.length < needTasks || missingProfiles.length) {
-      short.push(
-        `  ${id.padEnd(24)} goals ${entry.goals.length}/3  tasks ${entry.tasks.length}/${needTasks}` +
-          (missingProfiles.length ? `  missing: ${missingProfiles.join(", ")}` : ""),
+    const problems = [];
+    if (entry.goals.length === 0) problems.push("no goals");
+    if (!COMMUNAL.has(id) && entry.tasks.length === 0) problems.push("no tasks");
+    if (entry.goals.length > 0 && missingProfiles.length) {
+      problems.push(`no ${missingProfiles.join("/")} option`);
+    }
+    if (problems.length) {
+      gaps.push(
+        `  ${id.padEnd(24)} ${String(entry.goals.length).padStart(2)} goals, ` +
+          `${String(entry.tasks.length).padStart(2)} tasks — ${problems.join("; ")}`,
       );
     }
   }
-  return short;
+  return gaps;
 }
 
 // ── Emit ────────────────────────────────────────────────────────────
@@ -438,9 +474,16 @@ export interface GoalTemplate {
   profiles: Profile[];
   /** Ordered rung titles; empty when the goal has none. */
   milestones: string[];
-  /** ADR-0015 §1. Null when the goal is not countable. */
+  /**
+   * ADR-0015 §1, plus \`habit\` (decided 2026-08-16, unbuilt — see
+   * docs/backburner.md). Null when the goal is not countable.
+   *
+   * A \`habit\` goal has **no target**: it is meant to be permanent, so
+   * it never completes. Its rungs are day counts in \`milestones\`,
+   * 7 · 30 · 66 by default, where 66 is Lally's median to automaticity.
+   */
   metric: {
-    kind: "cumulative" | "target";
+    kind: "cumulative" | "target" | "habit";
     unit: string;
     suggestedTarget: number | null;
   } | null;
@@ -523,12 +566,11 @@ if (CHECK) {
   }
   console.log("Content is up to date.");
 } else if (outputs.length) {
-  const short = reportBar(units, library);
-  if (short.length) {
-    console.log(`\nADR-0006 launch bar — ${short.length} of 18 units short:`);
-    for (const s of short) console.log(s);
+  const gaps = reportGaps(units, library);
+  const done = 18 - gaps.length;
+  console.log(`\nLibrary: ${done} of 18 units have usable content.`);
+  if (gaps.length) {
+    for (const g of gaps) console.log(g);
     console.log("\nSee docs/content/library-outline.md.");
-  } else {
-    console.log("\nADR-0006 launch bar met for all 18 units.");
   }
 }

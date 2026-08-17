@@ -121,8 +121,8 @@ the Skia charts.
 
 | Content | Amount | Write it in | Blocks |
 |---|---|---|---|
-| Goal templates | 54–90 | **[library.md](library.md)** | ADR-0006 §4 launch bar |
-| Task templates | 90–150 (15 units) | **[library.md](library.md)** | ADR-0006 §4 launch bar |
+| ~~Goal templates~~ | ~~54–90~~ | **done** — 71 in [library.md](library.md) | ADR-0006 |
+| ~~Task templates~~ | ~~90–150~~ | **done** — 110 in [library.md](library.md) | ADR-0006 |
 | ~~Editorial notes~~ | ~~7 units~~ | **done** — in [units.md](units.md) under `### Note`, shown in the unit info sheet | ADR-0025 §13 |
 | Part-of-day section labels | 4 | ADR-0024 §3 | Checklist regroup |
 | "· not scored" treatment | 1 | ADR-0025 §5 | Excluded-unit task rows |

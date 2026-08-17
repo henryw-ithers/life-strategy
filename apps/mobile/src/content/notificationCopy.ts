@@ -12,7 +12,7 @@ export const NOTIFICATION_COPY: readonly string[] = [
   "Today's list is ready.",
   "Your day's checklist is waiting, whenever works.",
   "A few minutes for today's list.",
-  "Today's checklist — take a look when you're ready."
+  "Today's checklist is there when you want it."
 ];
 
 export function randomNotificationLine(): string {
