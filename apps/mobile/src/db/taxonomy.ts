@@ -20,6 +20,17 @@
 export interface SeedUnit {
   id: string;
   name: string;
+  /**
+   * ADR-0025 §1. Omitted means `instrumental`, which is 15 of the 18 —
+   * only the three Relationships units are `communal`, and they are
+   * **dimensions rather than containers**: no tasks of their own, and
+   * anything may tag them instead.
+   *
+   * There is deliberately no `autotelic` value. That distinction is
+   * editorial only (§13) and lives in the unit's guidance copy, the
+   * same way ADR-0021 keeps areas presentational.
+   */
+  motivationKind?: "instrumental" | "communal";
 }
 
 export interface SeedArea {
@@ -33,9 +44,17 @@ export const DEFAULT_TAXONOMY: SeedArea[] = [
     id: "relationships",
     name: "Relationships",
     units: [
-      { id: "significant-other", name: "Significant other" },
-      { id: "family", name: "Family" },
-      { id: "friendship", name: "Friendship" },
+      // The three communal units (ADR-0025 §1). Giving & service is
+      // deliberately NOT here: Clark & Mills concerns dyadic close
+      // relationships, and service to strangers carries no comparable
+      // ledger risk.
+      {
+        id: "significant-other",
+        name: "Significant other",
+        motivationKind: "communal",
+      },
+      { id: "family", name: "Family", motivationKind: "communal" },
+      { id: "friendship", name: "Friendship", motivationKind: "communal" },
     ],
   },
   {

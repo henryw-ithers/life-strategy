@@ -20,6 +20,7 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
       name: unit.name,
       areaId: area.id,
       sortOrder: index,
+      motivationKind: unit.motivationKind ?? ("instrumental" as const),
     })),
   );
   const defaultAreaIds = new Set(DEFAULT_TAXONOMY.map((a) => a.id));
@@ -55,6 +56,7 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
         existing.name !== unit.name ||
         existing.areaId !== unit.areaId ||
         existing.sortOrder !== unit.sortOrder ||
+        existing.motivationKind !== unit.motivationKind ||
         existing.archivedAt !== null
       ) {
         await tx
@@ -63,6 +65,13 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
             name: unit.name,
             areaId: unit.areaId,
             sortOrder: unit.sortOrder,
+            // Seed-authoritative, like name and area — this is how
+            // ADR-0025 §1's assignments reach existing installs. Safe
+            // only while nothing in the UI edits it; if a user-facing
+            // override is ever added, this line has to stop
+            // overwriting it or it will silently revert their choice
+            // on the next launch.
+            motivationKind: unit.motivationKind,
             archivedAt: null,
           })
           .where(eq(lifeUnit.id, unit.id));

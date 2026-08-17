@@ -47,6 +47,21 @@ export const lifeUnit = sqliteTable("life_unit", {
   includeInScoring: integer("include_in_scoring", { mode: "boolean" })
     .notNull()
     .default(true),
+  /**
+   * Why a person does this (ADR-0025 §1). `communal` units — the three
+   * Relationships units — are **dimensions, not containers**: they hold
+   * no tasks of their own, and anything may tag them instead.
+   *
+   * It exists so a future reader sees *why* three units behave
+   * differently, rather than finding bare special-casing. There is
+   * deliberately no task-level override (ADR-0025 §14) and no
+   * `autotelic` value — that distinction is editorial only (§13).
+   */
+  motivationKind: text("motivation_kind", {
+    enum: ["instrumental", "communal"],
+  })
+    .notNull()
+    .default("instrumental"),
   archivedAt: text("archived_at"),
   ...timestamps,
 });
@@ -107,8 +122,43 @@ export const goal = sqliteTable("goal", {
     .references(() => lifeUnit.id),
   title: text("title").notNull(),
   description: text("description"),
-  /** Reserved for metric-linked goals (planned ADR-0015). */
+  /** The number to reach. Meaning depends on `metricKind` (ADR-0015 §1). */
   targetValue: real("target_value"),
+  /**
+   * ADR-0015 §1. **Null means no metric** — a plain goal, exactly as
+   * goals worked before, which is why every existing goal stays valid.
+   *
+   * `cumulative` sums entries toward a total ("24 books").
+   * `target` logs readings and is met when one reaches the target
+   * ("bench 225", "weigh 80kg"). Direction is *inferred* from the
+   * earliest progress entry against the target, so gaining and losing
+   * share one kind and the user is never asked which way they go.
+   */
+  metricKind: text("metric_kind", { enum: ["cumulative", "target"] }),
+  /** Free-text label: "books", "lb", "kg", "hours". The app does not
+   *  know what a kilogram is and does not need to. */
+  metricUnit: text("metric_unit"),
+  /**
+   * Rough deadline at **month granularity**, `'YYYY-MM'` (ADR-0015 §4).
+   * A month picker, never a date picker and never a time.
+   *
+   * When it passes, **nothing happens** — no "overdue", no colour, no
+   * badge, no prompt, no auto-pause. A marker that appeared only when
+   * you were behind would be conditioning on a shortfall, which
+   * ADR-0008 forbids. It surfaces in the monthly review as part of the
+   * normal pass over active goals, never as a date-triggered alert.
+   */
+  targetDate: text("target_date"),
+  /**
+   * One task whose completion increments a `cumulative` goal by one
+   * (ADR-0015 §2). Explicitly nominated, never "all tasks under this
+   * goal" — that would make progress a silent function of the task
+   * list, so editing tasks would rewrite goal history. Nulls when the
+   * task archives; entries already written stay.
+   */
+  autocountTaskId: text("autocount_task_id").references(
+    (): AnySQLiteColumn => task.id,
+  ),
   status: text("status", {
     enum: ["active", "paused", "revised", "abandoned", "completed"],
   })
@@ -132,6 +182,44 @@ export const milestone = sqliteTable("milestone", {
   status: text("status", { enum: ["pending", "current", "completed"] })
     .notNull()
     .default("pending"),
+  /** This rung's own threshold (ADR-0015 §5) — vision.md's bench
+   *  example is 135 → 185 → 225, and without this the rungs are just
+   *  labels. Passing it *prompts* to advance; nothing auto-completes. */
+  targetValue: real("target_value"),
+  /**
+   * When it actually happened, `'YYYY-MM-DD'` (ADR-0015 §5).
+   * Milestones are often noticed late ("I passed 185 a few weeks
+   * ago"), and recording one in the wrong month would put a false
+   * entry in the log of a life. Written together with the minor
+   * achievement's `achieved_at`, so look-back views agree.
+   */
+  completedOn: text("completed_on"),
+  ...timestamps,
+});
+
+/**
+ * One reading toward a metric goal (ADR-0015 §2).
+ *
+ * Deletable, like journal entries. Auto-counted rows (`source`
+ * `'task'`) are ordinary entries — visible in the list and
+ * individually removable, so nothing ever accrues invisibly.
+ *
+ * Progress is **not** a scoring event (ADR-0015 §7): no points, no
+ * denominator, no effect on any day's number. It does not feed effort
+ * either — a progress entry measures a thing done, often days later,
+ * and counting it would double-count the session it describes.
+ */
+export const goalProgress = sqliteTable("goal_progress", {
+  id: text("id").primaryKey(),
+  goalId: text("goal_id")
+    .notNull()
+    .references(() => goal.id),
+  localDate: text("local_date").notNull(),
+  value: real("value").notNull(),
+  note: text("note"),
+  source: text("source", { enum: ["manual", "task"] })
+    .notNull()
+    .default("manual"),
   ...timestamps,
 });
 
@@ -151,6 +239,26 @@ export const task = sqliteTable("task", {
   description: text("description"),
   /** Times per week: 1–7 (7 = daily); 0 = once every two weeks. */
   timesPerWeek: integer("times_per_week").notNull().default(7),
+  /**
+   * Preferred weekdays as ISO numbers, e.g. `"1,3,5"` (ADR-0024).
+   * Null = flexible, "any N days". Picking days sets `timesPerWeek`;
+   * clearing them reverts to flexible — one mental model, so the two
+   * settings can never contradict each other.
+   */
+  plannedWeekdays: text("planned_weekdays"),
+  /**
+   * Where in the day this sits (ADR-0024 §1). Null renders as
+   * *Anytime*, which is a first-class value and the default — most of
+   * a plan is deliberately flexible.
+   *
+   * There is no clock time and no time column, anywhere, on purpose:
+   * ADR-0024 §1, reaffirmed under challenge in ADR-0025 §7. Nothing in
+   * the app consumes a time, so one would buy ordering that
+   * `partOfDay` already provides.
+   */
+  partOfDay: text("part_of_day", {
+    enum: ["morning", "afternoon", "evening"],
+  }),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),
@@ -185,6 +293,24 @@ export const taskUnit = sqliteTable(
     /** Beli-style rank within this unit; point value derives from it. */
     rankInUnit: integer("rank_in_unit").notNull(),
     pointValue: integer("point_value").notNull(),
+    /**
+     * `scoring` is the ADR-0019 behaviour above — a rank slot that
+     * earns the unit's share. `note` records that the task touches the
+     * unit without taking a slot or earning anything: no rank, no
+     * points, feeds effort and the log only (ADR-0025 §5).
+     *
+     * Deliberately general rather than communal-only. Plenty of things
+     * touch a unit they should not earn from, and forcing every
+     * mention through a scoring slot is what made the model feel wrong
+     * for relationships in the first place.
+     *
+     * A `note` row still carries `rank_in_unit`/`point_value` columns
+     * because the primary key and the table shape are shared; both are
+     * written 0 and must be ignored by every consumer.
+     */
+    membership: text("membership", { enum: ["scoring", "note"] })
+      .notNull()
+      .default("scoring"),
     ...timestamps,
   },
   (t) => [primaryKey({ columns: [t.taskId, t.unitId] })],
@@ -199,6 +325,61 @@ export const taskCompletion = sqliteTable("task_completion", {
   completedAt: text("completed_at").notNull(),
   /** Denormalized at completion time; past days never restate (ADR-0002). */
   pointsEarned: integer("points_earned").notNull(),
+  ...timestamps,
+});
+
+/**
+ * Who you were with, per completion (ADR-0025 §4).
+ *
+ * Tags are per-completion rather than fixed to the task: "study" is
+ * sometimes with friends and sometimes alone, so a persistent
+ * task-level tag would over-report. Added by press-and-hold on the
+ * completion — never by a prompt, which would put a second decision on
+ * the daily surface.
+ *
+ * **Units only, never named people** (ADR-0025 §4, an explicit
+ * non-goal). Tagging a unit records a fact about the user; tagging a
+ * person would create records about third parties who never consented
+ * to being in this database, and the app's one-sentence privacy story
+ * holds precisely because everything in it is self-reported about the
+ * self.
+ */
+export const taskCompletionTag = sqliteTable(
+  "task_completion_tag",
+  {
+    completionId: text("completion_id")
+      .notNull()
+      .references(() => taskCompletion.id),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => lifeUnit.id),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.completionId, t.unitId] })],
+);
+
+/**
+ * A run of a flexible task placed on a specific date (ADR-0024 §1,
+ * phase 3) — typically during the weekly planning pass.
+ *
+ * Placements are **intentions, not obligations**: completions fulfill
+ * them when the dates match, and an unfulfilled placement simply
+ * lapses. It is not surfaced, not counted, and never mentioned again.
+ * No adherence statistic is computed from this table — ADR-0024 §2
+ * makes that an invariant, and this is the table that would tempt
+ * someone to break it.
+ */
+export const plannedOccurrence = sqliteTable("planned_occurrence", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => task.id),
+  localDate: text("local_date").notNull(),
+  partOfDay: text("part_of_day", {
+    enum: ["morning", "afternoon", "evening"],
+  }),
+  /** Archived rather than deleted when its task archives (ADR-0024). */
+  archivedAt: text("archived_at"),
   ...timestamps,
 });
 
