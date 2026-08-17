@@ -56,16 +56,25 @@ interface GoalMetricSheetProps {
   metric: MetricDraft | null;
   /** `'YYYY-MM'`, or null for no deadline. */
   targetDate: string | null;
+  /** This goal's own tasks, for the auto-count link (ADR-0015 §2). */
+  tasks: { id: string; title: string }[];
+  autocountTaskId: string | null;
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
-  onSave: (metric: MetricDraft | null, targetDate: string | null) => void;
+  onSave: (
+    metric: MetricDraft | null,
+    targetDate: string | null,
+    autocountTaskId: string | null,
+  ) => void;
 }
 
 export function GoalMetricSheet({
   visible,
   metric,
   targetDate,
+  tasks,
+  autocountTaskId,
   accent,
   theme,
   onClose,
@@ -85,6 +94,7 @@ export function GoalMetricSheet({
   const [month, setMonth] = useState<number | null>(
     targetDate ? Number(targetDate.slice(5, 7)) : null,
   );
+  const [autocount, setAutocount] = useState<string | null>(autocountTaskId);
 
   const targetNumber = Number(target);
   const metricValid =
@@ -101,6 +111,10 @@ export function GoalMetricSheet({
         ? null
         : { kind, unit: unit.trim(), targetValue: targetNumber },
       month === null ? null : `${year}-${String(month).padStart(2, "0")}`,
+      // A task completion carries no reading, so only a cumulative
+      // goal can be fed one. Dropping a stale link here stops a goal
+      // switched to `target` from keeping a counter it can't use.
+      kind === "cumulative" ? autocount : null,
     );
     onClose();
   };
@@ -205,6 +219,51 @@ export function GoalMetricSheet({
                     ]}
                   />
                 </View>
+              </View>
+            ) : null}
+
+            {/* Auto-count (ADR-0015 §2). Cumulative only, and one
+                task chosen by name — never "all tasks under this
+                goal", which would make progress a silent function of
+                the task list, so editing tasks would rewrite goal
+                history. */}
+            {kind === "cumulative" && tasks.length > 0 ? (
+              <View style={styles.block}>
+                <AppText variant="caption" color={theme.muted}>
+                  Count a task automatically (optional)
+                </AppText>
+                {tasks.map((t) => {
+                  const on = autocount === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => setAutocount(on ? null : t.id)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Count ${t.title}`}
+                      style={[
+                        styles.taskRow,
+                        {
+                          backgroundColor: theme.surface,
+                          borderColor: on ? accent : "transparent",
+                        },
+                      ]}
+                    >
+                      <AppText
+                        variant="label"
+                        color={on ? accent : theme.ink}
+                        numberOfLines={1}
+                      >
+                        {t.title}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+                <AppText variant="footnote" color={theme.muted}>
+                  {autocount === null
+                    ? "Pick one and ticking it adds 1 here, so you don't log the same thing twice."
+                    : "Ticking it adds 1 here. Tap again to unlink; entries it already made stay, and you can delete them individually."}
+                </AppText>
               </View>
             ) : null}
 
@@ -319,6 +378,13 @@ const styles = StyleSheet.create({
   kindRow: {
     gap: 2,
     padding: space.lg,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+  },
+  taskRow: {
+    minHeight: 48,
+    justifyContent: "center",
+    paddingHorizontal: space.lg,
     borderRadius: radius.md,
     borderWidth: 1.5,
   },

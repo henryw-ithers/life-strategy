@@ -21,6 +21,7 @@ import { AbandonGoalModal } from "../../../components/goals/AbandonGoalModal";
 import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
+import { PastDaySheet } from "../../../components/goals/PastDaySheet";
 import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
 import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
@@ -37,6 +38,7 @@ import {
   reviseGoal,
   reviveGoal,
   resumeGoal,
+  setGoalAutocountTask,
   setGoalMetric,
   setGoalTargetDate,
   type GoalDetail,
@@ -71,6 +73,13 @@ export default function GoalDetailScreen() {
   const [abandoning, setAbandoning] = useState(false);
   const [revising, setRevising] = useState(false);
   const [editingMetric, setEditingMetric] = useState(false);
+  const [milestoneTarget, setMilestoneTarget] = useState("");
+  /** The rung awaiting a date. Completion is a two-step here: pick the
+   *  rung, then say when it actually happened (ADR-0015 §5). */
+  const [datingMilestone, setDatingMilestone] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const reload = useCallback(async () => {
     setGoal(await loadGoalDetail(goalId));
@@ -84,8 +93,8 @@ export default function GoalDetailScreen() {
 
   const accent = goal ? theme.areas[goal.areaId] ?? theme.accent : theme.accent;
 
-  const onMilestonePress = async (milestoneId: string) => {
-    const { goalShouldComplete } = await completeMilestone(milestoneId);
+  const finishMilestone = async (milestoneId: string, completedOn: string) => {
+    const { goalShouldComplete } = await completeMilestone(milestoneId, completedOn);
     if (goalShouldComplete) {
       setCompleting(true);
     } else {
@@ -96,8 +105,18 @@ export default function GoalDetailScreen() {
   const submitMilestone = async () => {
     const title = milestoneTitle.trim();
     if (title.length === 0 || !goal) return;
+    const threshold = Number(milestoneTarget);
     setMilestoneTitle("");
-    await addMilestone(goal.id, title);
+    setMilestoneTarget("");
+    await addMilestone(
+      goal.id,
+      title,
+      // A rung only carries a threshold on a goal that has a metric to
+      // compare it against (ADR-0015 §5).
+      goal.metricKind !== null && Number.isFinite(threshold) && milestoneTarget.trim()
+        ? threshold
+        : null,
+    );
     await reload();
   };
 
@@ -228,9 +247,15 @@ export default function GoalDetailScreen() {
                 targetValue={goal.targetValue}
                 targetDate={goal.targetDate}
                 entries={goal.progress}
+                milestones={goal.milestones}
                 editable={goal.status === "active"}
                 accent={accent}
                 theme={theme}
+                onComplete={() => setCompleting(true)}
+                onAdvanceMilestone={(id) => {
+                  const m = goal.milestones.find((x) => x.id === id);
+                  if (m) setDatingMilestone({ id: m.id, title: m.title });
+                }}
                 onAdd={(value, note) => {
                   void addGoalProgress(
                     goal.id,
@@ -279,7 +304,7 @@ export default function GoalDetailScreen() {
                   <Pressable
                     key={m.id}
                     disabled={m.status !== "current" || goal.status !== "active"}
-                    onPress={() => void onMilestonePress(m.id)}
+                    onPress={() => setDatingMilestone({ id: m.id, title: m.title })}
                     style={[styles.milestoneRow, { borderTopColor: theme.hairline }]}
                   >
                     <View
@@ -291,13 +316,30 @@ export default function GoalDetailScreen() {
                         },
                       ]}
                     />
-                    <AppText
-                      color={m.status === "completed" ? theme.muted : theme.ink}
-                      style={styles.grow}
-                      numberOfLines={2}
-                    >
-                      {m.title}
-                    </AppText>
+                    <View style={styles.grow}>
+                      <AppText
+                        color={m.status === "completed" ? theme.muted : theme.ink}
+                        numberOfLines={2}
+                      >
+                        {m.title}
+                      </AppText>
+                      {/* The rung's own number, and when it actually
+                          happened — the latter matters because a
+                          milestone noticed late would otherwise file
+                          in the wrong month (ADR-0015 §5). */}
+                      {m.targetValue !== null || m.completedOn !== null ? (
+                        <AppText variant="footnote" color={theme.muted} tabular>
+                          {[
+                            m.targetValue !== null
+                              ? `${m.targetValue}${goal.metricUnit ? ` ${goal.metricUnit}` : ""}`
+                              : null,
+                            m.completedOn,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </AppText>
+                      ) : null}
+                    </View>
                     {m.status === "current" && goal.status === "active" ? (
                       <AppText variant="footnote" color={theme.muted}>
                         tap to complete
@@ -321,6 +363,25 @@ export default function GoalDetailScreen() {
                       { backgroundColor: theme.surface, color: theme.ink },
                     ]}
                   />
+                  {/* Only on a measured goal: a threshold with nothing
+                      to compare against would be a number that never
+                      does anything (ADR-0015 §5). */}
+                  {goal.metricKind !== null ? (
+                    <TextInput
+                      value={milestoneTarget}
+                      onChangeText={setMilestoneTarget}
+                      placeholder="at"
+                      placeholderTextColor={theme.muted}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      onSubmitEditing={submitMilestone}
+                      accessibilityLabel="Reading this milestone is reached at"
+                      style={[
+                        styles.milestoneTarget,
+                        { backgroundColor: theme.surface, color: theme.ink },
+                      ]}
+                    />
+                  ) : null}
                   <Pressable
                     onPress={submitMilestone}
                     accessibilityRole="button"
@@ -374,14 +435,31 @@ export default function GoalDetailScreen() {
                     : null
                 }
                 targetDate={goal.targetDate}
+                tasks={goal.tasks}
+                autocountTaskId={goal.autocountTaskId}
                 accent={accent}
                 theme={theme}
                 onClose={() => setEditingMetric(false)}
-                onSave={(metric, targetDate) => {
+                onSave={(metric, targetDate, autocountTaskId) => {
                   void Promise.all([
                     setGoalMetric(goal.id, metric),
                     setGoalTargetDate(goal.id, targetDate),
+                    setGoalAutocountTask(goal.id, autocountTaskId),
                   ]).then(reload);
+                }}
+              />
+            ) : null}
+
+            {datingMilestone ? (
+              <PastDaySheet
+                visible
+                title={datingMilestone.title}
+                today={currentLocalDate()}
+                accent={accent}
+                theme={theme}
+                onClose={() => setDatingMilestone(null)}
+                onPick={(localDate) => {
+                  void finishMilestone(datingMilestone.id, localDate);
                 }}
               />
             ) : null}
@@ -482,6 +560,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.md,
     marginTop: space.md,
+  },
+  milestoneTarget: {
+    ...typeScale.body,
+    width: 64,
+    minHeight: 44,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    textAlign: "center",
   },
   milestoneInput: {
     ...typeScale.body,

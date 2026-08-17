@@ -11,11 +11,17 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { barFraction, metricState, type MetricKind } from "@glide/scoring";
-import type { GoalProgressEntry } from "../../db/goals";
+import {
+  barFraction,
+  metricState,
+  milestonesReached,
+  type MetricKind,
+} from "@glide/scoring";
+import type { GoalMilestone, GoalProgressEntry } from "../../db/goals";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { Button } from "../ui/Button";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -39,12 +45,20 @@ interface GoalMetricPanelProps {
   targetValue: number;
   targetDate: string | null;
   entries: GoalProgressEntry[];
+  /** For the rung prompt (ADR-0015 §5). */
+  milestones: GoalMilestone[];
   editable: boolean;
   accent: string;
   theme: ThemeTokens;
   onAdd: (value: number, note: string | null) => void;
   onDelete: (entryId: string) => void;
   onEdit: () => void;
+  /** Reaching a target *invites* completion; it never performs it
+   *  (ADR-0015 §3). Routes into ADR-0007 §2's three-path exit. */
+  onComplete: () => void;
+  /** Advance a rung the readings have passed. Also a prompt, never
+   *  automatic. */
+  onAdvanceMilestone: (milestoneId: string) => void;
 }
 
 export function GoalMetricPanel({
@@ -53,17 +67,32 @@ export function GoalMetricPanel({
   targetValue,
   targetDate,
   entries,
+  milestones,
   editable,
   accent,
   theme,
   onAdd,
   onDelete,
   onEdit,
+  onComplete,
+  onAdvanceMilestone,
 }: GoalMetricPanelProps) {
   const [draft, setDraft] = useState("");
-  const state = metricState({ kind, targetValue }, entries);
+  const def = { kind, targetValue };
+  const state = metricState(def, entries);
   const width = barFraction(state);
   const label = unit ?? "";
+
+  // The rung the readings have reached but the user hasn't ticked.
+  // Only the *current* one: advancing is sequential (ADR-0007 §3), so
+  // offering a later rung would skip the ones between it.
+  const current = milestones.find((m) => m.status === "current");
+  const passed =
+    current && current.targetValue !== null
+      ? milestonesReached(def, state, [
+          { id: current.id, targetValue: current.targetValue },
+        ]).length > 0
+      : false;
 
   const value = Number(draft);
   const canAdd = draft.trim().length > 0 && Number.isFinite(value);
@@ -125,11 +154,40 @@ export function GoalMetricPanel({
       )}
 
       {/* Celebration may condition on a positive event (ADR-0008); the
-          absence of one is never remarked on. */}
-      {state.met ? (
+          absence of one is never remarked on. And it is an invitation,
+          never an action: "I benched 225 once" and "I am now a person
+          who benches 225" are different claims, and only the user
+          knows which happened (ADR-0015 §3). */}
+      {state.met && editable ? (
+        <View style={styles.invite}>
+          <AppText variant="label" color={accent}>
+            Target reached.
+          </AppText>
+          <Button
+            label="Complete this goal"
+            color={accent}
+            onPress={onComplete}
+            theme={theme}
+          />
+        </View>
+      ) : state.met ? (
         <AppText variant="label" color={accent}>
           Target reached.
         </AppText>
+      ) : null}
+
+      {passed && current && editable ? (
+        <View style={styles.invite}>
+          <AppText variant="caption" color={theme.muted}>
+            Your readings have passed “{current.title}”.
+          </AppText>
+          <Button
+            label="Mark it done"
+            variant="quiet"
+            onPress={() => onAdvanceMilestone(current.id)}
+            theme={theme}
+          />
+        </View>
       ) : null}
 
       {targetDate ? (
@@ -222,6 +280,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   track: { height: 10, borderRadius: 5, overflow: "hidden" },
   fill: { height: 10, borderRadius: 5 },
+  invite: { gap: space.sm, marginTop: space.xs },
   addRow: { flexDirection: "row", gap: space.sm, marginTop: space.xs },
   input: {
     ...typeScale.body,

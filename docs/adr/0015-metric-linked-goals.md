@@ -256,25 +256,27 @@ goals.
        two renderings; no bar before the first entry. (Shipped:
        `components/goals/GoalMetricPanel.tsx`; the arithmetic is
        `packages/scoring/src/metrics.ts` with 17 tests.)
-3. [ ] Auto-count **UI**: nominating the task in the goal editor. The
-       *mechanism* is shipped — `setGoalAutocountTask`,
-       `autocountForTask`, and `removeAutocountForTask`, wired into
-       `toggleCompletion` both ways — but nothing on screen sets the
-       link yet, so it is unreachable.
-4. [ ] Completion invitation on reaching target, routed into
-       ADR-0007 §2's existing three-path flow (§3). `metricState().met`
-       is the signal and is tested; the panel shows "Target reached"
-       but does not yet offer to complete.
+3. [x] Auto-count: task nomination in the goal editor, increment on
+       completion, null-on-archive (§2). (Shipped: the picker lives in
+       `GoalMetricSheet`, cumulative goals only — a task completion
+       carries no reading, so switching a goal to `target` drops a
+       stale link rather than keeping a counter it cannot use.)
+4. [x] Completion invitation on reaching target, routed into
+       ADR-0007 §2's existing three-path flow (§3). (Shipped:
+       `GoalMetricPanel` raises "Complete this goal" on
+       `metricState().met`, which opens the existing
+       `CompleteGoalModal`. An invitation, never an action.)
 5. [x] Month picker for `target_date` — not a date picker (§4).
        (Shipped: `GoalMetricSheet` — three year chips and twelve month
        chips, so there is no day field to be tempted by.)
-6. [~] Milestone thresholds and the advance prompt; retroactive date
+6. [x] Milestone thresholds and the advance prompt; retroactive date
        written to both `milestone.completed_on` and
-       `achievement.achieved_at` (§5). **Data layer done** —
-       `addMilestone` takes a threshold, `completeMilestone` takes the
-       day and writes both places, `milestonesReached` computes the
-       prompt. **No UI yet** for entering a threshold or picking a past
-       date.
+       `achievement.achieved_at` (§5). (Shipped: a threshold field
+       beside the milestone title, shown only on a measured goal;
+       `GoalMetricPanel` prompts when readings pass the **current**
+       rung — one at a time, since advancing is sequential per
+       ADR-0007 §3; and `PastDaySheet` asks when it actually happened
+       before completing.)
 7. [x] Amend ADR-0007 §2: metric-linked goals are no longer deferred;
        point it here.
 8. [x] Update the ADR index — 0015 moves out of Planned ADRs.
