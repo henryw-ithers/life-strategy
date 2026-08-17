@@ -19,11 +19,14 @@ status to *Accepted*.
 | [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
 | [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
 | [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
+| [0015](0015-metric-linked-goals.md) | Metric-linked goals | Accepted |
 | [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
 | [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
 | [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
+| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
+| [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -69,10 +72,10 @@ code.
 |---|-------|-------------------------------|---------|
 | 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
 | 0014 | Partial credit | …calibration data (ADR-0008) shows binary completion diverging from felt contentment — the trigger written into ADR-0004 | The completion-fraction model and its UI without breaking one-tap simplicity |
-| 0015 | Metric-linked goals | …manual completion proves limiting in real use (deferred in ADR-0007; `goal.target_value` is waiting) | Progress entries, auto-completion, per-goal-type design |
 | 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
 | 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
 | 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
+| 0026 | Task size and day load | …the weekly planning pass (ADR-0024) is in real use and "is this day too full?" has come up unprompted | Effort size on tasks (`quick`/`normal`/`big`, reusing `activity.size`'s vocabulary), the per-day load indicator, and the confirmation that load stays presentational and never reaches the grade |
 
 **0019–0022 were written ahead of the reserved numbers.** The
 remaining reserved slots stay reserved for the triggers listed above;
@@ -80,7 +83,15 @@ multi-unit tasks, the crypto swap, and the two 2026-08-02 diagnostic
 decisions simply came up first, and renumbering reserved slots to keep
 the sequence tidy would break every reference already pointing at them.
 (0011 and 0013 have since been written — both triggers fired when the
-app went to friends.)
+app went to friends. **0015 followed on 2026-08-16**, its trigger fired
+from an unexpected direction: not manual completion chafing, but a
+request for rough deadlines and retroactive milestones.) **0024–0026
+continue past the reserved block** for the same reason: the 2026-08-16
+scheduling workshop split into three decisions with different evidence
+and different triggers. 0024 and 0025 were accepted that day; 0026
+waits for its trigger. **Read 0024 first** — 0025 argues that 0024's
+uniform rule is wrong for three of the eighteen units, so it only makes
+sense afterwards.
 
 **0016's trigger changed.** Multi-device sync was already deferred;
 [ADR-0020](0020-backup-cryptography-and-export-exemption.md) makes the

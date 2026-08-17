@@ -564,6 +564,31 @@ history that cannot be re-derived. Worth batching with ADR-0008's
 calibration data, which is the instrument that can actually say
 whether the number tracks how the day felt — which is the complaint.
 
+**2026-08-16: a second change now waits on this same batch.**
+[ADR-0025 §12](adr/0025-communal-units-are-dimensions.md)
+deferred restoring **fill-first activity credit** here rather than
+shipping it alone. vision.md still describes fill-first ("activity
+credit first *fills* the tagged units' unearned planned points") while
+`packages/scoring/src/grade.ts` implements ADR-0023's flat capped pool
+— so **vision.md is known-stale on this point** and should not be read
+as describing shipped behaviour until this batch lands. It was briefly
+decided the same day, on the argument that communal units needed to
+earn against their own weight; ADR-0025 §3 then supplied that a
+different way (their weight is exempt from reallocation, and one tag
+earns it), which dissolved the reason. What remains is the weaker
+instrumental case — golf standing in for a skipped workout — which
+does not justify a `FORMULA_VERSION` bump on its own.
+
+**A third change waits on the same batch:** ADR-0025 §3's exemption of
+communal units from `spendableWeights`' uncovered-weight reallocation,
+plus the one-tag-earns-the-day rule. That needs an **ADR-0003 §5
+amendment** as well as a version bump.
+
+So this batch now carries three things — the daily denominator,
+fill-first, and the communal weight rule. It should carry them in
+**one `FORMULA_VERSION`, not three**; that is the whole reason any of
+them are parked here rather than shipped.
+
 ### The scale this should be tuned against
 
 *Henry, 2026-08-13.* The target meaning of a daily grade. This is the

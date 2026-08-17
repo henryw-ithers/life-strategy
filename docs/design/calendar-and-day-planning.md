@@ -3,6 +3,14 @@
 > Status: planned, not built (2026-07-17). Written ahead of the daily
 > checklist build so its decisions anticipate this. No schema changes
 > yet; additions listed at the bottom land when their phase builds.
+>
+> **2026-08-16:** the phases below stand unchanged, but the granularity
+> question this note never asked is now decided in
+> [ADR-0024](../adr/0024-day-planning-is-intention.md) — a plan is a
+> weekday *and a part of day*, never a clock time — along with the
+> checklist regrouping and the governing principle below, which that
+> ADR promotes to an invariant. Read the ADR first; this note remains
+> the phase plan.
 
 ## The idea
 
