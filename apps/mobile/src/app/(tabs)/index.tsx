@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
 import { ActivitySheet, type ExistingActivity } from "../../components/today/ActivitySheet";
+import { CompletionTagSheet } from "../../components/today/CompletionTagSheet";
 import { DayKindSheet } from "../../components/today/DayKindSheet";
 import { DayNumber } from "../../components/today/DayNumber";
 import { MonthGrid } from "../../components/today/MonthGrid";
@@ -56,6 +57,7 @@ import {
   loadCalendarGrades,
   logActivity,
   setDayKind,
+  setCompletionTags,
   toggleCompletion,
   updateActivity,
   updateJournalEntry,
@@ -124,6 +126,7 @@ export default function TodayScreen() {
     null,
   );
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
+  const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>(
     {},
   );
@@ -582,6 +585,14 @@ export default function TodayScreen() {
                             hue={hueFor(t)}
                             disabled={!day.editable}
                             onToggle={() => void onToggle(t)}
+                            // Only a completed row has a completion to
+                            // hang a tag on (ADR-0025 §4).
+                            onTag={
+                              t.completedToday && day.editable && day.communalUnits.length > 0
+                                ? () => setTaggingTask(t)
+                                : undefined
+                            }
+                            tagHues={theme.areas}
                             theme={theme}
                             reduceMotion={reduceMotion}
                           />
@@ -695,6 +706,23 @@ export default function TodayScreen() {
               void write.then(() => reload(day.date));
             }}
           />
+          {taggingTask ? (
+            <CompletionTagSheet
+              visible
+              taskTitle={taggingTask.title}
+              units={day.communalUnits}
+              selected={taggingTask.tagUnitIds}
+              areaColors={theme.areas}
+              accent={theme.accent}
+              theme={theme}
+              onClose={() => setTaggingTask(null)}
+              onSave={(unitIds) => {
+                void setCompletionTags(taggingTask.id, day.date, unitIds).then(() =>
+                  reload(day.date),
+                );
+              }}
+            />
+          ) : null}
           <DayKindSheet
             visible={kindSheet}
             dayLabel={isToday ? "today" : spokenDate(day.date).split(",")[0] ?? day.date}

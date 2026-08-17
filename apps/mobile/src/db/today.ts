@@ -37,6 +37,7 @@ import {
   photo,
   task,
   taskCompletion,
+  taskCompletionTag,
   taskUnit,
   unitWeight,
 } from "./schema";
@@ -61,6 +62,11 @@ export interface TodayTask {
   goalCount: number;
   extraToday: boolean;
   pointsIfCompletedNow: number;
+  /**
+   * Who you were with, on *this day's* completion (ADR-0025 §4).
+   * Empty unless the task is completed today and was tagged.
+   */
+  tagUnitIds: string[];
 }
 
 export interface TodayActivity {
@@ -93,6 +99,12 @@ export interface DayData {
   photos: { id: string; uri: string; caption: string | null }[];
   /** Scoring-included units, for activity tag pickers. */
   units: { id: string; name: string; areaId: string }[];
+  /**
+   * The communal units (ADR-0025 §1) — what the completion tag sheet
+   * offers. These are dimensions rather than containers: they hold no
+   * tasks, and anything may tag them.
+   */
+  communalUnits: { id: string; name: string; areaId: string }[];
 }
 
 /** Rollover is a fixed 3am until settings ship (`app_setting` ready). */
@@ -224,6 +236,30 @@ export async function loadDay(
   );
   const statusById = new Map(statuses.map((s) => [s.taskId, s]));
 
+  // Tags belong to a completion, so only this date's completions have
+  // any (ADR-0025 §4).
+  const todaysCompletionIds = completions
+    .filter((c) => c.localDate === date)
+    .map((c) => ({ id: c.id, taskId: c.taskId }));
+  const tagRowsForDay = todaysCompletionIds.length
+    ? await db
+        .select()
+        .from(taskCompletionTag)
+        .where(
+          inArray(
+            taskCompletionTag.completionId,
+            todaysCompletionIds.map((c) => c.id),
+          ),
+        )
+    : [];
+  const tagsByTask = new Map<string, string[]>();
+  for (const c of todaysCompletionIds) {
+    const ids = tagRowsForDay
+      .filter((r) => r.completionId === c.id)
+      .map((r) => r.unitId);
+    if (ids.length > 0) tagsByTask.set(c.taskId, ids);
+  }
+
   const todayTasks: TodayTask[] = tasks.map((t) => {
     const s = statusById.get(t.id)!;
     return {
@@ -241,6 +277,7 @@ export async function loadDay(
       goalCount: s.goalCount,
       extraToday: s.extraToday,
       pointsIfCompletedNow: s.pointsIfCompletedNow,
+      tagUnitIds: tagsByTask.get(t.id) ?? [],
     };
   });
 
@@ -353,6 +390,9 @@ export async function loadDay(
     photos: photos.map((p) => ({ id: p.id, uri: p.uri, caption: p.caption })),
     units: units
       .filter((u) => u.includeInScoring)
+      .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
+    communalUnits: units
+      .filter((u) => u.motivationKind === "communal")
       .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
   };
 }
@@ -473,6 +513,15 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
     .from(taskCompletion)
     .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
   if (existing.length > 0) {
+    // Tags hang off the completion, so unchecking takes them with it —
+    // otherwise the row would be orphaned against its foreign key and
+    // a re-check would silently inherit yesterday's company.
+    await db.delete(taskCompletionTag).where(
+      inArray(
+        taskCompletionTag.completionId,
+        existing.map((c) => c.id),
+      ),
+    );
     await db
       .delete(taskCompletion)
       .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
@@ -491,6 +540,49 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
     });
   }
   await cacheDayScore(date);
+}
+
+/**
+ * Replace who you were with on this task's completion (ADR-0025 §4).
+ *
+ * Units, never named people — an explicit non-goal of that ADR. Tagging
+ * a unit records a fact about the user; tagging a person would create
+ * records about someone who never consented to being in this database,
+ * and the app's one-sentence privacy story holds precisely because
+ * everything in it is self-reported about the self.
+ *
+ * Scores nothing today. Under ADR-0025 §3 a single tag will earn the
+ * unit's full daily share, but that half needs a `FORMULA_VERSION`
+ * bump and is batched with the parked retune — so `cacheDayScore` is
+ * deliberately not called here.
+ */
+export async function setCompletionTags(
+  taskId: string,
+  date: string,
+  unitIds: readonly string[],
+): Promise<void> {
+  assertEditable(date);
+  const [completion] = await db
+    .select()
+    .from(taskCompletion)
+    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
+  // Nothing to hang a tag on. Reached only if the row was unchecked
+  // between opening the sheet and saving it.
+  if (!completion) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(taskCompletionTag)
+      .where(eq(taskCompletionTag.completionId, completion.id));
+    if (unitIds.length > 0) {
+      await tx.insert(taskCompletionTag).values(
+        [...new Set(unitIds)].map((unitId) => ({
+          completionId: completion.id,
+          unitId,
+        })),
+      );
+    }
+  });
 }
 
 export async function logActivity(

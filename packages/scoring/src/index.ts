@@ -10,6 +10,8 @@ export { largestRemainder } from "./rounding";
 export type { UnitCoverage } from "./weights";
 export { deriveWeights, spendableWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
+export type { UnitEffortInput } from "./effort";
+export { deriveEffort, rawEffort } from "./effort";
 export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
 export { nextGoalStatus, advanceMilestone } from "./goals";
 export type {

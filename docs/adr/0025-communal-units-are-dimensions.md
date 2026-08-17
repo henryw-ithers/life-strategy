@@ -223,12 +223,27 @@ render at minimum bubble size — small, high, and left, the quadrant
 vision.md defines as *"important, unsatisfying, neglected"* — no matter
 how much of the user's life actually involves those people.
 
-**Decision: effort counts logged occurrences** — tagged completions and
-tagged activities, weighted by `activity.size` where it applies — for
-any unit whose involvement is note-shaped. Scored units keep the
-points-based derivation. The two share one normalization, so making
-their magnitudes comparable is the real work here and it needs a test,
-not a guess.
+**Decision: effort counts tagged days** — distinct local dates on which
+the unit was tagged, from a task completion or an activity — for any
+unit whose involvement is note-shaped. Scored units keep the
+points-based derivation. A tagged day is priced at **the unit's own
+weight**, which is what puts the two paths on one scale: a scored unit
+accrues roughly its weight on a day it is fully done.
+
+> **Amended 2026-08-16, during implementation.** This section first
+> said "logged occurrences … weighted by `activity.size`". Building it
+> surfaced the conflict: **§3 decides that one tag anywhere in the day
+> earns the unit's full share**, so counting occurrences here would
+> make the bubble and the grade tell different stories about the same
+> behaviour — five things logged with family on one day reading as five
+> days of investment on the chart and one on the score. Days is what §3
+> settled on, so days is what §8 measures.
+>
+> The rule keys on **whether the unit earned points**, not on its
+> motivation kind, so nothing here changes when §3 lands: communal
+> units simply move onto the points path, with no seam.
+>
+> Shipped in `packages/scoring/src/effort.ts`, with tests.
 
 This also fixes the same latent hole for any *excluded* unit —
 ADR-0003 §2's own worked example ("Online entertainment") has it too.
@@ -410,14 +425,27 @@ Learning & growth; anyone proposes named people (§4) or gives
 
 ## Action items
 
-1. [ ] Migration: `life_unit.motivation_kind`, `task_unit.membership`,
+1. [x] Migration: `life_unit.motivation_kind`, `task_unit.membership`,
        `task_completion_tag`; backfill §1 via the taxonomy sync.
-2. [ ] Block communal units as task home units; allow them as tags
-       everywhere (§2).
-3. [ ] Long-press tagging on completions (§4) — no prompt, ever.
-4. [ ] Rework `trailingEffort()` per §8, with a test for magnitude
-       comparability against the points-based path.
-5. [ ] ADR-0006 library: stop proposing tasks for communal units.
+       (Shipped: migration `0009`, and `db/seed.ts` syncs
+       `motivation_kind` seed-authoritatively like name and area.)
+2. [x] Block communal units as task home units; allow them as tags
+       everywhere (§2). (Shipped: `plan.tsx`'s `allUnits` filters them
+       out of every task-unit picker.)
+3. [x] Long-press tagging on completions (§4) — no prompt, ever.
+       (Shipped: `components/today/CompletionTagSheet.tsx`, reached by
+       `onLongPress` on a *completed* row, plus a `magicTap`
+       accessibility action since a long-press is invisible to a
+       screen reader. `setCompletionTags` deliberately does not call
+       `cacheDayScore` — the scoring half is §3's, and it is batched.)
+4. [x] Rework `trailingEffort()` per §8, with a test for magnitude
+       comparability against the points-based path. (Shipped:
+       `packages/scoring/src/effort.ts` + 10 tests; §8 amended from
+       occurrences to days, see the note there.)
+5. [x] ADR-0006 library: stop proposing tasks for communal units.
+       (Shipped structurally: `scripts/content/build.mjs` fails the
+       build if `library.md` puts a task under one, so it cannot be
+       forgotten.)
 6. [ ] Write the two §13 notes into
        [copy-guide.md](../design/copy-guide.md); surface in
        `UnitInfoSheet`.
@@ -425,9 +453,9 @@ Learning & growth; anyone proposes named people (§4) or gives
        §12's fill-first, and the parked daily-denominator retune — one
        `FORMULA_VERSION`, with an ADR-0003 §5 amendment.
 8. [ ] Open ADR-0015 — its trigger fired in §11.
-9. [ ] Add a line to ADR-0024 recording that §1 was challenged on
+9. [x] Add a line to ADR-0024 recording that §1 was challenged on
        2026-08-16 and reaffirmed (§7 here).
-10. [ ] Update AGENTS.md's SLU vocabulary entry: three units are
+10. [x] Update AGENTS.md's SLU vocabulary entry: three units are
        diagnosed and dimensioned, not scored directly.
 11. [x] Rule on §14 — dropped 2026-08-16; the attribute is unit-level
        only and the column was never built.

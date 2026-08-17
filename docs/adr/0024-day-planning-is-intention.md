@@ -102,6 +102,16 @@ Constraints already in force:
 
 ### 1. A plan is a weekday and a part of day. Never a clock time.
 
+> **Challenged and reaffirmed, 2026-08-16.** Henry argued for times on
+> the strength of real cases — a weekly band practice, a Tuesday night
+> movie tradition, a tee time — and the argument that carried for
+> holding the line was **functional, not psychological: a clock time
+> would drive nothing this app does.** There are no per-task reminders
+> (§5 declined to add any) and no time-slot calendar, so the only thing
+> a time could affect is checklist ordering, which part-of-day already
+> provides. Recorded in
+> [ADR-0025 §7](0025-communal-units-are-dimensions.md).
+
 The planning primitive is **(weekday, part of day)** where part of day
 is `morning | afternoon | evening | anytime`. No time picker exists
 anywhere in the app, and none is added later without reopening this

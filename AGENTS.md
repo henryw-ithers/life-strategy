@@ -72,7 +72,8 @@ Use these terms consistently in code, docs, and UI copy:
 | Term | Meaning |
 |------|---------|
 | **SLA** — Strategic Life Area | One of 6 top-level life areas (e.g., Relationships) |
-| **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of diagnosis and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted |
+| **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of diagnosis and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted. **Three of the 18 are diagnosed and *dimensioned* rather than scored directly** — see Motivation kind |
+| **Motivation kind** | `instrumental` or `communal` (ADR-0025 §1). The three Relationships units — Significant other, Family, Friendship — are **communal**: dimensions, not containers. They hold no tasks and cannot be a task's home unit; anything may *tag* them instead, per completion, by press-and-hold. "Autotelic" is editorial only — guidance copy, never a stored value, the same demotion ADR-0021 gave areas |
 | **Diagnostic** | The periodic assessment: importance (1–10) and satisfaction (1–10) per SLU. **User-facing copy always says "Priority," never "Importance"** — everything on the list is important; the rating is relative standing. Schema, scoring engine, and formulas keep `importance` as the domain term |
 | **Snapshot** | One saved diagnostic; snapshots form the portfolio history |
 | **Portfolio graph** | Bubble chart: importance (y) × satisfaction (x), bubble size = effort invested |

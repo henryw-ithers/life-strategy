@@ -128,7 +128,11 @@ export default function PlanScreen() {
     () =>
       (plan?.areas ?? []).flatMap((a) =>
         a.units
-          .filter((u) => u.includeInScoring)
+          // Communal units are dimensions, not containers (ADR-0025
+          // §2): they hold no tasks, so they are never offered as one
+          // to file under. They are reached by tagging a completion
+          // instead, which is where relationships actually show up.
+          .filter((u) => u.includeInScoring && u.motivationKind !== "communal")
           .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
       ),
     [plan],

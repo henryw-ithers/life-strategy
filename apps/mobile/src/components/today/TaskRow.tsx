@@ -16,6 +16,11 @@ interface TaskRowProps {
   hue: string;
   disabled: boolean;
   onToggle: () => void;
+  /** Press-and-hold on a completed row: who you were with
+   *  (ADR-0025 §4). Absent when the row can't carry tags. */
+  onTag?: () => void;
+  /** Area hue per tagged unit, for the company pips. */
+  tagHues?: Record<string, string>;
   theme: ThemeTokens;
   reduceMotion: boolean;
 }
@@ -46,6 +51,8 @@ export function TaskRow({
   hue,
   disabled,
   onToggle,
+  onTag,
+  tagHues,
   theme,
   reduceMotion,
 }: TaskRowProps) {
@@ -68,10 +75,20 @@ export function TaskRow({
   return (
     <Pressable
       onPress={onToggle}
+      onLongPress={onTag}
       disabled={disabled}
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled }}
-      accessibilityLabel={`${task.title}${caption ? `, ${caption}` : ""}`}
+      accessibilityLabel={`${task.title}${caption ? `, ${caption}` : ""}${
+        task.tagUnitIds.length > 0 ? `, with ${task.tagUnitIds.length}` : ""
+      }`}
+      // Long-press is invisible to a screen reader, so the same action
+      // needs an explicit rotor entry (ADR-0025 §4's gesture is the
+      // only route to tagging).
+      accessibilityActions={onTag ? [{ name: "magicTap", label: "Who you were with" }] : undefined}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "magicTap") onTag?.();
+      }}
       style={({ pressed }) => [
         styles.row,
         { opacity: disabled ? 0.45 : pressed ? 0.6 : 1 },
@@ -97,6 +114,22 @@ export function TaskRow({
           </AppText>
         ) : null}
       </View>
+      {/* Company, as area-hue pips rather than names. The row is the
+          daily surface: it says the tag exists, and the sheet says
+          what it is. */}
+      {task.tagUnitIds.length > 0 ? (
+        <View style={styles.pips} importantForAccessibility="no-hide-descendants">
+          {task.tagUnitIds.map((id) => (
+            <View
+              key={id}
+              style={[
+                styles.pip,
+                { backgroundColor: tagHues?.[id] ?? theme.muted },
+              ]}
+            />
+          ))}
+        </View>
+      ) : null}
       <AppText variant="footnote" color={theme.muted} tabular>
         {task.extraToday && checked
           ? `+${task.pointsIfCompletedNow}`
@@ -131,4 +164,6 @@ const styles = StyleSheet.create({
   },
   check: { lineHeight: 16 },
   text: { flex: 1, gap: 1 },
+  pips: { flexDirection: "row", gap: 3, marginRight: space.xs },
+  pip: { width: 6, height: 6, borderRadius: 3 },
 });

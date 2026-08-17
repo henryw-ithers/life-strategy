@@ -1,6 +1,7 @@
 import {
   addDays,
   combineHierarchicalRank,
+  deriveEffort,
   deriveWeights,
   FORMULA_VERSION,
   rankToScore,
@@ -20,6 +21,7 @@ import {
   snapshot,
   task,
   taskCompletion,
+  taskCompletionTag,
   unitWeight,
 } from "./schema";
 import { getGapCoefficientOverride } from "./settings";
@@ -145,7 +147,9 @@ export function buildEntries(
  * unit is 1. Null when nothing is logged yet (first snapshot:
  * bubbles render uniform and small until life gets logged).
  */
-async function trailingEffort(): Promise<Map<string, number> | null> {
+async function trailingEffort(
+  weights: ReadonlyMap<string, number>,
+): Promise<Map<string, number> | null> {
   const today = currentLocalDate();
   const start = addDays(today, -28);
 
@@ -171,13 +175,51 @@ async function trailingEffort(): Promise<Map<string, number> | null> {
     .where(and(gte(activity.localDate, start), lte(activity.localDate, today)))
     .groupBy(activityTag.unitId);
 
-  const totals = new Map<string, number>();
-  for (const row of [...completions, ...credits]) {
-    totals.set(row.unitId, (totals.get(row.unitId) ?? 0) + (row.pts ?? 0));
+  // Distinct days a unit was tagged, from either route (ADR-0025 §8).
+  // Days rather than occurrences, so the bubble and the grade tell the
+  // same story — §3 settles a day's worth at one tag.
+  const completionTagDays = await db
+    .selectDistinct({
+      unitId: taskCompletionTag.unitId,
+      localDate: taskCompletion.localDate,
+    })
+    .from(taskCompletionTag)
+    .innerJoin(taskCompletion, eq(taskCompletionTag.completionId, taskCompletion.id))
+    .where(
+      and(gte(taskCompletion.localDate, start), lte(taskCompletion.localDate, today)),
+    );
+
+  const activityTagDays = await db
+    .selectDistinct({ unitId: activityTag.unitId, localDate: activity.localDate })
+    .from(activityTag)
+    .innerJoin(activity, eq(activityTag.activityId, activity.id))
+    .where(and(gte(activity.localDate, start), lte(activity.localDate, today)));
+
+  const daysByUnit = new Map<string, Set<string>>();
+  for (const row of [...completionTagDays, ...activityTagDays]) {
+    const set = daysByUnit.get(row.unitId) ?? new Set<string>();
+    set.add(row.localDate);
+    daysByUnit.set(row.unitId, set);
   }
-  const max = Math.max(0, ...totals.values());
-  if (max <= 0) return null;
-  return new Map([...totals].map(([id, pts]) => [id, pts / max]));
+
+  const points = new Map<string, number>();
+  for (const row of [...completions, ...credits]) {
+    points.set(row.unitId, (points.get(row.unitId) ?? 0) + (row.pts ?? 0));
+  }
+
+  const unitIds = new Set([
+    ...points.keys(),
+    ...daysByUnit.keys(),
+    ...weights.keys(),
+  ]);
+  return deriveEffort(
+    [...unitIds].map((unitId) => ({
+      unitId,
+      points: points.get(unitId) ?? 0,
+      taggedDays: daysByUnit.get(unitId)?.size ?? 0,
+      weight: weights.get(unitId) ?? 0,
+    })),
+  );
 }
 
 /**
@@ -193,10 +235,7 @@ async function trailingEffort(): Promise<Map<string, number> | null> {
 export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string> {
   const snapshotId = Crypto.randomUUID();
   const takenAt = new Date().toISOString();
-  const [effort, gapCoefficientOverride] = await Promise.all([
-    trailingEffort(),
-    getGapCoefficientOverride(),
-  ]);
+  const gapCoefficientOverride = await getGapCoefficientOverride();
 
   const weights = deriveWeights(
     entries
@@ -207,6 +246,21 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         satisfaction: e.satisfaction,
       })),
     gapCoefficientOverride ?? undefined,
+  );
+
+  /**
+   * Effort now needs weights, to price a tagged day against a scored
+   * unit's points on one scale (ADR-0025 §8) — so it runs after
+   * derivation rather than beside it.
+   *
+   * These are *this* snapshot's weights applied to the previous 28
+   * days, which were lived under the last ones. Deliberate: effort is
+   * a bubble size, not a stored score, and reaching back for the prior
+   * snapshot's weights would price the window correctly while making
+   * the chart disagree with the axes it is drawn against.
+   */
+  const effort = await trailingEffort(
+    new Map(weights.map((w) => [w.unitId, w.weight])),
   );
 
   await db.transaction(async (tx) => {

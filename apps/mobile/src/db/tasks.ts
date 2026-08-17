@@ -47,6 +47,12 @@ export interface PlanUnit {
   name: string;
   areaId: string;
   includeInScoring: boolean;
+  /**
+   * ADR-0025 §1. A `communal` unit is a **dimension, not a
+   * container**: it holds no tasks and cannot be a task's home unit.
+   * Anything may tag it instead, per completion.
+   */
+  motivationKind: "instrumental" | "communal";
   /** Effective weight from the latest snapshot; null when excluded. */
   weight: number | null;
   /**
@@ -144,6 +150,7 @@ export async function loadPlan(): Promise<PlanData> {
           name: u.name,
           areaId: u.areaId,
           includeInScoring: u.includeInScoring,
+          motivationKind: u.motivationKind,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
           spendable: spendable.get(u.id) ?? 0,
           // A task is listed under every unit it serves, ranked by that
