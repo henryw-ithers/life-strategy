@@ -52,9 +52,17 @@ the goal leaves behind:
    The strength sessions continue; they just no longer point at a
    number.
 
-Metric-linked goals (target value + progress entries, auto-completion)
+~~Metric-linked goals (target value + progress entries, auto-completion)
 are deferred; `goal.target_value` already sits in the schema for when
-they arrive.
+they arrive.~~
+
+**Amended 2026-08-16 — no longer deferred. See
+[ADR-0015](0015-metric-linked-goals.md).** One clarification it makes
+to this section: there is **no auto-completion**. Reaching a target
+*invites* completion and the invitation routes into the three-path flow
+above, because that flow asks a question only the user can answer —
+silent completion would either skip it or pick for them. "I benched 225
+once" and "I am now a person who benches 225" are different claims.
 
 ### 3. Milestones: flat, ordered, one in focus
 

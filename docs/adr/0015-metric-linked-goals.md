@@ -250,17 +250,31 @@ goals.
 
 ## Action items
 
-1. [ ] Migration: the six new columns and `goal_progress` (§Schema).
-2. [ ] Progress entry UI on the goal screen — add, list, delete; §1's
-       two renderings; no bar before the first entry.
-3. [ ] Auto-count: task nomination in the goal editor, increment on
-       completion, null-on-archive (§2).
+1. [x] Migration: the six new columns and `goal_progress` (§Schema).
+       (Shipped in migration `0009`.)
+2. [x] Progress entry UI on the goal screen — add, list, delete; §1's
+       two renderings; no bar before the first entry. (Shipped:
+       `components/goals/GoalMetricPanel.tsx`; the arithmetic is
+       `packages/scoring/src/metrics.ts` with 17 tests.)
+3. [ ] Auto-count **UI**: nominating the task in the goal editor. The
+       *mechanism* is shipped — `setGoalAutocountTask`,
+       `autocountForTask`, and `removeAutocountForTask`, wired into
+       `toggleCompletion` both ways — but nothing on screen sets the
+       link yet, so it is unreachable.
 4. [ ] Completion invitation on reaching target, routed into
-       ADR-0007 §2's existing three-path flow (§3).
-5. [ ] Month picker for `target_date` — not a date picker (§4).
-6. [ ] Milestone thresholds and the advance prompt; retroactive date
+       ADR-0007 §2's existing three-path flow (§3). `metricState().met`
+       is the signal and is tested; the panel shows "Target reached"
+       but does not yet offer to complete.
+5. [x] Month picker for `target_date` — not a date picker (§4).
+       (Shipped: `GoalMetricSheet` — three year chips and twelve month
+       chips, so there is no day field to be tempted by.)
+6. [~] Milestone thresholds and the advance prompt; retroactive date
        written to both `milestone.completed_on` and
-       `achievement.achieved_at` (§5).
-7. [ ] Amend ADR-0007 §2: metric-linked goals are no longer deferred;
+       `achievement.achieved_at` (§5). **Data layer done** —
+       `addMilestone` takes a threshold, `completeMilestone` takes the
+       day and writes both places, `milestonesReached` computes the
+       prompt. **No UI yet** for entering a threshold or picking a past
+       date.
+7. [x] Amend ADR-0007 §2: metric-linked goals are no longer deferred;
        point it here.
-8. [ ] Update the ADR index — 0015 moves out of Planned ADRs.
+8. [x] Update the ADR index — 0015 moves out of Planned ADRs.

@@ -5,14 +5,22 @@
  * via `recomputeAllUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
-import type { GoalStatus, MilestoneStatus } from "@glide/scoring";
+import type { GoalStatus, MetricKind, MilestoneStatus } from "@glide/scoring";
 import { advanceMilestone, nextGoalStatus } from "@glide/scoring";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { recomputeAllUnitPoints, type Tx } from "./tasks";
-import { achievement, goal, lifeArea, lifeUnit, milestone, task } from "./schema";
+import {
+  achievement,
+  goal,
+  goalProgress,
+  lifeArea,
+  lifeUnit,
+  milestone,
+  task,
+} from "./schema";
 
 export type { GoalStatus, MilestoneStatus };
 
@@ -43,6 +51,14 @@ export interface GoalMilestone {
   title: string;
   sortOrder: number;
   status: MilestoneStatus;
+  /** This rung's own threshold (ADR-0015 §5). Null = a plain rung; the
+   *  bench example is 135 → 185 → 225 and without this they are only
+   *  labels. Passing it *prompts*; nothing auto-completes. */
+  targetValue: number | null;
+  /** When it actually happened, `'YYYY-MM-DD'` — milestones are often
+   *  noticed late, and filing one in the wrong month would put a false
+   *  entry in the log of a life. */
+  completedOn: string | null;
 }
 
 export interface GoalTask {
@@ -50,6 +66,16 @@ export interface GoalTask {
   title: string;
   timesPerWeek: number;
   pointValue: number;
+}
+
+export interface GoalProgressEntry {
+  id: string;
+  localDate: string;
+  value: number;
+  note: string | null;
+  /** `task` rows came from the auto-count link (ADR-0015 §2). Shown and
+   *  individually deletable, so nothing accrues invisibly. */
+  source: "manual" | "task";
 }
 
 export interface GoalDetail {
@@ -60,12 +86,22 @@ export interface GoalDetail {
   title: string;
   description: string | null;
   targetValue: number | null;
+  /** Null = a plain goal, exactly as goals worked before ADR-0015. */
+  metricKind: MetricKind | null;
+  /** Free-text label: "books", "lb", "kg". */
+  metricUnit: string | null;
+  /** Rough deadline, `'YYYY-MM'` (ADR-0015 §4). Context, never a
+   *  status: a passed date changes nothing anywhere. */
+  targetDate: string | null;
+  autocountTaskId: string | null;
   status: GoalStatus;
   linkedFromGoalId: string | null;
   linkKind: "revision" | "follow_up" | null;
   successorGoalId: string | null;
   milestones: GoalMilestone[];
   tasks: GoalTask[];
+  /** Earliest first. */
+  progress: GoalProgressEntry[];
 }
 
 function now(): string {
@@ -145,6 +181,11 @@ export async function loadGoalDetail(
     .select()
     .from(goal)
     .where(eq(goal.linkedFromGoalId, goalId));
+  const progress = await db
+    .select()
+    .from(goalProgress)
+    .where(eq(goalProgress.goalId, goalId))
+    .orderBy(asc(goalProgress.localDate), asc(goalProgress.createdAt));
   const [unit] = await db
     .select()
     .from(lifeUnit)
@@ -158,6 +199,10 @@ export async function loadGoalDetail(
     title: row.title,
     description: row.description,
     targetValue: row.targetValue,
+    metricKind: row.metricKind as MetricKind | null,
+    metricUnit: row.metricUnit,
+    targetDate: row.targetDate,
+    autocountTaskId: row.autocountTaskId,
     status: row.status as GoalStatus,
     linkedFromGoalId: row.linkedFromGoalId,
     linkKind: row.linkKind as "revision" | "follow_up" | null,
@@ -167,12 +212,21 @@ export async function loadGoalDetail(
       title: m.title,
       sortOrder: m.sortOrder,
       status: m.status as MilestoneStatus,
+      targetValue: m.targetValue,
+      completedOn: m.completedOn,
     })),
     tasks: tasks.map((t) => ({
       id: t.id,
       title: t.title,
       timesPerWeek: t.timesPerWeek,
       pointValue: t.pointValue,
+    })),
+    progress: progress.map((p) => ({
+      id: p.id,
+      localDate: p.localDate,
+      value: p.value,
+      note: p.note,
+      source: p.source as "manual" | "task",
     })),
   };
 }
@@ -390,9 +444,142 @@ export async function completeGoal(
   return { successorGoalId };
 }
 
+/**
+ * Attach or clear a goal's metric (ADR-0015 §1).
+ *
+ * Passing `kind: null` returns it to a plain goal. The progress entries
+ * are deliberately left alone — they are history, and history does not
+ * restate (ADR-0002). Re-attaching a metric picks them back up.
+ */
+export async function setGoalMetric(
+  goalId: string,
+  metric: { kind: MetricKind; unit: string; targetValue: number } | null,
+): Promise<void> {
+  await db
+    .update(goal)
+    .set(
+      metric
+        ? {
+            metricKind: metric.kind,
+            metricUnit: metric.unit,
+            targetValue: metric.targetValue,
+          }
+        : { metricKind: null, metricUnit: null, targetValue: null },
+    )
+    .where(eq(goal.id, goalId));
+}
+
+/**
+ * The rough deadline, `'YYYY-MM'` (ADR-0015 §4).
+ *
+ * Month granularity is the whole point: this app plans roughly and owns
+ * no clocks, and a goal deadline is the longest-horizon commitment in
+ * the product — the last place precision earns its keep. A passed date
+ * changes nothing anywhere; there is no "overdue" state to set.
+ */
+export async function setGoalTargetDate(
+  goalId: string,
+  targetDate: string | null,
+): Promise<void> {
+  if (targetDate !== null && !/^\d{4}-(0[1-9]|1[0-2])$/.test(targetDate)) {
+    throw new Error(`Target date must be YYYY-MM, got "${targetDate}"`);
+  }
+  await db.update(goal).set({ targetDate }).where(eq(goal.id, goalId));
+}
+
+/** One reading toward a metric goal. Never a scoring event
+ *  (ADR-0015 §7) — no points, no denominator, no day touched. */
+export async function addGoalProgress(
+  goalId: string,
+  localDate: string,
+  value: number,
+  note: string | null,
+  source: "manual" | "task" = "manual",
+): Promise<void> {
+  await db.insert(goalProgress).values({
+    id: Crypto.randomUUID(),
+    goalId,
+    localDate,
+    value,
+    note,
+    source,
+  });
+}
+
+/** Deletable like journal entries — including auto-counted rows, so
+ *  nothing the app added on your behalf is stuck there. */
+export async function deleteGoalProgress(entryId: string): Promise<void> {
+  await db.delete(goalProgress).where(eq(goalProgress.id, entryId));
+}
+
+/**
+ * Nominate the one task whose completion increments a cumulative goal
+ * (ADR-0015 §2), or clear it with null.
+ *
+ * One task, explicitly chosen — never "all tasks under this goal",
+ * which would make progress a silent function of the task list, so
+ * editing tasks would rewrite goal history.
+ */
+export async function setGoalAutocountTask(
+  goalId: string,
+  taskId: string | null,
+): Promise<void> {
+  await db.update(goal).set({ autocountTaskId: taskId }).where(eq(goal.id, goalId));
+}
+
+/**
+ * Increment every cumulative goal that nominated this task
+ * (ADR-0015 §2). Called after a completion is written.
+ *
+ * Writes an ordinary, visible, individually-deletable progress row —
+ * `source: "task"` — so the user can always see where a number came
+ * from and take it back out.
+ */
+export async function autocountForTask(
+  taskId: string,
+  localDate: string,
+): Promise<void> {
+  const goals = await db
+    .select()
+    .from(goal)
+    .where(and(eq(goal.autocountTaskId, taskId), eq(goal.status, "active")));
+  for (const g of goals) {
+    // Readings carry no value on a task completion, so only a
+    // cumulative goal can be fed this way.
+    if (g.metricKind !== "cumulative") continue;
+    await addGoalProgress(g.id, localDate, 1, null, "task");
+  }
+}
+
+/** Undo this task's auto-counted rows for a day, when a completion is
+ *  unchecked. Manual entries on the same day are never touched. */
+export async function removeAutocountForTask(
+  taskId: string,
+  localDate: string,
+): Promise<void> {
+  const goals = await db
+    .select()
+    .from(goal)
+    .where(eq(goal.autocountTaskId, taskId));
+  for (const g of goals) {
+    await db
+      .delete(goalProgress)
+      .where(
+        and(
+          eq(goalProgress.goalId, g.id),
+          eq(goalProgress.localDate, localDate),
+          eq(goalProgress.source, "task"),
+        ),
+      );
+  }
+}
+
+/** @param targetValue This rung's own threshold on a metric goal
+ *   (ADR-0015 §5). Null for a plain rung. */
 export async function addMilestone(
   goalId: string,
   title: string,
+  targetValue: number | null = null,
 ): Promise<void> {
   await db.transaction(async (tx) => {
     const existing = await tx
@@ -408,6 +595,7 @@ export async function addMilestone(
       id: Crypto.randomUUID(),
       goalId,
       title,
+      targetValue,
       sortOrder: maxSortOrder + 1,
       status: hasCurrent ? "pending" : "current",
     });
@@ -421,8 +609,18 @@ export async function addMilestone(
  * caller is responsible for presenting the three-path completion flow
  * (this function never auto-picks a path).
  */
+/**
+ * @param completedOn `'YYYY-MM-DD'` for when it *actually* happened,
+ *   defaulting to today (ADR-0015 §5). Milestones are frequently
+ *   noticed late — "I passed 185 a few weeks ago" — and recording one
+ *   in the wrong month would put a false entry in the log of a life,
+ *   which is the one thing that log is for. The date reaches both
+ *   `milestone.completed_on` and the achievement's `achieved_at`, so
+ *   look-back views place it in the month it belongs to.
+ */
 export async function completeMilestone(
   milestoneId: string,
+  completedOn?: string,
 ): Promise<{ goalShouldComplete: boolean; goalId: string }> {
   let goalShouldComplete = false;
   let goalId = "";
@@ -435,9 +633,10 @@ export async function completeMilestone(
     goalId = row.goalId;
     const [goalRow] = await tx.select().from(goal).where(eq(goal.id, goalId));
 
+    const day = completedOn ?? new Date().toISOString().slice(0, 10);
     await tx
       .update(milestone)
-      .set({ status: "completed" })
+      .set({ status: "completed", completedOn: day })
       .where(eq(milestone.id, milestoneId));
 
     const siblings = await tx
@@ -469,7 +668,10 @@ export async function completeMilestone(
       goalId,
       milestoneId,
       titleSnapshot: row.title,
-      achievedAt: now(),
+      // The chosen day, not the moment it was recorded — so a
+      // look-back view files it in the month it happened. Midday
+      // avoids a timezone read pulling it onto the wrong date.
+      achievedAt: completedOn ? `${day}T12:00:00.000Z` : now(),
     });
   });
   return { goalShouldComplete, goalId };

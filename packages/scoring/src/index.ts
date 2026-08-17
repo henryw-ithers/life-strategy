@@ -12,6 +12,13 @@ export { deriveWeights, spendableWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
+export type {
+  MetricKind,
+  MetricProgress,
+  MetricDefinition,
+  MetricState,
+} from "./metrics";
+export { barFraction, metricState, milestonesReached } from "./metrics";
 export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
 export { nextGoalStatus, advanceMilestone } from "./goals";
 export type {

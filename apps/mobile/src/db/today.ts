@@ -28,6 +28,7 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
+import { autocountForTask, removeAutocountForTask } from "./goals";
 import {
   activity,
   activityTag,
@@ -525,6 +526,7 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
     await db
       .delete(taskCompletion)
       .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
+    await removeAutocountForTask(taskId, date);
   } else {
     const day = await loadDay(date);
     const status = [...day.daily, ...day.week, ...day.doneThisWeek].find(
@@ -538,6 +540,10 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
       completedAt: new Date().toISOString(),
       pointsEarned: status.pointsIfCompletedNow,
     });
+    // ADR-0015 §2. A goal that nominated this task gets a visible,
+    // deletable progress row — the completion scores, the row does not
+    // (§7 keeps the two meanings apart).
+    await autocountForTask(taskId, date);
   }
   await cacheDayScore(date);
 }

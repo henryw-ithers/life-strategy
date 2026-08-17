@@ -19,22 +19,29 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AbandonGoalModal } from "../../../components/goals/AbandonGoalModal";
 import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
+import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
+import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
 import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
 import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import {
   abandonGoal,
+  addGoalProgress,
   addMilestone,
   completeGoal,
   completeMilestone,
+  deleteGoalProgress,
   loadGoalDetail,
   pauseGoal,
   reviseGoal,
   reviveGoal,
   resumeGoal,
+  setGoalMetric,
+  setGoalTargetDate,
   type GoalDetail,
 } from "../../../db/goals";
+import { currentLocalDate } from "../../../db/today";
 import { getTheme } from "../../../theme/colors";
 import { radius, space, type as typeScale } from "../../../theme/tokens";
 
@@ -63,6 +70,7 @@ export default function GoalDetailScreen() {
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [revising, setRevising] = useState(false);
+  const [editingMetric, setEditingMetric] = useState(false);
 
   const reload = useCallback(async () => {
     setGoal(await loadGoalDetail(goalId));
@@ -213,6 +221,50 @@ export default function GoalDetailScreen() {
               ) : null}
             </View>
 
+            {goal.metricKind !== null && goal.targetValue !== null ? (
+              <GoalMetricPanel
+                kind={goal.metricKind}
+                unit={goal.metricUnit}
+                targetValue={goal.targetValue}
+                targetDate={goal.targetDate}
+                entries={goal.progress}
+                editable={goal.status === "active"}
+                accent={accent}
+                theme={theme}
+                onAdd={(value, note) => {
+                  void addGoalProgress(
+                    goal.id,
+                    currentLocalDate(),
+                    value,
+                    note,
+                  ).then(reload);
+                }}
+                onDelete={(entryId) => {
+                  void deleteGoalProgress(entryId).then(reload);
+                }}
+                onEdit={() => setEditingMetric(true)}
+              />
+            ) : goal.status === "active" ? (
+              <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+                <AppText variant="headline" color={theme.ink}>
+                  Progress
+                </AppText>
+                {/* An offer, not a nudge: a goal with no number is a
+                    first-class shape (ADR-0015 §1's null kind), so this
+                    describes what a measure would add and stops. */}
+                <AppText variant="caption" color={theme.muted} style={styles.emptyNote}>
+                  Some goals have a number to move — 24 books, 225 lb. Give this
+                  one a measure and you can log readings against it.
+                </AppText>
+                <Button
+                  label="Add a measure"
+                  variant="quiet"
+                  onPress={() => setEditingMetric(true)}
+                  theme={theme}
+                />
+              </View>
+            ) : null}
+
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
               <AppText variant="headline" color={theme.ink}>
                 Milestones
@@ -308,6 +360,31 @@ export default function GoalDetailScreen() {
                 ))
               )}
             </View>
+
+            {editingMetric ? (
+              <GoalMetricSheet
+                visible
+                metric={
+                  goal.metricKind !== null && goal.targetValue !== null
+                    ? {
+                        kind: goal.metricKind,
+                        unit: goal.metricUnit ?? "",
+                        targetValue: goal.targetValue,
+                      }
+                    : null
+                }
+                targetDate={goal.targetDate}
+                accent={accent}
+                theme={theme}
+                onClose={() => setEditingMetric(false)}
+                onSave={(metric, targetDate) => {
+                  void Promise.all([
+                    setGoalMetric(goal.id, metric),
+                    setGoalTargetDate(goal.id, targetDate),
+                  ]).then(reload);
+                }}
+              />
+            ) : null}
 
             <CompleteGoalModal
               visible={completing}
