@@ -51,6 +51,10 @@ export interface TodayTask {
   areaId: string;
   pointValue: number;
   timesPerWeek: number;
+  /** ADR-0024. Presentation only — these order the checklist and never
+   *  reach the grade. */
+  plannedWeekdays: string | null;
+  partOfDay: "morning" | "afternoon" | "evening" | null;
   band: TaskBand;
   completedToday: boolean;
   doneCount: number;
@@ -229,6 +233,8 @@ export async function loadDay(
       areaId: unitById.get(t.unitId)?.areaId ?? "",
       pointValue: t.pointValue,
       timesPerWeek: t.timesPerWeek,
+      plannedWeekdays: t.plannedWeekdays,
+      partOfDay: t.partOfDay,
       band: s.band,
       completedToday: s.completedToday,
       doneCount: s.doneCount,

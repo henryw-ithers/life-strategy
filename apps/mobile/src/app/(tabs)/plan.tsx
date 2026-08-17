@@ -50,6 +50,7 @@ import {
   restoreTask,
   setTaskDetails,
   setTaskFrequency,
+  setTaskPlanning,
   setTaskUnits,
   type PlanData,
   type PlanTask,
@@ -542,6 +543,8 @@ export default function PlanScreen() {
               description: editing.task.description,
               timesPerWeek: editing.task.timesPerWeek,
               unitIds: editing.task.unitIds,
+              plannedWeekdays: editing.task.plannedWeekdays,
+              partOfDay: editing.task.partOfDay,
             } satisfies EditableTask
           }
           units={allUnits}
@@ -559,6 +562,12 @@ export default function PlanScreen() {
             }
             if (next.unitIds.join("|") !== t.unitIds.join("|")) {
               await setTaskUnits(t.id, next.unitIds);
+            }
+            if (
+              next.plannedWeekdays !== t.plannedWeekdays ||
+              next.partOfDay !== t.partOfDay
+            ) {
+              await setTaskPlanning(t.id, next.plannedWeekdays, next.partOfDay);
             }
             await reload();
           }}

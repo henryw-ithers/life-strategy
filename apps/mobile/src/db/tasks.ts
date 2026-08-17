@@ -28,6 +28,10 @@ export interface PlanTask {
   description: string | null;
   /** Times per week: 1–7 (7 = daily); 0 = once every two weeks. */
   timesPerWeek: number;
+  /** `"1,3,5"`, or null for flexible (ADR-0024). Never scored. */
+  plannedWeekdays: string | null;
+  /** Null is *Anytime*. Never scored. */
+  partOfDay: "morning" | "afternoon" | "evening" | null;
   /** Total across every unit this task serves. */
   pointValue: number;
   /** Rank within the unit it's being listed under. */
@@ -154,6 +158,8 @@ export async function loadPlan(): Promise<PlanData> {
                 title: t.title,
                 description: t.description,
                 timesPerWeek: t.timesPerWeek,
+                plannedWeekdays: t.plannedWeekdays,
+                partOfDay: t.partOfDay,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
                 unitIds: [
@@ -422,4 +428,24 @@ export async function setTaskFrequency(
   timesPerWeek: number,
 ): Promise<void> {
   await db.update(task).set({ timesPerWeek }).where(eq(task.id, taskId));
+}
+
+/**
+ * Weekday pins and part of day (ADR-0024 §1).
+ *
+ * Presentation and defaults only — this never reaches the grade.
+ * `times_per_week` stays the sole scoring input, so doing three runs on
+ * three days you did not plan is a perfect week. Nothing here is read
+ * by `computeDayScore`, and no adherence statistic is derived from it
+ * anywhere (ADR-0024 §2, which makes that an invariant).
+ */
+export async function setTaskPlanning(
+  taskId: string,
+  plannedWeekdays: string | null,
+  partOfDay: "morning" | "afternoon" | "evening" | null,
+): Promise<void> {
+  await db
+    .update(task)
+    .set({ plannedWeekdays, partOfDay })
+    .where(eq(task.id, taskId));
 }

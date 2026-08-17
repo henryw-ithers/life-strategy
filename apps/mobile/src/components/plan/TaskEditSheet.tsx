@@ -6,9 +6,14 @@
  * see the order you're changing; a second way in from this sheet would
  * be the slower path to the same result.
  *
- * Short enough to fit without scrolling, deliberately. A sheet you
- * scroll hides its own primary action, and every control here is one
- * the user came to change.
+ * **Scrolls in its content area only; the actions stay pinned.**
+ * This sheet used to refuse to scroll at all, on the grounds that a
+ * sheet you scroll hides its own primary action. ADR-0024 added two
+ * more controls (which days, when in the day) and the fields no longer
+ * fit any phone — so the rule is honoured where it actually bites:
+ * Save and Delete sit outside the scroller and are always reachable.
+ * Cramming the fields instead would have cost touch-target sizes on a
+ * row of seven chips, which is the worse trade.
  *
  * Edits apply on save, not on blur: cadence and units both recompute
  * point values across units, and doing that on every keystroke would
@@ -20,6 +25,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -30,9 +36,19 @@ import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { formatFrequency } from "./frequency";
 import { FrequencyPicker } from "./FrequencyPicker";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
+import { PartOfDayPicker } from "./PartOfDayPicker";
+import {
+  formatWeekdays,
+  frequencyForWeekdays,
+  parseWeekdays,
+  type PartOfDay,
+  type Weekday,
+} from "./planning";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
+import { WeekdayPicker } from "./WeekdayPicker";
 
 export interface EditableTask {
   id: string;
@@ -40,6 +56,10 @@ export interface EditableTask {
   description: string | null;
   timesPerWeek: number;
   unitIds: string[];
+  /** `"1,3,5"`, or null for flexible (ADR-0024). */
+  plannedWeekdays: string | null;
+  /** Null is *Anytime*. */
+  partOfDay: PartOfDay | null;
 }
 
 interface TaskEditSheetProps {
@@ -55,6 +75,8 @@ interface TaskEditSheetProps {
     description: string | null;
     timesPerWeek: number;
     unitIds: string[];
+    plannedWeekdays: string | null;
+    partOfDay: PartOfDay | null;
   }) => void;
   onDelete: () => void;
 }
@@ -75,12 +97,29 @@ export function TaskEditSheet({
   const [description, setDescription] = useState(task.description ?? "");
   const [timesPerWeek, setTimesPerWeek] = useState(task.timesPerWeek);
   const [unitIds, setUnitIds] = useState<string[]>(task.unitIds);
+  const [weekdays, setWeekdays] = useState<Weekday[]>(
+    parseWeekdays(task.plannedWeekdays),
+  );
+  const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
+
+  /**
+   * Pinned days *are* the frequency (ADR-0024 §Schema), so the wheel
+   * retires while any chip is lit rather than sitting beside it
+   * offering a second answer to the same question. It also keeps the
+   * sheet from scrolling, which this component refuses to do — see the
+   * header.
+   */
+  const pinned = weekdays.length > 0;
+  const effectiveTimes = frequencyForWeekdays(weekdays, timesPerWeek);
+  const storedWeekdays = formatWeekdays(weekdays);
 
   const dirty =
     title.trim() !== task.title ||
     description.trim() !== (task.description ?? "") ||
-    timesPerWeek !== task.timesPerWeek ||
-    unitIds.join("|") !== task.unitIds.join("|");
+    effectiveTimes !== task.timesPerWeek ||
+    unitIds.join("|") !== task.unitIds.join("|") ||
+    storedWeekdays !== task.plannedWeekdays ||
+    partOfDay !== task.partOfDay;
 
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
@@ -92,8 +131,10 @@ export function TaskEditSheet({
     onSave({
       title: title.trim(),
       description: description.trim() || null,
-      timesPerWeek,
+      timesPerWeek: effectiveTimes,
       unitIds,
+      plannedWeekdays: storedWeekdays,
+      partOfDay,
     });
     onClose();
   };
@@ -119,10 +160,19 @@ export function TaskEditSheet({
         >
           <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
 
-          <AppText variant="title" color={theme.ink}>
+          <AppText variant="title" color={theme.ink} style={styles.heading}>
             Edit task
           </AppText>
 
+          <ScrollView
+            style={styles.scroller}
+            contentContainerStyle={styles.scrollBody}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            // The frequency wheel is a nested scroller; without this
+            // the sheet steals its drag on Android.
+            nestedScrollEnabled
+          >
           <View style={styles.field}>
             <TextInput
               value={title}
@@ -161,12 +211,49 @@ export function TaskEditSheet({
           />
 
           <View style={styles.block}>
+            <View style={styles.blockHeader}>
+              <AppText variant="caption" color={theme.muted}>
+                Which days
+              </AppText>
+              {/* The derived frequency, stated rather than implied, so
+                  picking days never feels like it lost the setting the
+                  wheel used to hold. Reads as fact, never as a target. */}
+              <AppText variant="caption" color={theme.muted}>
+                {pinned ? formatFrequency(effectiveTimes) : "Any days"}
+              </AppText>
+            </View>
+            <WeekdayPicker
+              value={weekdays}
+              onChange={setWeekdays}
+              accent={accent}
+              theme={theme}
+            />
+          </View>
+
+          {/* Flexible tasks still need a count; pinned ones already
+              have one. Swapping rather than stacking is what keeps the
+              sheet inside one screen. */}
+          {!pinned ? (
+            <View style={styles.block}>
+              <AppText variant="caption" color={theme.muted}>
+                How often
+              </AppText>
+              <FrequencyPicker
+                value={timesPerWeek}
+                onChange={setTimesPerWeek}
+                accent={accent}
+                theme={theme}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.block}>
             <AppText variant="caption" color={theme.muted}>
-              How often
+              When in the day
             </AppText>
-            <FrequencyPicker
-              value={timesPerWeek}
-              onChange={setTimesPerWeek}
+            <PartOfDayPicker
+              value={partOfDay}
+              onChange={setPartOfDay}
               accent={accent}
               theme={theme}
             />
@@ -179,6 +266,7 @@ export function TaskEditSheet({
             theme={theme}
             areaColors={areaColors}
           />
+          </ScrollView>
 
           <Button
             label={dirty ? "Save changes" : "Done"}
@@ -211,7 +299,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
     gap: space.lg,
+    // Leaves the top of the screen showing so the sheet still reads as
+    // a sheet rather than a takeover, and gives the scroller a bound.
+    maxHeight: "88%",
   },
+  heading: { marginBottom: -space.xs },
+  scroller: { flexGrow: 0 },
+  /** The gap the sheet used to own for these children; it now belongs
+   *  to the scroller so the pinned actions keep their own spacing. */
+  scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xs },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   field: { gap: space.xs },
   counter: { alignSelf: "flex-end" },
@@ -231,4 +327,9 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   block: { gap: space.sm },
+  blockHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
 });

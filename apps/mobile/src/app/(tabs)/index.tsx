@@ -31,6 +31,14 @@ import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
+import {
+  ANYTIME_LABEL,
+  isPinnedOn,
+  parseWeekdays,
+  PART_OF_DAY_LABEL,
+  PART_OF_DAY_ORDER,
+  type PartOfDay,
+} from "../../components/plan/planning";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
@@ -61,7 +69,32 @@ import { syncDailyNudge } from "../../notifications/dailyNudge";
 import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 
-type SectionKey = "everyDay" | "thisWeek" | "doneWeek" | "completed";
+/**
+ * The checklist groups two ways (ADR-0024 §3).
+ *
+ * **Frequency mode** — `everyDay` / `thisWeek` — is what ships today
+ * and what a user with no part-of-day set still sees. **Day-shape
+ * mode** — `morning` / `afternoon` / `evening` / `anytime` — replaces
+ * those two the moment any task carries a part of day.
+ *
+ * ADR-0024 §3 claims a user who pins nothing "sees one Anytime list —
+ * the current experience, unchanged." That was not true: today they
+ * see two labelled sections carrying real information, and collapsing
+ * both into one list would take that away from everyone on day one for
+ * a feature they may never use. Keeping frequency mode as the untouched
+ * default is what "invisible until used" actually means.
+ *
+ * `doneWeek` and `completed` are common to both and always sit last.
+ */
+type SectionKey =
+  | "everyDay"
+  | "thisWeek"
+  | "morning"
+  | "afternoon"
+  | "evening"
+  | "anytime"
+  | "doneWeek"
+  | "completed";
 
 /** Everything off the daily surface, in the order the app's own
  *  hierarchy runs: strategy (plan, goals), then the periodic ritual
@@ -91,12 +124,9 @@ export default function TodayScreen() {
     null,
   );
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
-  const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
-    everyDay: false,
-    thisWeek: false,
-    doneWeek: false,
-    completed: false,
-  });
+  const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>(
+    {},
+  );
   const allDoneBefore = useRef(false);
   /** null while unknown — the gate must not flash Today before it
    *  resolves (ADR-0011 decision 1). Reads fail open. */
@@ -177,6 +207,43 @@ export default function TodayScreen() {
 
   // Presentation-level re-sort: anything done today lives in Completed.
   const allTasks = day ? [...day.daily, ...day.week, ...day.doneThisWeek] : [];
+
+  /** Day-shape mode switches on the first task to carry a part of day.
+   *  Weekday pins alone don't trigger it — they order within a section
+   *  rather than creating one. */
+  const dayShaped = allTasks.some((t) => t.partOfDay !== null);
+
+  /**
+   * ADR-0024 §3's order: planned-today first, then flexible with runs
+   * left, then the rest. Ties keep their incoming order, which is the
+   * unit ranking, so the diagnostic still shows through.
+   *
+   * "The rest" is a task pinned to *other* days. It stays visible and
+   * tappable — a plan is an intention, so doing Friday's run on
+   * Tuesday is a perfect week and the row must never imply otherwise.
+   */
+  const planRank = (t: TodayTask): number => {
+    const pins = parseWeekdays(t.plannedWeekdays);
+    if (day && isPinnedOn(pins, day.date)) return 0;
+    if (pins.length === 0) return 1;
+    return 2;
+  };
+  const byPlan = (a: TodayTask, b: TodayTask) => planRank(a) - planRank(b);
+
+  const openTasks = day
+    ? [...day.daily, ...day.week].filter((t) => !t.completedToday)
+    : [];
+
+  const partSection = (part: PartOfDay | null) => {
+    const tasks = openTasks.filter((t) => t.partOfDay === part).sort(byPlan);
+    return {
+      key: (part ?? "anytime") as SectionKey,
+      label: part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL,
+      tasks,
+      pts: tasks.reduce((a, t) => a + t.pointValue, 0),
+    };
+  };
+
   const sections: {
     key: SectionKey;
     label: string;
@@ -184,22 +251,29 @@ export default function TodayScreen() {
     pts: number;
   }[] = day
     ? [
-        {
-          key: "everyDay" as const,
-          label: "Every day",
-          tasks: day.daily.filter((t) => !t.completedToday),
-          pts: day.daily
-            .filter((t) => !t.completedToday)
-            .reduce((a, t) => a + t.pointValue, 0),
-        },
-        {
-          key: "thisWeek" as const,
-          label: "This week",
-          tasks: day.week.filter((t) => !t.completedToday),
-          pts: day.week
-            .filter((t) => !t.completedToday)
-            .reduce((a, t) => a + t.pointValue, 0),
-        },
+        ...(dayShaped
+          ? // Explicit arrow rather than a bare reference: `map` passes
+            // an index as the second argument, and a one-arg callback
+            // used point-free is how that bites.
+            [...PART_OF_DAY_ORDER.map((p) => partSection(p)), partSection(null)]
+          : [
+              {
+                key: "everyDay" as const,
+                label: "Every day",
+                tasks: day.daily.filter((t) => !t.completedToday).sort(byPlan),
+                pts: day.daily
+                  .filter((t) => !t.completedToday)
+                  .reduce((a, t) => a + t.pointValue, 0),
+              },
+              {
+                key: "thisWeek" as const,
+                label: "This week",
+                tasks: day.week.filter((t) => !t.completedToday).sort(byPlan),
+                pts: day.week
+                  .filter((t) => !t.completedToday)
+                  .reduce((a, t) => a + t.pointValue, 0),
+              },
+            ]),
         {
           key: "doneWeek" as const,
           label: "Done this week",
