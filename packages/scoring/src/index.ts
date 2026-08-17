@@ -19,6 +19,8 @@ export type {
   MetricState,
 } from "./metrics";
 export { barFraction, metricState, milestonesReached } from "./metrics";
+export type { Streak, StreakInput } from "./streak";
+export { computeStreak, habitMilestonesReached, HABIT_LADDER } from "./streak";
 export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
 export { nextGoalStatus, advanceMilestone } from "./goals";
 export type {

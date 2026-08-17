@@ -32,6 +32,22 @@ function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+/**
+ * A daily task's run of days.
+ *
+ * **Only once it's worth saying, and only while it's true.** Below a
+ * week there is no run to speak of, and a row that announced "1 day"
+ * every time you restarted would be reporting the break rather than
+ * the habit. That is the one thing docs/backburner.md warned a streak
+ * must never do: its emotional weight lives entirely in the reset.
+ *
+ * So: nothing at 0, nothing at 3, and a quiet count from 7 up.
+ */
+function streakCaption(task: TodayTask): string | null {
+  if (task.streak === null || task.streak < 7) return null;
+  return `${task.streak} days`;
+}
+
 /** Progress copy stays factual — counts, never deficits (ADR-0008).
  *  Ordinal phrasing: the run at hand — "2nd of 5 this week" is the
  *  one just done (checked) or the one a tap would log (unchecked). */
@@ -70,7 +86,9 @@ export function TaskRow({
     opacity: fill.value,
   }));
 
-  const caption = progressCaption(task);
+  // Daily tasks have no frequency caption, so the run takes that slot
+  // rather than adding a line to the row.
+  const caption = progressCaption(task) ?? streakCaption(task);
 
   return (
     <Pressable

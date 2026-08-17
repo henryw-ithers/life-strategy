@@ -13,9 +13,11 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import {
   barFraction,
+  habitMilestonesReached,
   metricState,
   milestonesReached,
   type MetricKind,
+  type Streak,
 } from "@glide/scoring";
 import type { GoalMilestone, GoalProgressEntry } from "../../db/goals";
 import type { ThemeTokens } from "../../theme/colors";
@@ -42,7 +44,10 @@ function num(n: number): string {
 interface GoalMetricPanelProps {
   kind: MetricKind;
   unit: string | null;
-  targetValue: number;
+  /** Null for a habit, which has no finish line by design. */
+  targetValue: number | null;
+  /** Habit goals only. */
+  streak: Streak | null;
   targetDate: string | null;
   entries: GoalProgressEntry[];
   /** For the rung prompt (ADR-0015 §5). */
@@ -65,6 +70,7 @@ export function GoalMetricPanel({
   kind,
   unit,
   targetValue,
+  streak,
   targetDate,
   entries,
   milestones,
@@ -78,21 +84,41 @@ export function GoalMetricPanel({
   onAdvanceMilestone,
 }: GoalMetricPanelProps) {
   const [draft, setDraft] = useState("");
-  const def = { kind, targetValue };
-  const state = metricState(def, entries);
-  const width = barFraction(state);
+  const isHabit = kind === "habit";
+  const def =
+    isHabit || targetValue === null
+      ? null
+      : ({ kind, targetValue } as const);
+  const state = def ? metricState(def, entries) : null;
+  const width = state ? barFraction(state) : null;
   const label = unit ?? "";
 
-  // The rung the readings have reached but the user hasn't ticked.
-  // Only the *current* one: advancing is sequential (ADR-0007 §3), so
-  // offering a later rung would skip the ones between it.
+  // The rung reached but not yet ticked. Only the *current* one:
+  // advancing is sequential (ADR-0007 §3), so offering a later rung
+  // would skip the ones between.
   const current = milestones.find((m) => m.status === "current");
-  const passed =
+  const rung =
     current && current.targetValue !== null
-      ? milestonesReached(def, state, [
-          { id: current.id, targetValue: current.targetValue },
-        ]).length > 0
-      : false;
+      ? [{ id: current.id, targetValue: current.targetValue }]
+      : [];
+  const passed =
+    rung.length === 0
+      ? false
+      : isHabit
+        ? habitMilestonesReached(streak ?? { current: 0, longest: 0 }, rung)
+            .length > 0
+        : def && state
+          ? milestonesReached(def, state, rung).length > 0
+          : false;
+
+  // A habit is at its best right now. Celebration may condition on a
+  // positive event (ADR-0008); the inverse — showing a long-gone best
+  // beside a run of one — would be the app remarking on a break, which
+  // is the single thing backburner.md warned a streak must never do.
+  const atBest =
+    isHabit && streak !== null && streak.longest > 0 && streak.current === streak.longest;
+
+  const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
   const value = Number(draft);
   const canAdd = draft.trim().length > 0 && Number.isFinite(value);
@@ -121,14 +147,29 @@ export function GoalMetricPanel({
         </Pressable>
       </View>
 
-      {/* Before the first reading a target goal has no starting point,
-          so it states the target instead of drawing a bar from an
-          invented zero (ADR-0015 §1). */}
-      <AppText variant="display" color={theme.ink} tabular>
-        {state.current === null
-          ? `${num(targetValue)} ${label}`.trim()
-          : `${num(state.current)} / ${num(targetValue)} ${label}`.trim()}
-      </AppText>
+      {/* A habit has no target, so there is nothing to draw a bar
+          against and nothing to be short of. It shows the run and
+          stops. At zero it says "0 days" and passes no comment: the
+          emotional weight of a streak lives entirely in the break, and
+          the app does not add to it. */}
+      {isHabit ? (
+        <>
+          <AppText variant="display" color={theme.ink} tabular>
+            {days(streak?.current ?? 0)}
+          </AppText>
+          {atBest ? (
+            <AppText variant="label" color={accent}>
+              Your longest run so far.
+            </AppText>
+          ) : null}
+        </>
+      ) : (
+        <AppText variant="display" color={theme.ink} tabular>
+          {state === null || state.current === null || targetValue === null
+            ? `${num(targetValue ?? 0)} ${label}`.trim()
+            : `${num(state.current)} / ${num(targetValue)} ${label}`.trim()}
+        </AppText>
+      )}
 
       {width !== null ? (
         <View
@@ -147,7 +188,7 @@ export function GoalMetricPanel({
             ]}
           />
         </View>
-      ) : (
+      ) : isHabit ? null : (
         <AppText variant="caption" color={theme.muted}>
           Log your first reading and this starts tracking.
         </AppText>
@@ -158,7 +199,10 @@ export function GoalMetricPanel({
           never an action: "I benched 225 once" and "I am now a person
           who benches 225" are different claims, and only the user
           knows which happened (ADR-0015 §3). */}
-      {state.met && editable ? (
+      {/* A habit is never offered completion. It has no target to
+          reach and is meant to be permanent, so "finish it" is not a
+          state it has (decided 2026-08-16). */}
+      {state?.met && editable ? (
         <View style={styles.invite}>
           <AppText variant="label" color={accent}>
             Target reached.
@@ -170,7 +214,7 @@ export function GoalMetricPanel({
             theme={theme}
           />
         </View>
-      ) : state.met ? (
+      ) : state?.met ? (
         <AppText variant="label" color={accent}>
           Target reached.
         </AppText>
@@ -179,7 +223,9 @@ export function GoalMetricPanel({
       {passed && current && editable ? (
         <View style={styles.invite}>
           <AppText variant="caption" color={theme.muted}>
-            Your readings have passed “{current.title}”.
+            {isHabit
+              ? `You've passed ${current.title} days.`
+              : `Your readings have passed “${current.title}”.`}
           </AppText>
           <Button
             label="Mark it done"
@@ -196,7 +242,19 @@ export function GoalMetricPanel({
         </AppText>
       ) : null}
 
-      {editable ? (
+      {/* A habit has nothing to type. Most are fed by ticking their
+          own task on the checklist; this covers the ones with no task,
+          and it is one button rather than a number field. */}
+      {editable && isHabit ? (
+        <Button
+          label="Mark today done"
+          color={accent}
+          onPress={() => onAdd(1, null)}
+          theme={theme}
+        />
+      ) : null}
+
+      {editable && !isHabit ? (
         <View style={styles.addRow}>
           <TextInput
             value={draft}

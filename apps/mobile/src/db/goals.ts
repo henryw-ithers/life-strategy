@@ -5,21 +5,33 @@
  * via `recomputeAllUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
-import type { GoalStatus, MetricKind, MilestoneStatus } from "@glide/scoring";
-import { advanceMilestone, nextGoalStatus } from "@glide/scoring";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import type {
+  GoalStatus,
+  MetricKind,
+  MilestoneStatus,
+  Streak,
+} from "@glide/scoring";
+import {
+  advanceMilestone,
+  computeStreak,
+  HABIT_LADDER,
+  nextGoalStatus,
+} from "@glide/scoring";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { recomputeAllUnitPoints, type Tx } from "./tasks";
 import {
   achievement,
+  dayGrade,
   goal,
   goalProgress,
   lifeArea,
   lifeUnit,
   milestone,
   task,
+  taskCompletion,
 } from "./schema";
 
 export type { GoalStatus, MilestoneStatus };
@@ -102,6 +114,12 @@ export interface GoalDetail {
   tasks: GoalTask[];
   /** Earliest first. */
   progress: GoalProgressEntry[];
+  /**
+   * Habit goals only; null for every other kind. A run of consecutive
+   * days, shown and never enforced (ADR-0004 §5) — nothing here
+   * reaches `computeDayScore`.
+   */
+  streak: Streak | null;
 }
 
 function now(): string {
@@ -161,6 +179,59 @@ export async function loadGoals(): Promise<{ areas: GoalsArea[] }> {
   };
 }
 
+/**
+ * A habit goal's run of days.
+ *
+ * **A day counts two ways**, and either is enough: any task belonging
+ * to the goal was completed that day, or a progress entry was logged
+ * against it. Reusing `task.goal_id` means the content library's habit
+ * goals already work without a second nomination step — "Phone out of
+ * the bedroom" is fed by its own "Screens off" task — while the manual
+ * route covers a habit that has no task at all.
+ *
+ * Archived tasks are included deliberately: their completions are real
+ * history, and retiring a task should not rewrite the run it was part
+ * of.
+ */
+async function habitStreak(
+  goalId: string,
+  progress: readonly { localDate: string }[],
+): Promise<Streak> {
+  const goalTasks = await db
+    .select({ id: task.id })
+    .from(task)
+    .where(eq(task.goalId, goalId));
+
+  const completions = goalTasks.length
+    ? await db
+        .select({ localDate: taskCompletion.localDate })
+        .from(taskCompletion)
+        .where(
+          inArray(
+            taskCompletion.taskId,
+            goalTasks.map((t) => t.id),
+          ),
+        )
+    : [];
+
+  // Declared days off bridge a run rather than breaking it
+  // (ADR-0004 §3). Nothing else about a day is consulted: a streak is
+  // a statistic beside the grade, never a function of it.
+  const off = await db
+    .select({ localDate: dayGrade.localDate })
+    .from(dayGrade)
+    .where(eq(dayGrade.kind, "rest"));
+
+  return computeStreak({
+    done: [
+      ...completions.map((c) => c.localDate),
+      ...progress.map((p) => p.localDate),
+    ],
+    daysOff: off.map((d) => d.localDate),
+    today: new Date().toISOString().slice(0, 10),
+  });
+}
+
 export async function loadGoalDetail(
   goalId: string,
 ): Promise<GoalDetail | null> {
@@ -186,6 +257,9 @@ export async function loadGoalDetail(
     .from(goalProgress)
     .where(eq(goalProgress.goalId, goalId))
     .orderBy(asc(goalProgress.localDate), asc(goalProgress.createdAt));
+
+  const streak =
+    row.metricKind === "habit" ? await habitStreak(goalId, progress) : null;
   const [unit] = await db
     .select()
     .from(lifeUnit)
@@ -228,6 +302,7 @@ export async function loadGoalDetail(
       note: p.note,
       source: p.source as "manual" | "task",
     })),
+    streak,
   };
 }
 
@@ -455,6 +530,7 @@ export async function setGoalMetric(
   goalId: string,
   metric: { kind: MetricKind; unit: string; targetValue: number } | null,
 ): Promise<void> {
+  const habit = metric?.kind === "habit";
   await db
     .update(goal)
     .set(
@@ -462,11 +538,27 @@ export async function setGoalMetric(
         ? {
             metricKind: metric.kind,
             metricUnit: metric.unit,
-            targetValue: metric.targetValue,
+            // A habit has no finish line, so it stores no target. Any
+            // number here would eventually be rendered as one.
+            targetValue: habit ? null : metric.targetValue,
           }
         : { metricKind: null, metricUnit: null, targetValue: null },
     )
     .where(eq(goal.id, goalId));
+
+  // Seed the ladder so a new habit has rungs to pass. Only when it has
+  // none: re-saving the metric must not overwrite the user's own.
+  if (habit) {
+    const existing = await db
+      .select()
+      .from(milestone)
+      .where(eq(milestone.goalId, goalId));
+    if (existing.length === 0) {
+      for (const days of HABIT_LADDER) {
+        await addMilestone(goalId, String(days), days);
+      }
+    }
+  }
 }
 
 /**

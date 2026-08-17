@@ -42,6 +42,16 @@ Two shapes:
 
 They sit **last in the sheet and in a quieter block** than the guidelines above them: context for someone who went looking, not a lesson to read first. Nothing surfaces them — the sheet has to be opened, which is ADR-0008's "discoverable always, pushed never."
 
+## Streaks (ADR-0004 §5, built 2026-08-16)
+
+A streak is **shown, never enforced**. It never touches the grade. The rule that matters for copy is narrower and easy to get wrong: **the emotional weight of a streak is almost entirely in the break, not the count**, so the app says as little as possible around a reset.
+
+- **Never remark on a break.** No alarm colour, no "streak lost", no "start again", no sad framing, nothing that implies the number was taken away. A run that ends simply shows a smaller number.
+- **Never show a past best beside a current run.** "Best: 30 · Now: 1" is the app pointing at the break. A best is shown **only when the current run is the best** — celebration may condition on positive events, and only on those (ADR-0008).
+- **Don't announce small numbers.** On a task row nothing appears below seven days. A row that said "1 day" every time you restarted would be reporting resets.
+- **A declared day off is never a break** (ADR-0004 §3) and is never described as one.
+- Habit goals are **never offered completion**. They have no target and are meant to be permanent, so "finish it" is not a state they have.
+
 ## Calibration copy (ADR-0008)
 
 None of this is ever conditional on the data — the check-in prompt, the insight line, and the suggestion copy all read exactly the same whether the last few weeks ran high or low. Dismissing a suggestion is a neutral, ordinary action, never framed as declining help or correcting a mistake.

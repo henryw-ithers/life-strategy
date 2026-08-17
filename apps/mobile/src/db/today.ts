@@ -7,6 +7,7 @@
 import {
   addDays,
   computeDayScore,
+  computeStreak,
   dayShare,
   deriveChecklist,
   editWindowStart,
@@ -68,6 +69,14 @@ export interface TodayTask {
    * Empty unless the task is completed today and was tagged.
    */
   tagUnitIds: string[];
+  /**
+   * Consecutive days, for daily tasks only. Null for everything else:
+   * a run means nothing on a task that is meant to happen three times
+   * a week, and showing one would invent a target the plan never set.
+   *
+   * Shown, never enforced (ADR-0004 §5). It does not reach the grade.
+   */
+  streak: number | null;
 }
 
 export interface TodayActivity {
@@ -261,6 +270,48 @@ export async function loadDay(
     if (ids.length > 0) tagsByTask.set(c.taskId, ids);
   }
 
+  /**
+   * Runs for daily tasks. A separate query because the checklist's own
+   * completion window is a fortnight, and a streak needs more than
+   * that.
+   *
+   * Bounded at a year: a longer run is not worth widening every day's
+   * read for, and the number stops being the interesting part well
+   * before then.
+   */
+  const dailyTaskIds = tasks.filter((t) => t.timesPerWeek === 7).map((t) => t.id);
+  const streakWindowStart = addDays(date, -365);
+  const streakRows = dailyTaskIds.length
+    ? await db
+        .select({ taskId: taskCompletion.taskId, localDate: taskCompletion.localDate })
+        .from(taskCompletion)
+        .where(
+          and(
+            inArray(taskCompletion.taskId, dailyTaskIds),
+            gte(taskCompletion.localDate, streakWindowStart),
+            lte(taskCompletion.localDate, date),
+          ),
+        )
+    : [];
+  const dayOffRows = dailyTaskIds.length
+    ? await db
+        .select({ localDate: dayGrade.localDate })
+        .from(dayGrade)
+        .where(and(eq(dayGrade.kind, "rest"), gte(dayGrade.localDate, streakWindowStart)))
+    : [];
+  const daysOff = dayOffRows.map((d) => d.localDate);
+  const streakByTask = new Map<string, number>();
+  for (const id of dailyTaskIds) {
+    streakByTask.set(
+      id,
+      computeStreak({
+        done: streakRows.filter((r) => r.taskId === id).map((r) => r.localDate),
+        daysOff,
+        today: date,
+      }).current,
+    );
+  }
+
   const todayTasks: TodayTask[] = tasks.map((t) => {
     const s = statusById.get(t.id)!;
     return {
@@ -279,6 +330,7 @@ export async function loadDay(
       extraToday: s.extraToday,
       pointsIfCompletedNow: s.pointsIfCompletedNow,
       tagUnitIds: tagsByTask.get(t.id) ?? [],
+      streak: streakByTask.get(t.id) ?? null,
     };
   });
 

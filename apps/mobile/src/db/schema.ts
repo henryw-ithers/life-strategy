@@ -133,8 +133,12 @@ export const goal = sqliteTable("goal", {
    * ("bench 225", "weigh 80kg"). Direction is *inferred* from the
    * earliest progress entry against the target, so gaining and losing
    * share one kind and the user is never asked which way they go.
+   * `habit` is a run of consecutive days and has **no target at all**
+   * (decided 2026-08-16): a habit is meant to be permanent, so it
+   * never completes. Its rungs are day counts in `milestone`, and
+   * `target_value` stays null for it.
    */
-  metricKind: text("metric_kind", { enum: ["cumulative", "target"] }),
+  metricKind: text("metric_kind", { enum: ["cumulative", "target", "habit"] }),
   /** Free-text label: "books", "lb", "kg", "hours". The app does not
    *  know what a kilogram is and does not need to. */
   metricUnit: text("metric_unit"),

@@ -62,8 +62,11 @@ existing decisions draw:
   *observed*. That's the loss-aversion mechanic PRODUCT.md names as
   an anti-reference, and vision.md's "no streak guilt."
 
-**Decided 2026-08-16, during the content-library session. Not yet
-built — recorded here so a long writing session can't lose it.**
+**Decided and built 2026-08-16.** `packages/scoring/src/streak.ts`
+with 14 tests; habit goals render in `GoalMetricPanel`, daily-task runs
+in `TaskRow`. The copy rules this entry demanded are now in
+[copy-guide.md](design/copy-guide.md) under Streaks, and ADR-0015
+carries the third metric kind. The decisions, as taken:
 
 - **Habit goals are a third metric kind** alongside ADR-0015's
   `cumulative` and `target`. **No target value, milestones only** —

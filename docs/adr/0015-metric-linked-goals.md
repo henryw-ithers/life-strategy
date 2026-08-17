@@ -53,6 +53,26 @@ Constraints in force:
 
 ## Decision
 
+> **Amended 2026-08-16: a third kind, `habit`.** Decided during the
+> content-library session and built the same day. A habit goal is a run
+> of consecutive days with **no target at all**, because it is meant to
+> be permanent: Henry, *"the idea is you make it a permanent habit."*
+> Its rungs are day counts, **7 · 30 · 66**, where 66 is Lally's median
+> time to automaticity.
+>
+> **This conflicts with [ADR-0007](0007-goal-lifecycle.md), knowingly.**
+> That ADR defines a goal as "specific, measurable, **temporary**", and
+> a habit goal is deliberately none of the third. It never
+> auto-completes and is never offered completion, so it does not enter
+> §2's three-path exit at all. Treat it as the case ADR-0007 §2's
+> "transition to maintenance" path anticipated, arriving from the start
+> rather than at the end.
+>
+> Habit goals do **not** pass through `metricState`: they have no
+> target to measure and no entries to sum, and their state comes from
+> `computeStreak`. The type signature enforces that, so a habit can
+> never acquire a fraction, a bar, or an implied finish line.
+
 ### 1. Two metric kinds
 
 `goal.metric_kind`: **`cumulative` | `target`**, nullable. **Null means

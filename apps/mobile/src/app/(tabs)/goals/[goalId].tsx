@@ -240,11 +240,13 @@ export default function GoalDetailScreen() {
               ) : null}
             </View>
 
-            {goal.metricKind !== null && goal.targetValue !== null ? (
+            {goal.metricKind !== null &&
+            (goal.metricKind === "habit" || goal.targetValue !== null) ? (
               <GoalMetricPanel
                 kind={goal.metricKind}
                 unit={goal.metricUnit}
                 targetValue={goal.targetValue}
+                streak={goal.streak}
                 targetDate={goal.targetDate}
                 entries={goal.progress}
                 milestones={goal.milestones}

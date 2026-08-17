@@ -9,7 +9,15 @@
  * (ADR-0015 §7): no points, no denominator, no effect on any day.
  */
 
-export type MetricKind = "cumulative" | "target";
+/**
+ * `habit` is deliberately unlike the other two: it has **no target**,
+ * because a habit is meant to be permanent and so never completes
+ * (decided 2026-08-16). Its rungs are day counts in its milestones,
+ * and its state comes from `computeStreak` rather than from progress
+ * entries. `metricState` refuses it for that reason — see the note
+ * there.
+ */
+export type MetricKind = "cumulative" | "target" | "habit";
 
 export interface MetricProgress {
   /** `'YYYY-MM-DD'`. Ordering is by this, not by insertion. */
@@ -18,7 +26,9 @@ export interface MetricProgress {
 }
 
 export interface MetricDefinition {
-  kind: MetricKind;
+  /** `habit` never reaches `metricState` — see the note on that
+   *  function. This is the countable half of the enum. */
+  kind: "cumulative" | "target";
   /** The number to reach. */
   targetValue: number;
 }
@@ -68,6 +78,14 @@ function chronological(entries: readonly MetricProgress[]): MetricProgress[] {
     .map((x) => x.e);
 }
 
+/**
+ * **Habit goals do not come through here.** They have no target to
+ * measure against and no progress entries to sum; their state is a run
+ * of days, which is `computeStreak`'s job. Keeping them out of this
+ * function is what stops a habit acquiring a fraction, a bar, and an
+ * implied finish line it is not supposed to have. The type signature
+ * enforces it.
+ */
 export function metricState(
   def: MetricDefinition,
   entries: readonly MetricProgress[],

@@ -43,6 +43,11 @@ const KINDS: { kind: MetricKind; label: string; hint: string }[] = [
     label: "Reaches a number",
     hint: "You log where you are. 225 lb, 80 kg. Which way it goes is worked out from your first reading.",
   },
+  {
+    kind: "habit",
+    label: "Every day",
+    hint: "A run of days rather than a total. There's no finish line, because the point is that it keeps going.",
+  },
 ];
 
 export interface MetricDraft {
@@ -97,8 +102,11 @@ export function GoalMetricSheet({
   const [autocount, setAutocount] = useState<string | null>(autocountTaskId);
 
   const targetNumber = Number(target);
+  // A habit has no target and no unit to fill in, so it is complete
+  // the moment it is chosen. That is the point of it.
   const metricValid =
-    kind !== null && unit.trim().length > 0 && Number.isFinite(targetNumber);
+    kind === "habit" ||
+    (kind !== null && unit.trim().length > 0 && Number.isFinite(targetNumber));
   // A half-filled metric is the only unsavable state: no metric at all
   // is a legitimate goal (ADR-0015 §1's null kind), and so is a metric
   // with no deadline.
@@ -109,7 +117,9 @@ export function GoalMetricSheet({
     onSave(
       kind === null
         ? null
-        : { kind, unit: unit.trim(), targetValue: targetNumber },
+        : kind === "habit"
+          ? { kind, unit: "days", targetValue: 0 }
+          : { kind, unit: unit.trim(), targetValue: targetNumber },
       month === null ? null : `${year}-${String(month).padStart(2, "0")}`,
       // A task completion carries no reading, so only a cumulative
       // goal can be fed one. Dropping a stale link here stops a goal
@@ -186,7 +196,7 @@ export function GoalMetricSheet({
               ) : null}
             </View>
 
-            {kind !== null ? (
+            {kind !== null && kind !== "habit" ? (
               <View style={styles.block}>
                 <AppText variant="caption" color={theme.muted}>
                   Target
