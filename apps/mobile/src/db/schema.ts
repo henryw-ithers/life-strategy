@@ -329,18 +329,21 @@ export const taskCompletion = sqliteTable("task_completion", {
 });
 
 /**
- * Who you were with, per completion (ADR-0025 §4).
+ * Which other units a completion counted toward (ADR-0025 §4).
  *
- * Tags are per-completion rather than fixed to the task: "study" is
- * sometimes with friends and sometimes alone, so a persistent
- * task-level tag would over-report. Added by press-and-hold on the
- * completion — never by a prompt, which would put a second decision on
- * the daily surface.
+ * Tags are per-completion rather than fixed to the task: "study"
+ * sometimes counts toward Friendship and sometimes doesn't, so a
+ * persistent task-level tag would over-report. Added by press-and-hold
+ * on the completion — never by a prompt, which would put a second
+ * decision on the daily surface.
  *
  * **Units only, never named people** (ADR-0025 §4, an explicit
- * non-goal). Tagging a unit records a fact about the user; tagging a
- * person would create records about third parties who never consented
- * to being in this database, and the app's one-sentence privacy story
+ * non-goal). This column can hold nothing but a `life_unit.id`. There
+ * is no name field and no free text, and the UI asks *where does this
+ * count* rather than *who were you with* — recording that an hour
+ * counted toward Family is a fact about the user's own life, while
+ * naming who was there would create a record about someone who never
+ * agreed to be in this database. The app's one-sentence privacy story
  * holds precisely because everything in it is self-reported about the
  * self.
  */

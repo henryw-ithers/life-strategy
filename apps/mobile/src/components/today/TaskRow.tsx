@@ -16,10 +16,10 @@ interface TaskRowProps {
   hue: string;
   disabled: boolean;
   onToggle: () => void;
-  /** Press-and-hold on a completed row: who you were with
+  /** Press-and-hold on a completed row: where else it counts
    *  (ADR-0025 §4). Absent when the row can't carry tags. */
   onTag?: () => void;
-  /** Area hue per tagged unit, for the company pips. */
+  /** Area hue per tagged unit, for the pips. */
   tagHues?: Record<string, string>;
   theme: ThemeTokens;
   reduceMotion: boolean;
@@ -80,12 +80,14 @@ export function TaskRow({
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled }}
       accessibilityLabel={`${task.title}${caption ? `, ${caption}` : ""}${
-        task.tagUnitIds.length > 0 ? `, with ${task.tagUnitIds.length}` : ""
+        task.tagUnitIds.length > 0
+          ? `, also counts in ${task.tagUnitIds.length}`
+          : ""
       }`}
       // Long-press is invisible to a screen reader, so the same action
       // needs an explicit rotor entry (ADR-0025 §4's gesture is the
       // only route to tagging).
-      accessibilityActions={onTag ? [{ name: "magicTap", label: "Who you were with" }] : undefined}
+      accessibilityActions={onTag ? [{ name: "magicTap", label: "Where else it counts" }] : undefined}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === "magicTap") onTag?.();
       }}
@@ -114,9 +116,8 @@ export function TaskRow({
           </AppText>
         ) : null}
       </View>
-      {/* Company, as area-hue pips rather than names. The row is the
-          daily surface: it says the tag exists, and the sheet says
-          what it is. */}
+      {/* Where else it counted, as area-hue pips. The row is the daily
+          surface: it says a tag exists, and the sheet says what it is. */}
       {task.tagUnitIds.length > 0 ? (
         <View style={styles.pips} importantForAccessibility="no-hide-descendants">
           {task.tagUnitIds.map((id) => (

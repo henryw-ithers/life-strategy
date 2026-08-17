@@ -1,5 +1,5 @@
 /**
- * Who you were with, on one completed task (ADR-0025 §4).
+ * Where else a completed task counts (ADR-0025 §4).
  *
  * Reached by press-and-hold on a completed row — never by a prompt.
  * A prompt after every tick would put a second decision on the daily
@@ -8,12 +8,21 @@
  * already this app's gesture for secondary actions on a row, so it is
  * vocabulary the user has.
  *
- * **Units, never named people.** That is an explicit non-goal of
- * ADR-0025 §4, not an unbuilt feature: tagging a unit records a fact
- * about the user, while tagging a person would create records about
- * someone who never agreed to be in this database. The app's privacy
- * story fits in one sentence because everything in it is self-reported
- * about the self, and a person graph would end that.
+ * **This asks about categories, not about people.** The question is
+ * the same one `ActivitySheet` already asks — *where does this count?*
+ * — and the wording deliberately matches it. An earlier draft framed
+ * it as "who were you with", which described the feature as tracking
+ * other people even though nothing about a person is stored. Recording
+ * that an hour counted toward Family is a fact about the user's own
+ * life; asking them to name who was there is not, and the app must not
+ * suggest it. If someone wants to write a name in a journal entry that
+ * is theirs to do — but nothing here invites it.
+ *
+ * **Units, never named people**, is an explicit non-goal of ADR-0025
+ * §4: a person graph would create records about someone who never
+ * agreed to be in this database, and the app's privacy story fits in
+ * one sentence precisely because everything in it is self-reported
+ * about the self.
  */
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
@@ -82,8 +91,10 @@ export function CompletionTagSheet({
         <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
 
         <View style={styles.head}>
+          {/* Matches ActivitySheet's "Where it counts", because it is
+              the same question about the same thing. */}
           <AppText variant="title" color={theme.ink}>
-            Who were you with?
+            Where else it counts
           </AppText>
           <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
             {taskTitle}
@@ -118,11 +129,11 @@ export function CompletionTagSheet({
           })}
         </View>
 
-        {/* Says what the tag is for without implying it is owed. The
-            line reads the same whether nothing is picked or everything
-            is (the ambient-kindness test, ADR-0008). */}
+        {/* States the earning rule, because it is not obvious that one
+            mark is enough (ADR-0025 §3). Reads the same whether nothing
+            is picked or everything is — the ambient-kindness test. */}
         <AppText variant="footnote" color={theme.muted}>
-          Noting company here shapes your portfolio, not your score.
+          A day that counts toward one of these earns it in full.
         </AppText>
 
         <Button

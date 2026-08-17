@@ -87,7 +87,7 @@ describe("communal units in the day's number", () => {
 
   it("earns nothing on a day off", () => {
     // A day off leaves the aggregate entirely (ADR-0023 §4), so
-    // nothing about it is scored — including company.
+    // nothing about it is scored — tags included.
     const s = computeDayScore({
       kind: "rest",
       tasks: [dailyTask("exercise", 30)],

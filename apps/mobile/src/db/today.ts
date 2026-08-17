@@ -64,7 +64,7 @@ export interface TodayTask {
   extraToday: boolean;
   pointsIfCompletedNow: number;
   /**
-   * Who you were with, on *this day's* completion (ADR-0025 §4).
+   * Other units *this day's* completion counted toward (ADR-0025 §4).
    * Empty unless the task is completed today and was tagged.
    */
   tagUnitIds: string[];
@@ -539,7 +539,7 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
   if (existing.length > 0) {
     // Tags hang off the completion, so unchecking takes them with it —
     // otherwise the row would be orphaned against its foreign key and
-    // a re-check would silently inherit yesterday's company.
+    // a re-check would silently inherit yesterday's tags.
     await db.delete(taskCompletionTag).where(
       inArray(
         taskCompletionTag.completionId,
@@ -572,18 +572,17 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
 }
 
 /**
- * Replace who you were with on this task's completion (ADR-0025 §4).
+ * Replace which other units this completion counted toward
+ * (ADR-0025 §4).
  *
- * Units, never named people — an explicit non-goal of that ADR. Tagging
- * a unit records a fact about the user; tagging a person would create
- * records about someone who never consented to being in this database,
- * and the app's one-sentence privacy story holds precisely because
- * everything in it is self-reported about the self.
+ * Units, never named people — an explicit non-goal of that ADR, and
+ * the reason the UI asks *where does this count* rather than *who were
+ * you with*. Recording that an hour counted toward Family is a fact
+ * about the user; naming who was there would be a record about someone
+ * who never agreed to be in this database.
  *
- * Scores nothing today. Under ADR-0025 §3 a single tag will earn the
- * unit's full daily share, but that half needs a `FORMULA_VERSION`
- * bump and is batched with the parked retune — so `cacheDayScore` is
- * deliberately not called here.
+ * Rescores the day: since `FORMULA_VERSION` 6 a single tag earns the
+ * unit's full daily share (ADR-0025 §3).
  */
 export async function setCompletionTags(
   taskId: string,
@@ -612,6 +611,11 @@ export async function setCompletionTags(
       );
     }
   });
+  // Since v6 a tag moves the number, so the cache has to follow it.
+  // Before v6 tagging scored nothing and this call was deliberately
+  // absent; leaving it absent after the formula changed would have let
+  // the calendar, the week and the month read a stale day.
+  await cacheDayScore(date);
 }
 
 export async function logActivity(

@@ -168,6 +168,24 @@ over-tagging is much less bad than the failure mode of under-counting.
 > about the self. A person graph turns that sentence into paragraphs,
 > for data that is not the user's to hold. Do not add one as a
 > convenience; reopen this ADR.
+>
+> **Amended 2026-08-16: the framing is part of the non-goal.** The
+> first implementation stored only unit ids, as specified — and then
+> labelled the sheet **"Who were you with?"**, which describes the
+> feature as tracking other people even though nothing about a person
+> is recorded. Henry's objection was to that, and it was right: a
+> product that *asks* who you were with is suggesting people-tracking
+> as the intended use, whatever its schema does.
+>
+> The question the app asks is **"Where else it counts"**, matching
+> `ActivitySheet`'s existing "Where it counts" — because it is the same
+> question about the same thing. Recording that an hour counted toward
+> Family is a fact about the user's own life. Naming who was there is
+> not, and the app must never invite it; if someone writes a name in a
+> journal entry, that is theirs to do.
+>
+> So the rule has two halves, and the second is easy to lose: **store
+> no person, and do not ask about one either.**
 
 ### 5. Note-membership is a general capability
 

@@ -168,10 +168,17 @@ Both halves of each tension, because the tension is the content.
 
 **The three communal units** — Significant other, Family, Friendship.
 One note, or three variations. The idea: the app doesn't suggest tasks
-here and doesn't ask you to tick relationships off. Keeping score of
+here and doesn't ask you to tick relationships off. Keeping a tally of
 what you put *into* a relationship is what exchange relationships do,
-so the app records who you were with instead. Do not explain the
-research; state the app's behaviour and why, in two or three sentences.
+so instead anything you log can count toward the unit as well. Do not
+explain the research; state the app's behaviour and why, in two or
+three sentences.
+
+**Never phrase it as who you were with.** The tag is a category, not a
+person, and copy that asks about people suggests people-tracking
+whatever the schema stores (ADR-0025 §4, amended 2026-08-16). Say
+*where it counts*. And say that these units **do** score — one such
+day earns the unit in full.
 
 **The four intrinsic units** — Spirituality, Hobbies & projects, Art &
 media, Adventure & experiences. That these are worth making time for
