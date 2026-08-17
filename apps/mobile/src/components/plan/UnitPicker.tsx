@@ -7,11 +7,17 @@
  * home unit — the one the task is listed under — is whichever chip is
  * selected first, and it's labelled so that isn't a hidden rule.
  *
- * Every chip carries its area's hue as a leading dot, not only the
- * selected ones. Eighteen identically-toned chips in a horizontal
- * scroller are unreadable at rest — with the dots you scroll past six
- * runs of colour and know roughly where you are. The dot keeps its slot
- * when a chip fills, so selecting one never re-flows the row.
+ * Every chip carries its area's hue as a leading dot, and keeps it
+ * whether or not it's selected. Eighteen identically-toned chips in a
+ * horizontal scroller are unreadable at rest — with the dots you scroll
+ * past six runs of colour and know roughly where you are.
+ *
+ * Selection reads as a **wash plus a hue border**, the same as the
+ * weekday chips and the part-of-day segments below it: one selection
+ * language for the whole sheet, and no caption text on a solid area
+ * hue, which is under AA on four of the six in light theme (see
+ * `wash`). Nothing about the chip's size changes when it's picked, so
+ * selecting one never re-flows the row.
  *
  * When the sheet opens with a unit already chosen, the row scrolls that
  * chip into view: it sits fourteen chips along often enough that the
@@ -20,7 +26,7 @@
 import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import type { ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 
@@ -128,21 +134,22 @@ export function UnitPicker({
               style={({ pressed }) => [
                 styles.chip,
                 {
-                  backgroundColor: selected ? hue : theme.surface,
+                  // A wash with an Ink label, matching the weekday and
+                  // part-of-day chips beneath it — a solid hue behind
+                  // caption text is under AA on four of the six area
+                  // colours in light theme (see `wash`). The border is
+                  // what carries "selected" at a glance.
+                  backgroundColor: selected ? wash(hue, theme) : theme.surface,
                   borderColor: selected ? hue : theme.hairline,
+                  borderWidth: selected ? 1 : StyleSheet.hairlineWidth,
                   opacity: blocked ? 0.35 : pressed ? 0.7 : 1,
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.dot,
-                  { backgroundColor: selected ? theme.onAccent : hue },
-                ]}
-              />
+              <View style={[styles.dot, { backgroundColor: hue }]} />
               <AppText
                 variant="caption"
-                color={selected ? theme.onAccent : theme.ink}
+                color={selected ? theme.ink : theme.muted}
                 numberOfLines={1}
                 style={styles.chipLabel}
               >

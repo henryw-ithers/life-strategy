@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";

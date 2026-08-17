@@ -339,6 +339,12 @@ async function attachUnits(
  * stay cheap. The task lands last, and the screen opens its unit with
  * the row's drag handle right there.
  *
+ * The day plan arrives with the task (ADR-0024 §1 as amended
+ * 2026-08-17) rather than being added on a later visit to the edit
+ * sheet: `plannedWeekdays` is `"1,3,5"` or null for flexible, and
+ * `partOfDay` null is *Anytime*. Both are presentation and defaults
+ * only — neither reaches the grade, here or anywhere.
+ *
  * Returns the new task's id so the caller can point at it; null when
  * there is no home unit to file it under.
  */
@@ -346,6 +352,8 @@ export async function addTask(
   unitIds: string[],
   title: string,
   timesPerWeek: number,
+  plannedWeekdays: string | null = null,
+  partOfDay: "morning" | "afternoon" | "evening" | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
@@ -360,6 +368,8 @@ export async function addTask(
       unitId: home,
       title,
       timesPerWeek,
+      plannedWeekdays,
+      partOfDay,
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });

@@ -31,6 +31,12 @@ colors:
   area-home-environment-dark: "#e3ad4b"
   area-leisure-creativity-light: "#7d5fad"
   area-leisure-creativity-dark: "#ab8be3"
+  area-relationships-fill-light: "#b85156"
+  area-physical-health-fill-light: "#36804a"
+  area-mental-wellbeing-fill-light: "#007a80"
+  area-work-money-fill-light: "#3d73b6"
+  area-home-environment-fill-light: "#966a04"
+  area-leisure-creativity-fill-light: "#7d5fad"
 typography:
   display:
     fontFamily: "Manrope (400/500/600/700, bundled)"
@@ -205,12 +211,35 @@ the same alphas the Tonal button uses. Never a solid hue behind small
 text. Ink on a wash never drops below 13.9:1 in either theme. Inline
 *action* text is the brand teal, never the area hue.
 
-⚠️ **Known gap, not yet resolved:** `Button`'s primary variant renders
-its label in `onAccent` at Headline size on whatever fill it is given,
-and several screens pass an area hue. On Green and Amber that is 3.78:1
-and 3.16:1. It predates the 2026-08-16 polish pass and is app-wide, so
-it wants a deliberate decision — restrict primary fills to the accent,
-or give the variant a wash treatment — rather than a per-screen patch.
+**And when a hue must be a solid fill behind a label** — the primary
+button, the checklist's tick circle — it goes through
+`solidFill(hue, theme)`, which swaps in a deepened variant in light
+theme and returns the hue untouched in dark.
+
+| Hue | as drawn | as a fill | white label |
+|---|---|---|---|
+| Rose (Relationships) | `#bb565a` | `#b85156` | 4.82 |
+| Green (Physical health) | `#4a925c` | `#36804a` | 4.83 |
+| Teal (Mental wellbeing) | `#007a80` | unchanged | 5.13 |
+| Blue (Work & money) | `#3d73b6` | unchanged | 4.85 |
+| Amber (Wellness) | `#b8892d` | `#966a04` | 4.81 |
+| Violet (Leisure) | `#7d5fad` | unchanged | 5.11 |
+
+Same OKLCH hue and chroma, L lowered until white clears **4.8:1**. Four
+of the six are visually unchanged; only the two that failed move
+materially, and Wellness reads as deep ochre when filled because an
+amber that carries white text *is* ochre. The deep set is for fills
+behind text and nothing else — bubbles, pips, borders, washes and the
+graph all keep the drawn hues.
+
+> **Resolved 2026-08-17.** This replaces the recorded gap where
+> `Button`'s primary variant rendered `onAccent` on whatever fill it
+> was given (3.78:1 on Green, 3.16:1 on Wellness, across thirteen call
+> sites). The two options named at the time were restricting fills to
+> the accent or giving the variant a wash; Henry chose a third — keep
+> the hue, take it down to where the label passes — so callers still
+> pass the hue their action belongs to and the resolution lives in one
+> function rather than thirteen screens.
 
 ### Neutral
 - **Canvas** (`#ffffff` / `#070707`): the base screen fill. Pure white or pure near-black — never tinted toward any hue.
@@ -259,7 +288,7 @@ Flat by default: canvas and surface differ only by tonal fill, never by shadow, 
 
 ### Buttons
 - **Shape:** rounded rectangle, radius varies by weight — primary 14px (`rounded.lg`), tonal and secondary 12px (`rounded.md`), quiet has no fill or radius.
-- **Primary:** filled with `accent` (teal `#007a80`/`#3ebfc6`, or a caller-supplied color for area-specific actions), white label at Headline weight, min-height 52px, horizontal padding 24px. Press state: scales to 0.98, no color change.
+- **Primary:** filled with `accent` (teal `#007a80`/`#3ebfc6`, or a caller-supplied color for area-specific actions), white label at Headline weight, min-height 52px, horizontal padding 24px. Press state: scales to 0.98, no color change. The fill is resolved through `solidFill` (see Colors), so callers pass the hue their action belongs to and never have to know which hues need deepening to carry a white label.
 - **Tonal:** a wash of `accent` — 12% on the light canvas (`1f`), 18% on the dark one (`2e`), which swallows the lighter tint — with an **Ink** label at Label weight and an optional leading glyph, min-height 48px. Press state: opacity 0.7. For a standing action that lives on a screen permanently: loud enough to find above surface-filled content, quiet enough to see on every visit. The label is Ink, never `accent`: the accent at Label weight on its own wash reads 4.3:1, under AA.
 - **Secondary:** filled with `surface`, Ink-colored label at Label weight, min-height 48px. Press state: opacity 0.7.
 - **Quiet:** no fill, Muted-colored label at Label weight, min-height 44px, horizontal padding 16px. Press state: opacity 0.55. For tertiary/dismissive actions only.

@@ -18,7 +18,7 @@ import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { radius } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { ANYTIME_LABEL, PART_OF_DAY_LABEL, PART_OF_DAY_ORDER, type PartOfDay } from "./planning";
 

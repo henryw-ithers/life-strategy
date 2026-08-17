@@ -6,12 +6,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  emptyPeriodNote,
   formatWeekdays,
   formatWeekdaySummary,
   frequencyForWeekdays,
   isoWeekday,
   isPinnedOn,
   parseWeekdays,
+  PART_OF_DAY_ORDER,
   sortForDisplay,
   WEEKDAY_ORDER,
   type Weekday,
@@ -134,5 +136,23 @@ describe("display ordering", () => {
 
   it("summarises flexible as nothing to say", () => {
     expect(formatWeekdaySummary([])).toBeNull();
+  });
+});
+
+describe("the day's shape", () => {
+  it("runs morning, afternoon, evening", () => {
+    // The checklist renders all three every day, in this order, so
+    // this array is the day's spine rather than a lookup table.
+    expect(PART_OF_DAY_ORDER).toEqual(["morning", "afternoon", "evening"]);
+  });
+
+  it("reads a period with nothing planned in it as free", () => {
+    expect(emptyPeriodNote(false)).toBe("Free");
+  });
+
+  it("reads a period you worked through as done, not free", () => {
+    // Saying "Free" for both would report a morning you spent as a
+    // morning you skipped.
+    expect(emptyPeriodNote(true)).toBe("All done");
   });
 });

@@ -53,6 +53,39 @@ const AREA_COLORS_DARK: Record<string, string> = {
   "leisure-creativity": "#ab8be3",
 };
 
+/**
+ * The light hues at the lightness a **white label** needs, keyed by the
+ * hue they stand in for (see `solidFill`).
+ *
+ * DESIGN.md recorded this as an open decision: `Button`'s primary
+ * variant renders `onAccent` on whatever fill it is given, and thirteen
+ * call sites hand it an area hue — 3.78:1 on Physical health, 3.16:1 on
+ * Wellness. The two options it named were restricting fills to the
+ * accent or giving the variant a wash; Henry chose a third on
+ * 2026-08-17: keep the hue, take it down to where the label passes.
+ *
+ * Same OKLCH hue and chroma, L lowered until white clears **4.8:1** —
+ * AA with a little margin rather than a value sitting on the line.
+ * Four of the six move by less than a step and are visually the same
+ * colour; only Physical health and Wellness change materially, which is
+ * exactly the pair that failed. Wellness reads as deep ochre rather
+ * than amber when filled, because an amber that carries white text *is*
+ * ochre — the alternative was a 3.16:1 button.
+ *
+ * These are for **solid fills behind a label only**. Bubbles, pips,
+ * borders, washes and the graph all keep the original hues: they carry
+ * no text, and matching them here would darken the app's identity for
+ * no reason.
+ */
+const AREA_FILLS_LIGHT: Record<string, string> = {
+  "#bb565a": "#b85156", // rose      4.57 → 4.82
+  "#4a925c": "#36804a", // green     3.78 → 4.83
+  "#007a80": "#007a80", // teal      5.13, already clear
+  "#3d73b6": "#3d73b6", // blue      4.85, already clear
+  "#b8892d": "#966a04", // amber     3.16 → 4.81
+  "#7d5fad": "#7d5fad", // violet    5.11, already clear
+};
+
 const THEMES: Record<ThemeName, ThemeTokens> = {
   light: {
     name: "light",
@@ -112,6 +145,24 @@ const GRADE_RAMP_DARK = ["#ef7a6d", "#e59a4a", "#d9c04b", "#6fc082", "#52d97e", 
  */
 export function wash(hue: string, theme: ThemeTokens): string {
   return `${hue}${theme.name === "dark" ? "2e" : "1f"}`;
+}
+
+/**
+ * A hue as a **solid fill with `onAccent` text on it** — the primary
+ * button, the checklist's tick circle.
+ *
+ * Light theme swaps in the deepened variant (`AREA_FILLS_LIGHT`) so the
+ * white label clears AA. Dark theme returns the hue untouched: its
+ * label is near-black on a lifted hue, which is 7.2:1 at worst.
+ *
+ * Anything that is *not* a fill behind text — bubbles, pips, borders,
+ * washes — takes `theme.areas[id]` directly and must not come through
+ * here. Call it once, at the point the fill is chosen, so callers keep
+ * passing the hue they mean.
+ */
+export function solidFill(hue: string, theme: ThemeTokens): string {
+  if (theme.name === "dark") return hue;
+  return AREA_FILLS_LIGHT[hue.toLowerCase()] ?? hue;
 }
 
 export function gradeColor(grade: number, theme: ThemeTokens): string {

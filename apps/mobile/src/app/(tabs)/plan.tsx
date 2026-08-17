@@ -34,6 +34,7 @@ import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
 import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
+import type { PartOfDay } from "../../components/plan/planning";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -213,8 +214,16 @@ export default function PlanScreen() {
     title: string,
     timesPerWeek: number,
     unitIds: string[],
+    plannedWeekdays: string | null,
+    partOfDay: PartOfDay | null,
   ) => {
-    const id = await addTask(unitIds, title, timesPerWeek);
+    const id = await addTask(
+      unitIds,
+      title,
+      timesPerWeek,
+      plannedWeekdays,
+      partOfDay,
+    );
     const home = unitIds[0];
     if (home) setOpenUnitId(home);
     await reload();
@@ -441,6 +450,8 @@ export default function PlanScreen() {
                                     timesPerWeek={t.timesPerWeek}
                                     pointValue={t.pointValue}
                                     otherUnitNames={t.otherUnitNames}
+                                    plannedWeekdays={t.plannedWeekdays}
+                                    partOfDay={t.partOfDay}
                                     accent={hue}
                                     theme={theme}
                                     highlight={t.id === justAdded}
@@ -465,8 +476,10 @@ export default function PlanScreen() {
                               { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
                             ]}
                           >
+                            {/* Same words as the bar at the top of the
+                                screen: one action, named once. */}
                             <AppText variant="label" color={theme.accent}>
-                              + Add a task
+                              + Add task
                             </AppText>
                           </Pressable>
                         </Animated.View>

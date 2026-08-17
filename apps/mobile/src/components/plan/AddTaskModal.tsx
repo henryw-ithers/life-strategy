@@ -1,11 +1,19 @@
 /**
- * Task creation: what it is, which units it serves, how often. One
- * dialog, one commit.
+ * Task creation: what it is, which units it serves, how often, and
+ * when. One dialog, one commit.
  *
- * A centred card rather than a bottom sheet. Adding a task is a small,
- * four-field errand, and a sheet that rises over the whole screen
- * frames it as leaving the plan behind — the card keeps the list
- * visible around it, which is the truer scale of the action.
+ * A centred card rather than a bottom sheet. Adding a task is a small
+ * errand, and a sheet that rises over the whole screen frames it as
+ * leaving the plan behind — the card keeps the list visible around it,
+ * which is the truer scale of the action.
+ *
+ * **The plan is made here, not afterwards** (ADR-0024 §1 as amended
+ * 2026-08-17). The order is the order a person thinks in: what, how
+ * often, which days, when in the day. Weekday pins and part of day used
+ * to exist only in the edit sheet, so every task was born flexible and
+ * planning it meant a second trip through a second surface — the
+ * implementation intention the research is about was the one thing the
+ * flow made optional.
  *
  * Two things used to sit between typing a task and having one. The
  * first was the unit: the sheet could only be opened from inside an
@@ -28,10 +36,12 @@
  */
 import { useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -42,8 +52,14 @@ import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { FrequencyPicker } from "./FrequencyPicker";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
+import {
+  formatWeekdays,
+  frequencyForWeekdays,
+  type PartOfDay,
+  type Weekday,
+} from "./planning";
+import { SchedulePicker } from "./SchedulePicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 interface AddTaskModalProps {
@@ -59,11 +75,15 @@ interface AddTaskModalProps {
   homeUnitId?: string;
   areaColors: Record<string, string>;
   theme: ThemeTokens;
-  /** `unitIds[0]` is the home unit — where the task is listed. */
+  /** `unitIds[0]` is the home unit — where the task is listed.
+   *  `plannedWeekdays` is `"1,3,5"` or null for flexible;
+   *  `partOfDay` null is *Anytime*. */
   onCommit: (
     title: string,
     timesPerWeek: number,
     unitIds: string[],
+    plannedWeekdays: string | null,
+    partOfDay: PartOfDay | null,
   ) => Promise<void> | void;
 }
 
@@ -82,6 +102,8 @@ export function AddTaskModal({
   const [unitIds, setUnitIds] = useState<string[]>(
     homeUnitId ? [homeUnitId] : [],
   );
+  const [weekdays, setWeekdays] = useState<Weekday[]>([]);
+  const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(null);
   const [saving, setSaving] = useState(false);
 
   /** The home unit's area hue, or the app accent until one is picked —
@@ -96,6 +118,8 @@ export function AddTaskModal({
     setTitle("");
     setTimesPerWeek(7);
     setUnitIds(homeUnitId ? [homeUnitId] : []);
+    setWeekdays([]);
+    setPartOfDay(null);
     setSaving(false);
     onClose();
   };
@@ -106,10 +130,20 @@ export function AddTaskModal({
     if (!ready) return;
     setSaving(true);
     const committedTitle = title.trim();
-    const committedTimes = timesPerWeek;
+    // Days picked *are* the frequency (ADR-0024 §Schema); the wheel's
+    // value only survives when nothing is pinned.
+    const committedTimes = frequencyForWeekdays(weekdays, timesPerWeek);
     const committedUnits = unitIds;
+    const committedDays = formatWeekdays(weekdays);
+    const committedPart = partOfDay;
     close();
-    void onCommit(committedTitle, committedTimes, committedUnits);
+    void onCommit(
+      committedTitle,
+      committedTimes,
+      committedUnits,
+      committedDays,
+      committedPart,
+    );
   };
 
   const remaining = TASK_TITLE_MAX - title.length;
@@ -145,6 +179,20 @@ export function AddTaskModal({
             New task
           </AppText>
 
+          {/* Scrolls in its content area only, with the actions pinned
+              below it — the same rule `TaskEditSheet` follows, and for
+              the same reason: five fields no longer fit a short screen
+              with the keyboard up, and cramming them would cost touch
+              targets on a row of seven chips. */}
+          <ScrollView
+            style={styles.scroller}
+            contentContainerStyle={styles.scrollBody}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            // The frequency wheel is a nested scroller; without this the
+            // card steals its drag on Android.
+            nestedScrollEnabled
+          >
           <View style={styles.field}>
             <TextInput
               value={title}
@@ -153,8 +201,14 @@ export function AddTaskModal({
               placeholderTextColor={theme.muted}
               autoFocus
               maxLength={TASK_TITLE_MAX}
+              // Return dismisses the keyboard; it does **not** commit.
+              // It used to, back when the name and the unit were the
+              // whole sheet — with the schedule below the fold, a
+              // Return that files the task takes away the three
+              // questions the user came here to answer, and does it at
+              // the exact moment they were reaching for them.
               returnKeyType="done"
-              onSubmitEditing={commit}
+              onSubmitEditing={() => Keyboard.dismiss()}
               accessibilityLabel="Task name"
               style={[
                 styles.input,
@@ -181,17 +235,17 @@ export function AddTaskModal({
             areaColors={areaColors}
           />
 
-          <View style={styles.repeatBlock}>
-            <AppText variant="caption" color={theme.muted}>
-              How often
-            </AppText>
-            <FrequencyPicker
-              value={timesPerWeek}
-              onChange={setTimesPerWeek}
-              accent={accent}
-              theme={theme}
-            />
-          </View>
+          <SchedulePicker
+            timesPerWeek={timesPerWeek}
+            onTimesPerWeekChange={setTimesPerWeek}
+            weekdays={weekdays}
+            onWeekdaysChange={setWeekdays}
+            partOfDay={partOfDay}
+            onPartOfDayChange={setPartOfDay}
+            accent={accent}
+            theme={theme}
+          />
+          </ScrollView>
 
           {/* Side by side: the card is short enough that stacking two
               full-width buttons would make the actions the tallest
@@ -236,7 +290,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingVertical: space.xl,
     gap: space.lg,
+    // Bounds the scroller inside it; the card is still only as tall as
+    // its contents on a phone that has the room.
+    maxHeight: "86%",
   },
+  scroller: { flexGrow: 0 },
+  /** The gap the card used to own for these children; it now belongs to
+   *  the scroller so the pinned actions keep their own spacing. */
+  scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xs },
   field: { gap: space.xs },
   counter: { alignSelf: "flex-end" },
   input: {
@@ -245,7 +306,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
   },
-  repeatBlock: { gap: space.sm },
   actions: { flexDirection: "row", alignItems: "center", gap: space.md },
   action: { flex: 1 },
 });

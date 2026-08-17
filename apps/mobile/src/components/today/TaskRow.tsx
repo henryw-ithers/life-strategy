@@ -7,7 +7,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { TodayTask } from "../../db/today";
-import type { ThemeTokens } from "../../theme/colors";
+import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 
@@ -114,8 +114,14 @@ export function TaskRow({
         { opacity: disabled ? 0.45 : pressed ? 0.6 : 1 },
       ]}
     >
+      {/* The ring is the hue as drawn; the fill behind the tick goes
+          through `solidFill`, since a caption-size ✓ in `onAccent` on
+          raw Green or Amber is the same 3.78:1 / 3.16:1 the primary
+          button had. */}
       <View style={[styles.circle, { borderColor: hue }]}>
-        <Animated.View style={[styles.circleFill, { backgroundColor: hue }, fillStyle]}>
+        <Animated.View
+          style={[styles.circleFill, { backgroundColor: solidFill(hue, theme) }, fillStyle]}
+        >
           <AppText variant="caption" color={theme.onAccent} style={styles.check}>
             ✓
           </AppText>

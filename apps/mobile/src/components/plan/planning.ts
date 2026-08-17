@@ -56,6 +56,32 @@ export const PART_OF_DAY_LABEL: Record<PartOfDay, string> = {
  *  value, not a missing one — most of a plan is deliberately flexible. */
 export const ANYTIME_LABEL = "Anytime";
 
+/** A part of the day with nothing planned in it. */
+export const FREE_LABEL = "Free";
+
+/** A part of the day whose tasks have all been ticked off. */
+export const ALL_DONE_LABEL = "All done";
+
+/**
+ * What one of the three parts of the day reads when it holds no open
+ * tasks (ADR-0024 §3 as amended 2026-08-17).
+ *
+ * Two states, and the only thing separating them is what happened: a
+ * period with nothing planned was never claimed, and reads **Free**; a
+ * period you have worked through reads **All done**. Saying "Free" for
+ * both would report a morning you spent as a morning you skipped.
+ *
+ * Both are facts about what is left, and neither conditions on a
+ * shortfall — there is deliberately no state for a period you have not
+ * got to yet, which simply keeps its rows (ADR-0008).
+ *
+ * Not used for *Anytime*, which is not a time of day: an empty one is
+ * nothing to report rather than free time, so it hides instead.
+ */
+export function emptyPeriodNote(anyCompletedHere: boolean): string {
+  return anyCompletedHere ? ALL_DONE_LABEL : FREE_LABEL;
+}
+
 /** `"1,3,5"` → `[1, 3, 5]`. Tolerates junk rather than throwing: this
  *  parses a free-form text column, and a malformed row should degrade
  *  to "flexible" rather than break the checklist. */

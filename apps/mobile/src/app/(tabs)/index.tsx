@@ -34,6 +34,7 @@ import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
 import {
   ANYTIME_LABEL,
+  emptyPeriodNote,
   isPinnedOn,
   parseWeekdays,
   PART_OF_DAY_LABEL,
@@ -72,25 +73,26 @@ import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 
 /**
- * The checklist groups two ways (ADR-0024 §3).
+ * The checklist is the shape of a day (ADR-0024 §3, as amended
+ * 2026-08-17).
  *
- * **Frequency mode** — `everyDay` / `thisWeek` — is what ships today
- * and what a user with no part-of-day set still sees. **Day-shape
- * mode** — `morning` / `afternoon` / `evening` / `anytime` — replaces
- * those two the moment any task carries a part of day.
+ * **The three parts of the day always render**, in order, whether or
+ * not anything sits in them; an empty one reads *Free*, or *All done*
+ * once its tasks are ticked off. The earlier
+ * build grouped by frequency ("Every day," "This week") until some task
+ * carried a part of day, and hid empty sections once one did. Both are
+ * gone: a day whose morning is missing from the page does not read as a
+ * day, and "free until this afternoon" is the single most useful thing
+ * the screen can say. Planning now happens when a task is created, so
+ * the shape is populated from the first task rather than after a
+ * separate trip through the edit sheet.
  *
- * ADR-0024 §3 claims a user who pins nothing "sees one Anytime list —
- * the current experience, unchanged." That was not true: today they
- * see two labelled sections carrying real information, and collapsing
- * both into one list would take that away from everyone on day one for
- * a feature they may never use. Keeping frequency mode as the untouched
- * default is what "invisible until used" actually means.
- *
- * `doneWeek` and `completed` are common to both and always sit last.
+ * `anytime` holds everything that was deliberately left unplaced. It
+ * is not a fourth time of day, so it appears only when it has
+ * something in it — an empty Anytime is nothing to report, not free
+ * time. `doneWeek` and `completed` behave the same way and sit last.
  */
 type SectionKey =
-  | "everyDay"
-  | "thisWeek"
   | "morning"
   | "afternoon"
   | "evening"
@@ -211,11 +213,6 @@ export default function TodayScreen() {
   // Presentation-level re-sort: anything done today lives in Completed.
   const allTasks = day ? [...day.daily, ...day.week, ...day.doneThisWeek] : [];
 
-  /** Day-shape mode switches on the first task to carry a part of day.
-   *  Weekday pins alone don't trigger it — they order within a section
-   *  rather than creating one. */
-  const dayShaped = allTasks.some((t) => t.partOfDay !== null);
-
   /**
    * ADR-0024 §3's order: planned-today first, then flexible with runs
    * left, then the rest. Ties keep their incoming order, which is the
@@ -237,6 +234,8 @@ export default function TodayScreen() {
     ? [...day.daily, ...day.week].filter((t) => !t.completedToday)
     : [];
 
+  /** `emptyNote` null means the section hides when it empties — the
+   *  rule for everything that is not one of the three periods. */
   const partSection = (part: PartOfDay | null) => {
     const tasks = openTasks.filter((t) => t.partOfDay === part).sort(byPlan);
     return {
@@ -244,6 +243,12 @@ export default function TodayScreen() {
       label: part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL,
       tasks,
       pts: tasks.reduce((a, t) => a + t.pointValue, 0),
+      emptyNote:
+        part === null
+          ? null
+          : emptyPeriodNote(
+              allTasks.some((t) => t.partOfDay === part && t.completedToday),
+            ),
     };
   };
 
@@ -252,31 +257,14 @@ export default function TodayScreen() {
     label: string;
     tasks: TodayTask[];
     pts: number;
+    emptyNote: string | null;
   }[] = day
     ? [
-        ...(dayShaped
-          ? // Explicit arrow rather than a bare reference: `map` passes
-            // an index as the second argument, and a one-arg callback
-            // used point-free is how that bites.
-            [...PART_OF_DAY_ORDER.map((p) => partSection(p)), partSection(null)]
-          : [
-              {
-                key: "everyDay" as const,
-                label: "Every day",
-                tasks: day.daily.filter((t) => !t.completedToday).sort(byPlan),
-                pts: day.daily
-                  .filter((t) => !t.completedToday)
-                  .reduce((a, t) => a + t.pointValue, 0),
-              },
-              {
-                key: "thisWeek" as const,
-                label: "This week",
-                tasks: day.week.filter((t) => !t.completedToday).sort(byPlan),
-                pts: day.week
-                  .filter((t) => !t.completedToday)
-                  .reduce((a, t) => a + t.pointValue, 0),
-              },
-            ]),
+        // Explicit arrow rather than a bare reference: `map` passes an
+        // index as the second argument, and a one-arg callback used
+        // point-free is how that bites.
+        ...PART_OF_DAY_ORDER.map((p) => partSection(p)),
+        partSection(null),
         {
           key: "doneWeek" as const,
           label: "Done this week",
@@ -284,6 +272,7 @@ export default function TodayScreen() {
           pts: day.doneThisWeek
             .filter((t) => !t.completedToday)
             .reduce((a, t) => a + t.pointsIfCompletedNow, 0),
+          emptyNote: null,
         },
         {
           key: "completed" as const,
@@ -295,8 +284,9 @@ export default function TodayScreen() {
               (a, t) => a + (t.extraToday ? t.pointsIfCompletedNow : t.pointValue),
               0,
             ),
+          emptyNote: null,
         },
-      ].filter((s) => s.tasks.length > 0)
+      ].filter((s) => s.tasks.length > 0 || s.emptyNote !== null)
     : [];
 
   const closeActivitySheet = () => {
@@ -559,24 +549,60 @@ export default function TodayScreen() {
                 <Animated.View
                   key={s.key}
                   layout={layout}
-                  style={[styles.band, { borderTopColor: theme.hairline }]}
+                  /* The three periods plus Anytime are one continuous
+                     thing — the day — so they separate with spacing and
+                     nothing else. A rule between each of them stacked
+                     up to six hairlines down the page and made the
+                     shape of the day read as a table of dividers, which
+                     is the pattern DESIGN.md's Group section says was
+                     replaced. The rule survives at the one place the
+                     content changes kind: the day's tail, where what is
+                     left becomes what is behind you. */
+                  style={
+                    s.key === "doneWeek" || s.key === "completed"
+                      ? [styles.tail, { borderTopColor: theme.hairline }]
+                      : styles.period
+                  }
                 >
-                  <Pressable
-                    onPress={() =>
-                      setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: !collapsed[s.key] }}
-                    accessibilityLabel={`${s.label}, ${s.pts} points`}
-                    style={styles.sectionHeader}
-                  >
-                    <AppText variant="caption" color={theme.muted}>
-                      {s.label} {collapsed[s.key] ? "▸" : "▾"}
-                    </AppText>
-                    <AppText variant="caption" color={theme.muted} tabular>
-                      {s.pts} pts
-                    </AppText>
-                  </Pressable>
+                  {s.tasks.length === 0 ? (
+                    // Nothing to collapse and no points to report, so
+                    // the header is a line of text rather than a
+                    // control — one row of the day, said in two words.
+                    <View
+                      style={styles.sectionHeader}
+                      accessible
+                      accessibilityLabel={`${s.label}, ${s.emptyNote}`}
+                    >
+                      <AppText variant="caption" color={theme.muted}>
+                        {s.label}
+                      </AppText>
+                      <AppText variant="caption" color={theme.muted}>
+                        {s.emptyNote}
+                      </AppText>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() =>
+                        setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
+                      }
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: !collapsed[s.key] }}
+                      accessibilityLabel={`${s.label}, ${s.pts} points`}
+                      // 32pt drawn, 44pt tappable — the same trade the
+                      // unit chips make. A 44pt header would put up to
+                      // 72pt of empty band down a page whose whole job
+                      // is to be short.
+                      hitSlop={{ top: 6, bottom: 6 }}
+                      style={styles.sectionHeader}
+                    >
+                      <AppText variant="caption" color={theme.muted}>
+                        {s.label} {collapsed[s.key] ? "▸" : "▾"}
+                      </AppText>
+                      <AppText variant="caption" color={theme.muted} tabular>
+                        {s.pts} pts
+                      </AppText>
+                    </Pressable>
+                  )}
                   {!collapsed[s.key]
                     ? s.tasks.map((t) => (
                         <Animated.View key={t.id} layout={layout}>
@@ -1093,8 +1119,22 @@ const styles = StyleSheet.create({
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   special: { gap: space.sm, marginTop: space.xl },
+  /** A run of the day: label, then its rows. Spacing separates it from
+   *  the run above; see the note at the call site. */
+  period: { marginTop: space.lg, gap: space.xs },
+  /** Done this week / Completed: the same block with the one rule that
+   *  survived, and more air above it so the break reads before the
+   *  line does. */
+  tail: {
+    marginTop: space.xl,
+    paddingTop: space.md,
+    gap: space.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  /** The day's record and its log — different content, so they keep the
+   *  rule that says so. */
   band: {
-    marginTop: space.lg,
+    marginTop: space.xl,
     paddingTop: space.md,
     gap: space.xs,
     borderTopWidth: StyleSheet.hairlineWidth,

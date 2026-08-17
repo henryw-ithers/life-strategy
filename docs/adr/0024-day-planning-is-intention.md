@@ -145,15 +145,56 @@ mechanic to arrive by accident.
 Sections become **Morning · Afternoon · Evening · Anytime**, replacing
 "Every day" and "This week." Rules:
 
-- **Empty sections do not render.** A user who pins nothing sees one
+- ~~**Empty sections do not render.** A user who pins nothing sees one
   "Anytime" list — the current experience, unchanged, with no new
-  concepts on screen. The feature is invisible until used.
+  concepts on screen. The feature is invisible until used.~~
+  **Amended 2026-08-17 — see below.**
 - **Frequency moves onto the row** as existing secondary text
   (`formatFrequencyShort`), where it already has a home.
 - **"Done this week" and "Completed" are unchanged** and stay below the
   part-of-day sections.
 - Within a section: planned-today first, then flexible-with-runs-left,
   then the rest. Completed rows sink, as now.
+
+> **Amendment (2026-08-17): the three periods always render, and an
+> empty one reads *Free*.**
+>
+> "Invisible until used" was the right instinct applied to the wrong
+> object. It produced two behaviours that both had to go:
+>
+> - The shipped build kept **frequency mode** ("Every day," "This
+>   week") as the default and switched to part-of-day only once some
+>   task carried one. Two groupings for one list, and which you got
+>   depended on a field you may never have opened.
+> - Empty sections vanished, so a day with an evening run and nothing
+>   else showed *one* section. The page then described a fragment of a
+>   day rather than a day.
+>
+> Now: **Morning, Afternoon and Evening render every day, in order,
+> whether or not anything sits in them.** A period with nothing planned
+> in it reads **Free**; one whose tasks are all ticked off reads **All
+> done** (Henry, 2026-08-17). Saying "Free" for both would report a
+> morning you spent as a morning you skipped. There is deliberately no
+> state for a period you have not got to yet — it keeps its rows and
+> says nothing, which is what ADR-0008 requires of anything that could
+> otherwise notice a shortfall.
+>
+> "Free until this afternoon" is the most useful sentence this screen
+> can say, and it is unsayable if the empty half of the day is missing.
+>
+> **Anytime keeps the old rule** and hides when empty. It is not a
+> fourth time of day — it is where deliberately unplaced work lives —
+> so an empty one is nothing to report rather than free time.
+>
+> This costs nothing in vertical space that matters: an empty period is
+> one line of caption text, and three of them are cheaper than the two
+> section headings they replaced. The copy is `emptyPeriodNote` in
+> `planning.ts`, tested there.
+>
+> **Completed stays collapsible**, as every section with rows in it is.
+> A finished day fills that section with everything you did, and the
+> header is how you fold it away — the one control the day's tail
+> needs.
 
 ### 4. The weekly planning pass is where planning happens
 
@@ -172,6 +213,34 @@ one, at a cadence that cannot threaten daily simplicity.
 The daily checklist stays **read-mostly with respect to planning**:
 you may complete anything at any time regardless of where it was
 placed, and nothing on the daily surface asks you to re-plan.
+
+> **Amendment (2026-08-17): a task's standing plan is set when the task
+> is created.**
+>
+> Phase 2 put the weekday chips and the part-of-day control in
+> `TaskEditSheet` only (action item 1, as written). The effect was that
+> **every task was born flexible**, and planning it meant finding it
+> again on another screen — so the implementation intention this whole
+> ADR rests on was the one step the flow made optional, and the
+> checklist's day shape stayed empty for anyone who never went looking.
+>
+> Creating a task now asks, in this order: what it is, which units it
+> serves, **how often, which days, when in the day**. Both surfaces
+> render the same `SchedulePicker`, so the questions cannot drift into
+> two orders between creating a task and revising one.
+>
+> This does not move planning off the weekly pass. The two are
+> different objects: a task's **standing plan** (this happens Monday,
+> Wednesday and Friday, in the morning) belongs with the task and is
+> answered once, while **placing this week's outstanding runs** on
+> particular dates is the weekly pass's job and still is (§4 above,
+> `planned_occurrence`, phase 3). Nothing here touches the daily
+> surface, which stays read-mostly.
+>
+> Days remain multi-select and the frequency stays derived from them
+> (§Schema, unchanged): three chips is three times a week. Choosing
+> nothing is still flexible, still the default, and still not a lesser
+> state.
 
 ### 5. Pinned-day reminders: the trigger fires, the copy does not change
 
@@ -249,12 +318,17 @@ ADR-0026's load work needs placement data this ADR chose not to keep.
 
 ## Action items
 
-1. [ ] Phase 2: `task.planned_weekdays` + `task.part_of_day` migration;
+1. [x] Phase 2: `task.planned_weekdays` + `task.part_of_day` migration;
        weekday chips and a part-of-day segmented control in
        `TaskEditSheet`, wired to `FrequencyPicker` per §Schema.
-2. [ ] Regroup the checklist by part of day in
-       `apps/mobile/src/app/(tabs)/index.tsx` — empty sections omitted,
-       frequency demoted to row metadata.
+       **Extended 2026-08-17** (§4 amendment): the same three controls
+       are in `AddTaskModal` too, shared as `SchedulePicker`, so a task
+       is planned when it is created rather than on a later visit.
+2. [x] Regroup the checklist by part of day in
+       `apps/mobile/src/app/(tabs)/index.tsx` — ~~empty sections
+       omitted~~ the three periods always shown with **Free** when
+       empty (§3 amendment, 2026-08-17), frequency demoted to row
+       metadata.
 3. [ ] Phase 3: `planned_occurrence` table and the weekly planning
        pass; the week strip becomes editable for future days.
 4. [ ] Confirm no adherence statistic is computed anywhere — this is

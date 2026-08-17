@@ -1,6 +1,10 @@
 /**
  * The tap-to-edit sheet: everything about one task in one place —
- * title, cadence, which units it serves, and delete.
+ * title, what it involves, which units it serves, when it happens, and
+ * delete. It runs the same fields in the same order as `AddTaskModal`,
+ * through the same `SchedulePicker`: creating a task and revising one
+ * are the same act at different times, and a form that reorders itself
+ * between them is a form you have to re-read.
  *
  * Rank isn't here. It moved to a grip on the row itself, where you can
  * see the order you're changing; a second way in from this sheet would
@@ -21,6 +25,7 @@
  */
 import { useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -36,10 +41,7 @@ import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { formatFrequency } from "./frequency";
-import { FrequencyPicker } from "./FrequencyPicker";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
-import { PartOfDayPicker } from "./PartOfDayPicker";
 import {
   formatWeekdays,
   frequencyForWeekdays,
@@ -47,8 +49,8 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
+import { SchedulePicker } from "./SchedulePicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
-import { WeekdayPicker } from "./WeekdayPicker";
 
 export interface EditableTask {
   id: string;
@@ -102,14 +104,8 @@ export function TaskEditSheet({
   );
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
 
-  /**
-   * Pinned days *are* the frequency (ADR-0024 §Schema), so the wheel
-   * retires while any chip is lit rather than sitting beside it
-   * offering a second answer to the same question. It also keeps the
-   * sheet from scrolling, which this component refuses to do — see the
-   * header.
-   */
-  const pinned = weekdays.length > 0;
+  /** Pinned days *are* the frequency (ADR-0024 §Schema) — the wheel
+   *  retires while any chip is lit, inside `SchedulePicker`. */
   const effectiveTimes = frequencyForWeekdays(weekdays, timesPerWeek);
   const storedWeekdays = formatWeekdays(weekdays);
 
@@ -180,8 +176,12 @@ export function TaskEditSheet({
               placeholder="Task name"
               placeholderTextColor={theme.muted}
               maxLength={TASK_TITLE_MAX}
+              // Dismisses the keyboard rather than saving and closing:
+              // the schedule sits below this field, and a Return that
+              // ends the sheet ends it before the user reaches what
+              // they most likely opened it for.
               returnKeyType="done"
-              onSubmitEditing={save}
+              onSubmitEditing={() => Keyboard.dismiss()}
               accessibilityLabel="Task name"
               style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
             />
@@ -210,61 +210,28 @@ export function TaskEditSheet({
             ]}
           />
 
-          <View style={styles.block}>
-            <View style={styles.blockHeader}>
-              <AppText variant="caption" color={theme.muted}>
-                Which days
-              </AppText>
-              {/* The derived frequency, stated rather than implied, so
-                  picking days never feels like it lost the setting the
-                  wheel used to hold. Reads as fact, never as a target. */}
-              <AppText variant="caption" color={theme.muted}>
-                {pinned ? formatFrequency(effectiveTimes) : "Any days"}
-              </AppText>
-            </View>
-            <WeekdayPicker
-              value={weekdays}
-              onChange={setWeekdays}
-              accent={accent}
-              theme={theme}
-            />
-          </View>
-
-          {/* Flexible tasks still need a count; pinned ones already
-              have one. Swapping rather than stacking is what keeps the
-              sheet inside one screen. */}
-          {!pinned ? (
-            <View style={styles.block}>
-              <AppText variant="caption" color={theme.muted}>
-                How often
-              </AppText>
-              <FrequencyPicker
-                value={timesPerWeek}
-                onChange={setTimesPerWeek}
-                accent={accent}
-                theme={theme}
-              />
-            </View>
-          ) : null}
-
-          <View style={styles.block}>
-            <AppText variant="caption" color={theme.muted}>
-              When in the day
-            </AppText>
-            <PartOfDayPicker
-              value={partOfDay}
-              onChange={setPartOfDay}
-              accent={accent}
-              theme={theme}
-            />
-          </View>
-
+          {/* Units before the schedule, matching the add sheet. The two
+              used to run in opposite orders — units last here, first
+              there — which made the same five fields a different form
+              depending on how you arrived at them. Identity first, plan
+              second, in both. */}
           <UnitPicker
             units={units}
             value={unitIds}
             onChange={setUnitIds}
             theme={theme}
             areaColors={areaColors}
+          />
+
+          <SchedulePicker
+            timesPerWeek={timesPerWeek}
+            onTimesPerWeekChange={setTimesPerWeek}
+            weekdays={weekdays}
+            onWeekdaysChange={setWeekdays}
+            partOfDay={partOfDay}
+            onPartOfDayChange={setPartOfDay}
+            accent={accent}
+            theme={theme}
           />
           </ScrollView>
 
@@ -325,11 +292,5 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingBottom: space.md,
     textAlignVertical: "top",
-  },
-  block: { gap: space.sm },
-  blockHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
   },
 });

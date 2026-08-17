@@ -1,13 +1,16 @@
 import { Pressable, StyleSheet, Text } from "react-native";
 
-import type { ThemeTokens } from "../../theme/colors";
+import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 
 interface ButtonProps {
   label: string;
   onPress: () => void;
   /**
-   * primary: filled, onAccent label (fill must be an accent/area hue).
+   * primary: filled, onAccent label. Pass whichever hue the action
+   *   belongs to; the fill is resolved through `solidFill`, which in
+   *   light theme deepens an area hue to where the white label clears
+   *   AA. Callers never need to know which hues need it.
    * tonal: a wash of the accent, ink label — a standing action that
    *   sits on a screen all the time and shouldn't shout every visit,
    *   but would vanish as `secondary` against surface-filled content.
@@ -112,7 +115,9 @@ export function Button({
       style={({ pressed }) => [
         styles.primary,
         {
-          backgroundColor: fill,
+          // The one place a hue becomes a fill behind a label; the
+          // tonal and secondary variants never need it (Ink labels).
+          backgroundColor: solidFill(fill, theme),
           opacity: disabled ? 0.35 : 1,
           transform: [{ scale: pressed ? 0.98 : 1 }],
         },
