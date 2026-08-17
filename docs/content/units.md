@@ -17,9 +17,30 @@ anywhere a unit is rated.
     - A guideline.
     - Another guideline.
 
+    ### Note
+
+    Optional. Why this unit behaves differently from the rest.
+
 The **unit id** is the key and must match `db/taxonomy.ts`. The display
 name after the dash is for whoever is editing this file; the app takes
 the name from the taxonomy, not from here.
+
+## The Note section (ADR-0025 §13)
+
+Seven units carry one; eleven don't, and that is correct — a note
+exists to explain a *difference*, so putting one everywhere would make
+it noise.
+
+- **The three communal units** (Significant other, Family, Friendship)
+  behave differently: no checklist, tagged instead. The note says why.
+- **The four intrinsic units** (Spirituality, Hobbies & projects, Art
+  & media, Adventure & experiences) carry a tension rather than a
+  rule — worth making time for, and worth not turning into homework.
+  Both halves, because both are true.
+
+These are the hardest lines in the package. They have to convey a real
+tension **without becoming an instruction about how to live**. Say what
+the app does and why; stop before advising.
 
 ## Editorial rules (ADR-0006 §1)
 
@@ -44,6 +65,10 @@ Your romantic partnership or relationship with being single.
 - You spend real time together, on purpose.
 - It adds to your life without swallowing it. You have a healthy balance of shared and separate friends, interests, and time.
 
+### Note
+
+There's no checklist here. A relationship you're keeping score in is a different kind of relationship, and the scorekeeping is what did it. So instead, when you log something you did, you can note who you were with. A day with real time together in it counts in full.
+
 ## family — Family
 
 Parents, siblings, children, chosen family, etc.
@@ -52,6 +77,10 @@ Parents, siblings, children, chosen family, etc.
 - There are rituals. A standing call, a recurring dinner.
 - Boundaries exist where they're needed.
 
+### Note
+
+There's no checklist here. Tallying what you give a family turns it into an account, and an account is a strange thing to have with them. So instead, when you log something you did, you can note who you were with. A day with real contact in it counts in full.
+
 ## friendship — Friendship
 
 People you enjoy spending time with and people who actually know you.
@@ -59,6 +88,10 @@ People you enjoy spending time with and people who actually know you.
 - Some of your friendships have real depth.
 - You can be yourself without fear of judgement.
 - Spending time with others is enjoyable, not draining.
+
+### Note
+
+There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So instead, when you log something you did, you can note who you were with — most of what people do with friends is something else, done together. A day with real company in it counts in full.
 
 ## exercise-fitness — Exercise & fitness
 
@@ -99,6 +132,10 @@ Being in touch with the universe beyond the everyday, through faith, nature, awe
 - Some kind of quiet practice recurs. Meditation, prayer, and deliberate stillness all lower stress reactivity.
 - Awe has room in your life. People who feel it regularly report better wellbeing, and it even shows in inflammation markers.
 - Gratitude gets noticed, briefly and often. It's one of the most replicated findings in wellbeing research.
+
+### Note
+
+Two things are true here and they pull against each other. A practice wants a regular place in the week, or it quietly stops happening. And this is the area where counting it is most likely to empty it out. Keep the rhythm; hold the tally loosely.
 
 ## giving-service — Giving & service
 
@@ -165,6 +202,10 @@ Things you do and make for their own sake: projects, crafts, skills.
 - You make things, not just consume them. Creative activity helps you recover from work.
 - Leisure has protected time. Scheduled leisure happens. Unscheduled leisure loses to everything.
 
+### Note
+
+Two things are true here and they pull against each other. Things you do for their own sake are the first to lose to whatever's urgent, because they're never urgent themselves — so it's worth putting them in the week on purpose. They're also the easiest things to spoil by turning them into a list. Plan enough that it happens, not so much that it becomes homework.
+
 ## art-media — Art & media
 
 The culture you take in: books, film, music, games, podcasts.
@@ -173,6 +214,10 @@ The culture you take in: books, film, music, games, podcasts.
 - It moves you sometimes. Art that brings up real emotion is doing its job.
 - You learn from it and come away more aware of the world.
 
+### Note
+
+Two things are true here and they pull against each other. A film or a book is never the urgent thing, so it loses to everything else unless you make room for it. And it's easy to end up working through a list instead of watching anything. Make the room; then let it just be the evening.
+
 ## adventure-experiences — Adventure & experiences
 
 Novelty, travel, firsts.
@@ -180,3 +225,7 @@ Novelty, travel, firsts.
 - Something is on the calendar to look forward to. Anticipation is a big share of the total enjoyment.
 - Newness shows up at every scale. Unfamiliar routes, foods, and skills register like trips do.
 - Now and then you pick the slightly uncomfortable option. Novelty is what stretches time, not comfort.
+
+### Note
+
+Two things are true here and they pull against each other. Trips and firsts don't happen unless somebody puts a date on them, so this is one place the calendar genuinely helps. But an experience you're working through is a different experience from one you're having. Put it in the diary, then let it be what it turns out to be.

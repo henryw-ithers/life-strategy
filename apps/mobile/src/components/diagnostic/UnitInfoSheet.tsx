@@ -73,6 +73,28 @@ export function UnitInfoSheet({
               </AppText>
             </View>
           ))}
+
+          {/* The app's own thinking about this unit (ADR-0025 §13) —
+              why it behaves differently from the rest. Seven units
+              have one; the other eleven have nothing to explain, and
+              a note on all eighteen would be noise.
+
+              Last, and in a quieter block: it is context for someone
+              who went looking, not a lesson to read first. That is
+              ADR-0008's "discoverable always, pushed never" — the
+              sheet has to be opened before any of this is seen. */}
+          {info.note ? (
+            <View
+              style={[
+                styles.note,
+                { backgroundColor: theme.surface, borderColor: theme.hairline },
+              ]}
+            >
+              <AppText variant="caption" color={theme.muted}>
+                {info.note}
+              </AppText>
+            </View>
+          ) : null}
         </ScrollView>
         <View style={styles.closeWrap}>
           <Button label="Close" variant="secondary" onPress={onClose} theme={theme} />
@@ -106,5 +128,12 @@ const styles = StyleSheet.create({
   bulletRow: { flexDirection: "row", gap: space.sm + 2, marginBottom: space.sm + 2 },
   bullet: { width: 5, height: 5, borderRadius: 2.5, marginTop: 9 },
   bulletText: { flex: 1 },
+  note: {
+    marginTop: space.md,
+    marginBottom: space.xs,
+    padding: space.lg,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   closeWrap: { marginTop: space.sm },
 });

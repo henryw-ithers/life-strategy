@@ -474,9 +474,13 @@ Learning & growth; anyone proposes named people (§4) or gives
        (Shipped structurally: `scripts/content/build.mjs` fails the
        build if `library.md` puts a task under one, so it cannot be
        forgotten.)
-6. [ ] Write the two §13 notes into
+6. [x] Write the two §13 notes into
        [copy-guide.md](../design/copy-guide.md); surface in
-       `UnitInfoSheet`.
+       `UnitInfoSheet`. (Shipped: seven notes — three communal, four
+       intrinsic — authored in `docs/content/units.md` under a
+       `### Note` heading and generated like the rest of the unit
+       content. They render last in the sheet, in a quieter block, and
+       nothing surfaces them.)
 7. [~] **Retune batch.** §3's rule **shipped as `FORMULA_VERSION` 6**
        — communal units are covered by definition rather than exempted
        (see §3's note), one tag earns the share, with 7 tests. §12's

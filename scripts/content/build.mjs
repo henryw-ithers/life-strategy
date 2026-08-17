@@ -96,17 +96,35 @@ function readDoc(name) {
   return readFileSync(join(DOCS, name), "utf8");
 }
 
+/** Splits a unit's body at `### Note` (ADR-0025 §13). Everything before
+ *  it is the description and guidelines; everything after is the note. */
+function splitNote(lines) {
+  const at = lines.findIndex((l) => /^###\s+note\s*$/i.test(l.trim()));
+  return at === -1
+    ? { body: lines, note: [] }
+    : { body: lines.slice(0, at), note: lines.slice(at + 1) };
+}
+
 function parseUnits() {
   const secs = sections(readDoc("units.md"), "units.md");
   const info = {};
   for (const s of secs) {
-    const { paras, bullets } = blocks(s.lines);
+    const { body, note } = splitNote(s.lines);
+    const { paras, bullets } = blocks(body);
     if (paras.length === 0) fail(`units.md: ${s.id} has no description`);
     if (paras.length > 1) {
       warn(`units.md: ${s.id} has ${paras.length} paragraphs; only the first is used`);
     }
     if (bullets.length === 0) fail(`units.md: ${s.id} has no guidelines`);
-    info[s.id] = { description: paras[0] ?? "", guidelines: bullets };
+
+    const noteText = blocks(note).paras.join(" ");
+    info[s.id] = {
+      description: paras[0] ?? "",
+      guidelines: bullets,
+      // Omitted rather than null for the eleven units without one, so
+      // the generated file stays readable and the absence is obvious.
+      ...(noteText ? { note: noteText } : {}),
+    };
   }
   return info;
 }
@@ -352,6 +370,16 @@ function emitUnits(units) {
 export interface UnitInfo {
   description: string;
   guidelines: string[];
+  /**
+   * The app's own thinking about this unit (ADR-0025 §13) — why it
+   * behaves differently from the rest. Present on seven units: the
+   * three communal ones and the four intrinsic ones.
+   *
+   * Editorial only. It determines copy and nothing else: no planning
+   * rule, no point value, no stored value. Same shape as ADR-0021's
+   * treatment of areas.
+   */
+  note?: string;
 }
 
 export const UNIT_INFO: Record<string, UnitInfo> = ${j(units)};

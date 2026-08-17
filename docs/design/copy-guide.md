@@ -23,6 +23,21 @@ Notification copy never includes task names, unit names, or counts — the remin
 
 Tapping the notification opens today's checklist. Nothing else.
 
+## Unit notes (ADR-0025 §13)
+
+Seven of the eighteen units carry a short note in the unit info sheet, explaining why the app treats them differently. Written in [docs/content/units.md](../content/units.md) under a `### Note` heading; `npm run content:build` generates them.
+
+**Only seven, on purpose.** A note exists to explain a *difference*, so putting one on every unit would turn it into furniture nobody reads. The other eleven behave like the app's default and have nothing to say.
+
+**They must say what the app does and why, then stop.** The line these can't cross is becoming an instruction about how to live — this app has opinions about its own mechanics, not about the reader's evenings. "There's no checklist here, because…" is the app explaining itself. "Make sure you see your friends" is not, and doesn't belong anywhere in the product.
+
+Two shapes:
+
+- **The three communal units** (Significant other, Family, Friendship) explain an *absence*: there is no checklist, and why. Each ends on what happens instead — you note who you were with, and a day with real contact counts in full. The reason is stated in plain terms ("a relationship you're keeping score in is a different kind of relationship"), never as research.
+- **The four intrinsic units** (Spirituality, Hobbies & projects, Art & media, Adventure & experiences) hold a *tension*, and both halves have to be in the note. These things lose to whatever is urgent, so they need making room for; and they are the easiest things to spoil by turning into a list. A note with only the first half is nagging. A note with only the second is discouraging planning the app otherwise supports. Every one of them lands on the balance rather than a rule — "plan enough that it happens, not so much that it becomes homework."
+
+They sit **last in the sheet and in a quieter block** than the guidelines above them: context for someone who went looking, not a lesson to read first. Nothing surfaces them — the sheet has to be opened, which is ADR-0008's "discoverable always, pushed never."
+
 ## Calibration copy (ADR-0008)
 
 None of this is ever conditional on the data — the check-in prompt, the insight line, and the suggestion copy all read exactly the same whether the last few weeks ran high or low. Dismissing a suggestion is a neutral, ordinary action, never framed as declining help or correcting a mistake.

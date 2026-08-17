@@ -69,7 +69,7 @@ templates and ≥6 tasks, across all three profile tags*.
 | Activity keyword map | common activities | 18 units seeded | ✅ done — `content/tagKeywords.ts`, extend as gaps appear |
 | **Goal templates** | ≥3 per unit × 18 | **54–90** | ❌ none written |
 | **Tasks** | ≥6 per unit × 15 | **90–150** | ❌ none written |
-| **Editorial notes** (ADR-0025 §13) | 7 units | **7** | ❌ none written |
+| Editorial notes (ADR-0025 §13) | 7 units | 7 | ✅ done — [units.md](units.md), under `### Note` |
 
 ## 4. The shape of an entry
 
@@ -155,7 +155,13 @@ are marked ⚠ and need the extra review pass.
 Unit ids are the slugs in `apps/mobile/src/db/taxonomy.ts` — use them
 verbatim as keys.
 
-## 6. The seven editorial notes (ADR-0025 §13)
+## 6. The seven editorial notes (ADR-0025 §13) — **written**
+
+**Done 2026-08-16.** All seven are in [units.md](units.md) under a
+`### Note` heading, and render last in the unit info sheet in a quieter
+block than the guidelines. The brief below is kept because it is the
+standard to edit them against, and the rules now also live in
+[copy-guide.md](../design/copy-guide.md).
 
 Short notes for the unit info sheet, explaining the app's own thinking.
 Both halves of each tension, because the tension is the content.
