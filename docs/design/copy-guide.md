@@ -33,7 +33,9 @@ Seven of the eighteen units carry a short note in the unit info sheet, explainin
 
 Two shapes:
 
-- **The three communal units** (Significant other, Family, Friendship) explain an *absence*: there is no checklist, and why. Each ends on what happens instead — you note who you were with, and a day with real contact counts in full. The reason is stated in plain terms ("a relationship you're keeping score in is a different kind of relationship"), never as research.
+- **The three communal units** (Significant other, Family, Friendship) explain an *absence*: there is no checklist, and why. The reason is stated in plain terms ("a relationship you keep a tally on is a different relationship"), never as research.
+
+  ⚠️ **These units are scored, and the note must not imply otherwise.** ADR-0025 §3 gives them their full diagnostic weight and one tag earns it. What the app declines to build is a *tally of what you did for someone* — not scoring. A first draft of these notes ran "a relationship you're keeping score in…", which reads as the app refusing to score and is simply false about shipped behaviour. Every one of them now ends on the mechanism: you note who you were with, and **a day with real contact earns the unit's points in full**.
 - **The four intrinsic units** (Spirituality, Hobbies & projects, Art & media, Adventure & experiences) hold a *tension*, and both halves have to be in the note. These things lose to whatever is urgent, so they need making room for; and they are the easiest things to spoil by turning into a list. A note with only the first half is nagging. A note with only the second is discouraging planning the app otherwise supports. Every one of them lands on the balance rather than a rule — "plan enough that it happens, not so much that it becomes homework."
 
 They sit **last in the sheet and in a quieter block** than the guidelines above them: context for someone who went looking, not a lesson to read first. Nothing surfaces them — the sheet has to be opened, which is ADR-0008's "discoverable always, pushed never."

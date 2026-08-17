@@ -67,7 +67,7 @@ Your romantic partnership or relationship with being single.
 
 ### Note
 
-There's no checklist here. A relationship you're keeping score in is a different kind of relationship, and the scorekeeping is what did it. So instead, when you log something you did, you can note who you were with. A day with real time together in it counts in full.
+There's no checklist here. A list of things to do for your partner becomes a tally, and a relationship you keep a tally on is a different relationship. So this works the other way round: when you log something you did, you can note who you were with. A day with real time together in it earns this unit's points in full.
 
 ## family — Family
 
@@ -79,7 +79,7 @@ Parents, siblings, children, chosen family, etc.
 
 ### Note
 
-There's no checklist here. Tallying what you give a family turns it into an account, and an account is a strange thing to have with them. So instead, when you log something you did, you can note who you were with. A day with real contact in it counts in full.
+There's no checklist here. A list of things to do for your family becomes a tally, and that's a strange thing to keep on them. So this works the other way round: when you log something you did, you can note who you were with. A day with real contact in it earns this unit's points in full.
 
 ## friendship — Friendship
 
@@ -91,7 +91,7 @@ People you enjoy spending time with and people who actually know you.
 
 ### Note
 
-There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So instead, when you log something you did, you can note who you were with — most of what people do with friends is something else, done together. A day with real company in it counts in full.
+There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: when you log something you did, you can note who you were with — most of what people do with friends is something else, done together. A day with real company in it earns this unit's points in full.
 
 ## exercise-fitness — Exercise & fitness
 

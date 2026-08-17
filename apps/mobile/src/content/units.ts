@@ -32,7 +32,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
       "You spend real time together, on purpose.",
       "It adds to your life without swallowing it. You have a healthy balance of shared and separate friends, interests, and time."
     ],
-    "note": "There's no checklist here. A relationship you're keeping score in is a different kind of relationship, and the scorekeeping is what did it. So instead, when you log something you did, you can note who you were with. A day with real time together in it counts in full."
+    "note": "There's no checklist here. A list of things to do for your partner becomes a tally, and a relationship you keep a tally on is a different relationship. So this works the other way round: when you log something you did, you can note who you were with. A day with real time together in it earns this unit's points in full."
   },
   "family": {
     "description": "Parents, siblings, children, chosen family, etc.",
@@ -41,7 +41,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
       "There are rituals. A standing call, a recurring dinner.",
       "Boundaries exist where they're needed."
     ],
-    "note": "There's no checklist here. Tallying what you give a family turns it into an account, and an account is a strange thing to have with them. So instead, when you log something you did, you can note who you were with. A day with real contact in it counts in full."
+    "note": "There's no checklist here. A list of things to do for your family becomes a tally, and that's a strange thing to keep on them. So this works the other way round: when you log something you did, you can note who you were with. A day with real contact in it earns this unit's points in full."
   },
   "friendship": {
     "description": "People you enjoy spending time with and people who actually know you.",
@@ -50,7 +50,7 @@ export const UNIT_INFO: Record<string, UnitInfo> = {
       "You can be yourself without fear of judgement.",
       "Spending time with others is enjoyable, not draining."
     ],
-    "note": "There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So instead, when you log something you did, you can note who you were with — most of what people do with friends is something else, done together. A day with real company in it counts in full."
+    "note": "There's no checklist here. Friendship measured by how often you reached out stops being about the friends. So this works the other way round: when you log something you did, you can note who you were with — most of what people do with friends is something else, done together. A day with real company in it earns this unit's points in full."
   },
   "exercise-fitness": {
     "description": "Movement, strength, and what your body can do.",
