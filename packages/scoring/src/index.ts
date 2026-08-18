@@ -43,6 +43,8 @@ export {
   weightsForPriorityOrder,
 } from "./ranking";
 export { recommendedTaskRange } from "./taskGuidance";
+export type { Profile, UnitSituation } from "./profile";
+export { GAP_THRESHOLD, unitProfile } from "./profile";
 export type {
   WeeklyGradeSample,
   ContentmentSample,

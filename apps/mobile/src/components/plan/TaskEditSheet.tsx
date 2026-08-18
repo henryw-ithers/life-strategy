@@ -37,7 +37,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
@@ -61,12 +61,17 @@ export interface EditableTask {
   plannedWeekdays: string | null;
   /** Null is *Anytime*. */
   partOfDay: PartOfDay | null;
+  /** The goal it serves, or null. */
+  goalId: string | null;
 }
 
 interface TaskEditSheetProps {
   visible: boolean;
   task: EditableTask;
   units: PickableUnit[];
+  /** Active goals in this task's home unit — what it may serve.
+   *  Empty when the unit has none, and the row hides. */
+  goals: { id: string; title: string }[];
   areaColors: Record<string, string>;
   accent: string;
   theme: ThemeTokens;
@@ -77,6 +82,7 @@ interface TaskEditSheetProps {
     unitIds: string[];
     plannedWeekdays: string | null;
     partOfDay: PartOfDay | null;
+    goalId: string | null;
   }) => void;
   onDelete: () => void;
 }
@@ -85,6 +91,7 @@ export function TaskEditSheet({
   visible,
   task,
   units,
+  goals,
   areaColors,
   accent,
   theme,
@@ -100,6 +107,7 @@ export function TaskEditSheet({
     parseWeekdays(task.plannedWeekdays),
   );
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
+  const [goalId, setGoalId] = useState<string | null>(task.goalId);
 
   /** Pinned days *are* the frequency (ADR-0024 §Schema) — the wheel
    *  retires while any chip is lit, inside `SchedulePicker`. */
@@ -111,7 +119,8 @@ export function TaskEditSheet({
     effectiveTimes !== task.timesPerWeek ||
     unitIds.join("|") !== task.unitIds.join("|") ||
     storedWeekdays !== task.plannedWeekdays ||
-    partOfDay !== task.partOfDay;
+    partOfDay !== task.partOfDay ||
+    goalId !== task.goalId;
 
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
@@ -126,6 +135,7 @@ export function TaskEditSheet({
       unitIds,
       plannedWeekdays: storedWeekdays,
       partOfDay,
+      goalId,
     });
     onClose();
   };
@@ -211,6 +221,72 @@ export function TaskEditSheet({
             accent={accent}
             theme={theme}
           />
+
+          {/* The answer to "how do you attach a task to a goal": you
+              could not, from anywhere, until now. Only shown when the
+              unit actually holds goals — a row offering nothing but
+              "No goal" would be a control that teaches the wrong
+              thing about what goals are for. */}
+          {goals.length > 0 ? (
+            <View style={styles.block}>
+              <AppText variant="caption" color={theme.muted}>
+                Part of a goal
+              </AppText>
+              <View style={styles.goalChips}>
+                <Pressable
+                  onPress={() => setGoalId(null)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: goalId === null }}
+                  accessibilityLabel="No goal"
+                  style={({ pressed }) => [
+                    styles.goalChip,
+                    {
+                      backgroundColor:
+                        goalId === null ? wash(accent, theme) : theme.surface,
+                      borderColor: goalId === null ? accent : theme.hairline,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    color={goalId === null ? theme.ink : theme.muted}
+                  >
+                    No goal
+                  </AppText>
+                </Pressable>
+                {goals.map((g) => {
+                  const on = g.id === goalId;
+                  return (
+                    <Pressable
+                      key={g.id}
+                      onPress={() => setGoalId(g.id)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={g.title}
+                      style={({ pressed }) => [
+                        styles.goalChip,
+                        {
+                          backgroundColor: on ? wash(accent, theme) : theme.surface,
+                          borderColor: on ? accent : theme.hairline,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <AppText
+                        variant="caption"
+                        color={on ? theme.ink : theme.muted}
+                        numberOfLines={1}
+                        style={styles.goalChipLabel}
+                      >
+                        {g.title}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
           </ScrollView>
 
           <Button
@@ -255,6 +331,19 @@ const styles = StyleSheet.create({
   scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xs },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   field: { gap: space.xs },
+  block: { gap: space.sm },
+  goalChips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  /** Wraps rather than scrolls: a unit rarely holds more than a
+   *  few goals, and a hidden one is worse than a second row. */
+  goalChip: {
+    minHeight: 32,
+    justifyContent: "center",
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    maxWidth: 220,
+  },
+  goalChipLabel: { flexShrink: 1 },
   counter: { alignSelf: "flex-end" },
   input: {
     ...typeScale.body,

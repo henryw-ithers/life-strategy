@@ -166,9 +166,15 @@ export default function GoalsScreen() {
           }}
           accent={theme.areas[addingToAreaId ?? ""] ?? theme.accent}
           theme={theme}
+          // Straight to the goal you just made, rather than back to a
+          // list where it is one row among many. Everything that makes
+          // a goal a goal — milestones, a metric, the tasks that serve
+          // it — lives on that screen and nowhere else, so landing on
+          // the list left the richest surface in the app undiscovered.
           onCommit={async (title, description) => {
-            await createGoal(addingTo.id, title, description);
+            const newId = await createGoal(addingTo.id, title, description);
             await reload();
+            if (newId) router.push(`/goals/${newId}` as Href);
           }}
         />
       ) : null}

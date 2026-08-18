@@ -8,6 +8,7 @@
  * several units at once, which a drill-down destroys. Expanding one
  * collapses the rest, so the screen never becomes a wall.
  */
+import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import {
   router,
@@ -33,6 +34,7 @@ import Animated, {
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
 import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
+import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
 import {
   COMMUNAL_TASK_NOTE,
@@ -45,15 +47,19 @@ import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { LIBRARY } from "../../content/library";
 import { UNIT_INFO } from "../../content/units";
+import { addMilestone, createGoal, loadGoals, setGoalMetric } from "../../db/goals";
 import {
   addTask,
   archiveTask,
+  latestRatings,
   loadPlan,
   reorderUnitTasks,
   restoreTask,
   setTaskDetails,
   setTaskFrequency,
+  setTaskGoal,
   setTaskPlanning,
   setTaskUnits,
   setUnitScoring,
@@ -90,12 +96,23 @@ export default function PlanScreen() {
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Active goals per unit, for the edit sheet's goal row. */
+  const [goalsByUnit, setGoalsByUnit] = useState<
+    Record<string, { id: string; title: string }[]>
+  >({});
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
   const [adding, setAdding] = useState<{ homeUnit: PlanUnit | null } | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
+  /** The unit whose library ideas are open (ADR-0006 §3: pull). */
+  const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
+  /** Latest diagnostic ratings, for the unit profile that orders
+   *  those ideas. Empty before the first diagnostic. */
+  const [ratings, setRatings] = useState<
+    Map<string, { importance: number; satisfaction: number }>
+  >(new Map());
   const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
   /** The task just created, tinted until the timer clears it. */
   const [justAdded, setJustAdded] = useState<string | null>(null);
@@ -120,7 +137,23 @@ export default function PlanScreen() {
   );
 
   const reload = useCallback(async () => {
-    setPlan(await loadPlan());
+    const [next, goals, rated] = await Promise.all([
+      loadPlan(),
+      loadGoals(),
+      latestRatings(),
+    ]);
+    setPlan(next);
+    setRatings(rated);
+    const byUnit: Record<string, { id: string; title: string }[]> = {};
+    for (const area of goals.areas) {
+      for (const u of area.units) {
+        const active = u.goals.filter((g) => g.status === "active");
+        if (active.length > 0) {
+          byUnit[u.id] = active.map((g) => ({ id: g.id, title: g.title }));
+        }
+      }
+    }
+    setGoalsByUnit(byUnit);
   }, []);
 
   useFocusEffect(
@@ -393,15 +426,19 @@ export default function PlanScreen() {
                           </AppText>
                         ) : (
                           <>
-                            {/* Only the actionable case gets a caption. A
-                                count beside every unit crowded the points
-                                column with a second number, and once a
-                                unit is open you can see its tasks anyway. */}
+                            {/* The count is only useful while the unit is
+                                shut — open, the list is right there, and
+                                the caption would be restating it. */}
                             {unit.tasks.length === 0 ? (
                               <AppText variant="caption" color={theme.muted}>
                                 no tasks
                               </AppText>
-                            ) : null}
+                            ) : open ? null : (
+                              <AppText variant="caption" color={theme.muted}>
+                                {unit.tasks.length}{" "}
+                                {unit.tasks.length === 1 ? "task" : "tasks"}
+                              </AppText>
+                            )}
                             {/* Muted means "not in play": the number is
                                 what this unit would bring, not what it
                                 currently spends. */}
@@ -535,6 +572,27 @@ export default function PlanScreen() {
                             </AppText>
                           </Pressable>
 
+                          {/* The library's one way in (ADR-0006 §3:
+                              available when a unit is opened, silent
+                              otherwise). Sits under the add row because
+                              writing your own is the primary act and
+                              borrowing an idea is the fallback. */}
+                          {LIBRARY[unit.id] ? (
+                            <Pressable
+                              onPress={() => setSuggestingFor(unit)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Ideas for ${unit.name}`}
+                              style={({ pressed }) => [
+                                styles.setAside,
+                                { opacity: pressed ? 0.5 : 1 },
+                              ]}
+                            >
+                              <AppText variant="caption" color={theme.muted}>
+                                Need ideas?
+                              </AppText>
+                            </Pressable>
+                          ) : null}
+
                           {/* The exclusion valve (ADR-0027 §2). Worded
                               as scope, never as giving up, and quiet —
                               it sits under the action you actually came
@@ -633,9 +691,11 @@ export default function PlanScreen() {
               unitIds: editing.task.unitIds,
               plannedWeekdays: editing.task.plannedWeekdays,
               partOfDay: editing.task.partOfDay,
+              goalId: editing.task.goalId,
             } satisfies EditableTask
           }
           units={allUnits}
+          goals={goalsByUnit[editing.unit.id] ?? []}
           areaColors={theme.areas}
           accent={theme.areas[editing.unit.areaId] ?? theme.accent}
           theme={theme}
@@ -660,9 +720,67 @@ export default function PlanScreen() {
             ) {
               await setTaskPlanning(t.id, next.plannedWeekdays, next.partOfDay);
             }
+            if (next.goalId !== t.goalId) {
+              await setTaskGoal(t.id, next.goalId);
+            }
             await reload();
           }}
           onDelete={() => deleteTask(editing.task)}
+        />
+      ) : null}
+
+      {suggestingFor ? (
+        <SuggestionsSheet
+          visible
+          unitId={suggestingFor.id}
+          unitName={suggestingFor.name}
+          profile={
+            // Null before the first diagnostic: nothing has a weight or
+            // a rating yet, so there is no situation to read.
+            suggestingFor.weight !== null && ratings.has(suggestingFor.id)
+              ? unitProfile({
+                  weight: suggestingFor.weight,
+                  importance: ratings.get(suggestingFor.id)!.importance,
+                  satisfaction: ratings.get(suggestingFor.id)!.satisfaction,
+                })
+              : null
+          }
+          existingTaskTitles={suggestingFor.tasks.map((t) => t.title)}
+          existingGoalTitles={(goalsByUnit[suggestingFor.id] ?? []).map(
+            (g) => g.title,
+          )}
+          accent={theme.areas[suggestingFor.areaId] ?? theme.accent}
+          theme={theme}
+          onClose={() => setSuggestingFor(null)}
+          onAddTask={(t) => {
+            const unit = suggestingFor;
+            setSuggestingFor(null);
+            void commitTask(t.title, t.timesPerWeek, [unit.id], null, null);
+          }}
+          onAddGoal={(g) => {
+            const unit = suggestingFor;
+            setSuggestingFor(null);
+            void (async () => {
+              const id = await createGoal(
+                unit.id,
+                g.title,
+                g.description ?? undefined,
+              );
+              // The library's rungs and metric arrive with it — a goal
+              // stripped of them would be the title only, which is the
+              // least useful half of what was written.
+              for (const title of g.milestones) await addMilestone(id, title);
+              if (g.metric && g.metric.suggestedTarget !== null) {
+                await setGoalMetric(id, {
+                  kind: g.metric.kind,
+                  unit: g.metric.unit,
+                  targetValue: g.metric.suggestedTarget,
+                });
+              }
+              await reload();
+              router.push(`/goals/${id}` as Href);
+            })();
+          }}
         />
       ) : null}
 

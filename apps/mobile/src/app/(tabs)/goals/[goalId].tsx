@@ -24,6 +24,8 @@ import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
 import { PastDaySheet } from "../../../components/goals/PastDaySheet";
+import { AddTaskModal } from "../../../components/plan/AddTaskModal";
+import type { PickableUnit } from "../../../components/plan/UnitPicker";
 import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
 import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
@@ -48,6 +50,7 @@ import {
   updateMilestone,
   type GoalDetail,
 } from "../../../db/goals";
+import { addTask, loadPlan } from "../../../db/tasks";
 import { currentLocalDate } from "../../../db/today";
 import { getTheme, SCRIM } from "../../../theme/colors";
 import { radius, space, type as typeScale } from "../../../theme/tokens";
@@ -98,9 +101,26 @@ export default function GoalDetailScreen() {
   /** Deleting a goal is the one irreversible act on this screen, so it
    *  is the one that asks. */
   const [deleting, setDeleting] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
+  /** Every scoreable unit, for the add sheet's unit row. A goal's task
+   *  defaults to the goal's own unit but may serve others (ADR-0019). */
+  const [units, setUnits] = useState<PickableUnit[]>([]);
 
   const reload = useCallback(async () => {
-    setGoal(await loadGoalDetail(goalId));
+    const [detail, plan] = await Promise.all([loadGoalDetail(goalId), loadPlan()]);
+    setGoal(detail);
+    setUnits(
+      plan.areas.flatMap((a) =>
+        a.units
+          .filter((u) => u.includeInScoring)
+          .map((u) => ({
+            id: u.id,
+            name: u.name,
+            areaId: u.areaId,
+            motivationKind: u.motivationKind,
+          })),
+      ),
+    );
   }, [goalId]);
 
   useFocusEffect(
@@ -510,7 +530,8 @@ export default function GoalDetailScreen() {
               </AppText>
               {goal.tasks.length === 0 ? (
                 <AppText variant="caption" color={theme.muted} style={styles.emptyNote}>
-                  No tasks are attached to this goal.
+                  Nothing serves this goal yet. A goal is what you want;
+                  tasks are what you actually do about it.
                 </AppText>
               ) : (
                 goal.tasks.map((t) => (
@@ -524,6 +545,28 @@ export default function GoalDetailScreen() {
                   </View>
                 ))
               )}
+
+              {/* The way in that never existed: `task.goal_id` has been
+                  in the schema since ADR-0002 and no screen ever wrote
+                  it, so a goal could only ever be a list of tasks you
+                  had already made elsewhere — and nothing told you how.
+                  Files into the goal's own unit, so its points come
+                  from the same place they always would. */}
+              {goal.status === "active" ? (
+                <Pressable
+                  onPress={() => setAddingTask(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a task for this goal"
+                  style={({ pressed }) => [
+                    styles.addTaskRow,
+                    { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                  ]}
+                >
+                  <AppText variant="label" color={theme.accent}>
+                    + Add task
+                  </AppText>
+                </Pressable>
+              ) : null}
             </View>
 
             {editingMetric ? (
@@ -622,6 +665,34 @@ export default function GoalDetailScreen() {
                 router.replace(`/goals/${newId}` as Href);
               }}
             />
+
+            {addingTask ? (
+              <AddTaskModal
+                visible
+                onClose={() => setAddingTask(false)}
+                units={units}
+                homeUnitId={goal.unitId}
+                areaColors={theme.areas}
+                theme={theme}
+                onCommit={async (
+                  title,
+                  timesPerWeek,
+                  unitIds,
+                  plannedWeekdays,
+                  partOfDay,
+                ) => {
+                  await addTask(
+                    unitIds,
+                    title,
+                    timesPerWeek,
+                    plannedWeekdays,
+                    partOfDay,
+                    goal.id,
+                  );
+                  await reload();
+                }}
+              />
+            ) : null}
 
             {/* Edit or delete one rung. A plain sheet rather than a
                 destructive confirm, matching the day record's own
@@ -798,6 +869,16 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     minHeight: 32,
     justifyContent: "center",
+  },
+  /** Bordered, matching the Tasks screen's own add row — one action,
+   *  one look, wherever a task can be created. */
+  addTaskRow: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: space.md,
   },
   /** Centred card over a scrim, matching the day record's own
    *  press-and-hold menu so one gesture has one look app-wide. */

@@ -21,6 +21,7 @@ import { db } from "./client";
 import {
   lifeArea,
   lifeUnit,
+  rating,
   snapshot,
   task,
   taskUnit,
@@ -38,6 +39,9 @@ export interface PlanTask {
   plannedWeekdays: string | null;
   /** Null is *Anytime*. Never scored. */
   partOfDay: "morning" | "afternoon" | "evening" | null;
+  /** The goal this serves, or null. A grouping, never a scoring
+   *  input (ADR-0007) — points come from the unit either way. */
+  goalId: string | null;
   /** Total across every unit this task serves. */
   pointValue: number;
   /** Rank within the unit it's being listed under. */
@@ -194,6 +198,7 @@ export async function loadPlan(): Promise<PlanData> {
                 timesPerWeek: t.timesPerWeek,
                 plannedWeekdays: t.plannedWeekdays,
                 partOfDay: t.partOfDay,
+                goalId: t.goalId,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
                 unitIds: [
@@ -358,6 +363,7 @@ export async function addTask(
   timesPerWeek: number,
   plannedWeekdays: string | null = null,
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
+  goalId: string | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
@@ -374,6 +380,7 @@ export async function addTask(
       timesPerWeek,
       plannedWeekdays,
       partOfDay,
+      goalId,
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
@@ -537,4 +544,51 @@ export async function setUnitScoring(
     // variable band is one pool across all of them.
     await recomputeAllUnitPoints(tx);
   });
+}
+
+/**
+ * Point a task at a goal, or detach it (`null`).
+ *
+ * `task.goal_id` has been in the schema since ADR-0002 and was read in
+ * four places — the goal screen lists what serves it, abandonment and
+ * completion detach it — but **nothing ever wrote it**, so a task
+ * could only ever arrive at a goal by being created there. This is the
+ * other half: an existing task can join one, or leave.
+ *
+ * Points do not move. A goal is a grouping, never a scoring input
+ * (ADR-0007): a task earns from its unit's band share whether or not
+ * it serves a goal, so there is nothing to recompute here.
+ */
+export async function setTaskGoal(
+  taskId: string,
+  goalId: string | null,
+): Promise<void> {
+  await db.update(task).set({ goalId }).where(eq(task.id, taskId));
+}
+
+/**
+ * The latest diagnostic's raw ratings, for deciding a unit's profile
+ * (ADR-0006 §1). Weights alone can't: two units on 12 points can be
+ * "important and going badly" and "important and going well", which
+ * want different suggestions.
+ */
+export async function latestRatings(): Promise<
+  Map<string, { importance: number; satisfaction: number }>
+> {
+  const [latest] = await db
+    .select()
+    .from(snapshot)
+    .orderBy(desc(snapshot.takenAt))
+    .limit(1);
+  if (!latest) return new Map();
+  const rows = await db
+    .select()
+    .from(rating)
+    .where(eq(rating.snapshotId, latest.id));
+  return new Map(
+    rows.map((r) => [
+      r.unitId,
+      { importance: r.importance, satisfaction: r.satisfaction },
+    ]),
+  );
 }
