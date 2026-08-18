@@ -57,6 +57,7 @@ export {
   addDays,
   weekStart,
   fortnightStart,
+  weekOfFortnight,
   monthStart,
   nextMonthStart,
   editWindowStart,

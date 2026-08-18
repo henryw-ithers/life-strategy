@@ -57,6 +57,22 @@ export function fortnightStart(date: string): string {
   return format(new Date(ws - (((weeksSinceEpoch % 2) + 2) % 2) * 7 * DAY_MS));
 }
 
+/**
+ * Which half of the fortnight `date` falls in: 0 for the first week,
+ * 1 for the second.
+ *
+ * A fortnightly task pinned to a weekday happens on *one* of the two
+ * matching weekdays in its cycle, and nothing in the date alone says
+ * which — so a task carries an offset and this is what it compares
+ * against (ADR-0024 §1 as amended 2026-08-18). Anchored to the same
+ * epoch-even weeks `fortnightStart` uses, so it never depends on when
+ * a task was created.
+ */
+export function weekOfFortnight(date: string): 0 | 1 {
+  const ws = parse(weekStart(date)).getTime();
+  const fs = parse(fortnightStart(date)).getTime();
+  return ws === fs ? 0 : 1;
+}
 /** First day of the calendar month containing `date`. */
 export function monthStart(date: string): string {
   const dt = parse(date);

@@ -24,7 +24,7 @@
  * three times a week on those three days, and the research this ADR
  * rests on is about the stability of the cue, not the count.
  */
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
@@ -45,6 +45,10 @@ interface SchedulePickerProps {
   /** Null is *Anytime*, a value rather than a gap. */
   partOfDay: PartOfDay | null;
   onPartOfDayChange: (part: PartOfDay | null) => void;
+  /** Which half of the fortnight a fortnightly task falls in. */
+  fortnightOffset?: number;
+  /** Omit and the switch-weeks control never shows. */
+  onFortnightOffsetChange?: (offset: 0 | 1) => void;
   accent: string;
   theme: ThemeTokens;
 }
@@ -56,6 +60,8 @@ export function SchedulePicker({
   onWeekdaysChange,
   partOfDay,
   onPartOfDayChange,
+  fortnightOffset = 0,
+  onFortnightOffsetChange,
   accent,
   theme,
 }: SchedulePickerProps) {
@@ -112,6 +118,27 @@ export function SchedulePicker({
           accent={accent}
           theme={theme}
         />
+
+        {/* Only a fortnightly task pinned to a weekday has two possible
+            answers to "which one" — every other cadence is due on every
+            matching day, and the fortnight boundary is fixed so the
+            date cannot decide it (ADR-0024 §1 as amended). */}
+        {pinned && effectiveTimes === 0 && onFortnightOffsetChange ? (
+          <Pressable
+            onPress={() => onFortnightOffsetChange(fortnightOffset === 0 ? 1 : 0)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              fortnightOffset === 0
+                ? "Happens this week. Switch to next week."
+                : "Happens next week. Switch to this week."
+            }
+            style={({ pressed }) => [styles.flip, { opacity: pressed ? 0.5 : 1 }]}
+          >
+            <AppText variant="footnote" color={theme.muted}>
+              {fortnightOffset === 0 ? "This week" : "Next week"} · switch
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.block}>
@@ -138,6 +165,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   block: { gap: space.sm },
+  /** Sits under the chips it qualifies, quiet enough that a weekly
+   *  task's row never looks like it is missing one. */
+  flip: { minHeight: 32, justifyContent: "center" },
   /** Sits in the wheel's place, so the two blocks under it hold still
    *  when the chips take the frequency over. */
   derived: { gap: 2, minHeight: 44, justifyContent: "center" },

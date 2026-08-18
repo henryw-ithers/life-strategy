@@ -271,6 +271,36 @@ export const task = sqliteTable("task", {
   partOfDay: text("part_of_day", {
     enum: ["morning", "afternoon", "evening"],
   }),
+  /**
+   * Where this row sits on the daily checklist, within its part of the
+   * day (added 2026-08-18). Null sorts last, so tasks that predate the
+   * column keep their derived order until something is dragged.
+   *
+   * **Persistent, not per-day** (Henry, 2026-08-18): "if I put sunlight
+   * and supplements at the start of my tasks I want it to stay there."
+   * So this belongs to the task rather than to a date — yesterday's
+   * arrangement follows you into today.
+   *
+   * Deliberately separate from `rank_in_unit`, which *prices* the task
+   * (ADR-0003 §5). Two orders doing two jobs: rank says what a task is
+   * worth, this says where you like to see it.
+   */
+  dayOrder: integer("day_order"),
+  /**
+   * Which half of the fortnight a **fortnightly** task belongs to:
+   * 0 = the week the fortnight opens, 1 = the following week (added
+   * 2026-08-18). Ignored unless `times_per_week` is 0 and weekdays
+   * are pinned.
+   *
+   * "Every other Tuesday" needs to say *which* Tuesday, and the date
+   * alone cannot: fortnights are anchored to epoch-even weeks so the
+   * boundary stays stable, which leaves the choice to the task. This
+   * is what the "switch weeks" control flips.
+   *
+   * Presentation only, like every other planning field — it decides
+   * which day a row appears on and never what it is worth.
+   */
+  fortnightOffset: integer("fortnight_offset").notNull().default(0),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),

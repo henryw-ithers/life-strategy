@@ -37,6 +37,7 @@ import {
   journalEntry,
   lifeUnit,
   photo,
+  plannedOccurrence,
   task,
   taskCompletion,
   taskCompletionTag,
@@ -57,7 +58,16 @@ export interface TodayTask {
   /** ADR-0024. Presentation only — these order the checklist and never
    *  reach the grade. */
   plannedWeekdays: string | null;
+  /** Which half of the fortnight a fortnightly task belongs to. */
+  fortnightOffset: number;
+  /** Where the row actually sits today: a placement for this date
+   *  if one exists (ADR-0024 phase 3), otherwise the task's own. */
   partOfDay: "morning" | "afternoon" | "evening" | null;
+  /** True when the slot above came from a placement rather than
+   *  from the task — so the row can say it is only for today. */
+  placedToday: boolean;
+  /** Checklist order within its part of the day; null sorts last. */
+  dayOrder: number | null;
   band: TaskBand;
   completedToday: boolean;
   doneCount: number;
@@ -206,6 +216,8 @@ export async function loadDay(
 
   // Completions across the fortnight containing `date` cover both the
   // weekly and fortnightly counting windows.
+  const placements = await loadPlacements(date);
+
   const windowStart = fortnightStart(date);
   const completions = tasks.length
     ? await db
@@ -308,7 +320,10 @@ export async function loadDay(
       pointValue: t.pointValue,
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,
-      partOfDay: t.partOfDay,
+      fortnightOffset: t.fortnightOffset,
+      partOfDay: placements.get(t.id) ?? t.partOfDay,
+      placedToday: placements.has(t.id),
+      dayOrder: t.dayOrder,
       band: s.band,
       completedToday: s.completedToday,
       doneCount: s.doneCount,
@@ -887,4 +902,64 @@ export function editWindowDays(today: string): string[] {
 export function weekOf(date: string): string[] {
   const start = weekStart(date);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/**
+ * Place a task into a part of **one day**, without changing the task
+ * (ADR-0024 §1, phase 3 — the first use of `planned_occurrence`, which
+ * that ADR created and nothing has touched until now).
+ *
+ * This is the "just for today" half of the move prompt; the permanent
+ * half is `setTaskPartOfDay` in `db/tasks.ts`. Passing `partOfDay`
+ * null clears the placement and the task falls back to its own.
+ *
+ * **A placement is an intention, not an obligation** (ADR-0024 §2).
+ * Nothing here reaches the grade, no adherence statistic is derived
+ * from it, and an unfulfilled placement simply lapses — it is not
+ * surfaced, not counted, and never mentioned again.
+ *
+ * One row per task per day: placing twice replaces rather than
+ * accumulates, so a day cannot end up with a task in two slots.
+ */
+export async function placeTaskForDay(
+  taskId: string,
+  date: string,
+  partOfDay: "morning" | "afternoon" | "evening" | null,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(plannedOccurrence)
+      .where(
+        and(
+          eq(plannedOccurrence.taskId, taskId),
+          eq(plannedOccurrence.localDate, date),
+        ),
+      );
+    if (partOfDay !== null) {
+      await tx.insert(plannedOccurrence).values({
+        id: Crypto.randomUUID(),
+        taskId,
+        localDate: date,
+        partOfDay,
+      });
+    }
+  });
+}
+
+/** Placements for one day, keyed by task id. */
+export async function loadPlacements(
+  date: string,
+): Promise<Map<string, "morning" | "afternoon" | "evening">> {
+  const rows = await db
+    .select()
+    .from(plannedOccurrence)
+    .where(
+      and(
+        eq(plannedOccurrence.localDate, date),
+        isNull(plannedOccurrence.archivedAt),
+      ),
+    );
+  return new Map(
+    rows.flatMap((r) => (r.partOfDay ? [[r.taskId, r.partOfDay] as const] : [])),
+  );
 }

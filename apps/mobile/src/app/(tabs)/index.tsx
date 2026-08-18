@@ -30,12 +30,15 @@ import { DayKindSheet } from "../../components/today/DayKindSheet";
 import { DayNumber } from "../../components/today/DayNumber";
 import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
+import { DayPlannerSheet } from "../../components/today/DayPlannerSheet";
+import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
+import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
 import {
   ANYTIME_LABEL,
   emptyPeriodNote,
-  isPinnedOn,
+  isDueOn,
   parseWeekdays,
   PART_OF_DAY_LABEL,
   PART_OF_DAY_ORDER,
@@ -59,6 +62,7 @@ import {
   logActivity,
   setDayKind,
   setCompletionTags,
+  placeTaskForDay,
   toggleCompletion,
   updateActivity,
   updateJournalEntry,
@@ -67,6 +71,7 @@ import {
   type TodayActivity,
   type TodayTask,
 } from "../../db/today";
+import { reorderDayTasks, setTaskPartOfDay } from "../../db/tasks";
 import { spokenDate } from "../../lib/format";
 import { syncDailyNudge } from "../../notifications/dailyNudge";
 import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
@@ -92,11 +97,21 @@ import { radius, space } from "../../theme/tokens";
  * something in it — an empty Anytime is nothing to report, not free
  * time. `doneWeek` and `completed` behave the same way and sit last.
  */
+/** Uniform, because `ReorderableList` positions rows from their index.
+ *  Fits a title plus its factual caption with the row's own padding. */
+const CHECKLIST_ROW_HEIGHT = 56;
+
+/** The header block above each part of the day, including the air
+ *  that separates it from the slot above. Fixed, because the drag
+ *  layout walks these to place every row. */
+const CHECKLIST_HEADER_HEIGHT = 48;
+
 type SectionKey =
   | "morning"
   | "afternoon"
   | "evening"
   | "anytime"
+  | "otherDays"
   | "doneWeek"
   | "completed";
 
@@ -129,6 +144,19 @@ export default function TodayScreen() {
   );
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
   const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
+  /** A future day being arranged (ADR-0024 §4). Holds its own
+   *  loaded day, since the screen behind it still shows today. */
+  const [planning, setPlanning] = useState<DayData | null>(null);
+  /** The row whose slot is being changed (ADR-0024 phase 3). */
+  const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
+  /** A cross-slot drop awaiting its scope answer. */
+  const [dropped, setDropped] = useState<{
+    task: TodayTask;
+    part: PartOfDay | null;
+    ordered: string[];
+  } | null>(null);
+  /** A drag owns the finger; the page must hold still under it. */
+  const [draggingTask, setDraggingTask] = useState(false);
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>(
     {},
   );
@@ -164,6 +192,13 @@ export default function TodayScreen() {
   );
 
   const select = (date: string) => {
+    // A future day cannot be recorded, only arranged — so tapping
+    // one opens the planner and leaves the checklist where it is
+    // (ADR-0024 §4).
+    if (date > currentLocalDate()) {
+      void loadDay(date).then(setPlanning);
+      return;
+    }
     setSelected(date === currentLocalDate() ? null : date);
     // Keep the browsed month — picking the 3rd of a month two years
     // back must not snap the calendar home.
@@ -224,20 +259,54 @@ export default function TodayScreen() {
    */
   const planRank = (t: TodayTask): number => {
     const pins = parseWeekdays(t.plannedWeekdays);
-    if (day && isPinnedOn(pins, day.date)) return 0;
+    if (day && isDueOn(t, day.date)) return 0;
     if (pins.length === 0) return 1;
     return 2;
   };
-  const byPlan = (a: TodayTask, b: TodayTask) => planRank(a) - planRank(b);
+  /**
+   * Your own order first, the plan's second.
+   *
+   * `dayOrder` is what dragging writes (persistent, so yesterday's
+   * arrangement follows you into today). Rows that have never been
+   * dragged have none and sort after the ones that have, falling back
+   * to the plan ordering — so a first drag moves one row to the top
+   * without scrambling everything below it.
+   */
+  const byPlan = (a: TodayTask, b: TodayTask) => {
+    const ao = a.dayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.dayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return planRank(a) - planRank(b);
+  };
 
   const openTasks = day
     ? [...day.daily, ...day.week].filter((t) => !t.completedToday)
     : [];
 
+  /**
+   * Pinned to days that are not this one (ADR-0024 §1).
+   *
+   * These used to sit in today's slots, sorted last — so a Monday plan
+   * padded Tuesday's morning with things Tuesday was never meant to
+   * hold, and the day's shape stopped describing the day. They get
+   * their own section instead.
+   *
+   * **Still open, still tappable, and worth full points.** A plan is an
+   * intention, not an obligation (§2): doing Friday's run on Tuesday is
+   * a perfect week, and the copy here never suggests otherwise.
+   */
+  const isElsewhere = (t: TodayTask): boolean => {
+    if (!day) return false;
+    const pins = parseWeekdays(t.plannedWeekdays);
+    return pins.length > 0 && !isDueOn(t, day.date);
+  };
+  const todayTasks = openTasks.filter((t) => !isElsewhere(t));
+  const otherDayTasks = openTasks.filter(isElsewhere).sort(byPlan);
+
   /** `emptyNote` null means the section hides when it empties — the
    *  rule for everything that is not one of the three periods. */
   const partSection = (part: PartOfDay | null) => {
-    const tasks = openTasks.filter((t) => t.partOfDay === part).sort(byPlan);
+    const tasks = todayTasks.filter((t) => t.partOfDay === part).sort(byPlan);
     return {
       key: (part ?? "anytime") as SectionKey,
       label: part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL,
@@ -266,6 +335,16 @@ export default function TodayScreen() {
         ...PART_OF_DAY_ORDER.map((p) => partSection(p)),
         partSection(null),
         {
+          // Named for what it is, not for what it isn't: these are
+          // planned, just not for today. Hidden when empty, like
+          // everything that is not one of the three periods.
+          key: "otherDays" as const,
+          label: "Planned for other days",
+          tasks: otherDayTasks,
+          pts: otherDayTasks.reduce((a, t) => a + t.pointValue, 0),
+          emptyNote: null,
+        },
+        {
           key: "doneWeek" as const,
           label: "Done this week",
           tasks: day.doneThisWeek.filter((t) => !t.completedToday),
@@ -288,6 +367,51 @@ export default function TodayScreen() {
         },
       ].filter((s) => s.tasks.length > 0 || s.emptyNote !== null)
     : [];
+
+  /** The four parts of the day are one drag surface; the rest of
+   *  the page is not. Empty periods stay in — they are drop
+   *  targets, so a section with nothing in it still has to be
+   *  somewhere the finger can land. */
+  const ARRANGEABLE: SectionKey[] = ["morning", "afternoon", "evening", "anytime"];
+  const arrangeable = sections.filter((s) =>
+    ARRANGEABLE.includes(s.key),
+  );
+  const tailSections = sections.filter((s) => !ARRANGEABLE.includes(s.key));
+
+  /**
+   * A row was dropped. Two different things can have happened, and
+   * they get different answers.
+   *
+   * **Reordered inside its slot** — persist the new order and say
+   * nothing. Arrangement is a preference, not a plan.
+   *
+   * **Dragged into another slot** — that is a scheduling decision,
+   * so it asks the question a drag has nowhere to put: is this how
+   * the task goes from now on, or just how today goes? The row is
+   * already visually where it was dropped, so the prompt confirms
+   * scope rather than the move itself.
+   */
+  const onDropTask = (rowId: string, toSectionKey: string, toIndex: number) => {
+    if (!day) return;
+    const moved = openTasks.find((t) => t.id === rowId);
+    if (!moved) return;
+    const toPart: PartOfDay | null =
+      toSectionKey === "anytime" ? null : (toSectionKey as PartOfDay);
+
+    // The order of that slot after the drop, for persistence.
+    const others = openTasks
+      .filter((t) => t.id !== rowId && (t.partOfDay ?? "anytime") === toSectionKey)
+      .sort(byPlan)
+      .map((t) => t.id);
+    const ordered = [...others];
+    ordered.splice(Math.min(toIndex, ordered.length), 0, rowId);
+
+    if (moved.partOfDay === toPart) {
+      void reorderDayTasks(ordered).then(() => reload(day.date));
+      return;
+    }
+    setDropped({ task: moved, part: toPart, ordered });
+  };
 
   const closeActivitySheet = () => {
     setActivitySheet(false);
@@ -454,7 +578,11 @@ export default function TodayScreen() {
             )}
           </View>
 
-          <ScrollView style={styles.body} contentContainerStyle={styles.container}>
+          <ScrollView
+            style={styles.body}
+            scrollEnabled={!draggingTask}
+            contentContainerStyle={styles.container}
+          >
             {day.finalized ? (
               <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
                 This day has settled. You can still change it — editing it
@@ -545,77 +673,130 @@ export default function TodayScreen() {
                   </View>
                 ) : null}
 
-                {sections.map((s) => (
+                {/* The four arrangeable parts of the day are one drag
+                    surface: reorder inside a slot, or drag a task into
+                    another slot entirely. Empty periods are drop
+                    targets too, which is the point — "do this in the
+                    afternoon" matters most when the afternoon is
+                    empty. */}
+                {arrangeable.length > 0 ? (
+                  <SectionedChecklist
+                    sections={arrangeable.map((s) => ({
+                      key: s.key,
+                      rowIds: s.tasks.map((t) => t.id),
+                    }))}
+                    rowHeight={CHECKLIST_ROW_HEIGHT}
+                    headerHeights={arrangeable.map(() => CHECKLIST_HEADER_HEIGHT)}
+                    onDragStateChange={setDraggingTask}
+                    onMove={onDropTask}
+                    theme={theme}
+                    renderHeader={(key) => {
+                      const s = arrangeable.find((x) => x.key === key);
+                      if (!s) return null;
+                      return (
+                        <View style={styles.dragHeader}>
+                          {s.tasks.length === 0 ? (
+                            <View
+                              style={styles.sectionHeader}
+                              accessible
+                              accessibilityLabel={`${s.label}, ${s.emptyNote}`}
+                            >
+                              <AppText variant="caption" color={theme.muted}>
+                                {s.label}
+                              </AppText>
+                              <AppText variant="caption" color={theme.muted}>
+                                {s.emptyNote}
+                              </AppText>
+                            </View>
+                          ) : (
+                            <View style={styles.sectionHeader}>
+                              <AppText variant="caption" color={theme.muted}>
+                                {s.label}
+                              </AppText>
+                              <AppText variant="caption" color={theme.muted} tabular>
+                                {s.pts} pts
+                              </AppText>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    }}
+                    renderRow={(rowId) => {
+                      const t = openTasks.find((x) => x.id === rowId);
+                      if (!t) return null;
+                      return (
+                        <TaskRow
+                          task={t}
+                          hue={hueFor(t)}
+                          disabled={!day.editable}
+                          onToggle={() => void onToggle(t)}
+                          onTag={
+                            t.completedToday && day.editable && day.communalUnits.length > 0
+                              ? () => setTaggingTask(t)
+                              : undefined
+                          }
+                          onMove={
+                            day.editable && !t.completedToday
+                              ? () => setMovingTask(t)
+                              : undefined
+                          }
+                          tagHues={theme.areas}
+                          theme={theme}
+                          reduceMotion={reduceMotion}
+                        />
+                      );
+                    }}
+                  />
+                ) : null}
+
+                {/* The day's tail — planned elsewhere, done this week,
+                    completed. Not arrangeable: these are history or
+                    another day's business, and dragging them here would
+                    imply they belong to this one. */}
+                {tailSections.map((s) => (
                 <Animated.View
                   key={s.key}
                   layout={layout}
-                  /* The three periods plus Anytime are one continuous
-                     thing — the day — so they separate with spacing and
-                     nothing else. A rule between each of them stacked
-                     up to six hairlines down the page and made the
-                     shape of the day read as a table of dividers, which
-                     is the pattern DESIGN.md's Group section says was
-                     replaced. The rule survives at the one place the
-                     content changes kind: the day's tail, where what is
-                     left becomes what is behind you. */
                   style={
                     s.key === "doneWeek" || s.key === "completed"
                       ? [styles.tail, { borderTopColor: theme.hairline }]
                       : styles.period
                   }
                 >
-                  {s.tasks.length === 0 ? (
-                    // Nothing to collapse and no points to report, so
-                    // the header is a line of text rather than a
-                    // control — one row of the day, said in two words.
-                    <View
-                      style={styles.sectionHeader}
-                      accessible
-                      accessibilityLabel={`${s.label}, ${s.emptyNote}`}
-                    >
-                      <AppText variant="caption" color={theme.muted}>
-                        {s.label}
-                      </AppText>
-                      <AppText variant="caption" color={theme.muted}>
-                        {s.emptyNote}
-                      </AppText>
-                    </View>
-                  ) : (
-                    <Pressable
-                      onPress={() =>
-                        setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
-                      }
-                      accessibilityRole="button"
-                      accessibilityState={{ expanded: !collapsed[s.key] }}
-                      accessibilityLabel={`${s.label}, ${s.pts} points`}
-                      // 32pt drawn, 44pt tappable — the same trade the
-                      // unit chips make. A 44pt header would put up to
-                      // 72pt of empty band down a page whose whole job
-                      // is to be short.
-                      hitSlop={{ top: 6, bottom: 6 }}
-                      style={styles.sectionHeader}
-                    >
-                      <AppText variant="caption" color={theme.muted}>
-                        {s.label} {collapsed[s.key] ? "▸" : "▾"}
-                      </AppText>
-                      <AppText variant="caption" color={theme.muted} tabular>
-                        {s.pts} pts
-                      </AppText>
-                    </Pressable>
-                  )}
-                  {!collapsed[s.key]
-                    ? s.tasks.map((t) => (
+                  <Pressable
+                    onPress={() =>
+                      setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: !collapsed[s.key] }}
+                    accessibilityLabel={`${s.label}, ${s.pts} points`}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                    style={styles.sectionHeader}
+                  >
+                    <AppText variant="caption" color={theme.muted}>
+                      {s.label} {collapsed[s.key] ? "▸" : "▾"}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted} tabular>
+                      {s.pts} pts
+                    </AppText>
+                  </Pressable>
+                  {collapsed[s.key]
+                    ? null
+                    : s.tasks.map((t) => (
                         <Animated.View key={t.id} layout={layout}>
                           <TaskRow
                             task={t}
                             hue={hueFor(t)}
                             disabled={!day.editable}
                             onToggle={() => void onToggle(t)}
-                            // Only a completed row has a completion to
-                            // hang a tag on (ADR-0025 §4).
                             onTag={
                               t.completedToday && day.editable && day.communalUnits.length > 0
                                 ? () => setTaggingTask(t)
+                                : undefined
+                            }
+                            onMove={
+                              day.editable && !t.completedToday
+                                ? () => setMovingTask(t)
                                 : undefined
                             }
                             tagHues={theme.areas}
@@ -623,8 +804,7 @@ export default function TodayScreen() {
                             reduceMotion={reduceMotion}
                           />
                         </Animated.View>
-                      ))
-                    : null}
+                      ))}
                 </Animated.View>
                 ))}
               </>
@@ -693,6 +873,34 @@ export default function TodayScreen() {
               </>
             ) : null}
 
+            {/* Tomorrow, from today — the planner's discoverable way
+                in. Tapping a future day in the week strip opens the
+                same sheet, but that is a gesture you have to already
+                know about, and ADR-0024 §4 wants planning to be a
+                thing you do rather than a thing you find. Only on
+                today: planning from inside last Tuesday is a route to
+                nowhere useful. */}
+            {isToday && day.hasTasks ? (
+              <Pressable
+                onPress={() => {
+                  const tomorrow = editWindowDays(day.today).find(
+                    (d) => d > day.today,
+                  );
+                  if (tomorrow) void loadDay(tomorrow).then(setPlanning);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Plan tomorrow"
+                style={({ pressed }) => [
+                  styles.planAhead,
+                  { opacity: pressed ? 0.5 : 1 },
+                ]}
+              >
+                <AppText variant="label" color={theme.accent}>
+                  Plan tomorrow ›
+                </AppText>
+              </Pressable>
+            ) : null}
+
             {/* Takes up whatever's left so the footer sits at the
                 bottom on a short day (an empty state, a rest day)
                 instead of floating mid-screen above blank canvas. */}
@@ -732,6 +940,145 @@ export default function TodayScreen() {
               void write.then(() => reload(day.date));
             }}
           />
+          {/* A drag has nowhere to ask whether a move is permanent, so
+              the drop does. Confirms scope only — the row is already
+              where it was put, and Cancel returns it. */}
+          <Modal
+            visible={dropped !== null}
+            transparent
+            statusBarTranslucent
+            animationType="fade"
+            onRequestClose={() => {
+              setDropped(null);
+              void reload(day.date);
+            }}
+          >
+            <View style={styles.menuBackdrop}>
+              <View
+                style={[
+                  styles.confirmCard,
+                  { backgroundColor: theme.canvas, borderColor: theme.hairline },
+                ]}
+              >
+                <AppText variant="title" color={theme.ink} numberOfLines={2}>
+                  {dropped?.task.title}
+                </AppText>
+                <AppText color={theme.muted}>
+                  Moved to{" "}
+                  {dropped?.part
+                    ? PART_OF_DAY_LABEL[dropped.part]
+                    : ANYTIME_LABEL.toLowerCase()}
+                  . Is that where it goes from now on?
+                </AppText>
+                <Button
+                  label="Just today"
+                  color={theme.accent}
+                  onPress={() => {
+                    const d = dropped;
+                    setDropped(null);
+                    if (!d) return;
+                    void (async () => {
+                      await placeTaskForDay(d.task.id, day.date, d.part);
+                      await reorderDayTasks(d.ordered);
+                      await reload(day.date);
+                    })();
+                  }}
+                  theme={theme}
+                />
+                <Button
+                  label="From now on"
+                  variant="secondary"
+                  onPress={() => {
+                    const d = dropped;
+                    setDropped(null);
+                    if (!d) return;
+                    void (async () => {
+                      await setTaskPartOfDay(d.task.id, d.part);
+                      // Any placement for this day would keep
+                      // overriding the task we just changed.
+                      await placeTaskForDay(d.task.id, day.date, null);
+                      await reorderDayTasks(d.ordered);
+                      await reload(day.date);
+                    })();
+                  }}
+                  theme={theme}
+                />
+                <Button
+                  label="Cancel"
+                  variant="quiet"
+                  onPress={() => {
+                    setDropped(null);
+                    void reload(day.date);
+                  }}
+                  theme={theme}
+                />
+              </View>
+            </View>
+          </Modal>
+
+          {planning ? (
+            <DayPlannerSheet
+              visible
+              date={planning.date}
+              dayLabel={spokenDate(planning.date).split(",")[0] ?? "that day"}
+              tasks={[...planning.daily, ...planning.week]}
+              areaColors={theme.areas}
+              accent={theme.accent}
+              theme={theme}
+              onClose={() => setPlanning(null)}
+              onPlace={(taskId, part) => {
+                const date = planning.date;
+                void placeTaskForDay(taskId, date, part)
+                  .then(() => loadDay(date))
+                  .then(setPlanning);
+              }}
+              onAddTask={() => {
+                // The plan screen owns creating tasks; sending you there
+                // beats a second add sheet that would have to explain
+                // that a task is not a one-off.
+                setPlanning(null);
+                router.push("/plan" as Href);
+              }}
+            />
+          ) : null}
+          {movingTask ? (
+            <MoveTaskSheet
+              visible
+              taskTitle={movingTask.title}
+              current={movingTask.partOfDay}
+              placedToday={movingTask.placedToday}
+              dayLabel={isToday ? "today" : spokenDate(day.date).split(",")[0] ?? "that day"}
+              accent={hueFor(movingTask)}
+              theme={theme}
+              onClose={() => setMovingTask(null)}
+              onPick={(part, scope) => {
+                const t = movingTask;
+                setMovingTask(null);
+                void (async () => {
+                  if (scope === "always") {
+                    // Changing the task itself; any placement for this
+                    // day would otherwise keep overriding it.
+                    await setTaskPartOfDay(t.id, part);
+                    await placeTaskForDay(t.id, day.date, null);
+                  } else {
+                    await placeTaskForDay(t.id, day.date, part);
+                  }
+                  await reload(day.date);
+                })();
+              }}
+              onClearPlacement={
+                movingTask.placedToday
+                  ? () => {
+                      const t = movingTask;
+                      setMovingTask(null);
+                      void placeTaskForDay(t.id, day.date, null).then(() =>
+                        reload(day.date),
+                      );
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
           {taggingTask ? (
             <CompletionTagSheet
               visible
@@ -1070,6 +1417,7 @@ const styles = StyleSheet.create({
   headerRight: { alignItems: "flex-end", gap: space.xs },
   weekStat: { marginTop: space.xs },
   kindButton: { minWidth: 44, minHeight: 32, alignItems: "flex-end" },
+  planAhead: { minHeight: 44, justifyContent: "center", marginTop: space.lg },
   recordButtons: {
     flexDirection: "row",
     gap: space.xl,
@@ -1094,6 +1442,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: space.screen,
+  },
+  /** Wider than the press-and-hold menu: this one carries a sentence
+   *  of copy, not a list of verbs. */
+  confirmCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: space.xl,
+    gap: space.md,
   },
   menuCard: {
     width: "100%",
@@ -1122,6 +1480,10 @@ const styles = StyleSheet.create({
   /** A run of the day: label, then its rows. Spacing separates it from
    *  the run above; see the note at the call site. */
   period: { marginTop: space.lg, gap: space.xs },
+  /** The header sits at the bottom of its block, so the air above it
+   *  separates it from the slot before rather than from its own
+   *  rows. */
+  dragHeader: { height: 48, justifyContent: "flex-end" },
   /** Done this week / Completed: the same block with the one rule that
    *  survived, and more air above it so the break reads before the
    *  line does. */

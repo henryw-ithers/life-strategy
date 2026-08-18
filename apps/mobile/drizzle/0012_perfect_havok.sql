@@ -1,0 +1,1 @@
+ALTER TABLE `task` ADD `fortnight_offset` integer DEFAULT 0 NOT NULL;

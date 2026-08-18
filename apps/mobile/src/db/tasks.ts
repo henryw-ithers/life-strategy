@@ -39,6 +39,8 @@ export interface PlanTask {
   plannedWeekdays: string | null;
   /** Null is *Anytime*. Never scored. */
   partOfDay: "morning" | "afternoon" | "evening" | null;
+  /** Which half of the fortnight a fortnightly task falls in. */
+  fortnightOffset: number;
   /** The goal this serves, or null. A grouping, never a scoring
    *  input (ADR-0007) — points come from the unit either way. */
   goalId: string | null;
@@ -198,6 +200,7 @@ export async function loadPlan(): Promise<PlanData> {
                 timesPerWeek: t.timesPerWeek,
                 plannedWeekdays: t.plannedWeekdays,
                 partOfDay: t.partOfDay,
+                fortnightOffset: t.fortnightOffset,
                 goalId: t.goalId,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
@@ -591,4 +594,59 @@ export async function latestRatings(): Promise<
       { importance: r.importance, satisfaction: r.satisfaction },
     ]),
   );
+}
+
+/**
+ * Persist the order the daily checklist shows, within one part of the
+ * day (ADR-0024 §3 as amended 2026-08-18).
+ *
+ * `orderedTaskIds` is the section top-first. Writes `day_order` on the
+ * task itself, so the arrangement survives into tomorrow — Henry's
+ * requirement, and the reason this is not a `planned_occurrence`.
+ *
+ * Touches no points. `rank_in_unit` still prices the task; this only
+ * decides where the row sits, and the two are deliberately separate.
+ */
+export async function reorderDayTasks(
+  orderedTaskIds: readonly string[],
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const [i, taskId] of orderedTaskIds.entries()) {
+      await tx.update(task).set({ dayOrder: i + 1 }).where(eq(task.id, taskId));
+    }
+  });
+}
+
+/**
+ * Move a task to a different part of the day — permanently.
+ *
+ * The other half of the same gesture lives in `db/today.ts` as
+ * `placeTaskForDay`, which changes only the day in front of you. Which
+ * one runs is the user's answer to a prompt (Henry, 2026-08-18: "we can
+ * have a quick prompt to ask if they want this scheduling to be
+ * permanent or just for today").
+ *
+ * Presentation only, like everything else ADR-0024 added: the part of
+ * day never reaches `computeDayScore`.
+ */
+export async function setTaskPartOfDay(
+  taskId: string,
+  partOfDay: "morning" | "afternoon" | "evening" | null,
+): Promise<void> {
+  await db.update(task).set({ partOfDay }).where(eq(task.id, taskId));
+}
+
+/**
+ * Flip which week of the fortnight a fortnightly task falls on
+ * (ADR-0024 §1 as amended 2026-08-18) — "this week" versus "next".
+ *
+ * Only meaningful for a task with `times_per_week` 0 and weekdays
+ * pinned; everything else ignores the column. Presentation only: it
+ * moves which day the row appears on and never what the task is worth.
+ */
+export async function setTaskFortnightOffset(
+  taskId: string,
+  offset: 0 | 1,
+): Promise<void> {
+  await db.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId));
 }

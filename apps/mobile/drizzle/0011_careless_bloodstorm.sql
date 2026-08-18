@@ -1,0 +1,1 @@
+ALTER TABLE `task` ADD `day_order` integer;

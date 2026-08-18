@@ -58,6 +58,7 @@ import {
   reorderUnitTasks,
   restoreTask,
   setTaskDetails,
+  setTaskFortnightOffset,
   setTaskFrequency,
   setTaskGoal,
   setTaskPlanning,
@@ -692,6 +693,7 @@ export default function PlanScreen() {
               plannedWeekdays: editing.task.plannedWeekdays,
               partOfDay: editing.task.partOfDay,
               goalId: editing.task.goalId,
+              fortnightOffset: editing.task.fortnightOffset,
             } satisfies EditableTask
           }
           units={allUnits}
@@ -722,6 +724,12 @@ export default function PlanScreen() {
             }
             if (next.goalId !== t.goalId) {
               await setTaskGoal(t.id, next.goalId);
+            }
+            if (next.fortnightOffset !== t.fortnightOffset) {
+              await setTaskFortnightOffset(
+                t.id,
+                next.fortnightOffset === 1 ? 1 : 0,
+              );
             }
             await reload();
           }}

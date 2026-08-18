@@ -1,3 +1,4 @@
+
 /**
  * Weekday pins and part of day (ADR-0024 §1) — the pure half.
  *
@@ -6,6 +7,8 @@
  * nothing consumes one, so it would buy ordering `partOfDay` already
  * provides (ADR-0024 §1, reaffirmed under challenge in ADR-0025 §7).
  */
+
+import { weekOfFortnight } from "@glide/scoring";
 
 /** ISO weekday numbers: Monday is 1, Sunday is 7. */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -140,6 +143,35 @@ export function formatWeekdaySummary(days: readonly Weekday[]): string | null {
 export function isPinnedOn(days: readonly Weekday[], localDate: string): boolean {
   if (days.length === 0) return false;
   return days.includes(isoWeekday(localDate));
+}
+
+/**
+ * Whether a pinned task belongs to `localDate`, accounting for
+ * fortnightly cadence (ADR-0024 §1 as amended 2026-08-18).
+ *
+ * A weekly-or-more task is due on any weekday it is pinned to. A
+ * **fortnightly** one (`timesPerWeek === 0`) is due on that weekday
+ * only in the half of the fortnight it belongs to — "every other
+ * Tuesday" rather than every Tuesday. Which half is the task's own
+ * `fortnightOffset`, because the date alone cannot say: fortnights are
+ * anchored to epoch-even weeks so their boundary never drifts, which
+ * leaves the choice to the task and the flip control to the user.
+ *
+ * Unpinned tasks return false here, as they do from `isPinnedOn` —
+ * flexible is not "due today", it is "due some day this week".
+ */
+export function isDueOn(
+  task: {
+    plannedWeekdays: string | null;
+    timesPerWeek: number;
+    fortnightOffset?: number;
+  },
+  localDate: string,
+): boolean {
+  const days = parseWeekdays(task.plannedWeekdays);
+  if (!isPinnedOn(days, localDate)) return false;
+  if (task.timesPerWeek !== 0) return true;
+  return weekOfFortnight(localDate) === (task.fortnightOffset ?? 0);
 }
 
 /**

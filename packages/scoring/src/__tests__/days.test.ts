@@ -4,6 +4,7 @@ import {
   addDays,
   editWindowStart,
   fortnightStart,
+  weekOfFortnight,
   isEditable,
   isFinalized,
   localDateOf,
@@ -121,5 +122,25 @@ describe("edit window (ADR-0004 §1, week-aligned)", () => {
     expect(isEditable(today, today)).toBe(true);
     expect(isEditable("2026-07-18", today)).toBe(false);
     expect(isFinalized("2026-07-18", today)).toBe(false);
+  });
+});
+
+describe("weekOfFortnight", () => {
+  it("is 0 in the week a fortnight opens and 1 in the next", () => {
+    const open = fortnightStart("2026-08-18");
+    expect(weekOfFortnight(open)).toBe(0);
+    expect(weekOfFortnight(addDays(open, 7))).toBe(1);
+  });
+
+  it("holds across every day of each half", () => {
+    const open = fortnightStart("2026-08-18");
+    for (let i = 0; i < 7; i++) expect(weekOfFortnight(addDays(open, i))).toBe(0);
+    for (let i = 7; i < 14; i++) expect(weekOfFortnight(addDays(open, i))).toBe(1);
+  });
+
+  it("returns to 0 at the next fortnight, so the cycle repeats", () => {
+    const open = fortnightStart("2026-08-18");
+    expect(weekOfFortnight(addDays(open, 14))).toBe(0);
+    expect(weekOfFortnight(addDays(open, 21))).toBe(1);
   });
 });

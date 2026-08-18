@@ -19,6 +19,13 @@ interface TaskRowProps {
   /** Press-and-hold on a completed row: where else it counts
    *  (ADR-0025 §4). Absent when the row can't carry tags. */
   onTag?: () => void;
+  /**
+   * Press-and-hold on an *incomplete* row: move it to another part
+   * of the day. The two gestures never collide — tagging needs a
+   * completion to hang on, and a row you have already ticked is
+   * not one you are still deciding when to do.
+   */
+  onMove?: () => void;
   /** Area hue per tagged unit, for the pips. */
   tagHues?: Record<string, string>;
   theme: ThemeTokens;
@@ -68,6 +75,7 @@ export function TaskRow({
   disabled,
   onToggle,
   onTag,
+  onMove,
   tagHues,
   theme,
   reduceMotion,
@@ -93,7 +101,8 @@ export function TaskRow({
   return (
     <Pressable
       onPress={onToggle}
-      onLongPress={onTag}
+      onLongPress={onTag ?? onMove}
+      delayLongPress={350}
       disabled={disabled}
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled }}
@@ -105,9 +114,15 @@ export function TaskRow({
       // Long-press is invisible to a screen reader, so the same action
       // needs an explicit rotor entry (ADR-0025 §4's gesture is the
       // only route to tagging).
-      accessibilityActions={onTag ? [{ name: "magicTap", label: "Where else it counts" }] : undefined}
+      accessibilityActions={
+        onTag
+          ? [{ name: "magicTap", label: "Where else it counts" }]
+          : onMove
+            ? [{ name: "magicTap", label: "Move to another part of the day" }]
+            : undefined
+      }
       onAccessibilityAction={(e) => {
-        if (e.nativeEvent.actionName === "magicTap") onTag?.();
+        if (e.nativeEvent.actionName === "magicTap") (onTag ?? onMove)?.();
       }}
       style={({ pressed }) => [
         styles.row,

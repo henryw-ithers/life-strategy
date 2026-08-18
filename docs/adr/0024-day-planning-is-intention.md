@@ -156,6 +156,64 @@ Sections become **Morning · Afternoon · Evening · Anytime**, replacing
 - Within a section: planned-today first, then flexible-with-runs-left,
   then the rest. Completed rows sink, as now.
 
+> **Amendment (2026-08-18): the day is arrangeable, and pins now
+> group.**
+>
+> Three changes, all on the daily surface, all still presentation:
+>
+> - **Custom order.** `task.day_order` (migration 0011) records where
+>   a row sits within its part of the day, and dragging writes it.
+>   Persistent rather than per-day, on Henry's call: *"if I put
+>   sunlight and supplements at the start of my tasks I want it to
+>   stay there."* Deliberately separate from `rank_in_unit`, which
+>   prices the task — two orders doing two jobs.
+> - **Moving between parts of the day**, by press-and-hold on an
+>   incomplete row. The sheet asks the scope every time: *just today*
+>   writes a `planned_occurrence`, *from now on* rewrites the task.
+>   §2 is untouched — a placement is still an intention, still lapses
+>   silently, and still produces no adherence statistic.
+> - **Tasks pinned to other days leave today's slots** for a section
+>   of their own. They used to sort last inside the periods, which
+>   padded a Tuesday morning with Monday's plan and stopped the day
+>   describing the day. They stay open, tappable and worth full
+>   points: doing Friday's run on Tuesday is still a perfect week.
+>
+> - **The look-ahead planner**, which is what §4 asked for and never
+>   got. Tapping a future day — or "Plan tomorrow" on today — opens
+>   the day's shape and walks a task through its slots on tap. Every
+>   move writes a `planned_occurrence` for that date only, so
+>   arranging Wednesday never edits the task; verified that today,
+>   Thursday and the task itself all stayed put. Completion is
+>   deliberately absent: you cannot tick tomorrow.
+> - **Fortnightly tasks can pin to a weekday**, with a switch for
+>   *which* Tuesday. `task.fortnight_offset` (migration 0012) plus
+>   `weekOfFortnight` in the scoring package: fortnights stay anchored
+>   to epoch-even weeks so the boundary never drifts, which leaves the
+>   choice to the task and the flip to the user. `isDueOn` is now the
+>   single answer to "does this belong to this date", shared by the
+>   checklist and the planner.
+>> **Cross-section dragging** (built 2026-08-18, after a first pass
+> deferred it). Hold a row and drag it anywhere in the day: reorder
+> inside a slot, or move it to another. `ReorderableList` could not
+> do this — it positions rows at `index × rowHeight`, and once
+> headers sit between sections a row's y depends on which section it
+> is currently in, which is the thing the drag changes. Rather than
+> put that walk inside the component the Tasks screen depends on,
+> the checklist got its own: `SectionedChecklist`, over a list of
+> lists.
+>
+> **Empty periods are drop targets.** That is most of the point —
+> "do this in the afternoon" matters most when the afternoon is
+> empty, which is exactly when there is no row to drop beside.
+>
+> The layout walk lives in `checklistLayout.ts`, free of React Native
+> imports and covered by 16 tests, because a long-press-armed pan is
+> not reproducible with synthetic events and the failure mode is
+> silent: a row lands in the wrong part of the day and is written
+> there. A drop **into another slot** still asks the scope question a
+> drag has nowhere to put — just today, or from now on — while a
+> reorder inside a slot saves without comment, because arrangement is
+> a preference and a slot is a plan.
 > **Amendment (2026-08-17): the three periods always render, and an
 > empty one reads *Free*.**
 >
@@ -329,8 +387,12 @@ ADR-0026's load work needs placement data this ADR chose not to keep.
        omitted~~ the three periods always shown with **Free** when
        empty (§3 amendment, 2026-08-17), frequency demoted to row
        metadata.
-3. [ ] Phase 3: `planned_occurrence` table and the weekly planning
-       pass; the week strip becomes editable for future days.
+3. [x] Phase 3: `planned_occurrence` **is written and read** —
+       by the daily move sheet and by the look-ahead planner
+       (2026-08-18). The table sat unused from the day this ADR
+       created it. What remains of §4 is the *weekly* pass — a
+       once-a-week surface over the whole week rather than one day
+       at a time.
 4. [ ] Confirm no adherence statistic is computed anywhere — this is
        the invariant most likely to be violated by a well-meaning
        addition.

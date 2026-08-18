@@ -23,7 +23,9 @@ const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
 /**
  * Two swipeable weeks of day chips — the edit window as navigation.
- * Future days are visible but disabled; the calendar grows from here.
+ * Future days open the planner rather than the day: you cannot tick
+ * tomorrow, but you can arrange it (ADR-0024 §4). They stay dimmed,
+ * because a day you can only plan is not a day you can record.
  *
  * Carries the same grade chip as the month grid: the strip is the
  * default view, so leaving the score to the expanded calendar meant
@@ -72,12 +74,11 @@ export function WeekStrip({
                   <Pressable
                     key={date}
                     onPress={() => onSelect(date)}
-                    disabled={isFuture}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected, disabled: isFuture }}
+                    accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={`${spokenDate(date)}${isToday ? ", today" : ""}${
                       day?.grade != null ? `, ${day.grade} percent` : ""
-                    }${day?.kind === "rest" ? ", day off" : ""}`}
+                    }${day?.kind === "rest" ? ", day off" : ""}${isFuture ? ", plan this day" : ""}`}
                     style={[
                       styles.chip,
                       // Solid outline = today; broken outline = selected day.

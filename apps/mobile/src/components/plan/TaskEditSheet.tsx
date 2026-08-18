@@ -63,6 +63,8 @@ export interface EditableTask {
   partOfDay: PartOfDay | null;
   /** The goal it serves, or null. */
   goalId: string | null;
+  /** Which half of the fortnight, for a fortnightly pinned task. */
+  fortnightOffset: number;
 }
 
 interface TaskEditSheetProps {
@@ -83,6 +85,7 @@ interface TaskEditSheetProps {
     plannedWeekdays: string | null;
     partOfDay: PartOfDay | null;
     goalId: string | null;
+    fortnightOffset: number;
   }) => void;
   onDelete: () => void;
 }
@@ -108,6 +111,7 @@ export function TaskEditSheet({
   );
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
   const [goalId, setGoalId] = useState<string | null>(task.goalId);
+  const [fortnightOffset, setFortnightOffset] = useState(task.fortnightOffset);
 
   /** Pinned days *are* the frequency (ADR-0024 §Schema) — the wheel
    *  retires while any chip is lit, inside `SchedulePicker`. */
@@ -120,7 +124,8 @@ export function TaskEditSheet({
     unitIds.join("|") !== task.unitIds.join("|") ||
     storedWeekdays !== task.plannedWeekdays ||
     partOfDay !== task.partOfDay ||
-    goalId !== task.goalId;
+    goalId !== task.goalId ||
+    fortnightOffset !== task.fortnightOffset;
 
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
@@ -136,6 +141,7 @@ export function TaskEditSheet({
       plannedWeekdays: storedWeekdays,
       partOfDay,
       goalId,
+      fortnightOffset,
     });
     onClose();
   };
@@ -218,6 +224,8 @@ export function TaskEditSheet({
             onWeekdaysChange={setWeekdays}
             partOfDay={partOfDay}
             onPartOfDayChange={setPartOfDay}
+            fortnightOffset={fortnightOffset}
+            onFortnightOffsetChange={setFortnightOffset}
             accent={accent}
             theme={theme}
           />

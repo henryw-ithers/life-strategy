@@ -12,6 +12,8 @@ import m0007 from './0007_square_piledriver.sql';
 import m0008 from './0008_lazy_mandarin.sql';
 import m0009 from './0009_young_krista_starr.sql';
 import m0010 from './0010_famous_scarecrow.sql';
+import m0011 from './0011_careless_bloodstorm.sql';
+import m0012 from './0012_perfect_havok.sql';
 
   export default {
     journal,
@@ -26,7 +28,9 @@ m0006,
 m0007,
 m0008,
 m0009,
-m0010
+m0010,
+m0011,
+m0012
     }
   }
   
