@@ -237,9 +237,17 @@ export const task = sqliteTable("task", {
   /** Nullable: habit tasks attach directly to their unit (ADR-0002 §1). */
   goalId: text("goal_id").references(() => goal.id),
   title: text("title").notNull(),
-  /** What the task actually involves — the products in the routine, what
-   *  counts as done. Never scored: a title is a promise to yourself and
-   *  this is where the fine print goes, not a progress mechanism. */
+  /**
+   * What the task actually involves. Never scored.
+   *
+   * **No longer editable from the UI (2026-08-18)**: Henry's call —
+   * "the task name speaks for itself" — and in real use the field was
+   * a second thing to write for every task, on a surface whose whole
+   * job is that capture stays cheap. The column stays, and existing
+   * text is preserved on save rather than cleared, because hiding a
+   * field destroys nothing while dropping the column would delete
+   * what people already wrote.
+   */
   description: text("description"),
   /** Times per week: 1–7 (7 = daily); 0 = once every two weeks. */
   timesPerWeek: integer("times_per_week").notNull().default(7),
@@ -481,9 +489,16 @@ export const activityTag = sqliteTable(
 
 export const achievement = sqliteTable("achievement", {
   id: text("id").primaryKey(),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goal.id),
+  /**
+   * **Nullable since 2026-08-18**, when goals became deletable. An
+   * achievement is a record of something that happened, and PRODUCT.md
+   * principle 5 puts it in the life log alongside journals and photos —
+   * so deleting the goal that produced it nulls this and keeps the
+   * achievement. `title_snapshot` already exists to make that survivable:
+   * it was copied at completion precisely so later goal edits could not
+   * rewrite history, and a deleted goal is the limiting case of an edit.
+   */
+  goalId: text("goal_id").references(() => goal.id),
   milestoneId: text("milestone_id").references(() => milestone.id),
   /** Copied at completion so later goal edits don't rewrite history. */
   titleSnapshot: text("title_snapshot").notNull(),

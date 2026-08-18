@@ -55,7 +55,6 @@ import { UnitPicker, type PickableUnit } from "./UnitPicker";
 export interface EditableTask {
   id: string;
   title: string;
-  description: string | null;
   timesPerWeek: number;
   unitIds: string[];
   /** `"1,3,5"`, or null for flexible (ADR-0024). */
@@ -74,7 +73,6 @@ interface TaskEditSheetProps {
   onClose: () => void;
   onSave: (next: {
     title: string;
-    description: string | null;
     timesPerWeek: number;
     unitIds: string[];
     plannedWeekdays: string | null;
@@ -96,7 +94,6 @@ export function TaskEditSheet({
 }: TaskEditSheetProps) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
   const [timesPerWeek, setTimesPerWeek] = useState(task.timesPerWeek);
   const [unitIds, setUnitIds] = useState<string[]>(task.unitIds);
   const [weekdays, setWeekdays] = useState<Weekday[]>(
@@ -111,7 +108,6 @@ export function TaskEditSheet({
 
   const dirty =
     title.trim() !== task.title ||
-    description.trim() !== (task.description ?? "") ||
     effectiveTimes !== task.timesPerWeek ||
     unitIds.join("|") !== task.unitIds.join("|") ||
     storedWeekdays !== task.plannedWeekdays ||
@@ -126,7 +122,6 @@ export function TaskEditSheet({
     if (!savable) return;
     onSave({
       title: title.trim(),
-      description: description.trim() || null,
       timesPerWeek: effectiveTimes,
       unitIds,
       plannedWeekdays: storedWeekdays,
@@ -192,23 +187,6 @@ export function TaskEditSheet({
             ) : null}
           </View>
 
-          {/* What the task involves — the fine print behind the title, so
-              ticking it means the same thing every time. Three lines and
-              no more: the sheet must not start scrolling (see header). */}
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            placeholder="What does this involve? (optional)"
-            placeholderTextColor={theme.muted}
-            multiline
-            numberOfLines={3}
-            accessibilityLabel="What this task involves"
-            style={[
-              styles.input,
-              styles.multiline,
-              { backgroundColor: theme.surface, color: theme.ink },
-            ]}
-          />
 
           {/* Units before the schedule, matching the add sheet. The two
               used to run in opposite orders — units last here, first
@@ -283,14 +261,5 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
-  },
-  /** Three lines of body text plus padding. `textAlignVertical` is the
-   *  Android knob; iOS needs the explicit top padding, since a multiline
-   *  TextInput there centres its first line against `minHeight`. */
-  multiline: {
-    minHeight: 88,
-    paddingTop: space.md,
-    paddingBottom: space.md,
-    textAlignVertical: "top",
   },
 });

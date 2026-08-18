@@ -189,6 +189,28 @@ that editing milestones mid-climb is normal rather than cheating.
 Recording one in the wrong month would put a false entry in the log of
 a life, which is the one thing that log is for.
 
+> **Amendment (2026-08-18): rungs are editable and deletable.**
+>
+> This section says outright that "editing milestones mid-climb is
+> normal rather than cheating", and then shipped a ladder you could
+> only add to and tick off. A rung you cannot rename is a typo you
+> live with, and a threshold you cannot correct is worse — it is a
+> number the goal is measured against.
+>
+> Press and hold a rung for Edit or Delete, the same gesture the day
+> record uses for notes and photos. Editing seeds the inline add form
+> rather than opening another surface. Deleting a **current** rung
+> promotes the next pending one, so a ladder is never left with
+> nothing lit; a completed rung's achievement is **detached, not
+> deleted** (`achievement.milestone_id` was already nullable), for the
+> same reason ADR-0007's deletion amendment keeps a deleted goal's
+> achievements: the rung is scaffolding, the achievement is history.
+>
+> The threshold input's placeholder was also the literal word "at",
+> which named the grammar of the sentence instead of the thing being
+> typed. It is now the goal's own `metric_unit` — "kg", "books" — so
+> the field says what it wants.
+
 ### 6. Progress never appears on the daily checklist
 
 Goals and their progress live on the Goals screen. No task row, no

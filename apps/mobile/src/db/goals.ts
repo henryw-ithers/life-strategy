@@ -768,3 +768,126 @@ export async function completeMilestone(
   });
   return { goalShouldComplete, goalId };
 }
+
+/**
+ * Delete a goal outright (Henry, 2026-08-18: "everything should be
+ * editable, deletable").
+ *
+ * ADR-0007 gave goals a lifecycle with no delete in it, on the
+ * principle that the log stays true — revise spawns a successor rather
+ * than mutating, abandonment is revivable and neutrally worded. That
+ * principle is about **outcomes**, and it still holds: this is for the
+ * goal you mistyped, duplicated, or never really meant, which has no
+ * outcome to protect. "Set aside" remains the honest end for a goal you
+ * genuinely tried.
+ *
+ * What goes: the goal, its milestones, its progress entries — all
+ * authored scaffolding.
+ *
+ * What survives:
+ * - **Achievements**, detached rather than deleted. They carry
+ *   `title_snapshot` precisely so history outlives goal edits, and
+ *   PRODUCT.md principle 5 files them in the life log beside journals
+ *   and photos. Deleting the goal must not quietly rewrite a month's
+ *   summary.
+ * - **Tasks**, detached to their unit (`goal_id → null`), which is
+ *   exactly the "transition to maintenance" exit ADR-0007 §2 already
+ *   defines. Deleting a goal is not a reason to stop doing the things
+ *   it started, and archiving them would silently cut the plan.
+ * - **Completions and grades**, untouched — a task keeps its history
+ *   whether or not it still points at a goal.
+ */
+export async function deleteGoal(goalId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    // Detach first: the achievement's own row is the record, and a
+    // dangling id would point at nothing after the delete. Both ends
+    // matter — the rungs go too, so an achievement earned on one would
+    // otherwise keep a `milestone_id` for a row that no longer exists.
+    const rungs = await tx
+      .select({ id: milestone.id })
+      .from(milestone)
+      .where(eq(milestone.goalId, goalId));
+    if (rungs.length > 0) {
+      await tx
+        .update(achievement)
+        .set({ milestoneId: null })
+        .where(
+          inArray(
+            achievement.milestoneId,
+            rungs.map((m) => m.id),
+          ),
+        );
+    }
+    await tx
+      .update(achievement)
+      .set({ goalId: null })
+      .where(eq(achievement.goalId, goalId));
+    // Anything nominated to auto-count for this goal stops doing so.
+    await tx
+      .update(goal)
+      .set({ autocountTaskId: null })
+      .where(eq(goal.id, goalId));
+    await tx.update(task).set({ goalId: null }).where(eq(task.goalId, goalId));
+    await tx.delete(goalProgress).where(eq(goalProgress.goalId, goalId));
+    await tx.delete(milestone).where(eq(milestone.goalId, goalId));
+    await tx.delete(goal).where(eq(goal.id, goalId));
+    // Tasks changed hands but not rank or count, so points are
+    // unchanged — this only guards against a goal delete racing a plan
+    // edit that did move them.
+    await recomputeAllUnitPoints(tx);
+  });
+}
+
+/** Rename a milestone, or change the reading it is reached at
+ *  (ADR-0015 §5). Milestones were add-and-complete only until
+ *  2026-08-18; a rung you cannot correct is a typo you live with. */
+export async function updateMilestone(
+  milestoneId: string,
+  title: string,
+  targetValue: number | null,
+): Promise<void> {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) return;
+  await db
+    .update(milestone)
+    .set({ title: trimmed, targetValue })
+    .where(eq(milestone.id, milestoneId));
+}
+
+/**
+ * Remove a milestone.
+ *
+ * If it was the current rung, the next pending one takes over, so a
+ * goal is never left with a ladder and nothing lit. A completed
+ * milestone's **achievement is detached, not deleted** — same reasoning
+ * as `deleteGoal`: the rung is scaffolding, the achievement is history.
+ */
+export async function deleteMilestone(milestoneId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(milestone)
+      .where(eq(milestone.id, milestoneId));
+    if (!row) return;
+
+    await tx
+      .update(achievement)
+      .set({ milestoneId: null })
+      .where(eq(achievement.milestoneId, milestoneId));
+    await tx.delete(milestone).where(eq(milestone.id, milestoneId));
+
+    if (row.status !== "current") return;
+    const rest = await tx
+      .select()
+      .from(milestone)
+      .where(eq(milestone.goalId, row.goalId))
+      .orderBy(asc(milestone.sortOrder));
+    const nextUp = rest.find((m) => m.status === "pending");
+    if (nextUp) {
+      await tx
+        .update(milestone)
+        .set({ status: "current" })
+        .where(eq(milestone.id, nextUp.id));
+    }
+  });
+}

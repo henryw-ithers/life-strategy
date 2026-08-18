@@ -1,6 +1,6 @@
 # ADR-0027: Coverage decides the ceiling
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-08-18\
 > **Deciders:** Henry
 

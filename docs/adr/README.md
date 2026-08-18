@@ -27,7 +27,7 @@ status to *Accepted*.
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
 | [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Proposed |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002

@@ -5,9 +5,11 @@
  * and the three-path completion flow.
  */
 import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,7 +34,9 @@ import {
   addMilestone,
   completeGoal,
   completeMilestone,
+  deleteGoal,
   deleteGoalProgress,
+  deleteMilestone,
   loadGoalDetail,
   pauseGoal,
   reviseGoal,
@@ -41,10 +45,11 @@ import {
   setGoalAutocountTask,
   setGoalMetric,
   setGoalTargetDate,
+  updateMilestone,
   type GoalDetail,
 } from "../../../db/goals";
 import { currentLocalDate } from "../../../db/today";
-import { getTheme } from "../../../theme/colors";
+import { getTheme, SCRIM } from "../../../theme/colors";
 import { radius, space, type as typeScale } from "../../../theme/tokens";
 
 function statusLabel(status: GoalDetail["status"]): string {
@@ -80,6 +85,19 @@ export default function GoalDetailScreen() {
     id: string;
     title: string;
   } | null>(null);
+  /** Held by a long press, the same gesture the day record uses for
+   *  its notes and photos — a row of edit/delete glyphs beside every
+   *  rung would make a ladder read as a list of things to manage. */
+  const [milestoneMenu, setMilestoneMenu] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  /** Set while the inline form below is rewriting a rung rather than
+   *  adding one; the inputs and the button are shared. */
+  const [editingMilestone, setEditingMilestone] = useState<string | null>(null);
+  /** Deleting a goal is the one irreversible act on this screen, so it
+   *  is the one that asks. */
+  const [deleting, setDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     setGoal(await loadGoalDetail(goalId));
@@ -106,18 +124,39 @@ export default function GoalDetailScreen() {
     const title = milestoneTitle.trim();
     if (title.length === 0 || !goal) return;
     const threshold = Number(milestoneTarget);
-    setMilestoneTitle("");
-    setMilestoneTarget("");
-    await addMilestone(
-      goal.id,
-      title,
-      // A rung only carries a threshold on a goal that has a metric to
-      // compare it against (ADR-0015 §5).
+    // A rung only carries a threshold on a goal that has a metric to
+    // compare it against (ADR-0015 §5).
+    const target =
       goal.metricKind !== null && Number.isFinite(threshold) && milestoneTarget.trim()
         ? threshold
-        : null,
-    );
+        : null;
+    const editing = editingMilestone;
+    setMilestoneTitle("");
+    setMilestoneTarget("");
+    setEditingMilestone(null);
+    if (editing) {
+      await updateMilestone(editing, title, target);
+    } else {
+      await addMilestone(goal.id, title, target);
+    }
     await reload();
+  };
+
+  /** Seeds the inline form from an existing rung. */
+  const startEditingMilestone = (m: {
+    id: string;
+    title: string;
+    targetValue: number | null;
+  }) => {
+    setEditingMilestone(m.id);
+    setMilestoneTitle(m.title);
+    setMilestoneTarget(m.targetValue === null ? "" : String(m.targetValue));
+  };
+
+  const cancelEditingMilestone = () => {
+    setEditingMilestone(null);
+    setMilestoneTitle("");
+    setMilestoneTarget("");
   };
 
   return (
@@ -238,6 +277,18 @@ export default function GoalDetailScreen() {
                   theme={theme}
                 />
               ) : null}
+
+              {/* Sits below every lifecycle action and reads quieter
+                  than all of them, because for a goal you actually
+                  tried, "Set aside" is the honest end and this is not
+                  (ADR-0007 §1). This is for the goal you mistyped or
+                  never meant — anything it achieved survives it. */}
+              <Button
+                label="Delete goal"
+                variant="quiet"
+                onPress={() => setDeleting(true)}
+                theme={theme}
+              />
             </View>
 
             {goal.metricKind !== null &&
@@ -305,8 +356,32 @@ export default function GoalDetailScreen() {
                 goal.milestones.map((m) => (
                   <Pressable
                     key={m.id}
-                    disabled={m.status !== "current" || goal.status !== "active"}
-                    onPress={() => setDatingMilestone({ id: m.id, title: m.title })}
+                    // Completing still needs the rung to be current and
+                    // the goal active; editing and deleting do not — a
+                    // typo in a finished rung is still a typo.
+                    onPress={() => {
+                      if (m.status === "current" && goal.status === "active") {
+                        setDatingMilestone({ id: m.id, title: m.title });
+                      }
+                    }}
+                    onLongPress={() => {
+                      void Haptics.selectionAsync();
+                      setMilestoneMenu({ id: m.id, title: m.title });
+                    }}
+                    delayLongPress={350}
+                    accessibilityRole="button"
+                    accessibilityLabel={m.title}
+                    accessibilityHint="Press and hold to edit or delete"
+                    // Screen readers cannot long-press, so the same two
+                    // actions get explicit rotor entries.
+                    accessibilityActions={[
+                      { name: "magicTap", label: "Edit or delete milestone" },
+                    ]}
+                    onAccessibilityAction={(e) => {
+                      if (e.nativeEvent.actionName === "magicTap") {
+                        setMilestoneMenu({ id: m.id, title: m.title });
+                      }
+                    }}
                     style={[styles.milestoneRow, { borderTopColor: theme.hairline }]}
                   >
                     <View
@@ -352,53 +427,80 @@ export default function GoalDetailScreen() {
               )}
 
               {goal.status === "active" ? (
-                <View style={styles.addMilestone}>
-                  <TextInput
-                    value={milestoneTitle}
-                    onChangeText={setMilestoneTitle}
-                    placeholder="Add a milestone"
-                    placeholderTextColor={theme.muted}
-                    returnKeyType="done"
-                    onSubmitEditing={submitMilestone}
-                    style={[
-                      styles.milestoneInput,
-                      { backgroundColor: theme.surface, color: theme.ink },
-                    ]}
-                  />
-                  {/* Only on a measured goal: a threshold with nothing
-                      to compare against would be a number that never
-                      does anything (ADR-0015 §5). */}
-                  {goal.metricKind !== null ? (
+                <>
+                  <View style={styles.addMilestone}>
                     <TextInput
-                      value={milestoneTarget}
-                      onChangeText={setMilestoneTarget}
-                      placeholder="at"
+                      value={milestoneTitle}
+                      onChangeText={setMilestoneTitle}
+                      placeholder={
+                        editingMilestone ? "Milestone" : "Add a milestone"
+                      }
                       placeholderTextColor={theme.muted}
-                      keyboardType="numeric"
                       returnKeyType="done"
                       onSubmitEditing={submitMilestone}
-                      accessibilityLabel="Reading this milestone is reached at"
                       style={[
-                        styles.milestoneTarget,
+                        styles.milestoneInput,
                         { backgroundColor: theme.surface, color: theme.ink },
                       ]}
                     />
+                    {/* Only on a measured goal: a threshold with nothing
+                        to compare against would be a number that never
+                        does anything (ADR-0015 §5).
+
+                        The placeholder is the goal's own unit ("kg",
+                        "books") rather than the word "at", which named
+                        the grammar of the sentence instead of the thing
+                        being typed and left you guessing at the units. */}
+                    {goal.metricKind !== null ? (
+                      <TextInput
+                        value={milestoneTarget}
+                        onChangeText={setMilestoneTarget}
+                        placeholder={goal.metricUnit ?? "number"}
+                        placeholderTextColor={theme.muted}
+                        keyboardType="numeric"
+                        returnKeyType="done"
+                        onSubmitEditing={submitMilestone}
+                        accessibilityLabel={`Reading this milestone is reached at${
+                          goal.metricUnit ? `, in ${goal.metricUnit}` : ""
+                        }`}
+                        style={[
+                          styles.milestoneTarget,
+                          { backgroundColor: theme.surface, color: theme.ink },
+                        ]}
+                      />
+                    ) : null}
+                    <Pressable
+                      onPress={submitMilestone}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        editingMilestone ? "Save milestone" : "Add milestone"
+                      }
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.quickAdd,
+                        { backgroundColor: `${accent}1f`, opacity: pressed ? 0.5 : 1 },
+                      ]}
+                    >
+                      <AppText variant="headline" color={theme.ink}>
+                        {editingMilestone ? "✓" : "+"}
+                      </AppText>
+                    </Pressable>
+                  </View>
+                  {editingMilestone ? (
+                    <Pressable
+                      onPress={cancelEditingMilestone}
+                      accessibilityRole="button"
+                      style={({ pressed }) => [
+                        styles.cancelEdit,
+                        { opacity: pressed ? 0.5 : 1 },
+                      ]}
+                    >
+                      <AppText variant="caption" color={theme.muted}>
+                        Cancel
+                      </AppText>
+                    </Pressable>
                   ) : null}
-                  <Pressable
-                    onPress={submitMilestone}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add milestone"
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      styles.quickAdd,
-                      { backgroundColor: `${accent}1f`, opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <AppText variant="headline" color={theme.ink}>
-                      +
-                    </AppText>
-                  </Pressable>
-                </View>
+                </>
               ) : null}
             </View>
 
@@ -520,6 +622,113 @@ export default function GoalDetailScreen() {
                 router.replace(`/goals/${newId}` as Href);
               }}
             />
+
+            {/* Edit or delete one rung. A plain sheet rather than a
+                destructive confirm, matching the day record's own
+                press-and-hold menu: removing a checkpoint is small, and
+                the alternative is two steps on the common case. */}
+            <Modal
+              visible={milestoneMenu !== null}
+              transparent
+              statusBarTranslucent
+              animationType="fade"
+              onRequestClose={() => setMilestoneMenu(null)}
+            >
+              <Pressable
+                style={styles.menuBackdrop}
+                onPress={() => setMilestoneMenu(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <View
+                  style={[
+                    styles.menuCard,
+                    { backgroundColor: theme.canvas, borderColor: theme.hairline },
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => {
+                      const target = milestoneMenu;
+                      setMilestoneMenu(null);
+                      const m = goal.milestones.find((x) => x.id === target?.id);
+                      if (m) startEditingMilestone(m);
+                    }}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+                  >
+                    <AppText color={theme.ink}>Edit</AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      const target = milestoneMenu;
+                      setMilestoneMenu(null);
+                      if (target) void deleteMilestone(target.id).then(reload);
+                    }}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+                  >
+                    <AppText color={theme.danger}>Delete</AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setMilestoneMenu(null)}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
+                  >
+                    <AppText color={theme.muted}>Cancel</AppText>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* The one irreversible act here, so the one that asks —
+                and the copy says what survives rather than only what
+                goes, since "delete" reads worse than it is. */}
+            <Modal
+              visible={deleting}
+              transparent
+              statusBarTranslucent
+              animationType="fade"
+              onRequestClose={() => setDeleting(false)}
+            >
+              <View style={styles.menuBackdrop}>
+                <View
+                  style={[
+                    styles.confirmCard,
+                    { backgroundColor: theme.canvas, borderColor: theme.hairline },
+                  ]}
+                >
+                  <AppText variant="title" color={theme.ink}>
+                    Delete this goal?
+                  </AppText>
+                  <AppText color={theme.muted}>
+                    “{goal.title}” and its milestones go for good. Anything you
+                    already achieved stays in your log, and its tasks stay in
+                    your plan — they just stop pointing at this goal.
+                  </AppText>
+                  <View style={styles.confirmActions}>
+                    <View style={styles.grow}>
+                      <Button
+                        label="Cancel"
+                        variant="quiet"
+                        onPress={() => setDeleting(false)}
+                        theme={theme}
+                      />
+                    </View>
+                    <View style={styles.grow}>
+                      <Button
+                        label="Delete"
+                        color={theme.danger}
+                        onPress={() => {
+                          setDeleting(false);
+                          void deleteGoal(goal.id).then(() => router.back());
+                        }}
+                        theme={theme}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </Modal>
           </>
         )}
       </ScrollView>
@@ -584,6 +793,42 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  cancelEdit: {
+    alignSelf: "flex-start",
+    minHeight: 32,
+    justifyContent: "center",
+  },
+  /** Centred card over a scrim, matching the day record's own
+   *  press-and-hold menu so one gesture has one look app-wide. */
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: space.screen,
+  },
+  menuCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space.xs,
+  },
+  menuRow: { minHeight: 48, alignItems: "center", justifyContent: "center" },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: space.xl,
+    gap: space.md,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    marginTop: space.sm,
   },
   taskRow: {
     flexDirection: "row",

@@ -175,8 +175,8 @@ you added from memory.
   flag), created_at (ADR-0009)
 - **`activity_tag`** — activity_id, unit_id, points_credited
   (denormalized at log time; ≤ 3 tags per activity) (ADR-0009)
-- **`achievement`** — id, goal_id, milestone_id (nullable),
-  title_snapshot, achieved_at
+- **`achievement`** — id, goal_id (**nullable since 2026-08-18**),
+  milestone_id (nullable), title_snapshot, achieved_at
 - **`contentment_checkin`** — id, week_start_date, score (1–10)
 - **`calibration_suggestion`** — id, insight_text, proposed_change,
   status (`proposed|accepted|dismissed`), created_at, resolved_at —
@@ -188,6 +188,13 @@ always recomputable from completions; finality semantics (when
 `finalized_at` gets stamped, grace windows) are ADR-0004's decision.
 `achievement.title_snapshot` copies the goal title at completion so
 later goal edits don't rewrite trophy history.
+
+**`achievement.goal_id` is nullable (migration 0010, 2026-08-18)**
+because goals became deletable ([ADR-0007](0007-goal-lifecycle.md), as
+amended). Deleting a goal nulls this and keeps the achievement: the
+snapshot above is exactly what makes that survivable, and a deleted
+goal is the limiting case of the "later goal edits" it was written
+for. `milestone_id` behaves the same way when a rung is deleted.
 
 ## Backup (v1)
 

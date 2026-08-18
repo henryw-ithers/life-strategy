@@ -32,6 +32,40 @@ don't — so the lifecycle must answer what a goal leaves behind.
 - **Completed and revised are terminal.** Going again means a new
   linked goal.
 
+> **Amendment (2026-08-18): goals can also be deleted.**
+>
+> This lifecycle deliberately had no delete: the log stays true, so a
+> goal you stopped pursuing is *set aside* rather than erased, and a
+> revision spawns a successor rather than mutating its parent. That
+> reasoning is about **outcomes**, and it stands — "Set aside" is
+> still the honest end for a goal you genuinely tried, and it is still
+> the wording the screen leads with.
+>
+> What it did not cover is the goal with no outcome at all: the
+> mistyped one, the duplicate, the one created while working out how
+> the app works. Refusing to remove those does not protect a record,
+> it just accumulates clutter in the one place the app asks you to be
+> deliberate. Henry asked for it directly on 2026-08-18 ("everything
+> should be editable, deletable").
+>
+> **`deleteGoal` removes the goal, its milestones, and its progress
+> entries — and nothing else.** Specifically:
+>
+> - **Achievements survive, detached.** `achievement.goal_id` became
+>   nullable (migration 0010) and is nulled here. They carry
+>   `title_snapshot`, which §2 added so history could outlive goal
+>   edits, and PRODUCT.md principle 5 files them in the life log
+>   beside journals and photos. Deleting a goal must not quietly
+>   rewrite a month.
+> - **Tasks detach to their unit** (`goal_id → null`) — the same exit
+>   §2 already calls "transition to maintenance". Deleting a goal is
+>   not a reason to stop doing what it started.
+> - **Completions and grades are untouched.**
+>
+> The screen asks before doing it — the only confirm on that surface,
+> because it is the only irreversible act there — and the copy says
+> what survives, not just what goes.
+
 **Schema amendment (ADR-0002):** `revised_from_goal_id` generalizes to
 `linked_from_goal_id` + `link_kind` (`revision | follow_up`), covering
 both revision chains and post-completion follow-ups.

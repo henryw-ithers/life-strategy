@@ -629,7 +629,6 @@ export default function PlanScreen() {
             {
               id: editing.task.id,
               title: editing.task.title,
-              description: editing.task.description,
               timesPerWeek: editing.task.timesPerWeek,
               unitIds: editing.task.unitIds,
               plannedWeekdays: editing.task.plannedWeekdays,
@@ -643,8 +642,11 @@ export default function PlanScreen() {
           onClose={() => setEditing(null)}
           onSave={async (next) => {
             const t = editing.task;
-            if (next.title !== t.title || next.description !== t.description) {
-              await setTaskDetails(t.id, next.title, next.description);
+            // The description field is gone from the sheet (2026-08-18)
+            // but the column stays, so this preserves whatever was
+            // already written rather than clearing it on the next save.
+            if (next.title !== t.title) {
+              await setTaskDetails(t.id, next.title, t.description);
             }
             if (next.timesPerWeek !== t.timesPerWeek) {
               await setTaskFrequency(t.id, next.timesPerWeek);
