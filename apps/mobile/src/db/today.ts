@@ -8,10 +8,8 @@ import {
   addDays,
   computeDayScore,
   computeStreak,
-  dayShare,
   deriveChecklist,
   editWindowStart,
-  extraRunPoints,
   FORMULA_VERSION,
   fortnightStart,
   isEditable,
@@ -20,6 +18,7 @@ import {
   monthStart,
   nextMonthStart,
   storedDayScore,
+  VARIABLE_BAND,
   weekStart,
   type ActivityCredit,
   type DayScore,
@@ -30,6 +29,7 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { autocountForTask, removeAutocountForTask } from "./goals";
+import { latestWeights as latestIncludedWeights } from "./tasks";
 import {
   activity,
   activityTag,
@@ -129,48 +129,34 @@ const SIZE_RATE: Record<ActivitySize, number> = {
 };
 
 /**
- * Each scored unit's own contribution to a day's denominator — the sum
- * of `dayShare` over its tasks (ADR-0023 §5).
+ * A unit's notional day-rate for a logged activity (ADR-0027 §3):
+ * `VARIABLE_BAND`'s own 20% of the unit's weight, the same proportion
+ * the routine band takes at 80%. A "big" activity (rate 1) is worth as
+ * much as a hypothetical lone weekly task in that unit would be; a
+ * "quick" one a quarter of that.
  *
- * This, not the unit's portfolio weight, is what activity credit is
- * denominated in. Weights sum to `DAILY_BUDGET` across the whole plan,
- * while the day's denominator spreads each task's weekly commitment
- * over seven days; crediting a full weight against that denominator
- * paid one logged activity more than a unit's entire day of planned
- * work. Same scale on both sides now.
- *
- * A task counts toward its home unit only, matching
- * `standardDayPossible` — a multi-unit task (ADR-0019) must not enter
- * the denominator twice.
- *
- * A unit with no tasks maps to nothing and credits zero: ADR-0003 §5
- * already reallocated its weight to units that do have tasks, so it
- * holds no share of the day to earn against.
+ * Under formula v6 this summed `dayShare` over a unit's actual tasks,
+ * so an activity in a unit with no weekly commitment credited nothing.
+ * The two bands no longer amortize against task frequency, so this
+ * needs only a unit's weight — not its tasks — and an excluded unit
+ * (weight 0) still credits nothing, unchanged.
  */
-async function unitDailyShares(): Promise<Map<string, number>> {
+async function unitVariableShares(): Promise<Map<string, number>> {
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
-  const scored = new Set(units.filter((u) => u.includeInScoring).map((u) => u.id));
-  const tasks = await db.select().from(task).where(eq(task.active, true));
+  const weights = await latestWeights();
   const shares = new Map<string, number>();
-  for (const t of tasks) {
-    if (!scored.has(t.unitId)) continue;
-    shares.set(
-      t.unitId,
-      (shares.get(t.unitId) ?? 0) + dayShare(t.pointValue, t.timesPerWeek),
-    );
+  for (const u of units) {
+    if (!u.includeInScoring) continue;
+    shares.set(u.id, (VARIABLE_BAND / 100) * (weights.get(u.id) ?? 0));
   }
   return shares;
 }
 
+/** Renormalized over units still in scoring — see `db/tasks.ts`. Both
+ *  surfaces have to agree on what a unit's weight is, so there is one
+ *  implementation and this is a re-export of it. */
 async function latestWeights(): Promise<Map<string, number>> {
-  const [latest] = await db.query.snapshot.findMany({
-    orderBy: (s, { desc }) => desc(s.takenAt),
-    limit: 1,
-  });
-  const rows = latest
-    ? await db.select().from(unitWeight).where(eq(unitWeight.snapshotId, latest.id))
-    : [];
-  return new Map(rows.map((w) => [w.unitId, Math.round(w.override ?? w.derived)]));
+  return latestIncludedWeights(db);
 }
 
 /**
@@ -401,27 +387,6 @@ export async function loadDay(
     )
     .reduce((sum, c) => sum + c.pointsEarned, 0);
 
-  /**
-   * Communal units and whether today touched them (ADR-0025 §3).
-   *
-   * Tagged from either route — a task completion or an activity — and
-   * collapsed to a boolean here, because one tag earns the whole share
-   * and there is deliberately no count to inflate.
-   *
-   * Declared *after* `tagRows`, not beside the other unit lists: it
-   * reads that array inside a `.map` callback, which TypeScript will
-   * not order-check but which runs immediately.
-   */
-  const communalScoring = units
-    .filter((u) => u.motivationKind === "communal" && u.includeInScoring)
-    .map((u) => ({
-      unitId: u.id,
-      share: weights.get(u.id) ?? 0,
-      tagged:
-        tagRowsForDay.some((r) => r.unitId === u.id) ||
-        tagRows.some((t) => t.unitId === u.id),
-    }));
-
   // A settled day reads its grade back; only a live one is computed.
   // Grades finalize (ADR-0002), so a past day's number must not move
   // when a diagnostic changes the weights under it — and must not be
@@ -444,7 +409,6 @@ export async function loadDay(
           })),
           extraRunCredit,
           activities: activityCredits,
-          communalUnits: communalScoring,
         });
 
   return {
@@ -683,7 +647,7 @@ export async function logActivity(
 
   const tags = unitIds.slice(0, 3);
   if (tags.length > 0) {
-    const shares = await unitDailyShares();
+    const shares = await unitVariableShares();
     const rate = size ? SIZE_RATE[size] : 0;
     for (const unitId of tags) {
       await db.insert(activityTag).values({
@@ -723,7 +687,7 @@ export async function updateActivity(
 
   const tags = unitIds.slice(0, 3);
   if (tags.length > 0) {
-    const shares = await unitDailyShares();
+    const shares = await unitVariableShares();
     const rate = size ? SIZE_RATE[size] : 0;
     for (const unitId of tags) {
       await db.insert(activityTag).values({
@@ -839,18 +803,6 @@ export interface PlanSnapshotTask {
   timesPerWeek: number;
 }
 
-function readPlanSnapshot(json: string | null): PlanSnapshotTask[] | null {
-  if (!json) return null;
-  try {
-    const parsed: unknown = JSON.parse(json);
-    return Array.isArray(parsed) ? (parsed as PlanSnapshotTask[]) : null;
-  } catch {
-    // A snapshot that won't parse is worth ignoring, not crashing over:
-    // the day still has its stored grade, which is what surfaces read.
-    return null;
-  }
-}
-
 async function cacheDayScore(date: string): Promise<void> {
   // `recompute`: this only ever runs straight after the user changed
   // something about this day, and that edit must land even on a day
@@ -878,187 +830,6 @@ async function cacheDayScore(date: string): Promise<void> {
   } else {
     await db.insert(dayGrade).values({ localDate: date, kind: "normal", ...values });
   }
-}
-
-/**
- * Re-score one settled day against the plan it actually had.
- *
- * This is the operation `plan_snapshot` exists for. Everything the
- * formula needs is reconstructed from stored history rather than from
- * the current plan: the task set and its point values come from the
- * snapshot, completions from `task_completion`, and activity credit is
- * re-derived from each activity's `size` against that day's own unit
- * shares — not the credit denormalized at log time, which was computed
- * under whatever rule was in force then.
- *
- * Returns false when the day has no snapshot (written before the
- * column existed, or never touched). Those days keep their stored
- * grade; inventing inputs for them would be worse than leaving an
- * honest gap.
- */
-async function rederiveDay(row: typeof dayGrade.$inferSelect): Promise<boolean> {
-  const plan = readPlanSnapshot(row.planSnapshot);
-  if (plan === null) return false;
-  const date = row.localDate;
-
-  const windowStart = fortnightStart(date);
-  const completions = await db
-    .select()
-    .from(taskCompletion)
-    .where(
-      and(
-        gte(taskCompletion.localDate, windowStart),
-        lte(taskCompletion.localDate, date),
-      ),
-    );
-
-  const statuses = deriveChecklist(
-    plan.map((t) => ({
-      taskId: t.taskId,
-      unitId: t.unitId,
-      pointValue: t.pointValue,
-      timesPerWeek: t.timesPerWeek,
-    })),
-    completions.map((c) => ({ taskId: c.taskId, localDate: c.localDate })),
-    date,
-  );
-  const statusById = new Map(statuses.map((s) => [s.taskId, s]));
-
-  // The day's unit shares, from the day's own plan — this is what
-  // activity credit is denominated in (ADR-0023 §5).
-  const shares = new Map<string, number>();
-  for (const t of plan) {
-    shares.set(
-      t.unitId,
-      (shares.get(t.unitId) ?? 0) + dayShare(t.pointValue, t.timesPerWeek),
-    );
-  }
-
-  const dayActivities = await db
-    .select()
-    .from(activity)
-    .where(eq(activity.localDate, date))
-    .orderBy(asc(activity.createdAt));
-  const tagRows = dayActivities.length
-    ? await db
-        .select()
-        .from(activityTag)
-        .where(inArray(activityTag.activityId, dayActivities.map((a) => a.id)))
-    : [];
-  const activities: ActivityCredit[] = dayActivities.map((a) => {
-    const rate = a.size ? SIZE_RATE[a.size] : 0;
-    return tagRows
-      .filter((t) => t.activityId === a.id)
-      .map((t) => ({
-        unitId: t.unitId,
-        pointsCredited: Math.round(rate * (shares.get(t.unitId) ?? 0)),
-      }))
-      .filter((t) => t.pointsCredited > 0);
-  });
-
-  const extraRunCredit = plan.reduce((sum, t) => {
-    const s = statusById.get(t.taskId);
-    return s?.completedToday && s.extraToday
-      ? sum + extraRunPoints(t.pointValue)
-      : sum;
-  }, 0);
-
-  /**
-   * Communal units, reconstructed the same way (ADR-0025 §3).
-   *
-   * The tags themselves are real history — `task_completion_tag` and
-   * `activity_tag` rows written on the day. Their *share* is not in
-   * `plan_snapshot`, which only ever carried tasks, so it comes from
-   * the current weights. That is exactly what this operation already
-   * promises: "re-scores every past day under the current scoring,
-   * using the plan each day actually had."
-   *
-   * Omitting them would be worse than the approximation: a recomputed
-   * day would drop the communal share from its denominator while a
-   * live day keeps it, so recomputing would silently inflate history.
-   */
-  const communalWeights = await latestWeights();
-  const communalUnitRows = await db
-    .select()
-    .from(lifeUnit)
-    .where(and(eq(lifeUnit.motivationKind, "communal"), isNull(lifeUnit.archivedAt)));
-  const completionTagRows = completions.length
-    ? await db
-        .select()
-        .from(taskCompletionTag)
-        .where(
-          inArray(
-            taskCompletionTag.completionId,
-            completions.filter((c) => c.localDate === date).map((c) => c.id),
-          ),
-        )
-    : [];
-  const communalUnits = communalUnitRows
-    .filter((u) => u.includeInScoring)
-    .map((u) => ({
-      unitId: u.id,
-      share: communalWeights.get(u.id) ?? 0,
-      tagged:
-        completionTagRows.some((r) => r.unitId === u.id) ||
-        tagRows.some((t) => t.unitId === u.id),
-    }));
-
-  const score = computeDayScore({
-    kind: row.kind,
-    satisfactionRating: row.satisfactionRating,
-    communalUnits,
-    tasks: plan.map((t) => {
-      const s = statusById.get(t.taskId);
-      return {
-        unitId: t.unitId,
-        pointValue: t.pointValue,
-        timesPerWeek: t.timesPerWeek,
-        completedToday: s?.completedToday ?? false,
-        extraToday: s?.extraToday ?? false,
-      };
-    }),
-    extraRunCredit,
-    activities,
-  });
-
-  await db
-    .update(dayGrade)
-    .set({
-      pointsEarned: Math.round(score.earned),
-      pointsPossible: Math.round(score.possible),
-      formulaVersion: FORMULA_VERSION,
-    })
-    .where(eq(dayGrade.localDate, date));
-  return true;
-}
-
-export interface RecomputeResult {
-  /** Days re-scored against their own stored plan. */
-  rederived: number;
-  /** Days left alone: no plan snapshot to re-derive from. */
-  skipped: number;
-}
-
-/**
- * Re-score **every** stored day under the current formula.
- *
- * Deliberately explicit and deliberately rare. Nothing calls this on
- * its own: a formula change must not silently restate history, which
- * is the failure `recacheAllDayScores` used to cause and
- * `finalized_at` now guards against. This is the sanctioned way to
- * opt in, and it is honest about what it cannot do — days with no
- * `plan_snapshot` are counted and skipped rather than approximated
- * against today's plan.
- */
-export async function recomputeAllGrades(): Promise<RecomputeResult> {
-  const rows = await db.select().from(dayGrade);
-  let rederived = 0;
-  let skipped = 0;
-  for (const row of rows) {
-    if (await rederiveDay(row)) rederived += 1;
-    else skipped += 1;
-  }
-  return { rederived, skipped };
 }
 
 /**

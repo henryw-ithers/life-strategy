@@ -81,280 +81,125 @@ describe("deriveChecklist", () => {
   });
 });
 
-describe("computeDayScore (unified denominator, ADR-0004 §4 amendment)", () => {
-  // Shares: daily 4×7/7 = 4; run 7×3/7 = 3; clean 14×0 → 14/14 = 1.
-  // Denominator = 8, constant every day.
+describe("computeDayScore (two bands, ADR-0027 §1, formula v7)", () => {
+  // A plan sized like a real one: point values are what
+  // `bandPointValues` would have produced, so these are the numbers the
+  // app actually stores. Routine tasks come out of 80% of their unit's
+  // weight; the two non-daily tasks share the 20-point variable band.
   const tasks = [
-    { unitId: "growth", pointValue: 4, timesPerWeek: 7, completedToday: false },
-    { unitId: "exercise", pointValue: 7, timesPerWeek: 3, completedToday: false },
-    { unitId: "home", pointValue: 14, timesPerWeek: 0, completedToday: false },
+    { unitId: "growth", pointValue: 32, timesPerWeek: 7, completedToday: false },
+    { unitId: "health", pointValue: 24, timesPerWeek: 7, completedToday: false },
+    { unitId: "home", pointValue: 13, timesPerWeek: 3, completedToday: false },
+    { unitId: "friends", pointValue: 7, timesPerWeek: 0, completedToday: false },
   ];
   const withDone = (done: string[]) =>
     tasks.map((t) => ({ ...t, completedToday: done.includes(t.unitId) }));
 
-  it("the denominator is the weekly commitment spread over the week", () => {
+  it("grades against a constant 100, not against the plan's own size", () => {
+    // The whole diagnostic budget, including weight nothing can earn —
+    // ADR-0027 §2. A plan is scored against your life, not against
+    // itself.
     const s = computeDayScore({ kind: "normal", tasks });
-    expect(s.possible).toBe(8);
+    expect(s.possible).toBe(100);
     expect(s.earned).toBe(0);
     expect(s.base).toBe(0);
   });
 
-  it("every completion earns its full value — weekly runs move today", () => {
-    const s = computeDayScore({ kind: "normal", tasks: withDone(["exercise"]) });
-    expect(s.earned).toBe(7);
-    expect(s.base).toBe(Math.round((7 / 8) * 100)); // 88
+  it("pays a daily task its stored value", () => {
+    const s = computeDayScore({ kind: "normal", tasks: withDone(["growth"]) });
+    expect(s.earned).toBe(32);
+    expect(s.base).toBe(32);
   });
 
-  it("a heavy day can exceed 100, honestly", () => {
+  it("cannot exceed 100 from the two bands however much is done", () => {
+    // The 112 this formula was written to kill. Every task in the plan
+    // completed, and the number is still a number a day can hold.
     const s = computeDayScore({
       kind: "normal",
-      tasks: withDone(["growth", "exercise", "home"]),
+      tasks: withDone(["growth", "health", "home", "friends"]),
     });
-    expect(s.earned).toBe(25);
-    expect(s.base).toBe(Math.round((25 / 8) * 100)); // 313 on this tiny portfolio
+    expect(s.earned).toBe(76);
+    expect(s.base).toBeLessThanOrEqual(100);
+  });
+
+  it("caps the variable band at 20 however many weekly tasks land at once", () => {
+    const heavy = [
+      { unitId: "a", pointValue: 9, timesPerWeek: 1, completedToday: true },
+      { unitId: "b", pointValue: 8, timesPerWeek: 2, completedToday: true },
+      { unitId: "c", pointValue: 7, timesPerWeek: 0, completedToday: true },
+    ];
+    expect(computeDayScore({ kind: "normal", tasks: heavy }).earned).toBe(20);
+  });
+
+  it("gives planned work first claim on the band, and the rest to activities", () => {
+    // ADR-0023's ordering inside one pool: 13 of the band is spoken
+    // for, so 7 is all an activity can reach however much it logged.
+    const s = computeDayScore({
+      kind: "normal",
+      tasks: withDone(["home"]),
+      activities: [[{ unitId: "growth", pointsCredited: 15 }]],
+    });
+    expect(s.earned).toBe(20);
+    expect(s.unplanned).toBe(7);
+    expect(s.unplannedForgone).toBe(8);
+  });
+
+  it("lets an activity have the whole band on a day with no planned work left", () => {
+    const s = computeDayScore({
+      kind: "normal",
+      tasks,
+      activities: [[{ unitId: "growth", pointsCredited: 25 }]],
+    });
+    expect(s.unplanned).toBe(20);
+    expect(s.unplannedForgone).toBe(5);
+  });
+
+  it("keeps extra runs outside both bands — the plan done harder is uncapped", () => {
+    // ADR-0023 §2, unchanged by this ADR: doing more of your own plan
+    // is the one route above 100.
+    const s = computeDayScore({
+      kind: "normal",
+      tasks: withDone(["growth", "health"]),
+      extraRunCredit: 30,
+      activities: [[{ unitId: "growth", pointsCredited: 25 }]],
+    });
+    expect(s.earned).toBe(56 + 30 + 20);
     expect(s.base).toBeGreaterThan(100);
   });
 
-  it("extra runs add their reduced credit directly to the score", () => {
+  it("grades a special day on its tasks plus a rating drawn from the band", () => {
     const s = computeDayScore({
-      kind: "normal",
-      tasks: [
-        ...tasks,
-        {
-          unitId: "exercise",
-          pointValue: 6,
-          timesPerWeek: 2,
-          completedToday: true,
-          extraToday: true,
-        },
-      ],
-      extraRunCredit: 3,
-    });
-    expect(s.earned).toBe(3); // nothing else done; the extra run's credit
-  });
-
-  it("activity credit adds directly to the score — no cap, no separate pool", () => {
-    const s = computeDayScore({
-      kind: "normal",
-      tasks: withDone(["exercise"]),
-      activities: [
-        [{ unitId: "growth", pointsCredited: 5 }],
-        [{ unitId: "friendship", pointsCredited: 12 }],
-      ],
-    });
-    expect(s.earned).toBe(7 + 5 + 12);
-    expect(s.base).toBe(Math.round((24 / 8) * 100));
-  });
-
-  it("rest days grade nothing", () => {
-    const s = computeDayScore({
-      kind: "rest",
+      kind: "special",
+      satisfactionRating: 8,
       tasks: withDone(["growth"]),
-      activities: [[{ unitId: "exercise", pointsCredited: 12 }]],
     });
-    expect(s.base).toBeNull();
-    expect(s.earned).toBe(0);
+    // 32 from the plan + round(8/10 × 20) = 16 from the rating.
+    expect(s.earned).toBe(48);
+    expect(s.unplanned).toBe(16);
   });
 
-  // ── ADR-0023: planned work is what pays ──
-
-  it("special days grade on their tasks, plus a rating bonus", () => {
-    // One daily task worth 10: denominator 10, done = 10 earned.
-    const tasks = [
-      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
-    ];
-    const s = computeDayScore({ kind: "special", satisfactionRating: 8, tasks });
-    // 10 from the plan + round(8/10 × 25) = 20 from the rating.
-    expect(s.unplanned).toBe(20);
-    expect(s.earned).toBe(30);
-    expect(s.base).toBe(300);
-  });
-
-  it("a special day with nothing done earns only its rating bonus", () => {
-    // The vacation case ADR-0023 exists to fix: a 10-rated day with the
-    // checklist untouched used to score 100. It now scores the cap.
-    const tasks = [
-      { unitId: "growth", pointValue: 100, timesPerWeek: 7, completedToday: false },
-    ];
+  it("earns a special day nothing but its rating when nothing was done", () => {
     const s = computeDayScore({ kind: "special", satisfactionRating: 10, tasks });
-    expect(s.unplanned).toBe(UNPLANNED_CAP);
-    expect(s.earned).toBe(UNPLANNED_CAP);
-    expect(s.base).toBe(25);
+    expect(s.earned).toBe(20);
+    expect(s.base).toBe(20);
   });
 
-  it("an unrated special day draws nothing from the pool", () => {
-    const tasks = [
-      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
-    ];
-    const s = computeDayScore({ kind: "special", satisfactionRating: null, tasks });
-    expect(s.unplanned).toBe(0);
-    expect(s.earned).toBe(10);
-  });
-
-  it("unplanned credit never exceeds the cap, and reports what it dropped", () => {
-    const tasks = [
-      { unitId: "growth", pointValue: 20, timesPerWeek: 7, completedToday: false },
-    ];
-    const s = computeDayScore({
-      kind: "special",
-      satisfactionRating: 10, // 25 on its own
-      tasks,
-      activities: [[{ unitId: "growth", pointsCredited: 18 }]],
-    });
-    expect(s.unplanned).toBe(UNPLANNED_CAP);
-    expect(s.unplannedForgone).toBe(18); // 43 raw − 25 paid
-    expect(s.earned).toBe(UNPLANNED_CAP);
-  });
-
-  it("activities alone are capped on a normal day", () => {
-    const tasks = [
-      { unitId: "growth", pointValue: 40, timesPerWeek: 7, completedToday: false },
-    ];
-    const s = computeDayScore({
-      kind: "normal",
-      tasks,
-      activities: [
-        [{ unitId: "growth", pointsCredited: 20 }],
-        [{ unitId: "growth", pointsCredited: 20 }],
-      ],
-    });
-    expect(s.unplanned).toBe(UNPLANNED_CAP);
-    expect(s.earned).toBe(UNPLANNED_CAP);
-  });
-
-  it("extra runs sit outside the cap — the plan done harder is uncapped", () => {
-    const tasks = [
-      { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
-    ];
-    const s = computeDayScore({
-      kind: "normal",
-      tasks,
-      extraRunCredit: 40,
-      activities: [[{ unitId: "growth", pointsCredited: 60 }]],
-    });
-    // 10 planned + 40 extra runs (uncapped) + 25 capped unplanned.
-    expect(s.unplanned).toBe(UNPLANNED_CAP);
-    expect(s.earned).toBe(75);
-  });
-
-  it("a day off earns nothing and stays out of the pool", () => {
-    const s = computeDayScore({
-      kind: "rest",
-      satisfactionRating: 10,
-      tasks: [
-        { unitId: "growth", pointValue: 10, timesPerWeek: 7, completedToday: true },
-      ],
-      activities: [[{ unitId: "growth", pointsCredited: 20 }]],
-    });
-    expect(s).toEqual({
-      possible: 0,
-      earned: 0,
-      base: null,
-      unplanned: 0,
-      unplannedForgone: 0,
-    });
-  });
-
-  it("a finalized day reads its stored grade back, not a recomputation", () => {
-    // The v4-era special day this exists to protect: 80 earned out of a
-    // 100 denominator. Under v5 the same inputs would score far lower,
-    // and re-deriving it weeks later would restate the tester's past.
-    const s = storedDayScore({ earned: 80, possible: 100 });
-    expect(s.base).toBe(80);
-    expect(s.earned).toBe(80);
-    expect(s.possible).toBe(100);
-  });
-
-  it("a stored day off stays ungraded", () => {
-    expect(storedDayScore({ earned: 0, possible: 0 }).base).toBeNull();
-  });
-
-  it("a stored day above its denominator keeps its number", () => {
-    // Extra runs are uncapped (ADR-0023 §2), so >100 is legitimate and
-    // must survive the round trip rather than being clamped.
-    expect(storedDayScore({ earned: 75, possible: 50 }).base).toBe(150);
-  });
-
-  /* The calendar-vs-header bug: `day_grade` stores earned and possible
-   * as integers, so anything deriving `base` from the raw floats
-   * disagrees with anything deriving it from the stored row. Pinned on
-   * a deliberately fractional portfolio — sevenths never divide
-   * evenly — because the two surfaces only drifted on the days where
-   * rounding actually bit. */
-  it("a day's grade survives the round trip through storage", () => {
-    const tasks = [
-      { unitId: "a", pointValue: 13, timesPerWeek: 3, completedToday: true },
-      { unitId: "b", pointValue: 11, timesPerWeek: 2, completedToday: false },
-      { unitId: "c", pointValue: 7, timesPerWeek: 5, completedToday: true },
-      { unitId: "d", pointValue: 4, timesPerWeek: 0, completedToday: false },
-    ];
-    const live = computeDayScore({ kind: "normal", tasks });
-    // What `cacheDayScore` writes, read back the way the calendar reads.
-    const stored = storedDayScore({
-      earned: Math.round(live.earned),
-      possible: Math.round(live.possible),
-    });
-    expect(stored.base).toBe(live.base);
-    // And the stored pair is already integral, so caching is lossless.
-    expect(Number.isInteger(live.earned)).toBe(true);
-    expect(Number.isInteger(live.possible)).toBe(true);
-  });
-
-  it("a special day round-trips too, at its real score not rating × 10", () => {
-    const tasks = [
-      { unitId: "a", pointValue: 13, timesPerWeek: 3, completedToday: true },
-      { unitId: "b", pointValue: 9, timesPerWeek: 4, completedToday: false },
-    ];
-    const live = computeDayScore({
-      kind: "special",
-      satisfactionRating: 9,
-      tasks,
-    });
-    const stored = storedDayScore({
-      earned: live.earned,
-      possible: live.possible,
-    });
-    expect(stored.base).toBe(live.base);
-    // The retired model would have read 90 here regardless of the plan.
-    expect(live.base).not.toBe(90);
-  });
-
-  it("specialDayBonus scales the rating across the cap", () => {
-    expect(specialDayBonus(10)).toBe(UNPLANNED_CAP);
-    expect(specialDayBonus(6)).toBe(15);
-    expect(specialDayBonus(1)).toBe(3);
+  it("scales specialDayBonus across the variable band", () => {
+    expect(specialDayBonus(10)).toBe(20);
+    expect(specialDayBonus(5)).toBe(10);
     expect(specialDayBonus(null)).toBe(0);
-    expect(specialDayBonus(undefined)).toBe(0);
   });
 
-  it("a day with no tasks has no base grade", () => {
-    const s = computeDayScore({ kind: "normal", tasks: [] });
-    expect(s.base).toBeNull();
+  it("grades a day off as nothing to grade, not as zero", () => {
+    const s = computeDayScore({ kind: "rest", tasks: withDone(["growth"]) });
     expect(s.possible).toBe(0);
+    expect(s.base).toBeNull();
   });
 
-  it("weekly grade is the average of daily grades: a perfect week averages 100", () => {
-    // 7 days: daily task done every day (4/day); the 3×/week run done
-    // Mon/Wed/Fri (7 each); fortnight task done once (14, its full
-    // fortnight budget — counted here across one week for simplicity
-    // of the identity check on a fortnight-aligned portfolio).
-    const week = Array.from({ length: 7 }, (_, i) =>
-      computeDayScore({
-        kind: "normal",
-        tasks: [
-          { unitId: "growth", pointValue: 4, timesPerWeek: 7, completedToday: true },
-          {
-            unitId: "exercise",
-            pointValue: 7,
-            timesPerWeek: 3,
-            completedToday: i === 0 || i === 2 || i === 4,
-          },
-        ],
-      }),
-    );
-    const avg = week.reduce((a, s) => a + (s.base ?? 0), 0) / 7;
-    // Shares: 4 + 3 = 7/day; earned across week = 4×7 + 7×3 = 49 = 7×7.
-    expect(Math.round(avg)).toBe(100);
+  it("has nothing to grade when the plan is empty", () => {
+    const s = computeDayScore({ kind: "normal", tasks: [] });
+    expect(s.possible).toBe(0);
+    expect(s.base).toBeNull();
   });
 });
 

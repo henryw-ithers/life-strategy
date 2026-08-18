@@ -1,4 +1,7 @@
+import { VARIABLE_BAND } from "./bands";
+
 /**
+
  * Named tunables. GAP_COEFFICIENT and EXTRA_RUN_RATE are the levers
  * contentment calibration (ADR-0008) may propose changing; any change
  * to the derivation math bumps FORMULA_VERSION (ADR-0002/0003).
@@ -23,7 +26,7 @@ export const EXTRA_RUN_RATE = 0.5;
  * untouched. Named, because ADR-0008's calibration may argue for
  * moving it.
  */
-export const UNPLANNED_CAP = 25;
+export const UNPLANNED_CAP = VARIABLE_BAND;
 
 /**
  * `MISSED_DAY_CREDIT` **retired 2026-08-13.** An elapsed day with no
@@ -80,5 +83,5 @@ export const UNPLANNED_CAP = 25;
  *  daily-denominator retune* was never decided — docs/backburner.md
  *  lists four directions and none was chosen — so there was nothing to
  *  build. Both are open questions, not omissions. */
-export const FORMULA_VERSION = 6;
+export const FORMULA_VERSION = 7;
 export const DAILY_BUDGET = 100;

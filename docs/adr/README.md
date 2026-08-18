@@ -26,11 +26,18 @@ status to *Accepted*.
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
 | [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
-| [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Accepted |
+| [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Proposed |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
 carries the accumulated schema amendments from 0003–0009.
+
+**0027 is the scoring rewrite** (formula v7). It withdraws ADR-0003
+§5's uncovered-weight reallocation and amends ADR-0025 §§1–5, so read
+it before touching anything that prices a task or grades a day. It
+takes 0026's number out of order because the 112-point day would not
+wait for the load meter.
 
 ## Work not tracked by any action item
 

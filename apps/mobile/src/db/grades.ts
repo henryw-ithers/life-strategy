@@ -15,7 +15,7 @@
 import {
   addDays,
   aggregateGrade,
-  dayShare,
+  DAILY_BUDGET,
   localDateOf,
   monthStart,
   nextMonthStart,
@@ -30,10 +30,11 @@ import { dayGrade, lifeUnit, task } from "./schema";
 import { currentLocalDate } from "./today";
 
 /**
- * The denominator every normal day shares (ADR-0004 §4, formula v2):
- * each active task's weekly commitment spread across the week. Rounded
- * to match how `cacheDayScore` stores it, so a filled day and a stored
- * day weigh the same.
+ * The denominator every normal day shares (ADR-0027 §1, formula v7): a
+ * constant 100 the moment there is anything to grade, 0 when the plan
+ * is empty. `computeDayScore` decides the same way for a live day —
+ * this is the aggregate's copy of that rule, for elapsed days that only
+ * ever needed the number, not the day's own completions.
  */
 async function standardDayPossible(): Promise<number> {
   const units = await db
@@ -46,9 +47,7 @@ async function standardDayPossible(): Promise<number> {
   const tasks = (
     await db.select().from(task).where(eq(task.active, true))
   ).filter((t) => scored.has(t.unitId));
-  return Math.round(
-    tasks.reduce((sum, t) => sum + dayShare(t.pointValue, t.timesPerWeek), 0),
-  );
+  return tasks.length > 0 ? DAILY_BUDGET : 0;
 }
 
 /** The local date of the first diagnostic — nothing before it was ever

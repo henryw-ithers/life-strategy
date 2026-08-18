@@ -7,7 +7,13 @@
  * `task.point_value` is kept as the sum of those rows so the scoring
  * engine and `task_completion` keep taking one number per task.
  */
-import { spendableWeights, taskPointValues } from "@glide/scoring";
+import {
+  bandPointValues,
+  DAILY_BUDGET,
+  largestRemainder,
+  type BandTask,
+  type BandUnit,
+} from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
@@ -42,43 +48,28 @@ export interface PlanTask {
   otherUnitNames: string[];
 }
 
-/**
- * Coverage, as ADR-0003 §5 means it — does this unit have somewhere to
- * spend its weight? — amended by ADR-0025 §3 (formula v6).
- *
- * A **communal** unit holds no tasks and never will, but it is not
- * uncovered: tagging is always available, so its weight is genuinely
- * earnable and must not be shared out to units that happen to hold
- * tasks. Reading it as uncovered is what made the three Relationships
- * units silently donate their weight to chores.
- */
-function isCovered(
-  unit: { id: string; motivationKind: string },
-  withTasks: ReadonlySet<string>,
-): boolean {
-  return unit.motivationKind === "communal" || withTasks.has(unit.id);
-}
-
 export interface PlanUnit {
   id: string;
   name: string;
   areaId: string;
   includeInScoring: boolean;
   /**
-   * ADR-0025 §1. A `communal` unit is a **dimension, not a
-   * container**: it holds no tasks and cannot be a task's home unit.
-   * Anything may tag it instead, per completion.
+   * ADR-0025 §1, narrowed by ADR-0027 §4. A `communal` unit is still
+   * editorial context — the Relationships units warrant a note that
+   * planning them like a chore list has a cost — but it no longer
+   * changes how anything is scored or whether it can hold a task.
    */
   motivationKind: "instrumental" | "communal";
-  /** Effective weight from the latest snapshot; null when excluded. */
-  weight: number | null;
   /**
-   * What the unit actually has in play — its share of the 100 once the
-   * weight of task-less units has been shared out (ADR-0003 §5
-   * amendment). 0 for a unit with no tasks: `weight` is what it would
-   * bring, `spendable` is what it currently spends.
+   * Effective weight from the latest snapshot; null when excluded.
+   *
+   * **Not scaled by coverage** (ADR-0027 §2 withdraws ADR-0003 §5's
+   * reallocation). A unit with no daily task keeps this number and
+   * simply cannot earn it — nobody else receives it either — so it is
+   * the same figure whether the unit holds ten tasks or none, and the
+   * area and Tasks-screen totals sum to 100 again.
    */
-  spendable: number;
+  weight: number | null;
   tasks: PlanTask[];
 }
 
@@ -95,7 +86,23 @@ export interface PlanData {
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function latestWeights(
+/**
+ * The latest snapshot's weights, **renormalized over the units that are
+ * currently in scoring** (ADR-0027 §2).
+ *
+ * Exclusion is a property of the unit, not of a snapshot, so this is
+ * where it takes effect: the stored rows are never edited and the
+ * portfolio history stays a record of what was diagnosed, while today's
+ * plan reads the same weights spread across whatever is still included.
+ * Without this step, excluding a 12-point unit would leave the plan
+ * totalling 88 rather than handing those points to the rest — and §2
+ * only works because "this doesn't apply to me" genuinely removes a
+ * unit from the 100.
+ *
+ * Integer weights summing to exactly 100, via the same largest-remainder
+ * rounding the derivation uses (ADR-0003 §3).
+ */
+export async function latestWeights(
   dbOrTx: Tx | typeof db,
 ): Promise<Map<string, number>> {
   const [latest] = await dbOrTx
@@ -108,9 +115,24 @@ async function latestWeights(
     .select()
     .from(unitWeight)
     .where(eq(unitWeight.snapshotId, latest.id));
-  return new Map(
-    rows.map((w) => [w.unitId, Math.round(w.override ?? w.derived)]),
+  const included = new Set(
+    (
+      await dbOrTx
+        .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
+        .from(lifeUnit)
+    )
+      .filter((u) => u.includeInScoring)
+      .map((u) => u.id),
   );
+
+  const kept = rows.filter((w) => included.has(w.unitId));
+  const raw = kept.map((w) => w.override ?? w.derived);
+  const total = raw.reduce((a, b) => a + b, 0);
+  if (total <= 0) return new Map();
+
+  const exacts = raw.map((v) => (DAILY_BUDGET * v) / total);
+  const scaled = largestRemainder(exacts, DAILY_BUDGET);
+  return new Map(kept.map((w, i) => [w.unitId, scaled[i] ?? 0]));
 }
 
 export async function loadPlan(): Promise<PlanData> {
@@ -144,17 +166,6 @@ export async function loadPlan(): Promise<PlanData> {
     byTask.set(m.taskId, [...(byTask.get(m.taskId) ?? []), m]);
   }
 
-  // Only active tasks reach `memberships`, so this is coverage as the
-  // scoring engine sees it.
-  const covered = new Set(memberships.map((m) => m.unitId));
-  const spendable = spendableWeights(
-    units.map((u) => ({
-      unitId: u.id,
-      weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
-      covered: isCovered(u, covered),
-    })),
-  );
-
   return {
     hasSnapshot: weights.size > 0,
     areas: areas.map((area) => ({
@@ -169,7 +180,6 @@ export async function loadPlan(): Promise<PlanData> {
           includeInScoring: u.includeInScoring,
           motivationKind: u.motivationKind,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
-          spendable: spendable.get(u.id) ?? 0,
           // A task is listed under every unit it serves, ranked by that
           // unit's own membership — not only its home unit.
           tasks: memberships
@@ -202,89 +212,83 @@ export async function loadPlan(): Promise<PlanData> {
 }
 
 /**
- * What each unit has in play: derived weights with the share held by
- * units that have no tasks divided among the ones that do (ADR-0003 §5
- * amendment). A unit with no tasks spent nothing — `dayShare` only
- * counts tasks that exist — so a half-covered portfolio graded against
- * half a plan.
+ * Re-derive every task's point value across the whole plan at once
+ * (ADR-0027 §1). Runs whenever weights move (a new diagnostic, a
+ * manual re-rank) **and whenever any task is added, archived, restored,
+ * re-ranked, or re-homed** — the variable band is one pool shared by
+ * every non-daily task in the portfolio, so adding a weekly task in one
+ * unit can move what a weekly task in another unit is worth.
  *
- * The consequence for this module: a unit's task points can no longer
- * be derived from that unit alone. Whether *any other* unit has a task
- * moves the scale, so every recompute is a whole-portfolio recompute.
- */
-async function spendableWeightMap(tx: Tx): Promise<Map<string, number>> {
-  const weights = await latestWeights(tx);
-  const units = await tx
-    .select({ id: lifeUnit.id, motivationKind: lifeUnit.motivationKind })
-    .from(lifeUnit);
-  const covered = await tx
-    .selectDistinct({ unitId: taskUnit.unitId })
-    .from(taskUnit)
-    .innerJoin(task, eq(task.id, taskUnit.taskId))
-    .where(eq(task.active, true));
-  const coveredIds = new Set(covered.map((c) => c.unitId));
-
-  return spendableWeights(
-    units.map((u) => ({
-      unitId: u.id,
-      // No weight row means the unit is out of scoring (or predates the
-      // latest snapshot); `spendableWeights` leaves those at zero.
-      weight: weights.get(u.id) ?? 0,
-      covered: isCovered(u, coveredIds),
-    })),
-  );
-}
-
-/**
- * Split one unit's spendable weight across its ranked tasks, then
- * refresh the `task.point_value` cache for every task it touched — a
- * shared task's total is the sum of its memberships, so changing one
- * unit's ranking moves its total in the other unit's list too.
+ * Each membership (`task_unit` row) is priced separately and keyed by
+ * `taskId::unitId`, since a task serving two units takes a rank and
+ * earns a share in each (ADR-0019). Ranks are normalized to 1..n first
+ * — closing the gap a delete or a unit change leaves — because
+ * `bandPointValues` reads rank order, not the stored numbers.
  *
- * Private: callers can't be trusted to know whether the portfolio-wide
- * scale still holds, and it usually doesn't. Use `recomputeAllUnitPoints`.
- */
-async function applyUnitPoints(
-  tx: Tx,
-  unitId: string,
-  weight: number,
-): Promise<void> {
-  const rows = await tx
-    .select({ taskId: taskUnit.taskId, rankInUnit: taskUnit.rankInUnit })
-    .from(taskUnit)
-    .innerJoin(task, eq(task.id, taskUnit.taskId))
-    .where(and(eq(taskUnit.unitId, unitId), eq(task.active, true)))
-    .orderBy(asc(taskUnit.rankInUnit));
-  if (rows.length === 0) return;
-
-  const points = taskPointValues(weight, rows.length);
-  for (const [i, r] of rows.entries()) {
-    await tx
-      .update(taskUnit)
-      .set({ pointValue: points[i] ?? 0, rankInUnit: i + 1 })
-      .where(and(eq(taskUnit.taskId, r.taskId), eq(taskUnit.unitId, unitId)));
-  }
-
-  for (const r of rows) await refreshTaskTotal(tx, r.taskId);
-}
-
-/**
- * Re-derive every unit's task points. Runs whenever the weights move (a
- * new diagnostic, a manual re-rank via `applyPriorityOrder`) **and
- * whenever any task is added, archived, restored, re-ranked, or
- * re-homed** — since the amendment above, the first task in a unit and
- * the last one out both rescale the entire plan.
+ * **No reallocation** (ADR-0027 §2): a unit's weight is 0 the moment it
+ * is excluded, never scaled up because some other unit has nothing to
+ * spend its own weight on. A unit with no tasks simply prices nothing.
  *
  * `loadPlan` and `loadDay` both read the stored `task.point_value`, so
  * anything that skips this leaves the checklist scoring against a plan
  * that no longer exists.
  */
 export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
-  const spendable = await spendableWeightMap(tx);
-  const units = await tx.select({ id: lifeUnit.id }).from(lifeUnit);
-  for (const u of units) {
-    await applyUnitPoints(tx, u.id, spendable.get(u.id) ?? 0);
+  const weights = await latestWeights(tx);
+  const units = await tx
+    .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
+    .from(lifeUnit);
+  const memberships = await tx
+    .select({
+      taskId: taskUnit.taskId,
+      unitId: taskUnit.unitId,
+      rankInUnit: taskUnit.rankInUnit,
+    })
+    .from(taskUnit)
+    .innerJoin(task, eq(task.id, taskUnit.taskId))
+    .where(eq(task.active, true))
+    .orderBy(asc(taskUnit.rankInUnit));
+  const timesPerWeekByTask = new Map(
+    (await tx.select({ id: task.id, timesPerWeek: task.timesPerWeek }).from(task)).map(
+      (t) => [t.id, t.timesPerWeek],
+    ),
+  );
+
+  // Normalize each unit's ranks to 1..n before pricing, so a gap left
+  // by an archive or a unit change never reaches `bandPointValues`.
+  const normalizedRank = new Map<string, number>();
+  for (const unitId of new Set(memberships.map((m) => m.unitId))) {
+    memberships
+      .filter((m) => m.unitId === unitId)
+      .sort((a, b) => a.rankInUnit - b.rankInUnit)
+      .forEach((m, i) => normalizedRank.set(`${m.taskId}::${m.unitId}`, i + 1));
   }
+
+  const bandUnits: BandUnit[] = units.map((u) => ({
+    unitId: u.id,
+    weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
+  }));
+  const bandTasks: BandTask[] = memberships.map((m) => ({
+    id: `${m.taskId}::${m.unitId}`,
+    unitId: m.unitId,
+    timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
+    rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
+  }));
+  const points = bandPointValues(bandUnits, bandTasks);
+
+  const touched = new Set<string>();
+  for (const m of memberships) {
+    const key = `${m.taskId}::${m.unitId}`;
+    await tx
+      .update(taskUnit)
+      .set({
+        pointValue: points.get(key) ?? 0,
+        rankInUnit: normalizedRank.get(key) ?? m.rankInUnit,
+      })
+      .where(and(eq(taskUnit.taskId, m.taskId), eq(taskUnit.unitId, m.unitId)));
+    touched.add(m.taskId);
+  }
+  for (const taskId of touched) await refreshTaskTotal(tx, taskId);
 }
 
 /** `task.point_value` = the sum of its memberships. */
@@ -459,11 +463,22 @@ export async function restoreTask(taskId: string): Promise<void> {
   });
 }
 
+/**
+ * Frequency now decides which **band** a task is paid from (ADR-0027
+ * §1), so this rescales the whole plan rather than just writing a
+ * column. Under formula v6 frequency only moved the denominator and
+ * this was a bare update; leaving it that way meant promoting a weekly
+ * task to daily changed nothing about what it was worth, because its
+ * stored `point_value` still came from the variable band.
+ */
 export async function setTaskFrequency(
   taskId: string,
   timesPerWeek: number,
 ): Promise<void> {
-  await db.update(task).set({ timesPerWeek }).where(eq(task.id, taskId));
+  await db.transaction(async (tx) => {
+    await tx.update(task).set({ timesPerWeek }).where(eq(task.id, taskId));
+    await recomputeAllUnitPoints(tx);
+  });
 }
 
 /**
@@ -484,4 +499,42 @@ export async function setTaskPlanning(
     .update(task)
     .set({ plannedWeekdays, partOfDay })
     .where(eq(task.id, taskId));
+}
+
+/**
+ * Put a unit in or out of scoring — the exclusion valve (ADR-0027 §2).
+ *
+ * This is the whole answer to "my ceiling is 64 and I can't reach it".
+ * Since §2 withdrew the reallocation, a unit you hold no tasks in keeps
+ * its weight and nobody earns it, so the app has to let you say *this
+ * one doesn't apply to me* — the difference between "I'm ignoring
+ * Friendship" and "I don't have a partner". Excluding drops the unit
+ * from the 100 and the remaining weights re-derive over what's left;
+ * including it puts the weight back.
+ *
+ * The consequence is recorded rather than hidden: this makes the
+ * ceiling **as hard as the user chooses**, since anyone can exclude
+ * their way back to a reachable 100. Scope is negotiable; the routine
+ * band is not, so no amount of excluding buys a 100 for a plan of two
+ * weekly tasks.
+ *
+ * `include_in_scoring` lives on the unit, not on a snapshot, so this
+ * writes no snapshot and never edits one — the portfolio history stays
+ * a record of what was diagnosed, and the graph keeps plotting an
+ * excluded unit greyed and marked *not scored*.
+ */
+export async function setUnitScoring(
+  unitId: string,
+  includeInScoring: boolean,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(lifeUnit)
+      .set({ includeInScoring })
+      .where(eq(lifeUnit.id, unitId));
+    // A unit joining or leaving the 100 rescales every task in the
+    // plan — the routine band is a share of each unit's weight and the
+    // variable band is one pool across all of them.
+    await recomputeAllUnitPoints(tx);
+  });
 }

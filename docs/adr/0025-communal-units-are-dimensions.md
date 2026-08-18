@@ -61,6 +61,34 @@ it is a property of the studying.
 
 ## Decision
 
+> **Amended 2026-08-18 by
+> [ADR-0027 §4](0027-coverage-decides-the-ceiling.md): §§1–5 below no
+> longer describe how the app scores.** Communal units hold tasks, take
+> rank slots, and are planned like any other unit; `motivation_kind`
+> survives as a column and as editorial context and stops changing any
+> arithmetic. Tagging survives too — it still writes
+> `task_completion_tag`, still feeds effort and the log, still asks
+> *where does this count* rather than *who were you with* (§4's non-goal
+> is untouched) — but it no longer pays points.
+>
+> The reason is not a change of heart about relationships. ADR-0027 §2
+> makes a plan's *coverage* decide its ceiling, and a unit that earns
+> its full share from one press-and-hold is exempt from the only rule
+> that system rests on — three units of eighteen, holding roughly a
+> third of the weight, is not an exception a ceiling can carry.
+>
+> §3's central worry, that someone living alone would be structurally
+> capped every day, is answered instead by ADR-0027's exclusion valve:
+> they mark the unit as not part of their plan and its weight leaves
+> their 100. That is a better answer than this ADR built, because it is
+> the same answer the app gives for every other part of life that does
+> not apply — rather than a scoring path only relationships get.
+>
+> Read §§1–5 as the reasoning that got the app from "relationships are
+> containers of chores" to "relationships are not chores." That
+> conclusion stands. The mechanism it chose did not survive the day the
+> grade had to mean something.
+
 ### 1. Units carry a motivation kind, and it has two values
 
 `life_unit.motivation_kind`: **`instrumental` | `communal`**.

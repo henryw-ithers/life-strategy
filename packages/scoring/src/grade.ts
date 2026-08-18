@@ -1,4 +1,5 @@
-import { EXTRA_RUN_RATE, UNPLANNED_CAP } from "./constants";
+import { isRoutine, VARIABLE_BAND } from "./bands";
+import { DAILY_BUDGET, EXTRA_RUN_RATE } from "./constants";
 import { addDays, fortnightStart, weekStart } from "./days";
 
 /**
@@ -96,22 +97,6 @@ export interface DayTaskInput {
 /** One credited activity's tags, in log order. */
 export type ActivityCredit = { unitId: string; pointsCredited: number }[];
 
-/**
- * A unit that is a **dimension rather than a container** (ADR-0025 §1):
- * it holds no tasks, so anything may tag it instead.
- *
- * It keeps the weight the diagnostic gave it — being task-less does not
- * make it uncovered, because tagging is always available — and a single
- * tag anywhere in the day earns that share in full (§3).
- */
-export interface CommunalUnitInput {
-  unitId: string;
-  /** Its full daily share of the 100. */
-  share: number;
-  /** Tagged today, on a completion or an activity. */
-  tagged: boolean;
-}
-
 export interface DayScoreInput {
   /** `rest` is stored; the UI calls it "Day off" (ADR-0023 §4). */
   kind: "normal" | "rest" | "special";
@@ -125,8 +110,6 @@ export interface DayScoreInput {
   extraRunCredit?: number;
   /** Credited activities, chronological (ADR-0009 §3). */
   activities?: ActivityCredit[];
-  /** Task-less units earned by tagging (ADR-0025 §3). */
-  communalUnits?: CommunalUnitInput[];
 }
 
 /** Points earned out of points possible, plus the rendered grade.
@@ -138,15 +121,16 @@ export interface Grade {
 }
 
 export interface DayScore extends Grade {
-  /** The day's constant denominator: total weekly commitment ÷ 7. */
+  /** Always 100 on a graded day (ADR-0027 §1): the whole of the
+   *  diagnostic's budget, including weight nothing can earn. */
   possible: number;
   /** All points earned this day: within-goal completions at full
    *  value, extra runs at their reduced credit, and the capped
    *  unplanned pool. */
   earned: number;
-  /** Grade, or null when there is nothing to grade (days off; days
-   *  with no tasks). May exceed 100 — several weekly runs on one day
-   *  show honestly (§4 amendment), and extra runs are uncapped. */
+  /** Grade, or null when there is nothing to grade (days off; an
+   *  empty plan). Above 100 only via extra runs of your own plan
+   *  (ADR-0023 §2); the two bands themselves cap at 100. */
   base: number | null;
   /** What the unplanned pool actually paid, after the cap. Surfaced so
    *  the day can show "84 +25" rather than silently swallowing credit
@@ -185,44 +169,39 @@ export function storedDayScore(row: {
   };
 }
 
-/** Rating → its draw on the unplanned pool (ADR-0023 §3). A 10-rated
- *  special day contributes the whole cap, a 6-rated one 60% of it. */
+/** Rating → its draw on the variable band (ADR-0023 §3, ADR-0027 §3).
+ *  A 10-rated special day claims the whole band, a 6-rated one 60% of
+ *  it — and only ever from the room the day's planned work left. */
 export function specialDayBonus(rating: number | null | undefined): number {
   if (rating === null || rating === undefined) return 0;
-  return Math.round((rating / 10) * UNPLANNED_CAP);
+  return Math.round((rating / 10) * VARIABLE_BAND);
 }
 
-/** A task's share of every day's denominator: its weekly commitment
- *  spread evenly (fortnightly tasks spread over 14 days). */
-export function dayShare(pointValue: number, timesPerWeek: number): number {
-  return timesPerWeek === 0
-    ? pointValue / 14
-    : (pointValue * timesPerWeek) / 7;
-}
 
 /**
- * The day's number (ADR-0004 §4 as amended, formula v6): one
- * denominator for everything. Each task contributes its per-day share
- * of the weekly commitment to `possible`; any within-goal completion
- * earns its full point value that day and extra runs earn their
- * reduced credit, both without limit.
+ * The day's number (ADR-0027 §1, formula v7): a constant denominator of
+ * 100 and two bands allocated separately.
  *
- * **Communal units join the denominator directly** (ADR-0025 §3).
- * They hold no tasks, so being task-less does not make them uncovered
- * — tagging is always available — and one tag anywhere in the day
- * earns their share in full.
+ * **Routine (80).** Daily tasks pay their stored `pointValue`, which
+ * `bandPointValues` derived from 80% of their own unit's weight. A unit
+ * with no daily task forfeits its share and nobody else receives it
+ * (ADR-0027 §2) — that is what makes a plan's coverage decide its
+ * ceiling.
  *
- * Everything the user did *not* plan — activity credit, and a special
- * day's rating bonus — draws from one shared pool capped at
- * `UNPLANNED_CAP` (ADR-0023). Credit applies chronologically and
- * truncates at the cap, so the first thing logged is the thing that
- * pays; re-ordering the log can't buy more points. Fill-first was
- * attempted for v6 and pulled — see the note in the body.
+ * **Variable (20).** Everything that is not a daily task shares one
+ * pool: non-daily completions are credited **first**, then activity
+ * credit and a special day's rating fill whatever room is left. That
+ * ordering is ADR-0023's "planned work is what pays" preserved inside a
+ * single pool — a logged coffee can never displace a task you planned.
  *
- * Special days are graded like normal days and *add* their rating
- * bonus, rather than replacing the grade with `rating × 10`. A day
- * where grading isn't a meaningful question is a day off, not a
- * special day.
+ * **Extra runs stay outside both bands** (ADR-0023 §2, unchanged):
+ * doing more of your own plan is the one route above 100.
+ *
+ * What went away, and why: formula v6 made the denominator the weekly
+ * commitment spread over seven days (`dayShare`) while a completion
+ * still paid its full value, so a completion was worth `7 ÷ f` times its
+ * own share and a day of finished work could read **112**. Nothing is
+ * amortized here, so nothing can pay more than its band holds.
  */
 export function computeDayScore(input: DayScoreInput): DayScore {
   // "Day off" in the UI; `rest` on disk (ADR-0023 §4).
@@ -230,38 +209,41 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     return { possible: 0, earned: 0, base: null, unplanned: 0, unplannedForgone: 0 };
   }
 
-  const communal = input.communalUnits ?? [];
+  // The denominator is the whole 100 whenever there is a plan at all,
+  // including the weight of units holding nothing — which is the point.
+  // An empty plan is not a zero day, it is a day with nothing to grade,
+  // and the app shows its own empty state for that.
+  const possible = input.tasks.length > 0 ? DAILY_BUDGET : 0;
 
-  // Communal units hold no tasks, so their share joins the denominator
-  // directly rather than through one (ADR-0025 §3).
-  const possible =
-    input.tasks.reduce((a, t) => a + dayShare(t.pointValue, t.timesPerWeek), 0) +
-    communal.reduce((a, u) => a + u.share, 0);
-
-  const earnedDirect = input.tasks.reduce(
-    (a, t) => a + (t.completedToday && !t.extraToday ? t.pointValue : 0),
+  const routineEarned = input.tasks.reduce(
+    (a, t) =>
+      a +
+      (isRoutine(t.timesPerWeek) && t.completedToday && !t.extraToday
+        ? t.pointValue
+        : 0),
     0,
   );
 
-  // One tag earns the whole share. Not proportional, deliberately:
-  // relationships are not dose-dependent — one real contact is
-  // qualitatively different from none, and the tenth is not much
-  // different from the second. A proportional rule would leave a solo
-  // day structurally capped, every day, for someone living alone.
-  const communalEarned = communal.reduce((a, u) => a + (u.tagged ? u.share : 0), 0);
+  // Planned non-daily work has first claim on the variable band.
+  const plannedVariable = input.tasks.reduce(
+    (a, t) =>
+      a +
+      (!isRoutine(t.timesPerWeek) && t.completedToday && !t.extraToday
+        ? t.pointValue
+        : 0),
+    0,
+  );
+  const variableEarned = Math.min(plannedVariable, VARIABLE_BAND);
 
-  // The pool, in the order it was earned: activities as logged, then
-  // the special day's own rating. The rating goes last because it is
-  // the one credit that isn't tied to a moment in the day.
+  // Then the unplanned pool, in the order it was earned: activities as
+  // logged, then the special day's rating, which goes last because it is
+  // the one credit not tied to a moment in the day.
   //
   // **Fill-first is deliberately NOT here** — see ADR-0025 §12's
-  // 2026-08-16 note. Building it showed it undoes ADR-0023: letting
-  // activity credit fill a unit's unearned planned share without limit
-  // scored a day with *no* tasks completed and two activities logged
-  // at 100, which is the exact failure ADR-0023 was written from
-  // ("scoring 100+ while skipping his routines"). It also contradicts
-  // AGENTS.md's invariant in as many words: at most `UNPLANNED_CAP`
-  // points of a day may come from anything the user didn't plan.
+  // 2026-08-16 note. Letting unplanned credit reach a unit's unearned
+  // planned share scored a day with no tasks completed and two
+  // activities logged at 100, the exact failure ADR-0023 was written
+  // from.
   const activityCredit = (input.activities ?? []).reduce(
     (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
     0,
@@ -269,21 +251,19 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   const ratingBonus =
     input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
   const unplannedRaw = activityCredit + ratingBonus;
-  const unplanned = Math.min(unplannedRaw, UNPLANNED_CAP);
+  const unplanned = Math.min(unplannedRaw, VARIABLE_BAND - variableEarned);
 
   const earned =
-    earnedDirect + communalEarned + (input.extraRunCredit ?? 0) + unplanned;
+    routineEarned + variableEarned + unplanned + (input.extraRunCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded
-  // pair. `possible` is a sum of sevenths so it is almost never a whole
-  // number, and `day_grade` stores both as integers — deriving `base`
-  // from the raw floats here and from the stored integers there made
-  // the same day read one point apart on the day screen and in the
-  // calendar. One rounding, one number, everywhere.
-  const roundedPossible = Math.round(possible);
-  const roundedEarned = Math.round(earned);
+  // pair, so the day screen and the calendar can never read one point
+  // apart from the same day.
   return {
-    ...storedDayScore({ earned: roundedEarned, possible: roundedPossible }),
+    ...storedDayScore({
+      earned: Math.round(earned),
+      possible: Math.round(possible),
+    }),
     unplanned,
     unplannedForgone: unplannedRaw - unplanned,
   };

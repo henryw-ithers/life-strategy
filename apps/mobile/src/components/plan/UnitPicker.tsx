@@ -29,11 +29,15 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { COMMUNAL_TASK_NOTE } from "./planning";
 
 export interface PickableUnit {
   id: string;
   name: string;
   areaId: string;
+  /** ADR-0027 §4: still editorial, no longer structural. A communal
+   *  unit takes tasks like any other; picking one just shows a line. */
+  motivationKind?: "instrumental" | "communal";
 }
 
 interface UnitPickerProps {
@@ -162,6 +166,16 @@ export function UnitPicker({
       {atMax ? (
         <AppText variant="footnote" color={theme.muted}>
           Up to {max} units — past that, it isn't really one task.
+        </AppText>
+      ) : null}
+      {/* A nudge, not a gate (ADR-0027 §4). Appears only once a
+          communal unit is actually picked, so it reads as a response to
+          the choice rather than a warning label on the control. */}
+      {units.some(
+        (u) => value.includes(u.id) && u.motivationKind === "communal",
+      ) ? (
+        <AppText variant="footnote" color={theme.muted}>
+          {COMMUNAL_TASK_NOTE}
         </AppText>
       ) : null}
     </View>

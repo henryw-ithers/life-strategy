@@ -10,6 +10,14 @@ export { largestRemainder } from "./rounding";
 export type { UnitCoverage } from "./weights";
 export { deriveWeights, spendableWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
+export type { BandTask, BandUnit } from "./bands";
+export {
+  bandPointValues,
+  dayCeiling,
+  isRoutine,
+  ROUTINE_BAND,
+  VARIABLE_BAND,
+} from "./bands";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
 export type {
@@ -72,7 +80,6 @@ export {
   computeDayScore,
   periodDays,
   aggregateGrade,
-  dayShare,
   extraRunPoints,
   specialDayBonus,
   storedDayScore,

@@ -24,12 +24,7 @@ import {
 } from "../../db/settings";
 import { resetOnboarding } from "../../db/onboarding";
 import { eraseAllData } from "../../db/reset";
-import {
-  currentLocalDate,
-  loadDay,
-  recomputeAllGrades,
-  type RecomputeResult,
-} from "../../db/today";
+import { currentLocalDate, loadDay } from "../../db/today";
 import {
   cancelAllNudges,
   getPermissionStatus,
@@ -57,8 +52,6 @@ export default function SettingsScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
-  const [recomputing, setRecomputing] = useState(false);
-  const [recomputed, setRecomputed] = useState<RecomputeResult | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [eraseOpen, setEraseOpen] = useState(false);
@@ -191,40 +184,6 @@ export default function SettingsScreen() {
             <AppText variant="label" color={theme.muted}>
               ›
             </AppText>
-          </Pressable>
-          <GroupDivider theme={theme} />
-          {/* Explicit by design (ADR-0004 §5): a scoring change must
-              never restate history on its own, so this is the one way
-              to opt in. */}
-          <Pressable
-            onPress={() => {
-              if (recomputing) return;
-              setRecomputing(true);
-              setRecomputed(null);
-              void recomputeAllGrades()
-                .then(setRecomputed)
-                .finally(() => setRecomputing(false));
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: recomputing }}
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <View style={styles.grow}>
-              <AppText color={theme.ink}>Recompute past grades</AppText>
-              <AppText variant="caption" color={theme.muted}>
-                {recomputing
-                  ? "Working…"
-                  : recomputed
-                    ? `${recomputed.rederived} ${
-                        recomputed.rederived === 1 ? "day" : "days"
-                      } re-scored${
-                        recomputed.skipped > 0
-                          ? `, ${recomputed.skipped} left as they were`
-                          : ""
-                      }.`
-                    : "Re-scores every past day under the current scoring, using the plan each day actually had."}
-              </AppText>
-            </View>
           </Pressable>
         </Group>
 

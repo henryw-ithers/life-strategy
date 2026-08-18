@@ -156,3 +156,12 @@ export function isoWeekday(localDate: string): Weekday {
   const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
   return (day === 0 ? 7 : day) as Weekday;
 }
+
+/**
+ * Shown wherever a task is being filed under a communal unit — the add
+ * dialog, the edit sheet, and the unit's own panel on the Tasks screen
+ * (ADR-0027 §4). Not a gate: the unit takes the task exactly like any
+ * other. One line, shown once per surface, never a confirmation step.
+ */
+export const COMMUNAL_TASK_NOTE =
+  "Tasks here score like anywhere else. What matters most in a relationship often isn't a checklist item — press and hold a completion to also count it here, any time.";

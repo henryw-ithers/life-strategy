@@ -34,7 +34,10 @@ import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
 import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
-import type { PartOfDay } from "../../components/plan/planning";
+import {
+  COMMUNAL_TASK_NOTE,
+  type PartOfDay,
+} from "../../components/plan/planning";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -53,6 +56,7 @@ import {
   setTaskFrequency,
   setTaskPlanning,
   setTaskUnits,
+  setUnitScoring,
   type PlanData,
   type PlanTask,
   type PlanUnit,
@@ -125,16 +129,24 @@ export default function PlanScreen() {
     }, [reload]),
   );
 
+  /**
+   * Every scoreable unit, communal ones included (ADR-0027 §4). They
+   * hold tasks like any other unit now — the special case was that
+   * they never could, which made the Tasks screen's relationship rows
+   * dead ends: an "Add task" button that opened a sheet with no chip
+   * to file the result under.
+   */
   const allUnits: PickableUnit[] = useMemo(
     () =>
       (plan?.areas ?? []).flatMap((a) =>
         a.units
-          // Communal units are dimensions, not containers (ADR-0025
-          // §2): they hold no tasks, so they are never offered as one
-          // to file under. They are reached by tagging a completion
-          // instead, which is where relationships actually show up.
-          .filter((u) => u.includeInScoring && u.motivationKind !== "communal")
-          .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
+          .filter((u) => u.includeInScoring)
+          .map((u) => ({
+            id: u.id,
+            name: u.name,
+            areaId: u.areaId,
+            motivationKind: u.motivationKind,
+          })),
       ),
     [plan],
   );
@@ -144,18 +156,16 @@ export default function PlanScreen() {
   };
 
   /**
-   * The number in the right-hand column: what a unit spends today.
+   * The number in the right-hand column: the unit's own diagnostic
+   * weight, whether or not it currently spends it.
    *
-   * A unit with tasks shows its *spendable* share — the weight of
-   * task-less units is divided among the units that have them
-   * (ADR-0003 §5 amendment), so this is generally larger than the
-   * diagnostic's own number and is what its tasks below actually sum
-   * to. A unit with no tasks shows the weight it would bring, muted:
-   * nothing is in play there, and zero would hide the one number that
-   * makes adding a task worth it.
+   * ADR-0027 §2 withdraws the reallocation that used to inflate a
+   * covered unit's number past its own weight — a unit with no daily
+   * task simply cannot earn this, and nobody else receives it either,
+   * so the figure shown here and the figure in the day's ceiling are
+   * the same one.
    */
-  const shownPoints = (unit: PlanUnit): number =>
-    unit.tasks.length === 0 ? (unit.weight ?? 0) : unit.spendable;
+  const shownPoints = (unit: PlanUnit): number => unit.weight ?? 0;
 
   /** The unit holding the most points, which is where a first task is
    *  worth the most. Onboarding hands the user straight to this screen
@@ -325,10 +335,10 @@ export default function PlanScreen() {
                   {/* Puts a number in the right-hand column at every
                       level of the page, so "where are my points going"
                       reads down one edge. It's the sum of the numbers
-                      directly beneath it — the total you can check at a
-                      glance — rather than the area's share of the 100,
-                      which since the reallocation is only the covered
-                      part of it. */}
+                      directly beneath it, which is the area's own share
+                      of the 100 — ADR-0027 §2 withdrew the reallocation
+                      that used to make this bigger than the diagnostic's
+                      own number for a covered area. */}
                   <AppText variant="label" color={theme.muted} tabular style={styles.pts}>
                     {area.units
                       .filter((u) => u.includeInScoring)
@@ -346,24 +356,29 @@ export default function PlanScreen() {
                         ref={(node) => {
                           unitRefs.current[unit.id] = node;
                         }}
-                        disabled={excluded}
+                        // Excluded units open too (ADR-0027 §2): the
+                        // panel is the only way back into the plan, and
+                        // a decision you cannot reverse from where you
+                        // made it is not a scope control.
                         onPress={() => toggleUnit(unit.id)}
                         accessibilityRole="button"
                         accessibilityState={{ expanded: open }}
                         accessibilityLabel={
-                          unit.tasks.length === 0
-                            ? `${unit.name}, no tasks, ${unit.weight ?? 0} points not in play`
-                            : `${unit.name}, ${unit.spendable} points, ${unit.tasks.length} tasks`
+                          excluded
+                            ? `${unit.name}, not part of your plan`
+                            : unit.tasks.length === 0
+                              ? `${unit.name}, no tasks, ${unit.weight ?? 0} points not in play`
+                              : `${unit.name}, ${unit.weight ?? 0} points, ${unit.tasks.length} tasks`
                         }
                         accessibilityHint={open ? "Collapses its tasks" : "Shows its tasks"}
                         style={({ pressed }) => [styles.unitRow, { opacity: pressed ? 0.6 : 1 }]}
                       >
                         <AppText
                           variant="label"
-                          color={excluded ? theme.muted : theme.muted}
+                          color={theme.muted}
                           style={styles.chev}
                         >
-                          {excluded ? "" : open ? "▾" : "▸"}
+                          {open ? "▾" : "▸"}
                         </AppText>
                         <AppText
                           color={excluded ? theme.muted : theme.ink}
@@ -401,6 +416,34 @@ export default function PlanScreen() {
                         )}
                       </Pressable>
 
+                      {open && excluded ? (
+                        <Animated.View
+                          entering={reduceMotion ? undefined : FadeIn.duration(160)}
+                          layout={layout}
+                          style={[styles.panel, { backgroundColor: theme.surface }]}
+                        >
+                          <AppText variant="caption" color={theme.muted}>
+                            Not part of your plan, so its points sit outside
+                            your 100 and the rest of your units share them.
+                          </AppText>
+                          <Pressable
+                            onPress={() => {
+                              void setUnitScoring(unit.id, true).then(reload);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Put ${unit.name} back in my plan`}
+                            style={({ pressed }) => [
+                              styles.addRow,
+                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                            ]}
+                          >
+                            <AppText variant="label" color={theme.accent}>
+                              Put back in my plan
+                            </AppText>
+                          </Pressable>
+                        </Animated.View>
+                      ) : null}
+
                       {open && !excluded ? (
                         <Animated.View
                           entering={reduceMotion ? undefined : FadeIn.duration(160)}
@@ -423,10 +466,19 @@ export default function PlanScreen() {
                             </Pressable>
                           ) : null}
 
+                          {/* A nudge, not a gate (ADR-0027 §4): the unit
+                              takes a task exactly like any other, this
+                              just says the part a checklist can't hold. */}
+                          {unit.motivationKind === "communal" ? (
+                            <AppText variant="caption" color={theme.muted}>
+                              {COMMUNAL_TASK_NOTE}
+                            </AppText>
+                          ) : null}
+
                           {unit.tasks.length === 0 ? (
                             <AppText variant="caption" color={theme.muted}>
-                              No tasks yet, so these points are spread across
-                              the rest of your plan.
+                              No tasks yet, so these points go unearned until
+                              you add one.
                             </AppText>
                           ) : (
                             // Rank is the thing you most often want to
@@ -480,6 +532,26 @@ export default function PlanScreen() {
                                 screen: one action, named once. */}
                             <AppText variant="label" color={theme.accent}>
                               + Add task
+                            </AppText>
+                          </Pressable>
+
+                          {/* The exclusion valve (ADR-0027 §2). Worded
+                              as scope, never as giving up, and quiet —
+                              it sits under the action you actually came
+                              for. No confirmation: it is one tap back. */}
+                          <Pressable
+                            onPress={() => {
+                              void setUnitScoring(unit.id, false).then(reload);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Take ${unit.name} out of my plan for now`}
+                            style={({ pressed }) => [
+                              styles.setAside,
+                              { opacity: pressed ? 0.5 : 1 },
+                            ]}
+                          >
+                            <AppText variant="caption" color={theme.muted}>
+                              Not part of my plan right now
                             </AppText>
                           </Pressable>
                         </Animated.View>
@@ -650,6 +722,9 @@ const styles = StyleSheet.create({
     paddingLeft: space.sm,
   },
   chev: { width: 14 },
+  /** Quieter than the add row above it: scope is a rarer decision than
+   *  adding a task, and shouldn't compete with it. */
+  setAside: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   /** One right-hand column for every number on the page. */
   pts: { minWidth: 30, textAlign: "right" },
   /** The open unit is the only surface on the screen, which is what

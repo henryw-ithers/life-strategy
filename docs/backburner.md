@@ -589,11 +589,27 @@ the floor matters as much as the ceiling.
   one-line alternative: `{ earned: 0, possible: dailyPossible / 2 }`
   softens a missed day without paying you to skip one.
 
-**Why it's parked, not fixed:** it is a third formula version in a
+**RESOLVED 2026-08-18 by
+[ADR-0027](adr/0027-coverage-decides-the-ceiling.md)** (formula v7).
+The trigger was the same complaint arriving with a number attached: a
+day of finished work read **112**. The two bands replace `dayShare`
+outright, so nothing is amortized and no completion can pay more than
+its band holds. The second compression noted above went a different
+way than this entry guessed — `MISSED_DAY_CREDIT` was retired on
+2026-08-13 (a missed day is a zero, ADR-0004 §5), so the 50–100 band
+problem is gone rather than softened.
+
+~~**Why it's parked, not fixed:** it is a third formula version in a
 fortnight (v4 → v5 already landed on 2026-08-13), each one a seam in
 history that cannot be re-derived. Worth batching with ADR-0008's
 calibration data, which is the instrument that can actually say
-whether the number tracks how the day felt — which is the complaint.
+whether the number tracks how the day felt — which is the complaint.~~
+The seam argument held for five days and then stopped holding: a
+number that can exceed its own maximum cannot be calibrated against
+anything, so waiting for calibration data was waiting on an instrument
+the bug had already broken. ADR-0027 §5 pays the seam cost explicitly —
+history keeps its old numbers and there is no longer any way to
+re-derive them.
 
 **2026-08-16: fill-first was briefly queued here, and is now closed.**
 Restoring it was decided on the reading that vision.md described

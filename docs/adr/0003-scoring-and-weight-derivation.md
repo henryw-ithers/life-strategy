@@ -111,6 +111,23 @@ invariant applies).
   **more tasks than points** spends `n`, a point or two above its
   weight, which §6 already advises against and which is the better
   trade than a dead row.
+- ~~**Uncovered weight is reallocated (added 2026-07-30)**~~ —
+  **withdrawn 2026-08-18 by
+  [ADR-0027 §2](0027-coverage-decides-the-ceiling.md).** A unit's weight
+  now stays its own: if nothing under it can earn those points, nobody
+  earns them, and the day is graded out of the user's whole life rather
+  than out of whichever corner of it they planned. The paragraphs below
+  are kept as the record of what was tried and why it read as an
+  improvement at the time — reallocation was answering a real problem
+  (a half-covered portfolio graded against half a plan) with the tool
+  available before the diagnostic had an exclusion control. ADR-0027 §2
+  answers the same problem by letting the user say a unit does not
+  apply, which is the honest version of the same move.
+
+  What replaced it: `spendableWeights` is retired, `spendable`
+  collapses back into `weight`, and coverage now decides a plan's
+  *ceiling* rather than redistributing its *points*.
+
 - **Uncovered weight is reallocated (added 2026-07-30):** a unit with
   no tasks spends nothing, so its weight is divided among the units
   that do have tasks, **in proportion to their own weight**. Integer
