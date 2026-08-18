@@ -116,6 +116,64 @@ wanted.
 > screen: it records that `/diagnostic` is on top of us, so a cold start
 > mid-diagnostic renders the welcome again instead of a blank page.
 
+> **Amendment (2026-08-18): six screens, and the method gets explained.**
+>
+>     welcome → method → diagnostic → weights → rhythm → notification ask → done
+>
+> The 2026-07-30 pass above was right about what it cut and wrong about
+> what that left. Re-reading it: the screens it deleted were a **Begin**
+> standing in front of another **Begin**, and a private half-copy of the
+> Tasks screen. Both were duplication. Neither was an explanation of the
+> method, because the flow never contained one. A user could finish
+> onboarding without being told what a Strategic Life Unit is, why
+> comparing two of them yields a weight, or why their score behaves the
+> way it does. Padding and teaching had been conflated, and the cut took
+> both.
+>
+> Three screens are added, and the placement is the whole argument:
+>
+> - **`method`, before the diagnostic.** The only screen here that
+>   explains anything ahead of the payoff, and it earns the slot by
+>   sitting directly in front of the five minutes it is asking for: what
+>   the eighteen are, why the comparison is pairwise rather than a
+>   rating out of ten, and how long it takes. This is not the deleted
+>   intro screen returning. That one restated the diagnostic's own first
+>   sentence above a second **Begin**; this one says what the
+>   diagnostic's intro does not.
+> - **`weights`, after it.** Reads the snapshot the user has just
+>   produced and shows their own numbers, heaviest first, then names the
+>   top and bottom values in the sentence that explains inheritance. The
+>   arithmetic is unteachable beforehand because the numbers do not
+>   exist yet.
+> - **`rhythm`, after that.** [ADR-0027](0027-coverage-decides-the-ceiling.md)'s
+>   two bands: daily habits reach 80, the remaining 20 comes from what
+>   is not automatic, so a 90 means going past your routine. Shipping a
+>   deliberately hard ceiling without ever saying it is deliberate makes
+>   it read as a broken score. The figures come from `ROUTINE_BAND` and
+>   `VARIABLE_BAND` at render, so the copy cannot outlive the constants.
+>   The screen closes with parts of day
+>   ([ADR-0024](0024-planning-a-task-when-you-create-it.md)), the other
+>   mechanic that shipped unexplained.
+>
+> **This is the same bet as the first-tasks deletion**, not a reversal
+> of it: that amendment replaced three fake cards with eighteen real
+> rows carrying live point values, on the grounds that real values teach
+> better than a diagram. `weights` and `rhythm` apply that rule one step
+> earlier, which is why they sit after the ranking rather than before
+> it.
+>
+> Re-running from Settings now lands on `weights` rather than skipping
+> to the notification ask. Someone who re-runs the introduction wants
+> the explanation, and by then they have real numbers for it to be
+> about.
+>
+> **What this risks:** the 2026-07-30 finding was real, and this makes
+> the flow longer than the version that produced it. The mitigation is
+> placement rather than brevity, and the thing to watch is whether
+> `method` gets tapped through. It is the one screen with no user data
+> on it.
+>
+
 ### 2. The diagnostic is mandatory, and onboarding resumes
 
 There is no path into the app that skips it, because there is no
@@ -256,7 +314,16 @@ the monthly ritual's job. Completion is a single `app_setting` key.
        of full stops and colons. `NumberDial`'s "—" placeholder stays;
        there it is a glyph for "no value", not prose.)*
 
-6. [ ] Watch where the shortened flow drops. Two taps now stand between
+6. [ ] Watch where the flow drops. Three taps now stand between
        install and the first ranking question, so the diagnostic's own
        five minutes is the whole remaining floor — and the first-run
        Tasks state is untested against anyone who did not build it.
+
+7. [x] Explain the method (amended 2026-08-18). *`method` before the
+       diagnostic; `weights` and `rhythm` after it, both reading the
+       user's own snapshot. All in `apps/mobile/src/app/onboarding.tsx`;
+       the band figures come from `@glide/scoring` rather than the copy.*
+
+8. [ ] Watch whether `method` is read or tapped through. It is the only
+       screen in the flow with no user data on it, which makes it the
+       first candidate for deletion if the 2026-07-30 finding recurs.

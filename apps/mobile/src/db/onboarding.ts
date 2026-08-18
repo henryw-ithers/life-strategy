@@ -14,10 +14,24 @@ const COMPLETE_KEY = "onboarding.complete";
 const STEP_KEY = "onboarding.step";
 
 /**
- * Ordered. Four steps, down from six (ADR-0011 as amended): the
- * privacy screen folded into the welcome, and the screen that
- * introduced the diagnostic was deleted because `/diagnostic` opens
- * with the same words and its own Begin button.
+ * Ordered. Six screens (ADR-0011 as amended twice).
+ *
+ * The 2026-07-30 amendment cut this to four, and nothing here puts
+ * back what it removed: that pass deleted a Begin screen standing in
+ * front of another Begin screen, and a private half-copy of the Tasks
+ * screen. Both were duplication, not explanation. What it left behind
+ * was an app that never said what a unit is, why ranking two things at
+ * a time produces a number, or why a day is scored the way it is.
+ *
+ * `method` is the only screen that explains anything before the
+ * payoff, and it earns that slot by sitting immediately in front of
+ * the five minutes it is asking for.
+ *
+ * `weights` and `rhythm` come *after* the diagnostic on purpose. They
+ * are the same bet the 2026-07-30 amendment made when it handed the
+ * user to the real Tasks screen: the model teaches better against the
+ * user's own numbers than against a diagram. Both read live from the
+ * snapshot the user just produced.
  *
  * `diagnostic` is a waiting state, not a screen. It means "the
  * diagnostic route is on top of us"; a cold start there renders the
@@ -25,7 +39,10 @@ const STEP_KEY = "onboarding.step";
  */
 export const ONBOARDING_STEPS = [
   "welcome",
+  "method",
   "diagnostic",
+  "weights",
+  "rhythm",
   "notify",
   "done",
 ] as const;

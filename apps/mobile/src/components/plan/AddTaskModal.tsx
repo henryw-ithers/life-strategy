@@ -1,11 +1,17 @@
 /**
  * Task creation: what it is, which units it serves, how often, and
- * when. One dialog, one commit.
+ * when. One sheet, one commit.
  *
- * A centred card rather than a bottom sheet. Adding a task is a small
- * errand, and a sheet that rises over the whole screen frames it as
- * leaving the plan behind — the card keeps the list visible around it,
- * which is the truer scale of the action.
+ * **A bottom sheet since 2026-08-18**, where it used to be a centred
+ * card. The card was chosen to keep the plan visible around a small
+ * errand, and that reasoning held right up until the errand grew a
+ * schedule: with five fields and a keyboard, a centred panel jumps —
+ * `KeyboardAvoidingView` shortens the container and a centred child
+ * re-centres in what is left, so focusing the name field threw the
+ * whole sheet a couple of hundred points up the screen. Anchored to
+ * the bottom it rises by the keyboard's height and no more. It also
+ * matches `TaskEditSheet`, so making a task and changing one are
+ * visibly the same surface.
  *
  * **The plan is made here, not afterwards** (ADR-0024 §1 as amended
  * 2026-08-17). The order is the order a person thinks in: what, how
@@ -149,32 +155,26 @@ export function AddTaskModal({
   const remaining = TASK_TITLE_MAX - title.length;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <KeyboardAvoidingView
-        style={styles.center}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Behind the card, not above it: the dialog is centred, so the
-            backdrop has to be a sibling underneath rather than the
-            layout parent it was when this slid up from the bottom. */}
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={close}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <Pressable
+        style={styles.backdrop}
+        onPress={close}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View
           style={[
-            styles.card,
+            styles.sheet,
             {
               backgroundColor: theme.canvas,
               borderColor: theme.hairline,
-              // Only matters on a short screen, where the keyboard
-              // pushes the card up against the home indicator.
-              marginBottom: insets.bottom,
+              paddingBottom: insets.bottom + space.lg,
             },
           ]}
         >
+          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
+
           <AppText variant="title" color={theme.ink}>
             New task
           </AppText>
@@ -271,29 +271,28 @@ export function AddTaskModal({
 }
 
 const styles = StyleSheet.create({
-  /** Centres the card and carries the scrim, so the backdrop can sit
-   *  behind it as an absolutely-filled sibling. */
-  center: {
-    flex: 1,
-    backgroundColor: SCRIM,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: space.screen,
-  },
-  /** A dialog, not a sheet: rounded on all four corners, only as tall
-   *  as its contents, capped so it doesn't stretch on a large screen. */
-  card: {
-    width: "100%",
-    maxWidth: 420,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
+  backdrop: { flex: 1, backgroundColor: SCRIM },
+  /**
+   * A bottom sheet, not a centred dialog (changed 2026-08-18).
+   *
+   * Centred, the keyboard shoved the whole panel: `padding` shortens
+   * the flex container and a centred child re-centres in what is
+   * left, so the card leapt a couple of hundred points the moment the
+   * field focused. Anchored to the bottom it rises by exactly the
+   * keyboard's height and reads as resting on it — the platform norm,
+   * and the same shape `TaskEditSheet` already had, so creating and
+   * editing a task now look like one surface rather than two.
+   */
+  sheet: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.xl,
-    paddingVertical: space.xl,
+    paddingTop: space.sm + 2,
     gap: space.lg,
-    // Bounds the scroller inside it; the card is still only as tall as
-    // its contents on a phone that has the room.
-    maxHeight: "86%",
+    maxHeight: "88%",
   },
+  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   scroller: { flexGrow: 0 },
   /** The gap the card used to own for these children; it now belongs to
    *  the scroller so the pinned actions keep their own spacing. */
