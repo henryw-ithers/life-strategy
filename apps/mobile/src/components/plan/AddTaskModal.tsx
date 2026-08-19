@@ -36,17 +36,24 @@
  * you're comparing against.
  *
  * The unit chips sit directly under the title, above cadence, because
- * the chosen unit's area hue colours everything below them — the
- * frequency picker and the commit button. Choice first, consequences
- * after: the sheet reads downward.
+ * the chosen unit's area hue colours what follows: the weekday chips,
+ * the part-of-day segments, and the commit button. Choice first,
+ * consequences after — the sheet reads downward.
+ *
+ * **The name field does not autofocus** (changed 2026-08-18). It did,
+ * and that single prop was why half the sheet was unreachable: the
+ * keyboard claims about 336pt on a 844pt phone, `KeyboardAvoidingView`
+ * hands the sheet what is left, and 170pt of a 678pt sheet went under
+ * the fold before the user had touched anything. Which days and when
+ * in the day were both gone. Opening cold shows the whole form; the
+ * keyboard now arrives when someone asks for it by tapping the field,
+ * which is also the only moment scrolling past it is the right
+ * behaviour.
  */
 import { useState } from "react";
 import {
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -54,10 +61,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import {
   formatWeekdays,
@@ -136,7 +144,7 @@ export function AddTaskModal({
     if (!ready) return;
     setSaving(true);
     const committedTitle = title.trim();
-    // Days picked *are* the frequency (ADR-0024 §Schema); the wheel's
+    // Days picked *are* the frequency (ADR-0024 §Schema); the stepper's
     // value only survives when nothing is pinned.
     const committedTimes = frequencyForWeekdays(weekdays, timesPerWeek);
     const committedUnits = unitIds;
@@ -156,13 +164,7 @@ export function AddTaskModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <SheetFrame onClose={close} avoidsKeyboard>
         <View
           style={[
             styles.sheet,
@@ -189,9 +191,6 @@ export function AddTaskModal({
             contentContainerStyle={styles.scrollBody}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            // The frequency wheel is a nested scroller; without this the
-            // card steals its drag on Android.
-            nestedScrollEnabled
           >
           <View style={styles.field}>
             <TextInput
@@ -199,7 +198,6 @@ export function AddTaskModal({
               onChangeText={setTitle}
               placeholder="e.g. 30 minutes of movement"
               placeholderTextColor={theme.muted}
-              autoFocus
               maxLength={TASK_TITLE_MAX}
               // Return dismisses the keyboard; it does **not** commit.
               // It used to, back when the name and the unit were the
@@ -265,13 +263,12 @@ export function AddTaskModal({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   /**
    * A bottom sheet, not a centred dialog (changed 2026-08-18).
    *
@@ -289,14 +286,15 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
-    gap: space.lg,
+    gap: space.md,
     maxHeight: "88%",
   },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   scroller: { flexGrow: 0 },
-  /** The gap the card used to own for these children; it now belongs to
-   *  the scroller so the pinned actions keep their own spacing. */
-  scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xs },
+  /** 12pt, against the 24pt `SchedulePicker` opens with. The name and
+   *  the unit are one thought (what this is); the schedule is the
+   *  other. Even 16s everywhere made five fields read as one list. */
+  scrollBody: { gap: space.md, paddingTop: space.xs, paddingBottom: space.xs },
   field: { gap: space.xs },
   counter: { alignSelf: "flex-end" },
   input: {

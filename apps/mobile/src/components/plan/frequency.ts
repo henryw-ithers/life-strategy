@@ -17,3 +17,24 @@ export function formatFrequencyShort(times: number): string {
   if (times >= 7) return "daily";
   return `${times}×/wk`;
 }
+
+/** Nearest legal frequency. Guards the stored value, which predates
+ *  this range and is only ever validated here. */
+export function clampFrequency(times: number): number {
+  if (!Number.isFinite(times)) return MAX_TIMES_PER_WEEK;
+  return Math.min(
+    MAX_TIMES_PER_WEEK,
+    Math.max(MIN_TIMES_PER_WEEK, Math.round(times)),
+  );
+}
+
+/**
+ * One nudge of the stepper, clamped at both ends.
+ *
+ * It stops rather than wrapping: "every day" and "every 2 weeks" are
+ * the ends of a range, not a loop, and a control that rolls over turns
+ * an overshoot into the opposite of what was meant.
+ */
+export function stepFrequency(times: number, direction: 1 | -1): number {
+  return clampFrequency(clampFrequency(times) + direction);
+}

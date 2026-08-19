@@ -17,7 +17,7 @@
  * **From now on** rewrites the task's own `part_of_day`, which is the
  * same field the edit sheet sets — one value, two ways in.
  */
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -26,10 +26,11 @@ import {
   PART_OF_DAY_ORDER,
   type PartOfDay,
 } from "../plan/planning";
-import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 const SLOTS: readonly (PartOfDay | null)[] = [...PART_OF_DAY_ORDER, null];
 
@@ -66,12 +67,7 @@ export function MoveTaskSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={onClose}>
       <View
         style={[
           styles.sheet,
@@ -144,12 +140,12 @@ export function MoveTaskSheet({
         ) : null}
         <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

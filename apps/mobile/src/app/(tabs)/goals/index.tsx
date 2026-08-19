@@ -3,7 +3,7 @@
  * (ADR-0007). Goals sit between a unit and its tasks — optional,
  * temporary, and never scored directly.
  */
-import { router, useFocusEffect, type Href } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import {
 
 import { AddGoalModal } from "../../../components/goals/AddGoalModal";
 import { AppText } from "../../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Group } from "../../../components/ui/Group";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
@@ -56,18 +57,16 @@ export default function GoalsScreen() {
     setAreas((await loadGoals()).areas);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const { error, retry } = useScreenLoad(reload);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScreenHeader title="Goals" theme={theme} />
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
-        {areas === null ? (
+        {error ? (
+          <LoadFailure error={error} onRetry={retry} theme={theme} />
+        ) : areas === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           areas.map((area) => (

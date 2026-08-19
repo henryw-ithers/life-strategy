@@ -1,11 +1,12 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UnitInfo } from "../../content/units";
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface UnitInfoSheetProps {
   visible: boolean;
@@ -34,12 +35,7 @@ export function UnitInfoSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={onClose}>
       <View
         style={[
           styles.sheet,
@@ -100,12 +96,12 @@ export function UnitInfoSheet({
           <Button label="Close" variant="secondary" onPress={onClose} theme={theme} />
         </View>
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     maxHeight: "75%",
     borderTopLeftRadius: radius.xl,

@@ -29,7 +29,7 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { autocountForTask, removeAutocountForTask } from "./goals";
-import { latestWeights as latestIncludedWeights } from "./tasks";
+import { latestWeights as latestIncludedWeights, type Tx } from "./tasks";
 import {
   activity,
   activityTag,
@@ -42,7 +42,6 @@ import {
   taskCompletion,
   taskCompletionTag,
   taskUnit,
-  unitWeight,
 } from "./schema";
 
 export type DayKind = "normal" | "rest" | "special";
@@ -321,7 +320,11 @@ export async function loadDay(
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,
       fortnightOffset: t.fortnightOffset,
-      partOfDay: placements.get(t.id) ?? t.partOfDay,
+      // `has`, not `get() ?? default`: a placement holding null is a
+      // deliberate Anytime for today, not a missing one.
+      partOfDay: placements.has(t.id)
+        ? (placements.get(t.id) ?? null)
+        : t.partOfDay,
       placedToday: placements.has(t.id),
       dayOrder: t.dayOrder,
       band: s.band,
@@ -921,35 +924,77 @@ export function weekOf(date: string): string[] {
  * One row per task per day: placing twice replaces rather than
  * accumulates, so a day cannot end up with a task in two slots.
  */
+/**
+ * Put a task in a part of `date`, for that day only.
+ *
+ * **A null `partOfDay` is a placement, not the absence of one.** It
+ * means "today, this one is Anytime" — a destination the checklist
+ * offers like any other, and the reason a row is written rather than
+ * skipped. Writing nothing used to look identical to having no
+ * override at all, so dragging a morning task into Anytime and
+ * choosing "just today" deleted the row, fell back to the task's own
+ * `part_of_day`, and put it straight back under Morning while the
+ * confirmation said it had moved.
+ *
+ * To remove an override, call `clearPlacementForDay` — the two are
+ * different intentions and now have different functions.
+ */
 export async function placeTaskForDay(
   taskId: string,
   date: string,
   partOfDay: "morning" | "afternoon" | "evening" | null,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx
-      .delete(plannedOccurrence)
-      .where(
-        and(
-          eq(plannedOccurrence.taskId, taskId),
-          eq(plannedOccurrence.localDate, date),
-        ),
-      );
-    if (partOfDay !== null) {
-      await tx.insert(plannedOccurrence).values({
-        id: Crypto.randomUUID(),
-        taskId,
-        localDate: date,
-        partOfDay,
-      });
-    }
+    await deletePlacement(tx, taskId, date);
+    await tx.insert(plannedOccurrence).values({
+      id: Crypto.randomUUID(),
+      taskId,
+      localDate: date,
+      partOfDay,
+    });
   });
 }
 
+/** Drop the day's override so the task returns to its own schedule. */
+export async function clearPlacementForDay(
+  taskId: string,
+  date: string,
+): Promise<void> {
+  await deletePlacement(db, taskId, date);
+}
+
+/** Scoped to live rows, matching what `loadPlacements` reads back: an
+ *  archived row belongs to an archived task and is a record, not an
+ *  override in play. */
+async function deletePlacement(
+  tx: Tx | typeof db,
+  taskId: string,
+  date: string,
+): Promise<void> {
+  await tx
+    .delete(plannedOccurrence)
+    .where(
+      and(
+        eq(plannedOccurrence.taskId, taskId),
+        eq(plannedOccurrence.localDate, date),
+        isNull(plannedOccurrence.archivedAt),
+      ),
+    );
+}
+
 /** Placements for one day, keyed by task id. */
+/**
+ * The day's overrides, keyed by task.
+ *
+ * **Presence is the override; the value is where it went.** A key
+ * mapped to null means the task was explicitly placed in Anytime for
+ * this day, which is why callers must ask `has()` before `get()` —
+ * reading `get() ?? task.partOfDay` treats a deliberate Anytime as no
+ * placement at all and sends the row back to its usual slot.
+ */
 export async function loadPlacements(
   date: string,
-): Promise<Map<string, "morning" | "afternoon" | "evening">> {
+): Promise<Map<string, "morning" | "afternoon" | "evening" | null>> {
   const rows = await db
     .select()
     .from(plannedOccurrence)
@@ -959,7 +1004,5 @@ export async function loadPlacements(
         isNull(plannedOccurrence.archivedAt),
       ),
     );
-  return new Map(
-    rows.flatMap((r) => (r.partOfDay ? [[r.taskId, r.partOfDay] as const] : [])),
-  );
+  return new Map(rows.map((r) => [r.taskId, r.partOfDay]));
 }

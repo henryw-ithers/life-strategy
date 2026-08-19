@@ -10,9 +10,7 @@
  */
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,10 +20,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MetricKind } from "@glide/scoring";
-import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -131,13 +130,14 @@ export function GoalMetricSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      {/* `flex: 1` is load-bearing, not tidiness. The sheet's maxHeight
+          is a percentage, and a percentage resolves against the
+          parent's height: with this view unstyled it sized to its own
+          content, so "88%" meant 88% *of the sheet*, which clipped an
+          eighth of the content and forced a scroll at every screen
+          size. Filling the modal makes the cap mean 88% of the screen.
+          `box-none` keeps the scrim tappable through the empty area. */}
+      <SheetFrame onClose={onClose} avoidsKeyboard>
         <View
           style={[
             styles.sheet,
@@ -161,7 +161,7 @@ export function GoalMetricSheet({
           >
             <View style={styles.block}>
               <AppText variant="caption" color={theme.muted}>
-                How it's counted
+                How it’s counted
               </AppText>
               {KINDS.map((k) => {
                 const on = kind === k.kind;
@@ -368,13 +368,12 @@ export function GoalMetricSheet({
             theme={theme}
           />
         </View>
-      </KeyboardAvoidingView>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

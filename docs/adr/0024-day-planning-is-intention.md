@@ -382,6 +382,12 @@ ADR-0026's load work needs placement data this ADR chose not to keep.
        **Extended 2026-08-17** (§4 amendment): the same three controls
        are in `AddTaskModal` too, shared as `SchedulePicker`, so a task
        is planned when it is created rather than on a later visit.
+       **`FrequencyPicker` was replaced by `FrequencyStepper`
+       2026-08-18** and deleted. Nothing in §Schema changes: the same
+       0-7 value, the same "days set the frequency" rule. The wheel
+       simply cost 120pt of a sheet that now asks five questions, which
+       put the last two below the fold on every phone; a stepper says
+       the same thing in 50.
 2. [x] Regroup the checklist by part of day in
        `apps/mobile/src/app/(tabs)/index.tsx` — ~~empty sections
        omitted~~ the three periods always shown with **Free** when

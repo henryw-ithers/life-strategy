@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -11,11 +9,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { DayKind } from "../../db/today";
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { NumberDial } from "../number-dial/NumberDial";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface DayKindSheetProps {
   visible: boolean;
@@ -98,13 +97,7 @@ export function DayKindSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <SheetFrame onClose={onClose} avoidsKeyboard>
         <View
           style={[
             styles.sheet,
@@ -177,13 +170,12 @@ export function DayKindSheet({
           <Button label="Save" onPress={commit} theme={theme} />
           <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
         </View>
-      </KeyboardAvoidingView>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

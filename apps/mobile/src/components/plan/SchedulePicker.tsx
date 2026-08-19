@@ -14,11 +14,11 @@
  * exists is asking about a thing that has no size yet.
  *
  * Picking days *is* setting the frequency (ADR-0024 §Schema), so the
- * wheel is replaced by a line stating what the days come to rather than
- * sitting beside them offering a second answer to one question. The
- * block stays where it is either way — swapping its contents rather
- * than removing it keeps the two controls below from jumping under the
- * finger that just lit a chip.
+ * stepper is replaced by a line stating what the days come to rather
+ * than sitting beside them offering a second answer to one question.
+ * The block stays where it is either way — swapping its contents
+ * rather than removing it keeps the two controls below from jumping
+ * under the finger that just lit a chip.
  *
  * Multiple days are the point, not a power feature: three chips is
  * three times a week on those three days, and the research this ADR
@@ -30,7 +30,7 @@ import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { formatFrequency } from "./frequency";
-import { FrequencyPicker } from "./FrequencyPicker";
+import { FrequencyStepper } from "./FrequencyStepper";
 import { PartOfDayPicker } from "./PartOfDayPicker";
 import { frequencyForWeekdays, type PartOfDay, type Weekday } from "./planning";
 import { WeekdayPicker } from "./WeekdayPicker";
@@ -82,7 +82,7 @@ export function SchedulePicker({
         </AppText>
         {pinned ? (
           // Stated rather than implied, so picking days never feels
-          // like it lost the setting the wheel used to hold. Reads as
+          // like it lost the setting the stepper used to hold. Reads as
           // fact about the plan, never as a target to hit.
           <View style={styles.derived}>
             <AppText color={theme.ink}>{formatFrequency(effectiveTimes)}</AppText>
@@ -91,10 +91,9 @@ export function SchedulePicker({
             </AppText>
           </View>
         ) : (
-          <FrequencyPicker
+          <FrequencyStepper
             value={timesPerWeek}
             onChange={onTimesPerWeekChange}
-            accent={accent}
             theme={theme}
           />
         )}
@@ -107,7 +106,7 @@ export function SchedulePicker({
           </AppText>
           {/* Says what "no chips" means, so flexible reads as a choice
               rather than as a field left blank, and says how to get
-              back to the wheel once chips are lit. */}
+              back to the stepper once chips are lit. */}
           <AppText variant="footnote" color={theme.muted}>
             {pinned ? "Clear to pick a count instead" : "Any days"}
           </AppText>
@@ -157,20 +156,22 @@ export function SchedulePicker({
 }
 
 const styles = StyleSheet.create({
-  /** The three questions as one unit: a rule above them, more air than
-   *  the gap between fields, and its own internal rhythm. */
+  /** The three questions as one unit: a rule above them, and visibly
+   *  more air than the 12pt between the fields above, so the sheet
+   *  reads as *what it is* and then *when it happens* rather than as
+   *  five evenly spaced settings. */
   group: {
     gap: space.lg,
-    paddingTop: space.lg,
+    paddingTop: space.xl,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   block: { gap: space.sm },
   /** Sits under the chips it qualifies, quiet enough that a weekly
    *  task's row never looks like it is missing one. */
   flip: { minHeight: 32, justifyContent: "center" },
-  /** Sits in the wheel's place, so the two blocks under it hold still
+  /** Exactly the stepper's 50pt, so the two blocks below hold still
    *  when the chips take the frequency over. */
-  derived: { gap: 2, minHeight: 44, justifyContent: "center" },
+  derived: { gap: 2, minHeight: 50, justifyContent: "center" },
   blockHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

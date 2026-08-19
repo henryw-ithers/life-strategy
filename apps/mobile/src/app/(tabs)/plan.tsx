@@ -12,7 +12,6 @@ import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import {
   router,
-  useFocusEffect,
   useLocalSearchParams,
   type Href,
 } from "expo-router";
@@ -43,6 +42,7 @@ import {
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { Group } from "../../components/ui/Group";
@@ -157,11 +157,7 @@ export default function PlanScreen() {
     setGoalsByUnit(byUnit);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const { error, retry } = useScreenLoad(reload);
 
   /**
    * Every scoreable unit, communal ones included (ADR-0027 §4). They
@@ -309,7 +305,9 @@ export default function PlanScreen() {
         contentContainerStyle={styles.container}
       >
         <View ref={contentRef}>
-          {plan === null ? (
+          {error ? (
+        <LoadFailure error={error} onRetry={retry} theme={theme} />
+      ) : plan === null ? (
             <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
           ) : !plan.hasSnapshot ? (
             <View style={styles.empty}>

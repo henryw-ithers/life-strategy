@@ -5,7 +5,11 @@
  * before the first query. The startup gate in
  * [_layout.tsx](../app/_layout.tsx) awaits it.
  *
- * ## Why native's module-scope `openDatabaseSync` cannot work here
+ * ## Why a synchronous open cannot work here
+ *
+ * Native opens asynchronously too now, but for a different reason (see
+ * [client.ts](client.ts): so a failed open reaches the startup gate).
+ * On web an asynchronous open is not a choice at all.
  *
  * On web `expo-sqlite` runs SQLite as WebAssembly inside a Web Worker.
  * Every *synchronous* call reaches that worker through a
@@ -19,9 +23,7 @@
  * claim an OPFS access-handle pool. Cold, that took ~8.8s against the
  * dev server, and Metro serves the bundle `no-store`, so every reload
  * pays it again. The first synchronous call therefore loses the race
- * every time — and because native opens at module scope, it lost it at
- * *import* time, before any screen rendered, which took out every route
- * in the app rather than just the database.
+ * every time.
  *
  * ## Why opening asynchronously is enough
  *
@@ -45,35 +47,22 @@
  * genuine drizzle and expo-sqlite objects, with no proxy sitting in
  * front of the private class fields and `entityKind` checks that both
  * libraries rely on internally.
+ *
+ * The placeholder itself is [notReady](notReady.ts), shared with the
+ * native client since both builds now have the same gap to cover.
  */
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import { openDatabaseAsync } from "expo-sqlite";
 
+import { notReady } from "./notReady";
 import * as schema from "./schema";
 
 /* Structural types taken from the native module so the two builds
  * cannot drift apart. `typeof import(...)` lives entirely in type
- * space: it is erased at build time, so client.ts is never bundled for
- * web and its module-scope `openDatabaseSync` never runs here. */
+ * space and is erased at build time, so client.ts is never bundled
+ * for web. */
 type NativeSqlite = typeof import("./client").sqlite;
 type NativeDb = typeof import("./client").db;
-
-/**
- * Stands in for a connection that does not exist yet. Every operation
- * on it throws the same explanation, so a query that slips past the
- * startup gate reports the actual mistake instead of failing later as
- * `undefined is not an object`.
- */
-function notReady<T extends object>(name: string): T {
-  const fail = (): never => {
-    throw new Error(
-      `Life Strategy: "${name}" was used before the database finished opening. ` +
-        `On web the connection is asynchronous — await openDatabase() ` +
-        `before running queries (see src/db/client.web.ts).`,
-    );
-  };
-  return new Proxy({} as T, { get: fail, set: fail, has: fail, apply: fail });
-}
 
 // The filename predates both renames and must not change: it is the
 // stored path to the user's data. Renaming it would leave every

@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Modal, StyleSheet, TextInput, View } from "react-native";
 import Animated, {
   useAnimatedKeyboard,
   useAnimatedStyle,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface NoteSheetProps {
   visible: boolean;
@@ -69,12 +70,7 @@ export function NoteSheet({
       onRequestClose={onClose}
       onShow={() => setTimeout(() => inputRef.current?.focus(), 80)}
     >
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={onClose}>
       <Animated.View
         style={[
           styles.sheet,
@@ -103,12 +99,12 @@ export function NoteSheet({
         />
         <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
       </Animated.View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

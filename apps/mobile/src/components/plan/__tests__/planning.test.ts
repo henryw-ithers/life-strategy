@@ -5,6 +5,8 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { MIN_TIMES_PER_WEEK } from "../frequency";
+
 import {
   emptyPeriodNote,
   formatWeekdays,
@@ -94,8 +96,10 @@ describe("isoWeekday", () => {
     // anywhere west of Greenwich. `local_date` exists precisely to
     // avoid that class of error (ADR-0002), so the parser must not
     // reintroduce it. Asserting the string is read positionally.
+    // The offsets are not read: the assertion is that the answer is
+    // identical however the device clock is shifted.
     const offsets = [-720, -300, 0, 330, 780];
-    for (const _ of offsets) {
+    for (let i = 0; i < offsets.length; i++) {
       expect(isoWeekday("2026-08-16")).toBe(7);
     }
     // A date whose UTC and local days differ under a large offset.
@@ -154,5 +158,31 @@ describe("the day's shape", () => {
     // Saying "Free" for both would report a morning you spent as a
     // morning you skipped.
     expect(emptyPeriodNote(true)).toBe("All done");
+  });
+});
+
+describe("frequencyForWeekdays and the fortnight", () => {
+  it("keeps a fortnightly task fortnightly when a day is pinned", () => {
+    // Regression: this returned 1, which silently doubled how often the
+    // task was expected and made SchedulePicker's week-switch — gated on
+    // a pinned task being fortnightly — impossible to reach.
+    expect(frequencyForWeekdays([3], MIN_TIMES_PER_WEEK)).toBe(
+      MIN_TIMES_PER_WEEK,
+    );
+    expect(frequencyForWeekdays([1, 3, 5], MIN_TIMES_PER_WEEK)).toBe(
+      MIN_TIMES_PER_WEEK,
+    );
+  });
+
+  it("still lets pinned days set the count for weekly work", () => {
+    expect(frequencyForWeekdays([1, 3, 5], 7)).toBe(3);
+    expect(frequencyForWeekdays([2], 4)).toBe(1);
+  });
+
+  it("leaves frequency alone when nothing is pinned", () => {
+    expect(frequencyForWeekdays([], 4)).toBe(4);
+    expect(frequencyForWeekdays([], MIN_TIMES_PER_WEEK)).toBe(
+      MIN_TIMES_PER_WEEK,
+    );
   });
 });

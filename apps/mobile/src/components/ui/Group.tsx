@@ -24,12 +24,29 @@ interface GroupProps {
   theme: ThemeTokens;
   /** Sits above the fill, not inside it — so the box holds only content. */
   title?: string;
+  /**
+   * One line under the fill, explaining what the group does or costs.
+   *
+   * The place consequence belongs. Rows should read as names — "Daily
+   * reminder", "Reset everything" — and a row that has to carry its own
+   * caveat stops being scannable. Putting the caveat under the group
+   * keeps the list short and still says the thing before the tap, which
+   * is the whole grammar of a settings screen.
+   */
+  footnote?: string;
   /** Rows manage their own padding (list-shaped groups). */
   flush?: boolean;
   style?: ViewStyle;
 }
 
-export function Group({ children, theme, title, flush, style }: GroupProps) {
+export function Group({
+  children,
+  theme,
+  title,
+  footnote,
+  flush,
+  style,
+}: GroupProps) {
   return (
     <View style={styles.wrap}>
       {title ? (
@@ -47,6 +64,11 @@ export function Group({ children, theme, title, flush, style }: GroupProps) {
       >
         {children}
       </View>
+      {footnote ? (
+        <AppText variant="footnote" color={theme.muted} style={styles.footnote}>
+          {footnote}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -59,6 +81,9 @@ export function GroupDivider({ theme }: { theme: ThemeTokens }) {
 const styles = StyleSheet.create({
   wrap: { marginTop: space.xl, gap: space.sm },
   title: { paddingHorizontal: space.xs },
+  /** Tucked closer to its box than the box is to the next group, so it
+   *  reads as belonging upward rather than floating between two. */
+  footnote: { paddingHorizontal: space.xs, marginTop: -2 },
   box: { borderRadius: radius.md, overflow: "hidden" },
   padded: { padding: space.lg, gap: space.sm },
   flush: { paddingHorizontal: space.lg },

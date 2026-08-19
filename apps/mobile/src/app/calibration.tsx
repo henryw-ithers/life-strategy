@@ -114,7 +114,7 @@ export default function CalibrationScreen() {
           Calibration
         </AppText>
         <AppText color={theme.muted} style={styles.lead}>
-          A weekly check, and once there's enough of it, a look at whether
+          A weekly check, and once there’s enough of it, a look at whether
           your grades and how your weeks actually felt agree.
         </AppText>
 

@@ -140,6 +140,65 @@ still cannot see a weekday pin. A task you want in the routine should
 be daily, and the day off (ADR-0023 §4) is how a daily task survives a
 day you could not do it.
 
+> **Amendment (2026-08-19): both bands are split between units by
+> weight, then settled inside each unit.**
+>
+> This section described the routine band per unit and the variable
+> band as "shared", and the implementation took that literally: it
+> pooled every unit's variable claims and settled them in one pass. An
+> audit found the consequence, and it is the same failure §2 exists to
+> forbid — **a task's value depended on how many tasks existed
+> elsewhere in the plan.**
+>
+> Measured, with a weight-40 unit and a weight-2 unit each holding half
+> the plan's non-daily tasks:
+>
+> | Non-daily tasks | heavy (w40) | light (w2) |
+> |---|---|---|
+> | 4 | 17 | 3 |
+> | 10 | 15 | 5 |
+> | 20 | **10** | **10** |
+> | 30 | 20 | 0 |
+>
+> The light unit's share climbed until it matched a unit twenty times
+> its weight, then collapsed to nothing. The cause was ADR-0003 §5's
+> **one-point floor** applied across the pool: with twenty tasks and
+> twenty points, the floor alone consumed the band and weight stopped
+> mattering; at thirty the floor became unaffordable and the allocation
+> fell through to a proportional branch that behaved completely
+> differently. Two rules meeting at a boundary, disagreeing.
+>
+> **The floor was never decided here.** It is inherited from ADR-0003
+> §5, which this ADR withdrew *the reallocation half* of (§2) while
+> saying nothing about the floor. It survived in the code by inertia.
+>
+> The fix is to apply this ADR's own sentence — *a unit's weight stays
+> its own* — to the band where it wasn't. The variable band is now a
+> largest-remainder split of 20 between the units holding non-daily
+> work, in proportion to weight, and each unit's budget is then divided
+> by rank with the floor applied inside it. The same two steps as the
+> routine band.
+>
+> **"Shared, and capped at 20" still holds**, because the sub-budgets
+> sum to 20 at every plan size: completing every non-daily task in a
+> week still earns the band exactly once. What changes is that the
+> split is now 19/1 at four tasks and at forty, instead of drifting
+> from 17/3 to 10/10 to 20/0.
+>
+> Only units that actually hold non-daily work share the band. A unit
+> with nothing but daily tasks does not reserve part of it and leave it
+> unearnable — that rule is the routine band's, where coverage is the
+> point.
+>
+> **A limit the arithmetic cannot remove.** Twenty points cannot finely
+> price twenty or more non-daily tasks; beyond that the tail rounds to
+> zero under any rule, and dropping the floor entirely makes it worse
+> (half of ten weekly tasks fall to zero). Per-unit allocation does not
+> solve that, it makes it *predictable*: a function of the unit's own
+> weight rather than of the whole plan's size. If large plans prove to
+> matter in real use, the lever is the 80/20 split itself, not this
+> allocation — and that would be a new decision, not an amendment.
+
 ### 2. The weight of a unit you hold no tasks in is not redistributed
 
 ADR-0003 §5's reallocation is **withdrawn**. A unit's weight stays its

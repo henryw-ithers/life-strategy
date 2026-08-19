@@ -8,13 +8,14 @@
  * Its scrubber also wants the screen to itself — inside a scrolling
  * parent the two gestures compete.
  */
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PortfolioGraphView, type GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { loadGraphSnapshots } from "../../../db/graph";
 import { getTheme } from "../../../theme/colors";
@@ -26,11 +27,10 @@ export default function PortfolioGraphScreen() {
   const insets = useSafeAreaInsets();
   const [snapshots, setSnapshots] = useState<GraphSnapshot[] | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadGraphSnapshots().then(setSnapshots);
-    }, []),
-  );
+  const load = useCallback(async () => {
+    setSnapshots(await loadGraphSnapshots());
+  }, []);
+  const { error, retry } = useScreenLoad(load);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -53,7 +53,9 @@ export default function PortfolioGraphScreen() {
       </View>
 
       <View style={styles.body}>
-        {snapshots === null ? (
+        {error ? (
+        <LoadFailure error={error} onRetry={retry} theme={theme} />
+      ) : snapshots === null ? (
           <ActivityIndicator color={theme.muted} style={styles.loading} />
         ) : (
           <PortfolioGraphView snapshots={snapshots} theme={theme} />

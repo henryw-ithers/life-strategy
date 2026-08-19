@@ -18,10 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { suggestTags } from "../../content/tagKeywords";
 import type { ActivitySize, DayKind } from "../../db/today";
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 export interface TagUnit {
   id: string;
@@ -150,12 +151,7 @@ export function ActivitySheet({
         if (!editing) setTimeout(() => titleRef.current?.focus(), 80);
       }}
     >
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={onClose}>
       <Animated.View
         style={[
           styles.sheet,
@@ -299,12 +295,12 @@ export function ActivitySheet({
           <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
         )}
       </Animated.View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

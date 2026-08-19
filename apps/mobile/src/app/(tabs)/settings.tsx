@@ -2,18 +2,39 @@
  * Settings (ADR-0010 §6): exactly two controls for the daily nudge — a
  * toggle and a time picker. Future deferred reminders each get their
  * own toggle here later; never a single master switch.
+ *
+ * **Reordered and renamed 2026-08-19.** The screen had six groups and
+ * four of them had no heading at all, so the first thing a reader met
+ * was four anonymous rows. It opened on *Send feedback* and *Problem
+ * log* — deliberately, for the length of the TestFlight round, but the
+ * effect was an app whose settings front door is a bug reporter. And
+ * the privacy statement, the strongest thing this app can say about
+ * itself, was four paragraphs of prose wedged between a switch and a
+ * destructive button, where a scanning eye stops dead.
+ *
+ * Now every group is named and the order follows what someone came here
+ * to do: tune the plan, tune the reminder, look after the data, find
+ * help, start over. Destructive last, which is both the platform
+ * convention and the only safe place for it.
+ *
+ * **Consequence moved from rows to footnotes.** A row should read as a
+ * name; the sentence explaining what it costs sits under the group
+ * (`Group`'s `footnote`). That keeps the list scannable and still says
+ * the thing before the tap.
  */
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Application from "expo-application";
 import * as Linking from "expo-linking";
-import { router, useFocusEffect, type Href } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
 
 import { EraseDataModal } from "../../components/settings/EraseDataModal";
 import { AppText } from "../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { Backdrop, hueWash } from "../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../components/ui/Group";
+import { SettingsRow } from "../../components/ui/SettingsRow";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
@@ -65,11 +86,7 @@ export default function SettingsScreen() {
     setDeniedAtOs(!status.granted && !status.canAskAgain);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const { error, retry } = useScreenLoad(reload);
 
   const resync = async () => {
     const day = await loadDay(currentLocalDate());
@@ -126,71 +143,26 @@ export default function SettingsScreen() {
       <Backdrop circles={hueWash(theme.accent)} />
       <ScreenHeader title="Settings" theme={theme} />
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
-        {/* Feedback first, for the length of the TestFlight round. A
-         *  suggestion is the most common thing a tester has to say and
-         *  the easiest thing for them to give up on looking for; the
-         *  problem log sits under it because that is where a sent note
-         *  goes, so the pair reads as one thing. */}
-        <Group theme={theme} flush>
-          <Pressable
-            onPress={() => router.push("/feedback" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Send feedback
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
-          <GroupDivider theme={theme} />
-          <Pressable
-            onPress={() => router.push("/problem" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Problem log
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
-        </Group>
-
-        <Group theme={theme} flush>
-          <Pressable
+        {/* Tuning the plan itself comes first: it is the only thing here
+            that changes what the app shows you tomorrow. */}
+        <Group theme={theme} title="Your plan" footnote="Calibration checks whether the daily grade matches how the week actually felt." flush>
+          <SettingsRow
+            label="Calibration"
             onPress={() => router.push("/calibration" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Calibration
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
-          <GroupDivider theme={theme} />
-          <Pressable
-            onPress={() => router.push("/backup" as Href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <AppText color={theme.ink} style={styles.grow}>
-              Your data
-            </AppText>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
+            theme={theme}
+          />
         </Group>
 
-        {settings === null ? (
-          <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
+        {error ? (
+          <LoadFailure error={error} onRetry={retry} theme={theme} />
+        ) : settings === null ? (
+          <ActivityIndicator color={theme.muted} style={styles.loading} />
         ) : (
-          <Group theme={theme} title="Reminders">
+          <Group
+            theme={theme}
+            title="Reminders"
+            footnote="One nudge, only when today’s list still needs you. It never says what’s on it."
+          >
             <View style={styles.row}>
               <AppText color={theme.ink} style={styles.grow}>
                 Daily reminder
@@ -202,25 +174,6 @@ export default function SettingsScreen() {
                 thumbColor={theme.canvas}
               />
             </View>
-            <AppText variant="caption" color={theme.muted} style={styles.caption}>
-              One nudge, only when today's list still needs you. Never says
-              what's on it.
-            </AppText>
-
-            {deniedAtOs ? (
-              <Pressable
-                onPress={() => void Linking.openSettings()}
-                accessibilityRole="button"
-                style={[styles.deniedBox, { borderColor: theme.hairline }]}
-              >
-                <AppText color={theme.ink}>
-                  Notifications are off at the system level.
-                </AppText>
-                <AppText variant="label" color={theme.accent}>
-                  Open system settings ›
-                </AppText>
-              </Pressable>
-            ) : null}
 
             {settings.enabled ? (
               <View style={styles.timeRow}>
@@ -230,13 +183,35 @@ export default function SettingsScreen() {
                 <Pressable
                   onPress={() => setPickerOpen(true)}
                   accessibilityRole="button"
-                  style={[styles.timeChip, { borderColor: theme.hairline }]}
+                  accessibilityLabel={`Reminder time, ${settings.time}`}
+                  style={({ pressed }) => [
+                    styles.timeChip,
+                    { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
+                  ]}
                 >
                   <AppText color={theme.ink} tabular>
                     {settings.time}
                   </AppText>
                 </Pressable>
               </View>
+            ) : null}
+
+            {deniedAtOs ? (
+              <Pressable
+                onPress={() => void Linking.openSettings()}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.deniedBox,
+                  { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <AppText color={theme.ink}>
+                  Notifications are off at the system level.
+                </AppText>
+                <AppText variant="label" color={theme.accent}>
+                  Open system settings
+                </AppText>
+              </Pressable>
             ) : null}
 
             {pickerOpen ? (
@@ -253,91 +228,47 @@ export default function SettingsScreen() {
           </Group>
         )}
 
-        {/* The fuller statement onboarding's privacy screen points at
-         *  (ADR-0011 decision 4). Plain facts, no reassurance voice.
-         *  ADR-0013 added the crash-log paragraph: the log is the one
-         *  new thing written outside the database, so leaving it
-         *  unmentioned would make "sends nothing anywhere" a sentence
-         *  the user has to take on trust rather than check. */}
-        <Group theme={theme} title="Privacy">
-          <AppText color={theme.ink}>
-            Everything you enter is stored only on this device: rankings,
-            tasks, grades, journal entries, photos, and contentment
-            check-ins. Life Strategy has no account and no server, and
-            sends nothing anywhere.
-          </AppText>
-          <AppText color={theme.ink} style={styles.resourceLine}>
-            When something breaks, the technical details are written down
-            here too: which screen, which version. The problem log shows you
-            that text in full, and it only goes anywhere if you send it.
-          </AppText>
-          <AppText color={theme.ink} style={styles.resourceLine}>
-            Send feedback hands what you typed to your own mail app, and
-            you send it. The log notes that you sent something, never what
-            you wrote. Neither one carries anything from inside the app with
-            it.
-          </AppText>
-          <AppText color={theme.ink} style={styles.resourceLine}>
-            Backups are encrypted with your passphrase before they leave
-            the app, and go wherever you choose to put them. Without that
-            passphrase, nobody can open one, including us.
-          </AppText>
-          <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
-            Deleting Life Strategy deletes its data with it. Export a
-            backup first if you want to keep it.
-          </AppText>
-        </Group>
-
-        {/* The bottom of the screen, where anything that starts over
-         *  belongs. Both rows carry a second line, because the whole
-         *  difficulty here is that their names sound interchangeable and
-         *  only one of them destroys anything. */}
-        <Group theme={theme} flush>
-          <Pressable
-            onPress={() => {
-              void resetOnboarding().then(() => router.replace("/onboarding"));
-            }}
-            accessibilityRole="button"
-            accessibilityHint="Replays the welcome screens; your data is not changed"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <View style={styles.grow}>
-              <AppText color={theme.ink}>Replay the introduction</AppText>
-              <AppText variant="caption" color={theme.muted}>
-                Walks through the welcome screens again. Nothing you've
-                entered changes.
-              </AppText>
-            </View>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
+        {/* The privacy statement is a row here and a screen of its own
+            (ADR-0011 decision 4). Its summary stays on the surface,
+            because "stays on this phone" is the reason to trust the
+            rest of this list. */}
+        <Group
+          theme={theme}
+          title="Your data"
+          footnote="Everything stays on this phone. No account, no server, nothing uploaded."
+          flush
+        >
+          <SettingsRow
+            label="Backup and restore"
+            onPress={() => router.push("/backup" as Href)}
+            theme={theme}
+          />
           <GroupDivider theme={theme} />
-          <Pressable
-            onPress={() => setEraseOpen(true)}
-            accessibilityRole="button"
-            accessibilityHint="Deletes everything on this device and starts over"
-            style={({ pressed }) => [styles.groupRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            {/* The one destructive action in the app, and the only
-             *  place `danger` appears outside a goal being removed. */}
-            <View style={styles.grow}>
-              <AppText color={theme.danger}>Reset everything</AppText>
-              <AppText variant="caption" color={theme.muted}>
-                Deletes every rating, task, grade, and journal entry on
-                this phone, and starts you over from scratch.
-              </AppText>
-            </View>
-            <AppText variant="label" color={theme.muted}>
-              ›
-            </AppText>
-          </Pressable>
+          <SettingsRow
+            label="Where your data lives"
+            onPress={() => router.push("/privacy" as Href)}
+            theme={theme}
+          />
         </Group>
 
+        <Group theme={theme} title="Help" flush>
+          <SettingsRow
+            label="Send feedback"
+            onPress={() => router.push("/feedback" as Href)}
+            theme={theme}
+          />
+          <GroupDivider theme={theme} />
+          <SettingsRow
+            label="Problem log"
+            onPress={() => router.push("/problem" as Href)}
+            theme={theme}
+          />
+        </Group>
+
+        {/* ADR-0008: exactly one neutral mention, framed as availability,
+            reading identically for a user who is thriving and one who is
+            not. Not a row, because a row invites a tap it does not have. */}
         <Group theme={theme} title="Support">
-          {/* No `resourceLine` on the first: the negative margin exists
-              to tighten each line against the one above it, and this
-              one now sits directly under the group title. */}
           <AppText color={theme.ink}>
             988 Suicide &amp; Crisis Lifeline: call or text 988.
           </AppText>
@@ -349,9 +280,34 @@ export default function SettingsScreen() {
           </AppText>
         </Group>
 
+        {/* Last, and in this order: the harmless one above the one that
+            destroys everything. Their names sound interchangeable, which
+            is exactly why the destructive one is Ink-red and carries the
+            only second line left in the list. */}
+        <Group theme={theme} title="Start over" flush>
+          <SettingsRow
+            label="Replay the introduction"
+            detail="Walks through the welcome screens again. Nothing you’ve entered changes."
+            hint="Replays the welcome screens; your data is not changed"
+            onPress={() => {
+              void resetOnboarding().then(() => router.replace("/onboarding"));
+            }}
+            theme={theme}
+          />
+          <GroupDivider theme={theme} />
+          <SettingsRow
+            label="Reset everything"
+            detail="Deletes every rating, task, grade, and journal entry on this phone."
+            hint="Deletes everything on this device and starts over"
+            destructive
+            onPress={() => setEraseOpen(true)}
+            theme={theme}
+          />
+        </Group>
+
         {buildLabel ? (
           <AppText
-            variant="caption"
+            variant="footnote"
             color={theme.muted}
             selectable
             style={styles.build}
@@ -386,7 +342,8 @@ const styles = StyleSheet.create({
   /** Takes the space between the fixed header and the tab bar; the
    *  settings list scrolls inside it while both stay put. */
   body: { flex: 1 },
-  container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xl },
+  container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xxxl },
+  loading: { marginTop: space.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   /** A row inside a flush Group: the group owns the fill and the side
    *  padding, so the row only owns its height and its own contents.

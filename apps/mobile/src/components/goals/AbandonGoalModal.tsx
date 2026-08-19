@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 type TaskAction = "detach" | "archive";
 
@@ -53,12 +54,7 @@ export function AbandonGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={close}>
       <View
         style={[
           styles.sheet,
@@ -71,7 +67,7 @@ export function AbandonGoalModal({
       >
         <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
         <AppText variant="title" color={theme.ink}>
-          Set "{goalTitle}" aside?
+          Set “{goalTitle}” aside?
         </AppText>
         <AppText color={theme.muted}>
           It can be revived anytime, and it keeps its history. Its tasks: keep
@@ -125,12 +121,12 @@ export function AbandonGoalModal({
         <Button label="Set aside" color={accent} disabled={saving} onPress={commit} theme={theme} />
         <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

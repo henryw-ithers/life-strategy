@@ -192,8 +192,8 @@ export default function FeedbackScreen() {
           Send feedback
         </AppText>
         <AppText color={theme.ink} style={styles.lede}>
-          Anything you'd change, anything that didn't make sense, anything
-          you wish it did. Half a sentence is plenty. There's no wrong way
+          Anything you’d change, anything that didn’t make sense, anything
+          you wish it did. Half a sentence is plenty. There’s no wrong way
           to say it.
         </AppText>
 
@@ -242,7 +242,7 @@ export default function FeedbackScreen() {
                 What kind of thing is it?
               </AppText>
               <AppText variant="caption" color={theme.muted}>
-                Only so it's easy to sort later. Pick whichever's closest.
+                Only so it’s easy to sort later. Pick whichever’s closest.
               </AppText>
               <View style={styles.chips}>
                 {FEEDBACK_KINDS.map((option) => {
@@ -310,7 +310,7 @@ export default function FeedbackScreen() {
               <AppText variant="caption" color={theme.muted}>
                 Opens your mail app with this written out, addressed to
                 Henry. Only what you typed goes in it, plus which version
-                you're on and what kind of phone this is. Nothing from inside
+                you’re on and what kind of phone this is. Nothing from inside
                 the app.
               </AppText>
             </View>
@@ -329,7 +329,7 @@ export default function FeedbackScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 The problem log has the technical details, which saves a
-                lot of guessing. It's where your sent notes are listed too. ›
+                lot of guessing. It’s where your sent notes are listed too. ›
               </AppText>
             </Pressable>
           </>

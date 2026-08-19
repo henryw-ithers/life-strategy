@@ -67,7 +67,7 @@ markers for special/flagged days.
    is just the selected day. Weekday pins, if present, order the list
    ("planned today" above "flexible, N left this week").
 2. **Weekday pinning:** in the task editor — an optional "on which
-   days?" row of weekday chips wired to the FrequencyPicker (picking
+   days?" row of weekday chips wired to the frequency control (picking
    days sets frequency; clearing pins reverts to flexible).
 3. **Week planner + placements:** the week strip becomes editable for
    future days; drag/assign this week's remaining runs onto days.

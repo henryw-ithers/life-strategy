@@ -197,6 +197,47 @@ Two capture points sit behind it:
   It already had the only readable error message in the app; now that
   message is in the log with a version stamp beside it.
 
+> **Amendment (2026-08-19): two of the three capture points did not
+> cover what this section claimed.**
+>
+> An audit found the promise above — "everything React never sees:
+> uncaught async rejections" — was false in exactly the build that
+> matters.
+>
+> - **Unhandled rejections never reached `ErrorUtils` at all.** React
+>   Native routes them through Hermes' rejection tracker, and
+>   `Libraries/Core/polyfillPromise.js` enables that tracker **only
+>   under `__DEV__`**. In a release build a rejected promise nobody
+>   caught produced nothing: no warning, no log line, no crash. The app
+>   fires around ninety of these deliberately (`void reload()` and
+>   friends), so a failed write was indistinguishable from a successful
+>   one — the screen reloaded the unchanged data either way. The app now
+>   installs the tracker itself in release builds and records to this
+>   log. Behaviour is unchanged: a failed background write still fails
+>   quietly, which is right for a background write. It is now *visible*.
+>
+> - **The database gate's fatal path was unreachable on device.**
+>   `StartupFailure` renders when `openDatabase()` rejects, but on
+>   native the connection was opened at module scope, during bundle
+>   evaluation, before React existed — so `openDatabase()` was
+>   `Promise.resolve()` and the `.catch` behind it was dead code
+>   describing a screen no native user could ever see. A database that
+>   would not open took the app down with no message and no log entry.
+>   Native now opens inside `openDatabase()` as web already did.
+>
+> **The general lesson, recorded because it will recur:** a capture
+> point is only as good as the proof that it fires. Both of these read
+> correctly and were wired to the right screens; neither had ever been
+> exercised. The startup path was verified this time by forcing
+> `openDatabase()` to reject and confirming `StartupFailure` renders
+> with the reason.
+>
+> **The gate's own ordering** — connection, then schema migrations, then
+> taxonomy seed and data fixups, then fonts, with every screen held
+> behind all four — is a contract this ADR did not previously name and
+> now does. It fails **open** on the completion flag alone (ADR-0011);
+> everywhere else it fails closed, to `StartupFailure`.
+
 ### 5. Sending a report is a user action, shown in full first
 
 Settings → **Problem log** lists what has been recorded, in

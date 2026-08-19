@@ -21,7 +21,11 @@ export type ProblemKind =
   | "render"
   /** Anything React never sees: async rejections, timers, native
    *  callbacks. May or may not have been fatal to the process. */
-  | "fatal";
+  | "fatal"
+  /** A screen's own data load rejected. The route rendered fine; it has
+   *  nothing to show and said so. Separated from `render` because the
+   *  fix is almost always in a query, not in a component. */
+  | "load";
 
 export interface ProblemEntry {
   /** ISO 8601, device local clock. */

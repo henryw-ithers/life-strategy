@@ -8,13 +8,14 @@
  * here because this is the last moment it's useful.
  */
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface EraseDataModalProps {
   visible: boolean;
@@ -51,12 +52,7 @@ export function EraseDataModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={close}>
       <View
         style={[
           styles.sheet,
@@ -80,7 +76,7 @@ export function EraseDataModal({
           the introduction.
         </AppText>
         <AppText variant="caption" color={theme.muted}>
-          This can't be undone. If you want to keep any of it, close this and
+          This can’t be undone. If you want to keep any of it, close this and
           export a backup from Your data first.
         </AppText>
 
@@ -105,12 +101,12 @@ export function EraseDataModal({
           theme={theme}
         />
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

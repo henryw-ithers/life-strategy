@@ -62,6 +62,7 @@ const PROBLEM_LABEL: Record<ProblemKind, string> = {
   startup: "Wouldn't open",
   render: "A screen broke",
   fatal: "Something failed in the background",
+  load: "A screen couldn’t load",
 };
 
 export default function ProblemLogScreen() {
@@ -129,7 +130,7 @@ export default function ProblemLogScreen() {
           Problem log
         </AppText>
         <AppText color={theme.ink} style={styles.lede}>
-          Anything that went wrong, and any feedback you've sent. It's all
+          Anything that went wrong, and any feedback you’ve sent. It’s all
           written down here on this phone and nowhere else.
         </AppText>
 
@@ -235,8 +236,8 @@ export default function ProblemLogScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 Sending opens the share sheet, so you choose where it
-                goes. It's plain text: technical details about the app, this
-                build, and this phone's model. Nothing you've written,
+                goes. It’s plain text: technical details about the app, this
+                build, and this phone’s model. Nothing you’ve written,
                 rated, or photographed is in it.
               </AppText>
 

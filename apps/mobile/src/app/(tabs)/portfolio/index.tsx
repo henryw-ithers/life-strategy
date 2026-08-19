@@ -12,7 +12,7 @@
  * `db/ranking.ts` for why that distinction matters to the graph's
  * history and to ADR-0008's calibration series.
  */
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +26,7 @@ import { useSharedValue } from "react-native-reanimated";
 
 import { PortfolioGraph, type GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { ReorderableList, type ReorderableItem } from "../../../components/ui/ReorderableList";
@@ -64,11 +65,7 @@ export default function PortfolioScreen() {
     setPending(null);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
+  const { error, retry } = useScreenLoad(load);
 
   const order = pending ?? board?.order ?? [];
 
@@ -93,6 +90,16 @@ export default function PortfolioScreen() {
     await load();
     setSaving(false);
   };
+
+  if (error) {
+    return (
+      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+        <Backdrop circles={constellation(theme.areas, { faint: true })} />
+        <ScreenHeader title="Portfolio" theme={theme} />
+        <LoadFailure error={error} onRetry={retry} theme={theme} />
+      </View>
+    );
+  }
 
   if (board === undefined) {
     return (

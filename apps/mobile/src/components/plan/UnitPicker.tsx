@@ -103,7 +103,7 @@ export function UnitPicker({
         </AppText>
         {value.length === 0 ? (
           <AppText variant="footnote" color={theme.muted}>
-            Pick where it's listed
+            Pick where it’s listed
           </AppText>
         ) : value.length > 1 ? (
           <AppText variant="footnote" color={theme.muted}>
@@ -165,7 +165,7 @@ export function UnitPicker({
       </ScrollView>
       {atMax ? (
         <AppText variant="footnote" color={theme.muted}>
-          Up to {max} units — past that, it isn't really one task.
+          Up to {max} units — past that, it isn’t really one task.
         </AppText>
       ) : null}
       {/* A nudge, not a gate (ADR-0027 §4). Appears only once a

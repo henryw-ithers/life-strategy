@@ -165,7 +165,7 @@ export default function BackupScreen() {
           Your data
         </AppText>
         <AppText color={theme.ink} style={styles.lede}>
-          Everything you've written lives on this phone and nowhere else. A
+          Everything you’ve written lives on this phone and nowhere else. A
           backup is the only copy that survives it.
         </AppText>
 
@@ -203,7 +203,7 @@ export default function BackupScreen() {
             </AppText>
             <AppText color={theme.ink}>
               Backup and restore need a development or TestFlight build. This
-              one can't do the encryption.
+              one can’t do the encryption.
             </AppText>
           </View>
         ) : null}
@@ -216,7 +216,7 @@ export default function BackupScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 Writes one encrypted file you can put in Files, iCloud Drive,
-                or anywhere else you keep things. Photos aren't included yet.
+                or anywhere else you keep things. Photos aren’t included yet.
                 Everything else is.
               </AppText>
               <Button
@@ -251,8 +251,8 @@ export default function BackupScreen() {
               Choose a passphrase
             </AppText>
             <AppText variant="caption" color={theme.muted}>
-              This is what unlocks the backup. It isn't stored anywhere and
-              can't be looked up or reset. If you lose it, the file can't be
+              This is what unlocks the backup. It isn’t stored anywhere and
+              can’t be looked up or reset. If you lose it, the file can’t be
               opened again. Write it down somewhere real.
             </AppText>
             <Field
@@ -288,8 +288,8 @@ export default function BackupScreen() {
               </AppText>
             </View>
             <AppText variant="caption" color={theme.muted}>
-              Everything currently in the app is replaced by what's in this
-              file. Anything logged since it was made won't be here afterward.
+              Everything currently in the app is replaced by what’s in this
+              file. Anything logged since it was made won’t be here afterward.
             </AppText>
             <Field
               theme={theme}

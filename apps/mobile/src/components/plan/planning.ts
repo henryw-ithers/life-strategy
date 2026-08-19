@@ -10,6 +10,8 @@
 
 import { weekOfFortnight } from "@glide/scoring";
 
+import { MIN_TIMES_PER_WEEK } from "./frequency";
+
 /** ISO weekday numbers: Monday is 1, Sunday is 7. */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -112,12 +114,25 @@ export function formatWeekdays(days: readonly Weekday[]): string | null {
  * Zero days is the flexible case and leaves frequency alone: clearing
  * the last pin reverts to "any N days" at whatever N was already
  * chosen, rather than silently rewriting it to nothing.
+ *
+ * **A fortnightly task keeps its cadence when it is pinned.** Days and
+ * frequency answer one question for weekly work, but a fortnight is a
+ * longer period than the days describe: pinning Wednesday to a
+ * fortnightly task says *which* Wednesday-shaped slot it wants, not
+ * that it now happens every week. Without this the function could
+ * never return 0, so `SchedulePicker`'s week-switch — which renders
+ * only when a pinned task is fortnightly — was unreachable, and
+ * `task.fortnight_offset` had no way to be set from anywhere in the
+ * app. Pinning a day also silently promoted a fortnightly task to
+ * weekly, doubling how often it was expected.
  */
 export function frequencyForWeekdays(
   days: readonly Weekday[],
   current: number,
 ): number {
-  return days.length === 0 ? current : days.length;
+  if (days.length === 0) return current;
+  if (current === MIN_TIMES_PER_WEEK) return MIN_TIMES_PER_WEEK;
+  return days.length;
 }
 
 /** Sunday-first display order, for rendering a stored pin set. */

@@ -170,3 +170,145 @@ describe("dayCeiling", () => {
     expect(dayCeiling(units, [task("1", "a", 1)])).toBe(VARIABLE_BAND);
   });
 });
+
+describe("the routine band is settled per unit", () => {
+  /**
+   * Regression: the one-point floor used to be funded from the pooled
+   * band, so tasks in a near-worthless unit reserved a point each
+   * before the band was shared out — and took it from units that had
+   * earned it. ADR-0027 §2 forbids exactly this reallocation.
+   */
+  it("does not let a low-weight unit's task pile drain a heavy unit", () => {
+    const units = [
+      { unitId: "heavy", weight: 40 },
+      { unitId: "light", weight: 1 },
+    ];
+    const alone = bandPointValues(units, [
+      { id: "h1", unitId: "heavy", timesPerWeek: 7, rankInUnit: 1 },
+      { id: "l1", unitId: "light", timesPerWeek: 7, rankInUnit: 1 },
+    ]);
+
+    const withPile = bandPointValues(units, [
+      { id: "h1", unitId: "heavy", timesPerWeek: 7, rankInUnit: 1 },
+      ...Array.from({ length: 20 }, (_, i) => ({
+        id: `l${i}`,
+        unitId: "light",
+        timesPerWeek: 7,
+        rankInUnit: i + 1,
+      })),
+    ]);
+
+    // The heavy unit's task is untouched by what happens elsewhere.
+    expect(withPile.get("h1")).toBe(alone.get("h1"));
+  });
+
+  it("keeps a unit's routine tasks inside its own budget", () => {
+    const values = bandPointValues(
+      [{ unitId: "light", weight: 1 }],
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `l${i}`,
+        unitId: "light",
+        timesPerWeek: 7,
+        rankInUnit: i + 1,
+      })),
+    );
+    const spent = Array.from({ length: 20 }, (_, i) => values.get(`l${i}`) ?? 0)
+      .reduce((a, b) => a + b, 0);
+    // 0.8 x 1 rounds to a single point: the tail rounds to zero rather
+    // than each row claiming its floor from the band.
+    expect(spent).toBe(1);
+  });
+
+  it("pays a unit its whole routine budget when it is the only one", () => {
+    const values = bandPointValues(
+      [{ unitId: "heavy", weight: 40 }],
+      [{ id: "h1", unitId: "heavy", timesPerWeek: 7, rankInUnit: 1 }],
+    );
+    expect(values.get("h1")).toBe(Math.round((ROUTINE_BAND / 100) * 40));
+  });
+});
+
+describe("the variable band is settled per unit too", () => {
+  const units = [
+    { unitId: "heavy", weight: 40 },
+    { unitId: "light", weight: 2 },
+  ];
+
+  /** `n` non-daily tasks, split evenly between the two units. */
+  const plan = (n: number): BandTask[] => [
+    ...Array.from({ length: n / 2 }, (_, i) => ({
+      id: `h${i}`,
+      unitId: "heavy",
+      timesPerWeek: 1,
+      rankInUnit: i + 1,
+    })),
+    ...Array.from({ length: n / 2 }, (_, i) => ({
+      id: `l${i}`,
+      unitId: "light",
+      timesPerWeek: 1,
+      rankInUnit: i + 1,
+    })),
+  ];
+
+  const unitTotal = (values: Map<string, number>, prefix: string, n: number) =>
+    Array.from({ length: n / 2 }, (_, i) => values.get(`${prefix}${i}`) ?? 0).reduce(
+      (a, b) => a + b,
+      0,
+    );
+
+  /**
+   * Regression: pooling every unit's claims made a task's value depend
+   * on how many tasks existed elsewhere. The light unit's share climbed
+   * from 3 to 10 as the plan grew, matching a unit twenty times its
+   * weight, then collapsed to 0.
+   */
+  it("gives a unit the same share whatever the rest of the plan holds", () => {
+    const shares = [4, 10, 20, 30, 40].map((n) => {
+      const values = bandPointValues(units, plan(n));
+      return {
+        heavy: unitTotal(values, "h", n),
+        light: unitTotal(values, "l", n),
+      };
+    });
+    // Every plan size resolves to the same split.
+    for (const s of shares) expect(s).toEqual(shares[0]);
+    // And it is the weight-proportional one, not a flat one.
+    expect(shares[0]!.heavy).toBeGreaterThan(shares[0]!.light);
+  });
+
+  it("still pays the whole band exactly once", () => {
+    for (const n of [2, 4, 10, 20, 30]) {
+      const values = bandPointValues(units, plan(n));
+      expect(unitTotal(values, "h", n) + unitTotal(values, "l", n)).toBe(
+        VARIABLE_BAND,
+      );
+    }
+  });
+
+  it("splits a unit's own budget by rank", () => {
+    const values = bandPointValues(
+      [{ unitId: "only", weight: 10 }],
+      [
+        { id: "first", unitId: "only", timesPerWeek: 1, rankInUnit: 1 },
+        { id: "second", unitId: "only", timesPerWeek: 1, rankInUnit: 2 },
+      ],
+    );
+    expect(values.get("first")!).toBeGreaterThan(values.get("second")!);
+    expect(values.get("first")! + values.get("second")!).toBe(VARIABLE_BAND);
+  });
+
+  it("leaves the band to the units that hold non-daily work", () => {
+    // `daily` reserves nothing here: coverage is the routine band's rule.
+    const values = bandPointValues(
+      [
+        { unitId: "daily", weight: 60 },
+        { unitId: "weekly", weight: 40 },
+      ],
+      [
+        { id: "d", unitId: "daily", timesPerWeek: 7, rankInUnit: 1 },
+        { id: "w", unitId: "weekly", timesPerWeek: 1, rankInUnit: 1 },
+      ],
+    );
+    expect(values.get("w")).toBe(VARIABLE_BAND);
+  });
+});

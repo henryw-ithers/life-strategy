@@ -1,19 +1,17 @@
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  Pressable,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface AddGoalModalProps {
   visible: boolean;
@@ -60,13 +58,7 @@ export function AddGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <SheetFrame onClose={close} avoidsKeyboard>
         <View
           style={[
             styles.sheet,
@@ -111,13 +103,12 @@ export function AddGoalModal({
           />
           <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
         </View>
-      </KeyboardAvoidingView>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

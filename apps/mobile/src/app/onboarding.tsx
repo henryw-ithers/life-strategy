@@ -55,6 +55,7 @@ import { PermissionPrescreen } from "../components/notifications/PermissionPresc
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { LoadFailure } from "../components/ui/ScreenLoad";
 import {
   completeOnboarding,
   loadOnboardingStep,
@@ -63,6 +64,7 @@ import {
 } from "../db/onboarding";
 import { hasAskedNotificationPermission } from "../db/settings";
 import { loadPlan, type PlanData } from "../db/tasks";
+import { recordProblem } from "../lib/problemLog";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -77,6 +79,9 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState<OnboardingStep | null>(null);
   const [starting, setStarting] = useState(false);
+  /** Onboarding stands between the user and the whole app, so a failed
+   *  read here strands them completely. It gets a way out. */
+  const [error, setError] = useState<Error | null>(null);
   /** Loaded once the diagnostic has produced a snapshot; the `weights`
    *  screen is the user's own ranking, not an example of one. */
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -86,9 +91,19 @@ export default function OnboardingScreen() {
    *  cancel the very push it is waiting on. */
   const awaitingDiagnostic = useRef(false);
 
-  useEffect(() => {
-    void loadOnboardingStep().then(setStep);
+  /** One funnel for every load in this screen: record it, then show it. */
+  const fail = useCallback((thrown: unknown) => {
+    const asError = thrown instanceof Error ? thrown : new Error(String(thrown));
+    recordProblem(asError, "load");
+    setError(asError);
   }, []);
+
+  const loadStep = useCallback(() => {
+    setError(null);
+    void loadOnboardingStep().then(setStep).catch(fail);
+  }, [fail]);
+
+  useEffect(loadStep, [loadStep]);
 
   const go = useCallback((next: OnboardingStep) => {
     setStep(next);
@@ -103,16 +118,18 @@ export default function OnboardingScreen() {
     useCallback(() => {
       if (!awaitingDiagnostic.current) return;
       let cancelled = false;
-      void loadPlan().then((fresh) => {
-        if (cancelled) return;
-        awaitingDiagnostic.current = false;
-        if (fresh.hasSnapshot) setPlan(fresh);
-        go(fresh.hasSnapshot ? "weights" : "welcome");
-      });
+      void loadPlan()
+        .then((fresh) => {
+          if (cancelled) return;
+          awaitingDiagnostic.current = false;
+          if (fresh.hasSnapshot) setPlan(fresh);
+          go(fresh.hasSnapshot ? "weights" : "welcome");
+        })
+        .catch(fail);
       return () => {
         cancelled = true;
       };
-    }, [go]),
+    }, [go, fail]),
   );
 
   /* A cold start straight onto `weights` has no plan in memory: the
@@ -120,13 +137,15 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (step !== "weights" || plan !== null) return;
     let cancelled = false;
-    void loadPlan().then((fresh) => {
-      if (!cancelled) setPlan(fresh);
-    });
+    void loadPlan()
+      .then((fresh) => {
+        if (!cancelled) setPlan(fresh);
+      })
+      .catch(fail);
     return () => {
       cancelled = true;
     };
-  }, [step, plan]);
+  }, [step, plan, fail]);
 
   /* ADR-0010: an in-app "no" is final until the user visits Settings.
    * Re-running onboarding must not ask a second time. */
@@ -141,6 +160,7 @@ export default function OnboardingScreen() {
     if (starting) return;
     setStarting(true);
     try {
+      setError(null);
       // Re-running onboarding from Settings must not force a second
       // diagnostic (ADR-0011 decision 6) the monthly ritual owns that.
       // It lands on `weights` rather than skipping to the notification
@@ -155,13 +175,22 @@ export default function OnboardingScreen() {
       awaitingDiagnostic.current = true;
       go("diagnostic");
       router.push("/diagnostic" as Href);
+    } catch (thrown: unknown) {
+      fail(thrown);
     } finally {
       setStarting(false);
     }
   };
 
   const finish = async () => {
-    await completeOnboarding();
+    try {
+      await completeOnboarding();
+    } catch (thrown: unknown) {
+      // Without this the button would simply stop working, with no
+      // explanation and no way to leave onboarding.
+      fail(thrown);
+      return;
+    }
     // Tasks, not Today: the next useful act is building a plan, and
     // Today has nothing to show until one exists.
     router.replace("/plan" as Href);
@@ -181,6 +210,14 @@ export default function OnboardingScreen() {
     paddingTop: insets.top + space.xl,
     paddingBottom: insets.bottom + space.lg,
   };
+
+  if (error) {
+    return (
+      <View style={[screen, styles.center]}>
+        <LoadFailure error={error} onRetry={loadStep} theme={theme} />
+      </View>
+    );
+  }
 
   if (step === null) {
     return (

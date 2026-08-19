@@ -27,10 +27,11 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LIBRARY, type GoalTemplate, type TaskTemplate } from "../../content/library";
-import { SCRIM, wash, type ThemeTokens } from "../../theme/colors";
+import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 import { formatFrequency } from "./frequency";
 import type { Profile } from "@glide/scoring";
 
@@ -116,12 +117,7 @@ export function SuggestionsSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
+      <SheetFrame onClose={onClose}>
       <View
         style={[
           styles.sheet,
@@ -226,12 +222,12 @@ export function SuggestionsSheet({
 
         <Button label="Done" variant="secondary" onPress={onClose} theme={theme} />
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

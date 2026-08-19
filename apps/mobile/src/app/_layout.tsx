@@ -56,10 +56,61 @@ if (globalScope.ErrorUtils && !globalScope.__glideProblemHandlerInstalled) {
 }
 
 /**
- * Connection gate. Native has a database the moment this module loads,
- * but web cannot open one synchronously at all — SQLite lives in a Web
- * Worker there, and the connection arrives a bundle-load later (see
- * [client.web.ts](../db/client.web.ts)).
+ * Unhandled promise rejections — the other half of "everything React
+ * never sees", and the half that was invisible.
+ *
+ * React Native wires Hermes' rejection tracker **only under `__DEV__`**
+ * (`Libraries/Core/polyfillPromise.js`), so in a release build a
+ * rejected promise nobody caught produces nothing whatsoever: no
+ * warning, no log entry, no crash. The app deliberately fires a lot of
+ * these — `void reload()`, `void deleteGoalProgress(id).then(reload)`
+ * and about ninety more — and each one is a write whose failure looked
+ * identical to success, because the screen reloaded and showed the
+ * unchanged data either way.
+ *
+ * Recording them changes nothing about how the app behaves: a failed
+ * background write still fails quietly, which is right, but it now
+ * leaves a line in the problem log a tester can send. `fatal` is the
+ * existing kind for this — see `ProblemKind`, which already names
+ * async rejections and notes they may or may not have killed the
+ * process.
+ *
+ * Dev is left to React Native, whose LogBox surfaces these better than
+ * a log file at the moment they happen.
+ */
+interface HermesPromiseHooks {
+  hasPromise?: () => boolean;
+  enablePromiseRejectionTracker?: (options: {
+    allRejections: boolean;
+    onUnhandled: (id: number, error: unknown) => void;
+    onHandled?: (id: number) => void;
+  }) => void;
+}
+
+if (!__DEV__) {
+  const hermes = (globalThis as { HermesInternal?: HermesPromiseHooks })
+    .HermesInternal;
+  if (hermes?.hasPromise?.() === true) {
+    hermes.enablePromiseRejectionTracker?.({
+      allRejections: true,
+      onUnhandled: (_id, error) => recordProblem(error, "fatal"),
+    });
+  }
+}
+
+/**
+ * Connection gate. **Both platforms open asynchronously**, so nothing
+ * below this may touch `db` until `openDatabase()` resolves.
+ *
+ * That was not always true, and the comment here used to say so:
+ * "native has a database the moment this module loads." It did — the
+ * open ran at import time, which meant a failed open never reached the
+ * `.catch` below and killed the app during bundle evaluation instead
+ * of rendering `StartupFailure`. The catch was unreachable code
+ * describing a screen no native user could ever see. Native now opens
+ * inside `openDatabase()` like web does (see
+ * [client.ts](../db/client.ts)), which is what makes this gate real
+ * rather than decorative.
  *
  * It is a separate component from the gate below rather than another
  * piece of state inside it because `useMigrations` reads `db` from an
@@ -164,7 +215,7 @@ function StartupFailure({ error }: { error: Error }) {
   return (
     <View style={[styles.center, { backgroundColor: theme.canvas }]}>
       <AppText variant="title" color={theme.ink}>
-        Couldn't open your data
+        Couldn’t open your data
       </AppText>
       <AppText color={theme.muted} style={styles.errorBody}>
         Nothing is lost. Closing and reopening the app usually fixes

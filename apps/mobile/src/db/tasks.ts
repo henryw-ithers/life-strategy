@@ -256,11 +256,13 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     .innerJoin(task, eq(task.id, taskUnit.taskId))
     .where(eq(task.active, true))
     .orderBy(asc(taskUnit.rankInUnit));
-  const timesPerWeekByTask = new Map(
-    (await tx.select({ id: task.id, timesPerWeek: task.timesPerWeek }).from(task)).map(
-      (t) => [t.id, t.timesPerWeek],
-    ),
-  );
+  // One read of the per-task columns this pass needs. `unitId` is the
+  // home unit, which decides whose rank lands back on `task`.
+  const taskRows = await tx
+    .select({ id: task.id, timesPerWeek: task.timesPerWeek, unitId: task.unitId })
+    .from(task);
+  const timesPerWeekByTask = new Map(taskRows.map((t) => [t.id, t.timesPerWeek]));
+  const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
 
   // Normalize each unit's ranks to 1..n before pricing, so a gap left
   // by an archive or a unit change never reaches `bandPointValues`.
@@ -284,19 +286,38 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
   }));
   const points = bandPointValues(bandUnits, bandTasks);
 
-  const touched = new Set<string>();
+  // Totals are summed here rather than re-read per task. This used to
+  // call `refreshTaskTotal` in a second loop, which cost three more
+  // queries each (memberships, the task row, the update) to recompute
+  // numbers this function had just produced. Against the 110-task
+  // content library that was roughly 440 serial round trips inside one
+  // transaction, on every add, edit, re-rank and goal change — all of
+  // it derivable from `points` and `normalizedRank` without touching
+  // the database again.
+  const totalByTask = new Map<string, number>();
   for (const m of memberships) {
     const key = `${m.taskId}::${m.unitId}`;
+    const value = points.get(key) ?? 0;
     await tx
       .update(taskUnit)
       .set({
-        pointValue: points.get(key) ?? 0,
+        pointValue: value,
         rankInUnit: normalizedRank.get(key) ?? m.rankInUnit,
       })
       .where(and(eq(taskUnit.taskId, m.taskId), eq(taskUnit.unitId, m.unitId)));
-    touched.add(m.taskId);
+    totalByTask.set(m.taskId, (totalByTask.get(m.taskId) ?? 0) + value);
   }
-  for (const taskId of touched) await refreshTaskTotal(tx, taskId);
+
+  for (const [taskId, total] of totalByTask) {
+    const home = homeUnitByTask.get(taskId);
+    const homeRank = home
+      ? normalizedRank.get(`${taskId}::${home}`)
+      : undefined;
+    await tx
+      .update(task)
+      .set({ pointValue: total, ...(homeRank ? { rankInUnit: homeRank } : {}) })
+      .where(eq(task.id, taskId));
+  }
 }
 
 /** `task.point_value` = the sum of its memberships. */

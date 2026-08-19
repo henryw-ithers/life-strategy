@@ -62,7 +62,7 @@ import {
 } from "../db/diagnostic";
 import { loadGraphSnapshots } from "../db/graph";
 import { getTheme, type ThemeTokens } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
+import { space } from "../theme/tokens";
 
 type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "diff" | "results";
 
@@ -312,8 +312,8 @@ export default function DiagnosticFlow() {
               open with a near-identical screen of its own; that screen
               is gone (ADR-0011 as amended), so this one carries it. */}
           <AppText color={theme.ink} style={styles.introCopy}>
-            First you'll put the parts of your life in order — which ones
-            need your attention most. Then you'll rate how satisfied you
+            First you’ll put the parts of your life in order — which ones
+            need your attention most. Then you’ll rate how satisfied you
             are with each one out of ten.
           </AppText>
           <AppText variant="caption" color={theme.muted}>
@@ -549,7 +549,7 @@ export default function DiagnosticFlow() {
     return (
       <View style={[screen, styles.center, { gap: space.md }]}>
         <AppText variant="title" color={theme.ink}>
-          Couldn't save
+          Couldn’t save
         </AppText>
         <AppText color={theme.muted} style={{ textAlign: "center" }}>
           Your rankings are still here. Try again.

@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,10 +9,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 type Phase = "choose" | "followup";
 
@@ -92,13 +91,7 @@ export function CompleteGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <SheetFrame onClose={close} avoidsKeyboard>
         <View
           style={[
             styles.sheet,
@@ -117,7 +110,7 @@ export function CompleteGoalModal({
                 Goal complete
               </AppText>
               <AppText color={theme.muted}>
-                What does "{goalTitle}" leave behind?
+                What does “{goalTitle}” leave behind?
               </AppText>
 
               <Pressable
@@ -235,13 +228,12 @@ export function CompleteGoalModal({
             </>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

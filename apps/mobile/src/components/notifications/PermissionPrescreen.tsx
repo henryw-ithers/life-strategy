@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -7,10 +7,11 @@ import {
   setNotificationEnabled,
 } from "../../db/settings";
 import { requestPermission } from "../../notifications/dailyNudge";
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { SheetFrame } from "../ui/SheetFrame";
 
 interface PermissionPrescreenProps {
   visible: boolean;
@@ -47,7 +48,7 @@ export function PermissionPrescreen({ visible, onDone, theme }: PermissionPrescr
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={notNow}>
-      <Pressable style={styles.backdrop} onPress={notNow} accessibilityRole="button" accessibilityLabel="Close" />
+      <SheetFrame onClose={notNow}>
       <View
         style={[
           styles.sheet,
@@ -63,19 +64,19 @@ export function PermissionPrescreen({ visible, onDone, theme }: PermissionPrescr
           A daily reminder?
         </AppText>
         <AppText color={theme.ink}>
-          One nudge a day, at a time you choose, and only when today's list
-          still needs you. It never says what's on it. Tapping it opens
-          today's checklist.
+          One nudge a day, at a time you choose, and only when today’s list
+          still needs you. It never says what’s on it. Tapping it opens
+          today’s checklist.
         </AppText>
         <Button label="Enable" onPress={enable} disabled={busy} theme={theme} />
         <Button label="Not now" variant="quiet" onPress={notNow} disabled={busy} theme={theme} />
       </View>
+      </SheetFrame>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: SCRIM },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

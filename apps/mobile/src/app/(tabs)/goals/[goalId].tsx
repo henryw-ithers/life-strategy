@@ -4,7 +4,7 @@
  * resume, abandon (revivable), revise (spawns a linked successor),
  * and the three-path completion flow.
  */
-import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useCallback, useState } from "react";
 import {
@@ -28,6 +28,7 @@ import { AddTaskModal } from "../../../components/plan/AddTaskModal";
 import type { PickableUnit } from "../../../components/plan/UnitPicker";
 import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
 import { AppText } from "../../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import {
@@ -123,11 +124,7 @@ export default function GoalDetailScreen() {
     );
   }, [goalId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const { error, retry } = useScreenLoad(reload);
 
   const accent = goal ? theme.areas[goal.areaId] ?? theme.accent : theme.accent;
 
@@ -203,7 +200,9 @@ export default function GoalDetailScreen() {
           </AppText>
         </Pressable>
 
-        {goal === null ? (
+        {error ? (
+        <LoadFailure error={error} onRetry={retry} theme={theme} />
+      ) : goal === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           <>
