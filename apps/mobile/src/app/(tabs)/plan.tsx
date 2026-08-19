@@ -39,6 +39,7 @@ import {
   COMMUNAL_TASK_NOTE,
   type PartOfDay,
 } from "../../components/plan/planning";
+import { CoverageBar } from "../../components/plan/CoverageBar";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -281,6 +282,11 @@ export default function PlanScreen() {
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScreenHeader title="Tasks" theme={theme} />
+
+      {/* The screen's own thesis, above everything it applies to: how
+          much of your hundred a daily habit currently reaches, and
+          therefore what today can score. Drawn rather than written. */}
+      {plan?.hasSnapshot ? <CoverageBar areas={plan.areas} theme={theme} /> : null}
 
       {/* Capture, before navigation. Adding a task used to start with
           finding its unit and expanding it; this opens the same sheet

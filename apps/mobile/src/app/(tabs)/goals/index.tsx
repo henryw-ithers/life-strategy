@@ -170,8 +170,14 @@ export default function GoalsScreen() {
           // a goal a goal — milestones, a metric, the tasks that serve
           // it — lives on that screen and nowhere else, so landing on
           // the list left the richest surface in the app undiscovered.
-          onCommit={async (title, description) => {
-            const newId = await createGoal(addingTo.id, title, description);
+          onCommit={async (title, description, target, unit) => {
+            const newId = await createGoal(
+              addingTo.id,
+              title,
+              description,
+              target ?? undefined,
+              unit ?? undefined,
+            );
             await reload();
             if (newId) router.push(`/goals/${newId}` as Href);
           }}

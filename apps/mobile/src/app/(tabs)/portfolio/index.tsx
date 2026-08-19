@@ -169,6 +169,12 @@ export default function PortfolioScreen() {
         scrollEnabled={!dragging}
         contentContainerStyle={styles.container}
       >
+        {/* Summary before detail. This screen is where you re-gauge, so
+            it opens on how the month went; the order you can change and
+            the history behind it follow. It used to open on the graph,
+            which is evidence rather than an answer. */}
+        {checkpoint ? <Checkpoint checkpoint={checkpoint} theme={theme} /> : null}
+
         {snapshots && snapshots.length > 0 ? (
           <GraphPreview snapshots={snapshots} theme={theme} />
         ) : null}
@@ -203,8 +209,6 @@ export default function PortfolioScreen() {
             theme={theme}
           />
         ) : null}
-
-        {checkpoint ? <Checkpoint checkpoint={checkpoint} theme={theme} /> : null}
 
         {/* **The monthly loop's only entry point.** Every "Run the
             diagnostic" button in the app sat behind an empty state

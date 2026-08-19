@@ -311,6 +311,7 @@ export async function createGoal(
   title: string,
   description?: string,
   targetValue?: number,
+  metricUnit?: string,
 ): Promise<string> {
   const id = Crypto.randomUUID();
   await db.insert(goal).values({
@@ -319,6 +320,13 @@ export async function createGoal(
     title,
     description: description ?? null,
     targetValue: targetValue ?? null,
+    metricUnit: metricUnit ?? null,
+    // A goal given a number at creation is a `target` metric: reach the
+    // figure and it is done. `cumulative` and `habit` are deliberate
+    // choices made later on the goal's own screen, where their
+    // difference can be explained; guessing between them from a bare
+    // number would get it wrong more often than not.
+    metricKind: targetValue === undefined ? null : "target",
     status: "active",
     statusChangedAt: now(),
   });

@@ -146,6 +146,7 @@ export function DayKindSheet({
             <View style={styles.special}>
               <TextInput
                 value={specialTitle}
+                accessibilityLabel="What made it special"
                 onChangeText={setSpecialTitle}
                 placeholder="What made it special?"
                 placeholderTextColor={theme.muted}

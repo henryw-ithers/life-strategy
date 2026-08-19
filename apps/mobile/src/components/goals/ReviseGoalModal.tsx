@@ -91,6 +91,7 @@ export function ReviseGoalModal({
           </AppText>
           <TextInput
             value={title}
+            accessibilityLabel="Goal"
             onChangeText={setTitle}
             placeholderTextColor={theme.muted}
             autoFocus
@@ -99,6 +100,7 @@ export function ReviseGoalModal({
           />
           <TextInput
             value={description}
+            accessibilityLabel="Notes, optional"
             onChangeText={setDescription}
             placeholder="Notes (optional)"
             placeholderTextColor={theme.muted}

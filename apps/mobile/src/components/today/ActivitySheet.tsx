@@ -173,6 +173,7 @@ export function ActivitySheet({
             <TextInput
               ref={titleRef}
               value={title}
+              accessibilityLabel="What you did"
               onChangeText={onTitleChange}
               placeholder="e.g. Round of golf with Dad"
               placeholderTextColor={theme.muted}

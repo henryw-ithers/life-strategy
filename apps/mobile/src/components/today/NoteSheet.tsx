@@ -85,6 +85,7 @@ export function NoteSheet({
         <TextInput
           ref={inputRef}
           value={body}
+          accessibilityLabel="Note"
           onChangeText={setBody}
           placeholder="What's worth remembering?"
           placeholderTextColor={theme.muted}

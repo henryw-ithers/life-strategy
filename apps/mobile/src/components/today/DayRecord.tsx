@@ -8,14 +8,35 @@
  *
  * The record is the half of the day that is *not* the checklist:
  * journal entries and photos, shown only once there is something to
- * show. Editing and deleting are on a long press rather than a visible
- * control per row, because a row of edit and delete glyphs beside every
- * note would make a record read as a list of chores.
+ * show.
+ *
+ * **Editing used to be long-press only, and that was unfindable.** The
+ * argument for it still holds — a row of edit and delete glyphs beside
+ * every note turns a record into a list of chores — but the conclusion
+ * was wrong: a feature nobody can discover is not a quiet feature, it
+ * is an absent one. The tell was that VoiceOver users had it better
+ * than sighted ones, since the same two actions were already exposed as
+ * accessibility actions and announced.
+ *
+ * Each answers it in the way its own medium expects:
+ *
+ * - **A note** gets one recessive overflow glyph at its right edge.
+ *   Muted, not Ink, so a column of notes still reads as writing rather
+ *   than as rows with controls on them.
+ * - **A photo** gets nothing on the thumbnail. Tapping already opens it
+ *   full screen, which is where every photo app on the phone puts its
+ *   options, so the control lives in the viewer and the grid stays a
+ *   grid.
+ *
+ * Long press still works everywhere it did. It is now the shortcut
+ * rather than the only door.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText } from "../ui/AppText";
 import type { DayData, TodayActivity } from "../../db/today";
@@ -40,6 +61,7 @@ export function DayRecord({
   onDeleteNote: (id: string) => void;
   onDeletePhoto: (id: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [viewing, setViewing] = useState<string | null>(null);
   const [missingPhotos, setMissingPhotos] = useState<Set<string>>(new Set());
   /** Long-press target. Press-and-hold rather than a visible control
@@ -67,7 +89,7 @@ export function DayRecord({
                 delayLongPress={350}
                 accessibilityRole="imagebutton"
                 accessibilityLabel={p.caption ?? "Photo from this day. Opens full screen."}
-                accessibilityHint="Press and hold to delete"
+                accessibilityHint="Opens full screen, where you can delete it"
                 accessibilityActions={[{ name: "magicTap", label: "Delete photo" }]}
                 onAccessibilityAction={(e) => {
                   if (e.nativeEvent.actionName === "magicTap") onDeletePhoto(p.id);
@@ -100,6 +122,7 @@ export function DayRecord({
       {day.journal.map((j) => (
         <Pressable
           key={j.id}
+          onPress={() => setTarget({ kind: "note", id: j.id, body: j.body })}
           onLongPress={() => {
             void Haptics.selectionAsync();
             setTarget({ kind: "note", id: j.id, body: j.body });
@@ -107,7 +130,7 @@ export function DayRecord({
           delayLongPress={350}
           accessibilityRole="button"
           accessibilityLabel={j.body}
-          accessibilityHint="Press and hold to edit or delete this note"
+          accessibilityHint="Opens options for this note"
           // Screen readers cannot long-press, so the same two actions
           // are exposed as accessibility actions.
           accessibilityActions={[
@@ -120,9 +143,22 @@ export function DayRecord({
             }
             if (e.nativeEvent.actionName === "magicTap") onDeleteNote(j.id);
           }}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          style={({ pressed }) => [styles.noteRow, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <AppText color={theme.ink}>{j.body}</AppText>
+          <AppText color={theme.ink} style={styles.noteText}>
+            {j.body}
+          </AppText>
+          {/* Visible, but the quietest thing in the row. `importantFor
+              Accessibility` is off because the parent already exposes
+              both actions; announcing a third control would make one
+              note read as two. */}
+          <View
+            style={styles.noteMore}
+            importantForAccessibility="no"
+            accessibilityElementsHidden
+          >
+            <Ionicons name="ellipsis-horizontal" size={16} color={theme.muted} />
+          </View>
         </Pressable>
       ))}
 
@@ -205,6 +241,28 @@ export function DayRecord({
               style={styles.photoFull}
               contentFit="contain"
             />
+          ) : null}
+          {/* Where a photo's options belong: on the photo, full screen,
+              the way every camera roll on the phone does it. Absolute so
+              it sits over the image without changing how it fits, and
+              inset by the safe area because a viewer is edge to edge. */}
+          {viewing ? (
+            <Pressable
+              onPress={() => {
+                const id = day.photos.find((p) => p.uri === viewing)?.id;
+                setViewing(null);
+                if (id) onDeletePhoto(id);
+              }}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Delete this photo"
+              style={({ pressed }) => [
+                styles.photoDelete,
+                { top: insets.top + space.lg, opacity: pressed ? 0.5 : 1 },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={22} color="#ffffff" />
+            </Pressable>
           ) : null}
         </Pressable>
       </Modal>
@@ -294,6 +352,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   photoFull: { width: "100%", height: "100%" },
+  photoDelete: { position: "absolute", right: space.screen, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  noteRow: { flexDirection: "row", alignItems: "flex-start", gap: space.sm },
+  noteText: { flex: 1 },
+  /** 44pt of target around a 16pt glyph, aligned to the note's first
+   *  line rather than centred on a paragraph that may run long. */
+  noteMore: { minWidth: 32, minHeight: 24, alignItems: "flex-end", justifyContent: "center" },
   /** Shared with the Today screen's own drop confirmation; small enough
    *  that stating it twice beats a shared style module. */
   menuBackdrop: {

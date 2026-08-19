@@ -450,6 +450,7 @@ export default function GoalDetailScreen() {
                   <View style={styles.addMilestone}>
                     <TextInput
                       value={milestoneTitle}
+                      accessibilityLabel="Milestone"
                       onChangeText={setMilestoneTitle}
                       placeholder={
                         editingMilestone ? "Milestone" : "Add a milestone"

@@ -171,6 +171,7 @@ export function CompleteGoalModal({
               </AppText>
               <TextInput
                 value={newTitle}
+                accessibilityLabel="What comes next"
                 onChangeText={setNewTitle}
                 placeholder={`e.g. ${goalTitle}, next stage`}
                 placeholderTextColor={theme.muted}
