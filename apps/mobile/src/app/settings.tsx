@@ -29,31 +29,31 @@ import { router, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
 
-import { EraseDataModal } from "../../components/settings/EraseDataModal";
-import { AppText } from "../../components/ui/AppText";
-import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
-import { Backdrop, hueWash } from "../../components/ui/Backdrop";
-import { Group, GroupDivider } from "../../components/ui/Group";
-import { SettingsRow } from "../../components/ui/SettingsRow";
-import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { EraseDataModal } from "../components/settings/EraseDataModal";
+import { AppText } from "../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
+import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { Group, GroupDivider } from "../components/ui/Group";
+import { SettingsRow } from "../components/ui/SettingsRow";
+import { ScreenHeader } from "../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
   setNotificationEnabled,
   setNotificationTime,
   type NotificationSettings,
-} from "../../db/settings";
-import { resetOnboarding } from "../../db/onboarding";
-import { eraseAllData } from "../../db/reset";
-import { currentLocalDate, loadDay } from "../../db/today";
+} from "../db/settings";
+import { resetOnboarding } from "../db/onboarding";
+import { eraseAllData } from "../db/reset";
+import { currentLocalDate, loadDay } from "../db/today";
 import {
   cancelAllNudges,
   getPermissionStatus,
   requestPermission,
   syncDailyNudge,
-} from "../../notifications/dailyNudge";
-import { getTheme } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+} from "../notifications/dailyNudge";
+import { getTheme } from "../theme/colors";
+import { radius, space } from "../theme/tokens";
 
 /**
  * Version and build, for bug reports from testers ("what does the

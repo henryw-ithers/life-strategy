@@ -271,7 +271,8 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       </AppText>
       <AppText color={theme.muted} style={styles.errorBody}>
         Your data is untouched. Nothing was being saved. Try again, and if
-        it keeps happening, Settings › Problem log has the details.
+        it keeps happening, the gear on your Log opens Settings, where the
+        problem log has the details.
       </AppText>
       <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
         {error.message}

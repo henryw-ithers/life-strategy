@@ -46,7 +46,13 @@ three gaps are **accepted decisions with no unchecked box anywhere**,
 because they surfaced as parentheticals inside completed items. Recorded
 here so they stop being invisible.
 
-- **The monthly review ritual is unbuilt.** ADR-0002 decision 5 (as
+- ~~**The monthly review ritual is unbuilt.**~~ **Built 2026-08-19 as a
+  checkpoint rather than a ceremony** (ADR-0002 decision 5, amended).
+  Portfolio carries the month's grade, the days behind it, and what the
+  month held, above the diagnostic's re-run entry — which until then
+  existed only behind an empty state, so the loop could not be run
+  twice. `loadMonthGrade` has its first caller. The original wording
+  follows, for the record: ADR-0002 decision 5 (as
   amended by ADR-0005) defines it as one ceremony: diagnostic → new
   weights beside old overrides → settle goal statuses → adjust tasks →
   monthly grade and achievements. Every piece it needs exists and
@@ -54,7 +60,10 @@ here so they stop being invisible.
   thing in the product, and it is the landing place ADR-0003 §2's
   "unearnable points" nudge and ADR-0005 §2's carry-over prompts were
   both designed to appear in.
-- **Nothing reads the life log back.** `journal_entry`, `photo`, and
+- ~~**Nothing reads the life log back.**~~ **Built 2026-08-19**: `db/log.ts`
+  is the query side, and Log replaced Settings in the tab bar. Journals,
+  photos, achievements and flagged days now come back, grouped by month,
+  memories ahead of metrics. The original wording follows: `journal_entry`, `photo`, and
   `achievement` rows are written and never queried outside the day they
   belong to — `achievement` is insert-only, touched by nothing but
   `goals.ts` and the data reset. Design principle 5 ("the log is a

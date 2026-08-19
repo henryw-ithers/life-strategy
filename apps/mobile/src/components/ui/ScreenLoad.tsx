@@ -93,8 +93,8 @@ export function LoadFailure({
         This screen couldn’t load
       </AppText>
       <AppText color={theme.muted} style={styles.body}>
-        Nothing is lost. Try again, and if it keeps happening, Settings ›
-        Problem log has the details.
+        Nothing is lost. Try again, and if it keeps happening, the problem
+        log in Settings has the details.
       </AppText>
       {/* Shown because it is occasionally the whole answer, and a
           tester reading it back is the fastest triage there is. */}

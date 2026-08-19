@@ -329,7 +329,7 @@ export default function FeedbackScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 The problem log has the technical details, which saves a
-                lot of guessing. It’s where your sent notes are listed too. ›
+                lot of guessing. It’s where your sent notes are listed too.
               </AppText>
             </Pressable>
           </>

@@ -5,6 +5,7 @@ import { spokenDate } from "../../lib/format";
 import { gradeColor, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { Chevron } from "../ui/Chevron";
 
 interface MonthGridProps {
   /** Any date inside the month to render (normally today). */
@@ -94,9 +95,7 @@ export function MonthGrid({
               { opacity: month.slice(0, 7) >= today.slice(0, 7) ? 0.3 : pressed ? 0.5 : 1 },
             ]}
           >
-            <AppText variant="headline" color={theme.ink}>
-              ›
-            </AppText>
+            <Chevron color={theme.ink} theme={theme} size={18} />
           </Pressable>
         </View>
       ) : null}

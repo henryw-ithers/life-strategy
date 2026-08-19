@@ -42,6 +42,7 @@ import {
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
+import { Disclosure } from "../../components/ui/Chevron";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
@@ -405,13 +406,9 @@ export default function PlanScreen() {
                         accessibilityHint={open ? "Collapses its tasks" : "Shows its tasks"}
                         style={({ pressed }) => [styles.unitRow, { opacity: pressed ? 0.6 : 1 }]}
                       >
-                        <AppText
-                          variant="label"
-                          color={theme.muted}
-                          style={styles.chev}
-                        >
-                          {open ? "▾" : "▸"}
-                        </AppText>
+                        <View style={styles.chev}>
+                          <Disclosure open={open} theme={theme} size={15} />
+                        </View>
                         <AppText
                           color={excluded ? theme.muted : theme.ink}
                           style={styles.grow}

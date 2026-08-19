@@ -13,7 +13,7 @@
  * history and to ADR-0008's calibration series.
  */
 import { router } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -26,6 +26,11 @@ import { useSharedValue } from "react-native-reanimated";
 
 import { PortfolioGraph, type GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
+import { Chevron } from "../../../components/ui/Chevron";
+import { Group } from "../../../components/ui/Group";
+import { loadMonthCheckpoint, type MonthCheckpoint } from "../../../db/log";
+import { currentLocalDate } from "../../../db/today";
+import { SettingsRow } from "../../../components/ui/SettingsRow";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
@@ -65,7 +70,24 @@ export default function PortfolioScreen() {
     setPending(null);
   }, []);
 
+  const [checkpoint, setCheckpoint] = useState<MonthCheckpoint | null>(null);
   const { error, retry } = useScreenLoad(load);
+
+  /* The month's own numbers, loaded beside the board rather than inside
+   * it: a failure here should cost the checkpoint, not the whole screen. */
+  useEffect(() => {
+    let live = true;
+    void loadMonthCheckpoint(currentLocalDate())
+      .then((next) => {
+        if (live) setCheckpoint(next);
+      })
+      .catch(() => {
+        if (live) setCheckpoint(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const order = pending ?? board?.order ?? [];
 
@@ -181,8 +203,84 @@ export default function PortfolioScreen() {
             theme={theme}
           />
         ) : null}
+
+        {checkpoint ? <Checkpoint checkpoint={checkpoint} theme={theme} /> : null}
+
+        {/* **The monthly loop's only entry point.** Every "Run the
+            diagnostic" button in the app sat behind an empty state
+            (`!hasSnapshot`), so once you finished your first one there
+            was no way to run another anywhere — and the product's whole
+            premise is a monthly diagnostic feeding a daily checklist.
+            Half that loop was unreachable.
+
+            It belongs on Portfolio because this is where its output
+            lives: the weights it produces are the list above, and the
+            graph beside it is the history it extends. */}
+        <Group
+          theme={theme}
+          title="Monthly review"
+          footnote="Your ratings drift as life does. Re-rank when the order above stops matching how things actually feel."
+          flush
+        >
+          <SettingsRow
+            label="Run the diagnostic again"
+            detail="About five minutes. Your previous rankings are kept, and you will see what moved."
+            onPress={() => router.push("/diagnostic")}
+            theme={theme}
+          />
+        </Group>
       </ScrollView>
     </View>
+  );
+}
+
+/**
+ * How the month is going: the grade, what stands behind it, and what
+ * the month actually held.
+ *
+ * **Framed as a reading, not a verdict.** PRODUCT.md calls every score
+ * a guideline and rules out shame mechanics, so the number is set at
+ * Title rather than the day screen's Numeral, carries no colour ramp,
+ * and sits beside the count of days it rests on — a month two days old
+ * says so instead of implying a bad month.
+ *
+ * The line underneath is deliberately about what happened rather than
+ * what was scored: notes, photos, goals reached. Design principle 5
+ * again — over time the memories are the point, and a checkpoint that
+ * only showed a percentage would teach the opposite.
+ */
+function Checkpoint({
+  checkpoint,
+  theme,
+}: {
+  checkpoint: MonthCheckpoint;
+  theme: ThemeTokens;
+}) {
+  const { grade, totals, daysRecorded } = checkpoint;
+  const held = [
+    totals.notes > 0 ? `${totals.notes} note${totals.notes === 1 ? "" : "s"}` : null,
+    totals.photos > 0 ? `${totals.photos} photo${totals.photos === 1 ? "" : "s"}` : null,
+    totals.achievements > 0 ? `${totals.achievements} reached` : null,
+  ].filter(Boolean);
+
+  return (
+    <Group theme={theme} title="This month">
+      <View style={styles.checkpointRow}>
+        <AppText variant="title" color={theme.ink} tabular>
+          {grade.base === null ? "—" : `${grade.base}`}
+        </AppText>
+        <AppText color={theme.muted} style={styles.grow}>
+          {grade.gradedDays === 0
+            ? "Nothing graded yet this month."
+            : `across ${grade.gradedDays} day${grade.gradedDays === 1 ? "" : "s"}`}
+        </AppText>
+      </View>
+      <AppText variant="caption" color={theme.muted}>
+        {held.length > 0
+          ? `${daysRecorded} day${daysRecorded === 1 ? "" : "s"} in your log · ${held.join(" · ")}`
+          : "Nothing in your log this month yet."}
+      </AppText>
+    </Group>
   );
 }
 
@@ -233,9 +331,12 @@ function GraphPreview({
             ? "One diagnostic so far"
             : `${snapshots.length} diagnostics · see what moved`}
         </AppText>
-        <AppText variant="label" color={theme.accent}>
-          Open ›
-        </AppText>
+        <View style={styles.openRow}>
+          <AppText variant="label" color={theme.accent}>
+            Open
+          </AppText>
+          <Chevron color={theme.accent} theme={theme} size={15} />
+        </View>
       </View>
     </Pressable>
   );
@@ -277,6 +378,8 @@ function RankRow({
 }
 
 const styles = StyleSheet.create({
+  openRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  checkpointRow: { flexDirection: "row", alignItems: "baseline", gap: space.sm },
   root: { flex: 1, overflow: "hidden" },
   body: { flex: 1 },
   container: {

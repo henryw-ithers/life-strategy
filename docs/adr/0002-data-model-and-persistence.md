@@ -49,6 +49,42 @@ grade, and materializing anything a formula produces.
    prompts only where weights shifted. Everything also remains
    editable at any time — the review is the prompted ritual, not a
    lock.
+
+   > **Amendment (2026-08-19): the review is a checkpoint, not a
+   > ceremony.**
+   >
+   > This decision specified five stages in sequence: run the
+   > diagnostic, review new weights beside old, settle every goal,
+   > adjust the task lineup, then see the monthly grade. Built that way
+   > it is a wizard, and a wizard is the wrong shape for the moment it
+   > serves — twelve times a year, a person opening this wants to
+   > re-gauge how they feel and how they want to use the app, not clear
+   > a five-step queue of bookkeeping.
+   >
+   > What ships instead is a **checkpoint on Portfolio**: the month's
+   > grade, how many days stand behind it, and what the month actually
+   > held (notes, photos, goals reached), above the entry that re-runs
+   > the diagnostic. Every adjustment the five stages listed still
+   > exists — re-ranking is the list on that same screen, goal statuses
+   > live on the goal, the task lineup lives on Tasks — but they are
+   > reached rather than marched through. The checkpoint is a place you
+   > look, and it hands you back to wherever the change belongs.
+   >
+   > **What this keeps:** the prompt to revisit monthly, the diagnostic
+   > as the thing that opens it, and "everything remains editable at any
+   > time — the review is the prompted ritual, not a lock", which this
+   > shape honours more literally than a wizard would.
+   >
+   > **What it gives up:** the guarantee that a user who completes the
+   > review has consciously touched every goal. Goals can now go stale
+   > without a forced prompt. If that proves to matter, the fix is a
+   > nudge inside the checkpoint naming the stale ones, not a return to
+   > the sequence.
+   >
+   > **Also fixed here:** the diagnostic had no entry point outside an
+   > empty state, so the loop this decision describes could not be run a
+   > second time at all. `loadMonthGrade` had been written and called by
+   > nothing; the checkpoint is its first caller.
 6. **Per-SLA rollups are computed, never stored** — a query over child
    units (weight-weighted mean). Whether/how they're displayed is
    ADR-0005's call.

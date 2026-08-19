@@ -44,6 +44,7 @@ import {
   type PartOfDay,
 } from "../../components/plan/planning";
 import { AppText } from "../../components/ui/AppText";
+import { Chevron, Disclosure } from "../../components/ui/Chevron";
 import { ActivityRow, DayRecord } from "../../components/today/DayRecord";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
@@ -493,10 +494,13 @@ export default function TodayScreen() {
                 <AppText variant="display" color={theme.ink}>
                   {isToday ? "Today" : spokenDate(day.date).split(",")[0]}
                 </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  {spokenDate(day.date)}
-                  {day.finalized ? " · settled" : ""} {monthOpen ? "▴" : "▾"}
-                </AppText>
+                <View style={styles.sectionLabel}>
+                  <AppText variant="caption" color={theme.muted}>
+                    {spokenDate(day.date)}
+                    {day.finalized ? " · settled" : ""}
+                  </AppText>
+                  <Disclosure open={monthOpen} theme={theme} size={13} />
+                </View>
               </Pressable>
               <View style={styles.headerRight}>
                 {day.kind === "rest" ? (
@@ -774,9 +778,16 @@ export default function TodayScreen() {
                     hitSlop={{ top: 6, bottom: 6 }}
                     style={styles.sectionHeader}
                   >
-                    <AppText variant="caption" color={theme.muted}>
-                      {s.label} {collapsed[s.key] ? "▸" : "▾"}
-                    </AppText>
+                    <View style={styles.sectionLabel}>
+                      <AppText variant="caption" color={theme.muted}>
+                        {s.label}
+                      </AppText>
+                      <Disclosure
+                        open={collapsed[s.key] !== true}
+                        theme={theme}
+                        size={13}
+                      />
+                    </View>
                     <AppText variant="caption" color={theme.muted} tabular>
                       {s.pts} pts
                     </AppText>
@@ -897,8 +908,9 @@ export default function TodayScreen() {
                 ]}
               >
                 <AppText variant="label" color={theme.accent}>
-                  Plan tomorrow ›
+                  Plan tomorrow
                 </AppText>
+                <Chevron color={theme.accent} theme={theme} size={15} />
               </Pressable>
             ) : null}
 
@@ -1141,6 +1153,8 @@ export default function TodayScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
+  /** Label and its disclosure travel together as one target. */
+  sectionLabel: { flexDirection: "row", alignItems: "center", gap: 4 },
   loading: { marginTop: space.xxxl },
   /** Fixed above the scroll region; the strip's own top margin gives
    *  it room, so the header only pays for its bottom edge. */

@@ -228,7 +228,7 @@ export default function GoalDetailScreen() {
               >
                 <AppText variant="footnote" color={theme.muted} style={styles.link}>
                   {goal.linkKind === "follow_up" ? "Follows on from" : "Revised from"} an
-                  earlier goal ›
+                  earlier goal
                 </AppText>
               </Pressable>
             ) : null}
@@ -238,7 +238,7 @@ export default function GoalDetailScreen() {
                 accessibilityRole="button"
               >
                 <AppText variant="footnote" color={theme.muted} style={styles.link}>
-                  Continued in a newer goal ›
+                  Continued in a newer goal
                 </AppText>
               </Pressable>
             ) : null}

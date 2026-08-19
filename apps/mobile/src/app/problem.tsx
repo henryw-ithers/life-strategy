@@ -151,7 +151,7 @@ export default function ProblemLogScreen() {
               ]}
             >
               <AppText variant="label" color={theme.accent}>
-                Send feedback ›
+                Send feedback
               </AppText>
             </Pressable>
           </View>

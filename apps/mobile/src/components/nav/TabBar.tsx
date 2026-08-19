@@ -48,7 +48,9 @@ const ICONS: Record<string, { rest: IoniconName; active: IoniconName }> = {
   plan: { rest: "clipboard-outline", active: "clipboard" },
   index: { rest: "home-outline", active: "home" },
   portfolio: { rest: "stats-chart-outline", active: "stats-chart" },
-  settings: { rest: "settings-outline", active: "settings" },
+  /* A book, not a clock or an archive box: the log is meant to be
+     read back, and reading is the verb the screen is for. */
+  log: { rest: "book-outline", active: "book" },
 };
 
 const PILL_W = 56;

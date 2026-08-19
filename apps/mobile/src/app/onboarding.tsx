@@ -38,6 +38,22 @@
  *
  * Displayed copy carries no em dashes (ADR-0011 action item 5): the
  * first tester read them as a machine's writing.
+ *
+ * **Redesigned 2026-08-19: shown, not described.** Every screen was a
+ * heading over three or four paragraphs, which is a slideshow of essays
+ * and reads as one. Three of them now carry a picture that *is* the
+ * explanation: the six areas as the six hues the rest of the app uses,
+ * the 80/20 split as one bar cut to the real constants, and the loop as
+ * three numbered steps. The prose that survived is the part a picture
+ * cannot carry.
+ *
+ * The last screen can finally show a loop, because as of this release
+ * the app can complete one. The diagnostic had no entry point outside
+ * an empty state, so a user could be taught a cycle whose second half
+ * did not exist.
+ *
+ * A progress track runs across the top. Six screens without one is a
+ * corridor with no windows.
  */
 import { ROUTINE_BAND, VARIABLE_BAND } from "@glide/scoring";
 import { router, useFocusEffect, type Href } from "expo-router";
@@ -71,6 +87,172 @@ import { radius, space } from "../theme/tokens";
 /** How many of the eighteen the `weights` screen names. Enough to show
  *  a spread between top and bottom without becoming a list to read. */
 const WEIGHTS_SHOWN = 6;
+
+/**
+ * The six Strategic Life Areas, in taxonomy order.
+ *
+ * Stated here rather than read from the database on purpose: this
+ * screen renders before anything is loaded, and a list of six names
+ * that changes only when the taxonomy changes is not worth an async
+ * round trip and a spinner. `syncTaxonomy` owns the real rows; if these
+ * ever disagree, that one wins and this is the thing to update.
+ */
+const AREAS: readonly { id: string; name: string }[] = [
+  { id: "relationships", name: "Relationships" },
+  { id: "physical-health", name: "Physical health" },
+  { id: "mental-wellbeing", name: "Mental wellbeing" },
+  { id: "work-money", name: "Work & money" },
+  { id: "home-environment", name: "Wellness" },
+  { id: "leisure-creativity", name: "Leisure & creativity" },
+];
+
+/** The screens with a progress dot. `diagnostic` is a waiting state and
+ *  `notify` is a system prompt, so neither is a step you can be "on". */
+const FLOW: readonly OnboardingStep[] = [
+  "welcome",
+  "method",
+  "weights",
+  "rhythm",
+  "done",
+];
+
+/**
+ * Where you are in the flow.
+ *
+ * Six screens without one is a corridor with no windows: people tap
+ * through faster when they cannot see the end, which is the opposite of
+ * what an explanation wants. Bars rather than dots because they carry
+ * the sense of a track being filled, and the filled ones use the accent
+ * so the row reads as progress rather than decoration.
+ */
+function Progress({ index, theme }: { index: number; theme: ThemeTokens }) {
+  return (
+    <View
+      style={styles.progress}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 1, max: FLOW.length, now: index + 1 }}
+      accessibilityLabel={`Step ${index + 1} of ${FLOW.length}`}
+    >
+      {FLOW.map((step, i) => (
+        <View
+          key={step}
+          style={[
+            styles.progressBar,
+            {
+              backgroundColor: i <= index ? theme.accent : theme.hairline,
+              flex: i === index ? 1.6 : 1,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The taxonomy, shown rather than described.
+ *
+ * This screen used to be four paragraphs explaining that life divides
+ * into six areas and eighteen units. Six coloured rows say it in one
+ * glance, and they say it in the app's own language: these are the
+ * exact hues the checklist, the portfolio bubbles and every chip use
+ * for the same six areas, so the first thing a person learns is the
+ * colour system they will be reading from then on.
+ */
+function AreaBloom({ theme }: { theme: ThemeTokens }) {
+  return (
+    <View style={styles.areas}>
+      {AREAS.map((area) => (
+        <View key={area.id} style={styles.areaRow}>
+          <View
+            style={[
+              styles.areaDot,
+              { backgroundColor: theme.areas[area.id] ?? theme.muted },
+            ]}
+          />
+          <AppText color={theme.ink}>{area.name}</AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The 80/20 split, as one bar.
+ *
+ * Four paragraphs of arithmetic became a shape you can read in a
+ * second. The proportions are the real constants, so the picture cannot
+ * drift from the scoring engine: if the bands are ever re-cut, this
+ * re-cuts with them.
+ */
+function BandBar({ theme }: { theme: ThemeTokens }) {
+  return (
+    <View style={styles.band} accessible accessibilityLabel={`Routine ${ROUTINE_BAND} points, everything else ${VARIABLE_BAND} points`}>
+      <View style={styles.bandTrack}>
+        <View
+          style={[
+            styles.bandFill,
+            { flex: ROUTINE_BAND, backgroundColor: theme.accent },
+          ]}
+        />
+        <View
+          style={[
+            styles.bandFill,
+            { flex: VARIABLE_BAND, backgroundColor: theme.hairline },
+          ]}
+        />
+      </View>
+      <View style={styles.bandLabels}>
+        <AppText variant="caption" color={theme.accent}>
+          {ROUTINE_BAND} · your daily habits
+        </AppText>
+        <AppText variant="caption" color={theme.muted}>
+          {VARIABLE_BAND} · everything else
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The loop, on the last screen.
+ *
+ * Numbered because this genuinely is a sequence and the order carries
+ * the meaning: the ranking is what makes the checklist, the checklist
+ * is what the month is made of, and the checkpoint is what changes the
+ * ranking. It is a cycle, and until this release the app could not
+ * actually complete one — the diagnostic had no second entry point, so
+ * only the middle step existed.
+ */
+function LoopSteps({ theme }: { theme: ThemeTokens }) {
+  const steps: readonly { n: string; title: string; body: string }[] = [
+    { n: "1", title: "Rank", body: "You did this. It sets what everything is worth." },
+    { n: "2", title: "Do", body: "A daily checklist, drawn from that ranking." },
+    { n: "3", title: "Check in", body: "Once a month, see how it went and re-rank if it has shifted." },
+  ];
+  return (
+    <View style={styles.loop}>
+      {steps.map((s) => (
+        <View key={s.n} style={styles.loopRow}>
+          <View style={[styles.loopMark, { borderColor: theme.accent }]}>
+            <AppText variant="caption" color={theme.accent} tabular>
+              {s.n}
+            </AppText>
+          </View>
+          <View style={styles.loopText}>
+            <AppText variant="label" color={theme.ink}>
+              {s.title}
+            </AppText>
+            <AppText variant="caption" color={theme.muted}>
+              {s.body}
+            </AppText>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 
 export default function OnboardingScreen() {
   const scheme = useColorScheme();
@@ -238,27 +420,25 @@ export default function OnboardingScreen() {
 
   if (step === "method") {
     return (
-      <Page theme={theme} pad={pad} action="Start ranking" onPress={() => void onStart()} busy={starting}>
+      <Page
+        theme={theme}
+        pad={pad}
+        step="method"
+        action="Start ranking"
+        onPress={() => void onStart()}
+        busy={starting}
+      >
         <AppText variant="display" color={theme.ink}>
-          Eighteen parts
+          Six areas, eighteen parts
         </AppText>
-        <AppText color={theme.ink} style={styles.lead}>
-          Sleep. Friendship. Money. Hobbies. Each one is a real part of
-          being a person, and each one wants the same hours as the rest.
-        </AppText>
+        <AreaBloom theme={theme} />
         <AppText color={theme.ink} style={styles.lead}>
           You will see them two at a time. The question is never whether
           something matters. It is which of these two matters more to
           you, right now.
         </AppText>
-        <AppText color={theme.ink} style={styles.lead}>
-          Comparing two things is easier than scoring eighteen out of
-          ten, and it gives an answer a rating scale cannot: an order,
-          with real distances in it.
-        </AppText>
         <AppText variant="caption" color={theme.muted} style={styles.lead}>
-          About five minutes. You only do this once, then once a month if
-          you want to.
+          About five minutes, once.
         </AppText>
       </Page>
     );
@@ -268,7 +448,13 @@ export default function OnboardingScreen() {
     const shown = ranked.slice(0, WEIGHTS_SHOWN);
     const rest = ranked.length - shown.length;
     return (
-      <Page theme={theme} pad={pad} action="Next" onPress={() => go("rhythm")}>
+      <Page
+        theme={theme}
+        pad={pad}
+        step="weights"
+        action="Next"
+        onPress={() => go("rhythm")}
+      >
         <AppText variant="display" color={theme.ink}>
           Your 100 points
         </AppText>
@@ -313,28 +499,27 @@ export default function OnboardingScreen() {
 
   if (step === "rhythm") {
     return (
-      <Page theme={theme} pad={pad} action="Next" onPress={() => go("notify")}>
+      <Page
+        theme={theme}
+        pad={pad}
+        step="rhythm"
+        action="Next"
+        onPress={() => go("notify")}
+      >
         <AppText variant="display" color={theme.ink}>
           Why 100 is hard
         </AppText>
+        <BandBar theme={theme} />
         <AppText color={theme.ink} style={styles.lead}>
-          Your daily habits can only reach {ROUTINE_BAND} of those points.
-          Do every one of them, every day, and you land around there.
-        </AppText>
-        <AppText color={theme.ink} style={styles.lead}>
-          The other {VARIABLE_BAND} comes from what is not automatic: the
+          Do every daily habit, every day, and you land around{" "}
+          {ROUTINE_BAND}. The rest comes from what is not automatic: the
           weekly things, the one offs, the walk you were not planning to
           take.
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          So a 90 means you went past your routine. That is the point. A
-          score you can max out by getting through a normal day is not
-          telling you anything.
-        </AppText>
-        <AppText color={theme.ink} style={styles.lead}>
-          You can also say when a task happens: morning, afternoon,
-          evening, or anytime. Deciding in advance is most of what makes
-          it happen.
+          So a 90 means you went past your routine. A score you can max
+          out by getting through a normal day is not telling you
+          anything.
         </AppText>
       </Page>
     );
@@ -345,17 +530,15 @@ export default function OnboardingScreen() {
       <Page
         theme={theme}
         pad={pad}
+        step="done"
         action="Add your first tasks"
         onPress={() => void finish()}
         circles={constellation(theme.areas)}
       >
         <AppText variant="display" color={theme.ink}>
-          That is the whole idea
+          That is the loop
         </AppText>
-        <AppText color={theme.ink} style={styles.lead}>
-          Next, add a few tasks. Something small and repeatable, in the
-          parts of your life that earned the most points.
-        </AppText>
+        <LoopSteps theme={theme} />
         <AppText color={theme.muted} style={styles.lead}>
           Your daily score is a guideline. It shows where your attention
           went, nothing more.
@@ -363,7 +546,8 @@ export default function OnboardingScreen() {
         {/* ADR-0008: exactly one neutral mention, framed as
          *  availability. Reads the same for every user, always. */}
         <AppText variant="caption" color={theme.muted} style={styles.lead}>
-          Support resources are in Settings whenever you want them.
+          Support resources are in Settings, under the gear on your Log,
+          whenever you want them.
         </AppText>
       </Page>
     );
@@ -374,6 +558,7 @@ export default function OnboardingScreen() {
     <Page
       theme={theme}
       pad={pad}
+      step="welcome"
       action="How it works"
       onPress={() => go("method")}
       circles={constellation(theme.areas)}
@@ -408,6 +593,7 @@ export default function OnboardingScreen() {
 function Page({
   theme,
   pad,
+  step,
   action,
   onPress,
   busy,
@@ -416,22 +602,37 @@ function Page({
 }: {
   theme: ThemeTokens;
   pad: { paddingTop: number; paddingBottom: number };
+  /** Drives the progress track. */
+  step: OnboardingStep;
   action: string;
   onPress: () => void;
   busy?: boolean;
   circles?: React.ComponentProps<typeof Backdrop>["circles"];
   children: React.ReactNode;
 }) {
+  const index = FLOW.indexOf(step);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={circles ?? hueWash(theme.accent)} />
       <View style={[styles.body, pad]}>
+        {index >= 0 ? <Progress index={index} theme={theme} /> : null}
         <ScrollView
           style={styles.scroller}
           contentContainerStyle={styles.copy}
           showsVerticalScrollIndicator={false}
         >
-          {children}
+          {/* Deliberately not an entrance animation.
+              Reanimated's `entering` starts the view at opacity 0 and
+              animates it up, so the content is *gated* on the animation
+              running. It does not always run: a hidden tab, a headless
+              renderer, or a paused compositor leaves the screen showing
+              its button over an empty page. That happened here, and a
+              blank onboarding screen is a far worse trade than a screen
+              that simply appears. Motion on this flow lives in the
+              progress track instead, which animates a property that
+              cannot hide anything. */}
+          <View style={styles.copyInner}>{children}</View>
         </ScrollView>
         <Button label={action} onPress={onPress} disabled={busy === true} theme={theme} />
       </View>
@@ -446,7 +647,33 @@ const styles = StyleSheet.create({
   scroller: { flex: 1 },
   /** `flexGrow` rather than `flex`, so short copy still centres while
    *  long copy is free to run past the fold and scroll. */
-  copy: { flexGrow: 1, justifyContent: "center", gap: space.md },
+  copy: { flexGrow: 1, justifyContent: "center" },
+  copyInner: { gap: space.md },
+  /** Sits above the copy, not inside the scroller: it belongs to the
+   *  flow, not to the words. */
+  progress: { flexDirection: "row", gap: 4, height: 3, marginBottom: space.xl },
+  progressBar: { height: 3, borderRadius: 2 },
+  areas: { gap: space.sm, paddingVertical: space.xs },
+  areaRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+  /** 10pt, the same pip the portfolio and the unit chips use. */
+  areaDot: { width: 10, height: 10, borderRadius: 5 },
+  band: { gap: space.sm, paddingVertical: space.xs },
+  bandTrack: { flexDirection: "row", height: 10, borderRadius: 5, overflow: "hidden", gap: 2 },
+  bandFill: { height: 10 },
+  bandLabels: { flexDirection: "row", justifyContent: "space-between", gap: space.sm },
+  loop: { gap: space.lg, paddingVertical: space.xs },
+  loopRow: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
+  /** An outlined mark rather than a filled one: the numbers are a
+   *  sequence, not three buttons. */
+  loopMark: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loopText: { flex: 1, gap: 2 },
   lead: { maxWidth: 340 },
   weights: { gap: space.sm, paddingVertical: space.xs, maxWidth: 340 },
   weightRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
