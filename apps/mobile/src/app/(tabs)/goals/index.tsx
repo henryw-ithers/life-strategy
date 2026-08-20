@@ -3,8 +3,9 @@
  * (ADR-0007). Goals sit between a unit and its tasks — optional,
  * temporary, and never scored directly.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +19,7 @@ import { AddGoalModal } from "../../../components/goals/AddGoalModal";
 import { AppText } from "../../../components/ui/AppText";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
+import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import {
@@ -50,6 +52,7 @@ export default function GoalsScreen() {
   const [areas, setAreas] = useState<Awaited<ReturnType<typeof loadGoals>>["areas"] | null>(
     null,
   );
+  const [adding, setAdding] = useState(false);
   const [addingTo, setAddingTo] = useState<GoalsUnit | null>(null);
   const [addingToAreaId, setAddingToAreaId] = useState<string | null>(null);
 
@@ -57,19 +60,73 @@ export default function GoalsScreen() {
     setAreas((await loadGoals()).areas);
   }, []);
 
+  /** Every unit a goal can hang off, flattened for the sheet's picker. */
+  const allUnits = useMemo(
+    () =>
+      (areas ?? []).flatMap((a) =>
+        a.units.map((u) => ({ id: u.id, name: u.name, areaId: a.id })),
+      ),
+    [areas],
+  );
+
   const { error, retry } = useScreenLoad(reload);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScreenHeader title="Goals" theme={theme} />
+
+      {/* Furniture, like the header above it and the add bar on Tasks.
+          It is the only way to start a goal in a unit that has none,
+          now that the list shows goals rather than every place one
+          could go. */}
+      {areas !== null ? (
+        <View style={styles.addBar}>
+          <Button
+            variant="tonal"
+            icon="add"
+            label="Add goal"
+            onPress={() => {
+              setAdding(true);
+              setAddingTo(null);
+              setAddingToAreaId(null);
+            }}
+            theme={theme}
+          />
+        </View>
+      ) : null}
+
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : areas === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
-          areas.map((area) => (
+          areas.every((a) => a.units.every((u) => u.goals.length === 0)) ? (
+            <View style={styles.empty}>
+              <AppText color={theme.ink} style={styles.emptyText}>
+                A goal is one thing you are working toward, with an end you
+                would recognise.
+              </AppText>
+              <AppText variant="caption" color={theme.muted} style={styles.emptyText}>
+                Tasks are what you do every week. Goals are what they add up
+                to.
+              </AppText>
+            </View>
+          ) : (
+          areas
+            .map((area) => ({
+              ...area,
+              // Only units that actually hold goals. This screen used to
+              // render all eighteen so that every one could carry its own
+              // "+", which meant a person with two goals scrolled past
+              // sixteen rows of "no goals yet" to find them. The add
+              // button moved into the sheet, so the list can be a list of
+              // your goals instead of a map of where goals could go.
+              units: area.units.filter((u) => u.goals.length > 0),
+            }))
+            .filter((area) => area.units.length > 0)
+            .map((area) => (
             <Group key={area.id} theme={theme}>
               <View style={styles.groupHeader}>
                 <View
@@ -90,6 +147,7 @@ export default function GoalsScreen() {
                     </AppText>
                     <Pressable
                       onPress={() => {
+                        setAdding(true);
                         setAddingTo(unit);
                         setAddingToAreaId(area.id);
                       }}
@@ -104,9 +162,7 @@ export default function GoalsScreen() {
                         },
                       ]}
                     >
-                      <AppText variant="headline" color={theme.ink}>
-                        +
-                      </AppText>
+                      <Ionicons name="add" size={17} color={theme.ink} />
                     </Pressable>
                   </View>
 
@@ -117,12 +173,7 @@ export default function GoalsScreen() {
                     </AppText>
                   ) : null}
 
-                  {unit.goals.length === 0 ? (
-                    <AppText variant="caption" color={theme.muted} style={styles.emptyGoal}>
-                      no goals yet
-                    </AppText>
-                  ) : (
-                    unit.goals.map((g) => (
+                  {unit.goals.map((g) => (
                       <Pressable
                         key={g.id}
                         onPress={() => router.push(`/goals/${g.id}` as Href)}
@@ -147,32 +198,36 @@ export default function GoalsScreen() {
                           {statusLabel(g.status)}
                         </AppText>
                       </Pressable>
-                    ))
-                  )}
+                  ))}
                 </View>
               ))}
             </Group>
           ))
+        )
         )}
       </ScrollView>
 
-      {addingTo ? (
+      {adding ? (
         <AddGoalModal
           visible
           onClose={() => {
+            setAdding(false);
             setAddingTo(null);
             setAddingToAreaId(null);
           }}
           accent={theme.areas[addingToAreaId ?? ""] ?? theme.accent}
           theme={theme}
+          units={allUnits}
+          areaColors={theme.areas}
+          homeUnitId={addingTo?.id}
           // Straight to the goal you just made, rather than back to a
           // list where it is one row among many. Everything that makes
           // a goal a goal — milestones, a metric, the tasks that serve
           // it — lives on that screen and nowhere else, so landing on
           // the list left the richest surface in the app undiscovered.
-          onCommit={async (title, description, target, unit) => {
+          onCommit={async (unitId, title, description, target, unit) => {
             const newId = await createGoal(
-              addingTo.id,
+              unitId,
               title,
               description,
               target ?? undefined,
@@ -188,6 +243,9 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
+  addBar: { paddingHorizontal: space.screen, paddingBottom: space.sm },
+  empty: { marginTop: space.xxxl, gap: space.sm },
+  emptyText: { maxWidth: 340 },
   root: { flex: 1, overflow: "hidden" },
   /** Takes the space between the fixed header and the tab bar; the
    *  list scrolls inside it while both stay put. */

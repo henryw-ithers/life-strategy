@@ -18,6 +18,13 @@
  * The unit sits beside the number rather than under its own label,
  * because "225 kg" is one thought and two labelled fields would make it
  * read as two.
+ *
+ * **Which part of life it belongs to is a field in here**, the same way
+ * `AddTaskModal` takes it. It used to be decided by which of eighteen
+ * "+" buttons you happened to tap, which meant the Goals screen had to
+ * render all eighteen units — most of them empty — just to give every
+ * one an add button. Moving the choice into the sheet let that screen
+ * become a list of your actual goals.
  */
 import { useState } from "react";
 import {
@@ -33,15 +40,23 @@ import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { SheetFrame } from "../ui/SheetFrame";
+import { UnitPicker, type PickableUnit } from "../plan/UnitPicker";
 
 interface AddGoalModalProps {
   visible: boolean;
   onClose: () => void;
   accent: string;
   theme: ThemeTokens;
+  /** Every unit a goal can belong to. */
+  units: PickableUnit[];
+  areaColors: Record<string, string>;
+  /** Preselected when the sheet was opened from a unit that already has
+   *  goals; absent when opened from the top of the screen. */
+  homeUnitId?: string;
   /** `target` is null when the goal is not a number, which is allowed
    *  and common; `unit` is only meaningful beside one. */
   onCommit: (
+    unitId: string,
     title: string,
     description: string | undefined,
     target: number | null,
@@ -54,11 +69,17 @@ export function AddGoalModal({
   onClose,
   accent,
   theme,
+  units,
+  areaColors,
+  homeUnitId,
   onCommit,
 }: AddGoalModalProps) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [unitIds, setUnitIds] = useState<string[]>(
+    homeUnitId ? [homeUnitId] : [],
+  );
   const [target, setTarget] = useState("");
   const [unit, setUnit] = useState("");
   const [saving, setSaving] = useState(false);
@@ -66,6 +87,7 @@ export function AddGoalModal({
   const reset = () => {
     setTitle("");
     setDescription("");
+    setUnitIds(homeUnitId ? [homeUnitId] : []);
     setTarget("");
     setUnit("");
     setSaving(false);
@@ -77,8 +99,9 @@ export function AddGoalModal({
   };
 
   const commit = () => {
-    if (title.trim().length === 0 || saving) return;
+    if (title.trim().length === 0 || unitIds.length === 0 || saving) return;
     setSaving(true);
+    const committedUnitId = unitIds[0]!;
     const committedTitle = title.trim();
     const committedDescription =
       description.trim().length > 0 ? description.trim() : undefined;
@@ -92,6 +115,7 @@ export function AddGoalModal({
       committedTarget !== null && unit.trim().length > 0 ? unit.trim() : null;
     close();
     void onCommit(
+      committedUnitId,
       committedTitle,
       committedDescription,
       committedTarget,
@@ -140,6 +164,15 @@ export function AddGoalModal({
             ]}
           />
 
+          <UnitPicker
+            units={units}
+            value={unitIds}
+            onChange={setUnitIds}
+            theme={theme}
+            areaColors={areaColors}
+            max={1}
+          />
+
           {/* One row, because a target and its unit are one answer. The
               number takes the space it needs and the unit takes what is
               left: "225" and "kg" are not equally wide and should not be
@@ -177,7 +210,9 @@ export function AddGoalModal({
           <Button
             label="Add goal"
             color={accent}
-            disabled={title.trim().length === 0 || saving}
+            disabled={
+              title.trim().length === 0 || unitIds.length === 0 || saving
+            }
             onPress={commit}
             theme={theme}
           />

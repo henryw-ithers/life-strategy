@@ -4,6 +4,7 @@
  * resume, abandon (revivable), revise (spawns a linked successor),
  * and the three-path completion flow.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useCallback, useState } from "react";
@@ -501,9 +502,11 @@ export default function GoalDetailScreen() {
                         { backgroundColor: `${accent}1f`, opacity: pressed ? 0.5 : 1 },
                       ]}
                     >
-                      <AppText variant="headline" color={theme.ink}>
-                        {editingMilestone ? "✓" : "+"}
-                      </AppText>
+                      <Ionicons
+                          name={editingMilestone ? "checkmark" : "add"}
+                          size={17}
+                          color={theme.onAccent}
+                        />
                     </Pressable>
                   </View>
                   {editingMilestone ? (

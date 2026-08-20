@@ -1,7 +1,10 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
+
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 interface ButtonProps {
   label: string;
@@ -20,8 +23,17 @@ interface ButtonProps {
   variant?: "primary" | "tonal" | "secondary" | "quiet";
   /** Fill color for primary and tonal (defaults to theme.accent). */
   color?: string;
-  /** Leading glyph for tonal, at the label's size; not announced. */
-  glyph?: string;
+  /**
+   * Leading icon for tonal, at the label's size; not announced, since
+   * the label already says what the button does.
+   *
+   * An icon name rather than a character. It used to be a string and
+   * every caller passed `"+"`, which set a plus sign in Manrope at
+   * label weight next to a label — a typographic character standing
+   * in for an icon, with the wrong optical weight and a baseline that
+   * drifts under Dynamic Type.
+   */
+  icon?: IoniconName;
   disabled?: boolean;
   theme: ThemeTokens;
 }
@@ -32,7 +44,7 @@ export function Button({
   onPress,
   variant = "primary",
   color,
-  glyph,
+  icon,
   disabled,
   theme,
 }: ButtonProps) {
@@ -73,13 +85,13 @@ export function Button({
           },
         ]}
       >
-        {glyph ? (
-          <Text
+        {icon ? (
+          <Ionicons
+            name={icon}
+            size={16}
+            color={theme.ink}
             importantForAccessibility="no"
-            style={[typeScale.label, { color: theme.ink }]}
-          >
-            {glyph}
-          </Text>
+          />
         ) : null}
         <Text style={[typeScale.label, { color: theme.ink }]}>{label}</Text>
       </Pressable>

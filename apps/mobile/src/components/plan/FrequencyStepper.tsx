@@ -22,6 +22,7 @@
  * AA at this size in light theme. Colour arrives in this block through
  * the chips below, which carry it as a wash.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -35,6 +36,8 @@ import {
   MIN_TIMES_PER_WEEK,
   stepFrequency,
 } from "./frequency";
+
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 interface FrequencyStepperProps {
   /** 0 is once a fortnight; 1 through 7 are times a week. */
@@ -79,7 +82,7 @@ export function FrequencyStepper({
       style={[styles.track, { backgroundColor: theme.surface }]}
     >
       <StepButton
-        glyph="−"
+        icon="remove"
         hint="Less often"
         atEnd={current === MIN_TIMES_PER_WEEK}
         onPress={() => step(-1)}
@@ -89,7 +92,7 @@ export function FrequencyStepper({
         {formatFrequency(current)}
       </AppText>
       <StepButton
-        glyph="+"
+        icon="add"
         hint="More often"
         atEnd={current === MAX_TIMES_PER_WEEK}
         onPress={() => step(1)}
@@ -107,13 +110,13 @@ export function FrequencyStepper({
  * makes the row jump under the finger still using it.
  */
 function StepButton({
-  glyph,
+  icon,
   hint,
   atEnd,
   onPress,
   theme,
 }: {
-  glyph: string;
+  icon: IoniconName;
   hint: string;
   atEnd: boolean;
   onPress: () => void;
@@ -133,9 +136,7 @@ function StepButton({
         { opacity: atEnd ? 0.4 : pressed ? 0.55 : 1 },
       ]}
     >
-      <AppText variant="title" color={theme.ink} style={styles.glyph}>
-        {glyph}
-      </AppText>
+      <Ionicons name={icon} size={20} color={theme.ink} />
     </Pressable>
   );
 }
@@ -153,7 +154,4 @@ const styles = StyleSheet.create({
    *  small without the targets being small. */
   step: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   value: { flex: 1, textAlign: "center" },
-  /** The line box, not the glyph, decides the row height; pinning it
-   *  keeps "+" and "−" on the same baseline as the value between them. */
-  glyph: { lineHeight: 24 },
 });

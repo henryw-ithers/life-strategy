@@ -5,6 +5,7 @@
  * spans the ADR-0004 edit window; "today" is just the selected day.
  * The date header expands the current month (calendar phase, early).
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -434,9 +435,12 @@ export default function TodayScreen() {
         accessibilityLabel="Add a note to this day"
         style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
       >
-        <AppText variant="label" color={theme.accent}>
-          + Note
-        </AppText>
+        <View style={styles.recordAction}>
+          <Ionicons name="add" size={15} color={theme.accent} />
+          <AppText variant="label" color={theme.accent}>
+            Note
+          </AppText>
+        </View>
       </Pressable>
       <Pressable
         onPress={() => void pickPhoto()}
@@ -445,9 +449,12 @@ export default function TodayScreen() {
         accessibilityLabel="Add a photo to this day"
         style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
       >
-        <AppText variant="label" color={theme.accent}>
-          + Photo
-        </AppText>
+        <View style={styles.recordAction}>
+          <Ionicons name="add" size={15} color={theme.accent} />
+          <AppText variant="label" color={theme.accent}>
+            Photo
+          </AppText>
+        </View>
       </Pressable>
     </View>
   );
@@ -855,9 +862,12 @@ export default function TodayScreen() {
                     accessibilityRole="button"
                     style={({ pressed }) => [styles.logButton, { opacity: pressed ? 0.5 : 1 }]}
                   >
-                    <AppText variant="label" color={theme.accent}>
-                      + Log an activity
-                    </AppText>
+                    <View style={styles.recordAction}>
+                      <Ionicons name="add" size={15} color={theme.accent} />
+                      <AppText variant="label" color={theme.accent}>
+                        Log an activity
+                      </AppText>
+                    </View>
                   </Pressable>
                 ) : null}
               </Animated.View>
@@ -1183,6 +1193,8 @@ const styles = StyleSheet.create({
   weekStat: { marginTop: space.xs },
   kindButton: { minWidth: 44, minHeight: 32, alignItems: "flex-end" },
   planAhead: { minHeight: 44, justifyContent: "center", marginTop: space.lg },
+  /** Icon and label as one unit, so the pair never wraps apart. */
+  recordAction: { flexDirection: "row", alignItems: "center", gap: 4 },
   recordButtons: {
     flexDirection: "row",
     gap: space.xl,

@@ -297,7 +297,7 @@ export default function PlanScreen() {
         <View style={styles.addBar}>
           <Button
             variant="tonal"
-            glyph="+"
+            icon="add"
             label="Add task"
             onPress={() => setAdding({ homeUnit: null })}
             theme={theme}
