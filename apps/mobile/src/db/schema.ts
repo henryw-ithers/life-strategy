@@ -301,6 +301,31 @@ export const task = sqliteTable("task", {
    * which day a row appears on and never what it is worth.
    */
   fortnightOffset: integer("fortnight_offset").notNull().default(0),
+  /**
+   * Non-null marks this task as a **one-off**: done once, then archived.
+   *
+   * It doubles as the discriminator because a one-off always has a size
+   * — that is how it is priced, at `SIZE_RATE × the unit's variable day
+   * rate`, the same arithmetic a logged activity uses. Null means an
+   * ordinary recurring task and `times_per_week` governs instead.
+   *
+   * One-offs are deliberately kept **out of `bandPointValues`**. Letting
+   * one into the recurring allocation would make every other non-daily
+   * task in its unit drop in value while the errand existed and jump
+   * back when it was ticked — the same instability ADR-0027's amendment
+   * removed from the variable band, reintroduced across time. The 20
+   * point cap in `computeDayScore` is what keeps generous one-off
+   * pricing from inflating a day.
+   */
+  oneOffSize: text("one_off_size", { enum: ["quick", "normal", "big"] }),
+  /** The day it was planned for. Null is "no particular day". It never
+   *  moves: rolling forward is a display rule, not a write, so the
+   *  original intention survives being late. */
+  oneOffDate: text("one_off_date"),
+  /** Optional deadline. Informational only — it is never a penalty and
+   *  never an alarm colour (PRODUCT.md rules out loss-aversion tricks);
+   *  it exists so that rolling forward has a visible edge. */
+  oneOffDue: text("one_off_due"),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),

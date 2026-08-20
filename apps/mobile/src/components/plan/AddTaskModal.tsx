@@ -78,7 +78,7 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
-import { SchedulePicker } from "./SchedulePicker";
+import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 interface AddTaskModalProps {
@@ -103,6 +103,8 @@ interface AddTaskModalProps {
     unitIds: string[],
     plannedWeekdays: string | null,
     partOfDay: PartOfDay | null,
+    /** Non-null makes this a one-off; cadence and pins are ignored. */
+    oneOff: OneOffState | null,
   ) => Promise<void> | void;
 }
 
@@ -123,6 +125,10 @@ export function AddTaskModal({
   );
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(null);
+  /** Repeats by default: most of a plan recurs, and a one-off is the
+   *  deliberate exception. */
+  const [once, setOnce] = useState(false);
+  const [oneOff, setOneOff] = useState<OneOffState>({ size: "normal", date: null, due: null });
   const [saving, setSaving] = useState(false);
 
   /** The home unit's area hue, or the app accent until one is picked —
@@ -139,6 +145,8 @@ export function AddTaskModal({
     setUnitIds(homeUnitId ? [homeUnitId] : []);
     setWeekdays([]);
     setPartOfDay(null);
+    setOnce(false);
+    setOneOff({ size: "normal", date: null, due: null });
     setSaving(false);
     onClose();
   };
@@ -153,8 +161,11 @@ export function AddTaskModal({
     // value only survives when nothing is pinned.
     const committedTimes = frequencyForWeekdays(weekdays, timesPerWeek);
     const committedUnits = unitIds;
-    const committedDays = formatWeekdays(weekdays);
+    // A one-off has no cadence and no weekday pins; carrying either
+    // would leave contradictory rows behind if it were ever converted.
+    const committedDays = once ? null : formatWeekdays(weekdays);
     const committedPart = partOfDay;
+    const committedOneOff = once ? oneOff : null;
     close();
     void onCommit(
       committedTitle,
@@ -162,6 +173,7 @@ export function AddTaskModal({
       committedUnits,
       committedDays,
       committedPart,
+      committedOneOff,
     );
   };
 
@@ -247,6 +259,10 @@ export function AddTaskModal({
           />
 
           <SchedulePicker
+            once={once}
+            onOnceChange={setOnce}
+            oneOff={oneOff}
+            onOneOffChange={setOneOff}
             timesPerWeek={timesPerWeek}
             onTimesPerWeekChange={setTimesPerWeek}
             weekdays={weekdays}

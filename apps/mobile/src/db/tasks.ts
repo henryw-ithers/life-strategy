@@ -8,6 +8,7 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
+  VARIABLE_BAND,
   bandPointValues,
   DAILY_BUDGET,
   largestRemainder,
@@ -52,6 +53,12 @@ export interface PlanTask {
   unitIds: string[];
   /** Names of the other units, for the "also counts toward" line. */
   otherUnitNames: string[];
+  /** Non-null marks a one-off; the value is how it was sized. */
+  oneOffSize: "quick" | "normal" | "big" | null;
+  /** The day it is meant for, or null for no particular day. */
+  oneOffDate: string | null;
+  /** Its deadline, or null. */
+  oneOffDue: string | null;
 }
 
 export interface PlanUnit {
@@ -201,6 +208,9 @@ export async function loadPlan(): Promise<PlanData> {
                 plannedWeekdays: t.plannedWeekdays,
                 partOfDay: t.partOfDay,
                 fortnightOffset: t.fortnightOffset,
+                oneOffSize: t.oneOffSize,
+                oneOffDate: t.oneOffDate,
+                oneOffDue: t.oneOffDue,
                 goalId: t.goalId,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
@@ -241,6 +251,18 @@ export async function loadPlan(): Promise<PlanData> {
  * anything that skips this leaves the checklist scoring against a plan
  * that no longer exists.
  */
+/**
+ * What share of its unit's variable budget each size claims. The same
+ * three ratios logged activities use, so the sizes mean the same thing
+ * wherever they appear — but applied to the unit's real budget rather
+ * than the flat notional rate, which is what makes them distinguishable.
+ */
+const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
+  quick: 0.25,
+  normal: 0.5,
+  big: 1,
+};
+
 export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
   const weights = await latestWeights(tx);
   const units = await tx
@@ -259,9 +281,15 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
   // One read of the per-task columns this pass needs. `unitId` is the
   // home unit, which decides whose rank lands back on `task`.
   const taskRows = await tx
-    .select({ id: task.id, timesPerWeek: task.timesPerWeek, unitId: task.unitId })
+    .select({
+      id: task.id,
+      timesPerWeek: task.timesPerWeek,
+      unitId: task.unitId,
+      oneOffSize: task.oneOffSize,
+    })
     .from(task);
   const timesPerWeekByTask = new Map(taskRows.map((t) => [t.id, t.timesPerWeek]));
+  const oneOffSizeByTask = new Map(taskRows.map((t) => [t.id, t.oneOffSize]));
   const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
 
   // Normalize each unit's ranks to 1..n before pricing, so a gap left
@@ -278,13 +306,73 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     unitId: u.id,
     weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
   }));
-  const bandTasks: BandTask[] = memberships.map((m) => ({
-    id: `${m.taskId}::${m.unitId}`,
-    unitId: m.unitId,
-    timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
-    rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
-  }));
+  // One-offs never enter the recurring allocation. If they did, every
+  // other non-daily task in their unit would lose value while an errand
+  // sat on the list and regain it the moment it was ticked — the same
+  // instability ADR-0027's amendment took out of the variable band,
+  // reappearing over time instead of across units. They are priced
+  // below instead, from the unit's own variable day rate.
+  const bandTasks: BandTask[] = memberships
+    .filter((m) => oneOffSizeByTask.get(m.taskId) == null)
+    .map((m) => ({
+      id: `${m.taskId}::${m.unitId}`,
+      unitId: m.unitId,
+      timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
+      rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
+    }));
   const points = bandPointValues(bandUnits, bandTasks);
+
+  /**
+   * A one-off's worth: its size against **its unit's own variable
+   * budget** — so a big errand in a part of your life is worth about
+   * what a week of planned work there is worth, and a quick one a
+   * quarter of that.
+   *
+   * The first attempt priced these at the flat activity rate
+   * (`20/100 × weight`), which came out at 1, 1 and 2 points for the
+   * three sizes in a weight-10 unit while a weekly task in the same
+   * unit was worth 20. Two of the three sizes were indistinguishable,
+   * which would have made the size control decorative.
+   *
+   * **The budget is worked out over units holding any non-daily item,
+   * one-offs included** — otherwise an errand in a unit with no weekly
+   * work would divide by a budget of zero and price at the floor. That
+   * means the variable band's *notional* total can exceed 20 while
+   * one-offs are outstanding. It cannot exceed it in practice:
+   * `computeDayScore` caps what the band pays at `VARIABLE_BAND`, and
+   * the day's denominator is a constant 100 either way (ADR-0027 §1).
+   *
+   * Crucially this is computed **outside `bandPointValues`**, so a
+   * one-off appearing or being ticked off never moves a recurring
+   * task's value. That is the property this whole design exists to
+   * protect.
+   *
+   * A floor of one point, for ADR-0003 §5's reason: a zero-point row
+   * cannot move the number, so it is not a task.
+   */
+  const oneOffMemberships = memberships.filter(
+    (m) => oneOffSizeByTask.get(m.taskId) != null,
+  );
+  if (oneOffMemberships.length > 0) {
+    const holdsNonDaily = new Set<string>([
+      ...bandTasks.map((t) => t.unitId),
+      ...oneOffMemberships.map((m) => m.unitId),
+    ]);
+    const spread = bandUnits
+      .filter((u) => holdsNonDaily.has(u.unitId) && u.weight > 0)
+      .reduce((sum, u) => sum + u.weight, 0);
+
+    for (const m of oneOffMemberships) {
+      const size = oneOffSizeByTask.get(m.taskId);
+      if (size == null) continue;
+      const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
+      const budget = spread > 0 ? (VARIABLE_BAND * weight) / spread : 0;
+      points.set(
+        `${m.taskId}::${m.unitId}`,
+        Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * budget)),
+      );
+    }
+  }
 
   // Totals are summed here rather than re-read per task. This used to
   // call `refreshTaskTotal` in a second loop, which cost three more
@@ -381,6 +469,14 @@ async function attachUnits(
  * Returns the new task's id so the caller can point at it; null when
  * there is no home unit to file it under.
  */
+export interface OneOff {
+  size: "quick" | "normal" | "big";
+  /** The day you mean to do it. Null is "no particular day". */
+  date: string | null;
+  /** Optional deadline; informational only. */
+  due: string | null;
+}
+
 export async function addTask(
   unitIds: string[],
   title: string,
@@ -388,6 +484,7 @@ export async function addTask(
   plannedWeekdays: string | null = null,
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
   goalId: string | null = null,
+  oneOff: OneOff | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
@@ -401,10 +498,17 @@ export async function addTask(
       id,
       unitId: home,
       title,
-      timesPerWeek,
-      plannedWeekdays,
+      // A one-off has no cadence, but the column is NOT NULL. 1 is the
+      // safe value to park it at: if anything ever reads it without
+      // checking `oneOffSize`, it lands in the variable band rather
+      // than being mistaken for a daily habit worth routine points.
+      timesPerWeek: oneOff ? 1 : timesPerWeek,
+      plannedWeekdays: oneOff ? null : plannedWeekdays,
       partOfDay,
       goalId,
+      oneOffSize: oneOff?.size ?? null,
+      oneOffDate: oneOff?.date ?? null,
+      oneOffDue: oneOff?.due ?? null,
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
@@ -665,6 +769,35 @@ export async function setTaskPartOfDay(
  * pinned; everything else ignores the column. Presentation only: it
  * moves which day the row appears on and never what the task is worth.
  */
+/**
+ * Change a one-off's size, day, or deadline.
+ *
+ * Size is the reason this recomputes rather than writing one row: a
+ * one-off's point value is its size against its unit's variable budget,
+ * so moving Quick to Big has to reprice it. The dates are presentation
+ * and change nothing about what it is worth, but they travel with the
+ * size because a person edits all three in one sheet and one commit.
+ *
+ * Cadence is deliberately not editable. Converting a task with
+ * completions between recurring and one-off would strand its history:
+ * a recurring task turned one-off would count as already settled and
+ * vanish the moment it was saved.
+ */
+export async function setTaskOneOff(
+  taskId: string,
+  size: "quick" | "normal" | "big",
+  date: string | null,
+  due: string | null,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(task)
+      .set({ oneOffSize: size, oneOffDate: date, oneOffDue: due })
+      .where(eq(task.id, taskId));
+    await recomputeAllUnitPoints(tx);
+  });
+}
+
 export async function setTaskFortnightOffset(
   taskId: string,
   offset: 0 | 1,

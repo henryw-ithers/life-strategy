@@ -23,7 +23,7 @@
  * beside.
  */
 import * as Haptics from "expo-haptics";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -127,25 +127,39 @@ export function SectionedChecklist({
     [headerHeights, sections, rowHeight],
   );
 
-  const setDragState = (next: boolean) => {
-    onDragStateChange?.(next);
-  };
+  /**
+   * The three callbacks a gesture worklet reaches back into JS for.
+   *
+   * They have to be **stable**, because the gesture below is memoized on
+   * them: a new identity rebuilds the gesture, and rebuilding a gesture
+   * mid-drag drops the drag. They also have to see **fresh** props, or a
+   * committed move would be written against a stale arrangement. A ref
+   * holding the latest values gives both — the functions never change,
+   * what they read always does.
+   */
+  const latest = useRef({ sections, onMove, onDragStateChange });
+  latest.current = { sections, onMove, onDragStateChange };
 
-  const tick = () => {
+  const setDragState = useCallback((next: boolean) => {
+    latest.current.onDragStateChange?.(next);
+  }, []);
+
+  const tick = useCallback(() => {
     void Haptics.selectionAsync();
-  };
+  }, []);
 
-  const commit = (rowId: string) => {
+  const commit = useCallback((rowId: string) => {
     const next = layout.value;
     for (let s = 0; s < next.length; s++) {
       const i = (next[s] ?? []).indexOf(rowId);
       if (i >= 0) {
-        const section = sections[s];
-        if (section) onMove(rowId, section.key, i);
+        const section = latest.current.sections[s];
+        if (section) latest.current.onMove(rowId, section.key, i);
         return;
       }
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View style={{ height: totalHeight }}>
@@ -269,44 +283,85 @@ function ChecklistRow({
     };
   });
 
-  const pan = Gesture.Pan()
-    // A long press arms the drag, so a plain tap still ticks the task
-    // off and a vertical swipe still scrolls the page.
-    .activateAfterLongPress(220)
-    .onStart(() => {
-      "worklet";
-      draggingId.value = rowId;
-      liftedId.value = rowId;
-      startTop.value = topOfRow(layout.value, METRICS(heights.value, rowHeight), rowId);
-      dragTop.value = startTop.value;
-      translation.value = 0;
-      lift.value = withTiming(1, { duration: 140 });
-      runOnJS(onSetDragging)(true);
-      runOnJS(onTick)();
-    })
-    .onUpdate((e) => {
-      "worklet";
-      translation.value = e.translationY;
-      dragTop.value = startTop.value + e.translationY;
+  /* Memoized: an unmemoized `Gesture.Pan()` is a new gesture object on
+     every render, and this list re-renders whenever anything about the
+     day changes. Every dependency here is either a shared value (stable
+     by construction) or one of the stable callbacks above, so in
+     practice this is built once per row. */
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        // A long press arms the drag, so a plain tap still ticks the task
+        // off and a vertical swipe still scrolls the page.
+        .activateAfterLongPress(220)
+        .onStart(() => {
+          "worklet";
+          draggingId.value = rowId;
+          liftedId.value = rowId;
+          startTop.value = topOfRow(layout.value, METRICS(heights.value, rowHeight), rowId);
+          dragTop.value = startTop.value;
+          translation.value = 0;
+          lift.value = withTiming(1, { duration: 140 });
+          runOnJS(onSetDragging)(true);
+          runOnJS(onTick)();
+        })
+        .onUpdate((e) => {
+          "worklet";
+          translation.value = e.translationY;
+          dragTop.value = startTop.value + e.translationY;
 
-      const target = locate(
-        layout.value,
-        METRICS(heights.value, rowHeight),
-        dragTop.value,
-      );
-      const next = moveRow(layout.value, rowId, target);
-      // Null means the target resolved to where it already is.
-      if (next === null) return;
-      layout.value = next;
-      runOnJS(onTick)();
-    })
-    .onEnd(() => {
-      "worklet";
-      draggingId.value = null;
-      lift.value = withTiming(0, { duration: 220 });
-      runOnJS(onSetDragging)(false);
-      runOnJS(onCommit)(rowId);
-    });
+          const target = locate(
+            layout.value,
+            METRICS(heights.value, rowHeight),
+            dragTop.value,
+          );
+          const next = moveRow(layout.value, rowId, target);
+          // Null means the target resolved to where it already is.
+          if (next === null) return;
+          layout.value = next;
+          runOnJS(onTick)();
+        })
+        .onEnd(() => {
+          "worklet";
+          runOnJS(onCommit)(rowId);
+        })
+        /**
+         * Resetting lives here, not in `onEnd`.
+         *
+         * `onFinalize` is the only callback guaranteed to run however the
+         * gesture ends — completed, failed, cancelled by another recogniser,
+         * or interrupted. `onEnd` alone left a real dead end: the parent
+         * freezes its scroll while a row is held (`scrollEnabled={!dragging}`),
+         * so a drag that was cancelled rather than finished left the Today
+         * screen permanently unscrollable until it was navigated away from
+         * and back.
+         *
+         * The commit stays in `onEnd`, because a cancelled drag should not
+         * write anything.
+         */
+        .onFinalize(() => {
+          "worklet";
+          draggingId.value = null;
+          liftedId.value = null;
+          lift.value = withTiming(0, { duration: 220 });
+          runOnJS(onSetDragging)(false);
+        }),
+    [
+      rowId,
+      rowHeight,
+      layout,
+      heights,
+      draggingId,
+      dragTop,
+      startTop,
+      translation,
+      lift,
+      liftedId,
+      onSetDragging,
+      onCommit,
+      onTick,
+    ],
+  );
 
   return (
     <Animated.View style={[styles.absolute, { height: rowHeight }, style]}>

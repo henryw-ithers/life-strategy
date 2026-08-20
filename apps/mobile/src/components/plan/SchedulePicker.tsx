@@ -23,6 +23,11 @@
  * Multiple days are the point, not a power feature: three chips is
  * three times a week on those three days, and the research this ADR
  * rests on is about the stability of the cue, not the count.
+ *
+ * **Repeats or once, first.** A one-off answers different questions —
+ * how big, which day if any, due by when — so the block swaps rather
+ * than growing. Putting the choice at the top means a person never
+ * fills in a cadence for something that happens once.
  */
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -31,11 +36,27 @@ import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { formatFrequency } from "./frequency";
 import { FrequencyStepper } from "./FrequencyStepper";
+import { OneOffPicker, type OneOffSize } from "./OneOffPicker";
+import { Segmented } from "./Segmented";
 import { PartOfDayPicker } from "./PartOfDayPicker";
 import { frequencyForWeekdays, type PartOfDay, type Weekday } from "./planning";
 import { WeekdayPicker } from "./WeekdayPicker";
 
 interface SchedulePickerProps {
+  /** `true` swaps the whole block for the one-off questions. */
+  once: boolean;
+  onOnceChange: (next: boolean) => void;
+  /**
+   * Whether the Repeats/Once switch is offered at all.
+   *
+   * False on the edit sheet. Converting a task that already has
+   * completions would strand them — a recurring task turned one-off
+   * reads as settled and disappears — so cadence is decided once, when
+   * the task is made. Everything else about a one-off stays editable.
+   */
+  canChangeCadence?: boolean;
+  oneOff: OneOffState;
+  onOneOffChange: (next: OneOffState) => void;
   timesPerWeek: number;
   onTimesPerWeekChange: (times: number) => void;
   /** Empty is flexible — "any N days", the default and not a lesser
@@ -53,7 +74,24 @@ interface SchedulePickerProps {
   theme: ThemeTokens;
 }
 
+export interface OneOffState {
+  size: OneOffSize;
+  date: string | null;
+  due: string | null;
+}
+
+/** Two words, because the difference is the whole point. */
+const CADENCE = [
+  { value: "repeats" as const, label: "Repeats" },
+  { value: "once" as const, label: "Once" },
+];
+
 export function SchedulePicker({
+  once,
+  onOnceChange,
+  canChangeCadence = true,
+  oneOff,
+  onOneOffChange,
   timesPerWeek,
   onTimesPerWeekChange,
   weekdays,
@@ -76,6 +114,30 @@ export function SchedulePicker({
        them and their own inner rhythm is what makes the sheet scan as
        *what it is*, then *when it happens*. */
     <View style={[styles.group, { borderTopColor: theme.hairline }]}>
+      {canChangeCadence ? (
+        <Segmented
+          segments={CADENCE}
+          value={once ? "once" : "repeats"}
+          onChange={(next) => onOnceChange(next === "once")}
+          accent={accent}
+          theme={theme}
+          label="Repeats or once"
+        />
+      ) : null}
+
+      {once ? (
+        <OneOffPicker
+          size={oneOff.size}
+          onSizeChange={(size) => onOneOffChange({ ...oneOff, size })}
+          date={oneOff.date}
+          onDateChange={(date) => onOneOffChange({ ...oneOff, date })}
+          due={oneOff.due}
+          onDueChange={(due) => onOneOffChange({ ...oneOff, due })}
+          accent={accent}
+          theme={theme}
+        />
+      ) : (
+      <>
       <View style={styles.block}>
         <AppText variant="caption" color={theme.muted}>
           How often
@@ -139,6 +201,9 @@ export function SchedulePicker({
           </Pressable>
         ) : null}
       </View>
+
+      </>
+      )}
 
       <View style={styles.block}>
         <AppText variant="caption" color={theme.muted}>

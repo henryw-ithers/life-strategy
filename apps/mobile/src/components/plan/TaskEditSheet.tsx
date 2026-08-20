@@ -48,7 +48,8 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
-import { SchedulePicker } from "./SchedulePicker";
+import { SchedulePicker, type OneOffState } from "./SchedulePicker";
+import type { OneOffSize } from "./OneOffPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 export interface EditableTask {
@@ -64,6 +65,11 @@ export interface EditableTask {
   goalId: string | null;
   /** Which half of the fortnight, for a fortnightly pinned task. */
   fortnightOffset: number;
+  /** Non-null marks a one-off; the sheet then edits size and dates
+   *  instead of cadence and weekdays. */
+  oneOffSize: OneOffSize | null;
+  oneOffDate: string | null;
+  oneOffDue: string | null;
 }
 
 interface TaskEditSheetProps {
@@ -85,6 +91,8 @@ interface TaskEditSheetProps {
     partOfDay: PartOfDay | null;
     goalId: string | null;
     fortnightOffset: number;
+    /** Null when the task is not a one-off; unchanged cadence either way. */
+    oneOff: OneOffState | null;
   }) => void;
   onDelete: () => void;
 }
@@ -129,6 +137,15 @@ export function TaskEditSheet({
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
    *  choosing a different one, and this is where that lands. */
+  /** A one-off is a one-off for life (see `canChangeCadence`), so this
+   *  is read once from the task rather than being switchable. */
+  const once = task.oneOffSize != null;
+  const [oneOff, setOneOff] = useState<OneOffState>({
+    size: task.oneOffSize ?? "normal",
+    date: task.oneOffDate,
+    due: task.oneOffDue,
+  });
+
   const savable = title.trim().length > 0 && unitIds.length > 0;
 
   const save = () => {
@@ -141,6 +158,7 @@ export function TaskEditSheet({
       partOfDay,
       goalId,
       fortnightOffset,
+      oneOff: once ? oneOff : null,
     });
     onClose();
   };
@@ -217,7 +235,17 @@ export function TaskEditSheet({
             areaColors={areaColors}
           />
 
+          {/* Cadence is decided once, when the task is made: converting
+              a task that already has completions would strand them, and
+              a recurring task turned one-off would read as settled and
+              vanish on save. Everything else about a one-off — its size,
+              its day, its deadline — is editable here. */}
           <SchedulePicker
+            once={once}
+            onOnceChange={() => undefined}
+            canChangeCadence={false}
+            oneOff={oneOff}
+            onOneOffChange={setOneOff}
             timesPerWeek={timesPerWeek}
             onTimesPerWeekChange={setTimesPerWeek}
             weekdays={weekdays}

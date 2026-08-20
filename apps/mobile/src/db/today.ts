@@ -59,6 +59,10 @@ export interface TodayTask {
   plannedWeekdays: string | null;
   /** Which half of the fortnight a fortnightly task belongs to. */
   fortnightOffset: number;
+  /** Non-null marks a one-off; the value is how it was sized. */
+  oneOffSize: "quick" | "normal" | "big" | null;
+  /** Its deadline, if it has one. Shown as context, never as a penalty. */
+  oneOffDue: string | null;
   /** Where the row actually sits today: a placement for this date
    *  if one exists (ADR-0024 phase 3), otherwise the task's own. */
   partOfDay: "morning" | "afternoon" | "evening" | null;
@@ -197,11 +201,46 @@ export async function loadDay(
   // excluded unit already contributes zero points to it, so filtering
   // on the home unit alone would drop legitimately-earned points from
   // its other units.
-  const allTasks = await db
+  const everyTask = await db
     .select()
     .from(task)
     .where(eq(task.active, true))
     .orderBy(asc(task.rankInUnit));
+
+  /**
+   * One-offs earn their place on a day by a different rule to recurring
+   * work: they are outstanding until they are done, so they appear from
+   * their planned day onward and stop the day after they are ticked.
+   *
+   * **Shown on the day it was completed, not hidden immediately.** A row
+   * that vanishes the instant you tick it cannot be unticked, and
+   * `toggleCompletion` is a toggle. So the test is whether it was
+   * finished *before* today, not whether it was finished at all.
+   *
+   * A one-off with no date has no start either: it is outstanding from
+   * the moment it exists, which is what "no particular day" means.
+   */
+  const oneOffIds = everyTask.filter((t) => t.oneOffSize != null).map((t) => t.id);
+  const settledBefore = new Set(
+    oneOffIds.length > 0
+      ? (
+          await db
+            .select({ taskId: taskCompletion.taskId })
+            .from(taskCompletion)
+            .where(
+              and(
+                inArray(taskCompletion.taskId, oneOffIds),
+                lt(taskCompletion.localDate, date),
+              ),
+            )
+        ).map((c) => c.taskId)
+      : [],
+  );
+  const allTasks = everyTask.filter((t) => {
+    if (t.oneOffSize == null) return true;
+    if (settledBefore.has(t.id)) return false;
+    return t.oneOffDate == null || t.oneOffDate <= date;
+  });
   const memberships = allTasks.length
     ? await db
         .select()
@@ -322,6 +361,8 @@ export async function loadDay(
       fortnightOffset: t.fortnightOffset,
       // `has`, not `get() ?? default`: a placement holding null is a
       // deliberate Anytime for today, not a missing one.
+      oneOffSize: t.oneOffSize,
+      oneOffDue: t.oneOffDue,
       partOfDay: placements.has(t.id)
         ? (placements.get(t.id) ?? null)
         : t.partOfDay,

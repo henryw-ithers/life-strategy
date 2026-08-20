@@ -40,6 +40,7 @@ import {
   type PartOfDay,
 } from "../../components/plan/planning";
 import { CoverageBar } from "../../components/plan/CoverageBar";
+import type { OneOffState } from "../../components/plan/SchedulePicker";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -61,6 +62,7 @@ import {
   restoreTask,
   setTaskDetails,
   setTaskFortnightOffset,
+  setTaskOneOff,
   setTaskFrequency,
   setTaskGoal,
   setTaskPlanning,
@@ -258,6 +260,7 @@ export default function PlanScreen() {
     unitIds: string[],
     plannedWeekdays: string | null,
     partOfDay: PartOfDay | null,
+    oneOff: OneOffState | null = null,
   ) => {
     const id = await addTask(
       unitIds,
@@ -265,6 +268,8 @@ export default function PlanScreen() {
       timesPerWeek,
       plannedWeekdays,
       partOfDay,
+      null,
+      oneOff,
     );
     const home = unitIds[0];
     if (home) setOpenUnitId(home);
@@ -695,6 +700,9 @@ export default function PlanScreen() {
               partOfDay: editing.task.partOfDay,
               goalId: editing.task.goalId,
               fortnightOffset: editing.task.fortnightOffset,
+              oneOffSize: editing.task.oneOffSize,
+              oneOffDate: editing.task.oneOffDate,
+              oneOffDue: editing.task.oneOffDue,
             } satisfies EditableTask
           }
           units={allUnits}
@@ -730,6 +738,19 @@ export default function PlanScreen() {
               await setTaskFortnightOffset(
                 t.id,
                 next.fortnightOffset === 1 ? 1 : 0,
+              );
+            }
+            if (
+              next.oneOff &&
+              (next.oneOff.size !== t.oneOffSize ||
+                next.oneOff.date !== t.oneOffDate ||
+                next.oneOff.due !== t.oneOffDue)
+            ) {
+              await setTaskOneOff(
+                t.id,
+                next.oneOff.size,
+                next.oneOff.date,
+                next.oneOff.due,
               );
             }
             await reload();
