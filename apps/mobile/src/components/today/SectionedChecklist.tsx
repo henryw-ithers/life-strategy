@@ -46,13 +46,28 @@ export interface ChecklistSection {
   rowIds: string[];
 }
 
-/** Matches the tested layout module's `gap`; the module takes it as
- *  an argument so it can stay free of React Native imports. */
-const METRICS = (headerHeights: number[], rowHeight: number) => ({
-  headerHeights,
-  rowHeight,
-  gap: space.xs,
-});
+/**
+ * Matches the tested layout module's `gap`; the module takes it as an
+ * argument so it can stay free of React Native imports.
+ *
+ * **`"worklet"` is load-bearing and its absence was a hard crash.**
+ * This is called from six worklet contexts below — two animated styles,
+ * a derived value, and three gesture callbacks — and a worklet may only
+ * call other worklets. Without the directive, Reanimated reached for a
+ * JS-thread function from the UI thread and threw there, which is not a
+ * red box but a native crash that takes the process with it. It also
+ * left the app unopenable: the crash is on Home, and Home is where the
+ * app opens.
+ *
+ * It survived review because the web preview runs Reanimated's polyfill
+ * on the JS thread, where calling a plain function is fine. Every
+ * browser check passed while the device died. Worklet code is the one
+ * part of this app the preview cannot vouch for.
+ */
+const METRICS = (headerHeights: number[], rowHeight: number) => {
+  "worklet";
+  return { headerHeights, rowHeight, gap: space.xs };
+};
 
 /** Firm, no overshoot — bounce is banned (DESIGN.md motion). */
 const SETTLE = { damping: 26, stiffness: 320, mass: 0.7 } as const;

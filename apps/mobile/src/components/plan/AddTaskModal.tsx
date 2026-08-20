@@ -8,10 +8,15 @@
  * schedule: with five fields and a keyboard, a centred panel jumps —
  * `KeyboardAvoidingView` shortens the container and a centred child
  * re-centres in what is left, so focusing the name field threw the
- * whole sheet a couple of hundred points up the screen. Anchored to
- * the bottom it rises by the keyboard's height and no more. It also
+ * whole sheet a couple of hundred points up the screen. It also
  * matches `TaskEditSheet`, so making a task and changing one are
  * visibly the same surface.
+ *
+ * **The keyboard overlays rather than displaces (2026-08-19).** Anchoring
+ * to the bottom stopped the sheet jumping, but keeping the avoider
+ * meant it still folded: the frame shortened and the scroller
+ * concertinaed five fields into what was left. The sheet now holds
+ * still and the keyboard covers the lower part of it.
  *
  * **The plan is made here, not afterwards** (ADR-0024 §1 as amended
  * 2026-08-17). The order is the order a person thinks in: what, how
@@ -164,7 +169,15 @@ export function AddTaskModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} avoidsKeyboard>
+      {/* No keyboard avoidance, deliberately. `behavior="padding"`
+          shortens the frame, which makes the sheet fold: the scroller
+          collapses and five fields concertina into whatever is left.
+          The name field is the first thing in the sheet and the only
+          thing that takes typing, so it is never behind the keyboard
+          anyway — letting the keyboard sit over the lower half leaves
+          the layout still and the field in view, which is what a person
+          expects when they tap into a form. Return dismisses it. */}
+      <SheetFrame onClose={close}>
         <View
           style={[
             styles.sheet,

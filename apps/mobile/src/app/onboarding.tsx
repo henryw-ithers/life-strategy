@@ -60,6 +60,7 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
@@ -68,7 +69,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PermissionPrescreen } from "../components/notifications/PermissionPrescreen";
+import { AreaInfoSheet } from "../components/diagnostic/AreaInfoSheet";
 import { AppText } from "../components/ui/AppText";
+import { Chevron } from "../components/ui/Chevron";
 import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { LoadFailure } from "../components/ui/ScreenLoad";
@@ -81,6 +84,7 @@ import {
 import { hasAskedNotificationPermission } from "../db/settings";
 import { loadPlan, type PlanData } from "../db/tasks";
 import { recordProblem } from "../lib/problemLog";
+import { AREA_INFO } from "../content/areas";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -159,19 +163,38 @@ function Progress({ index, theme }: { index: number; theme: ThemeTokens }) {
  * for the same six areas, so the first thing a person learns is the
  * colour system they will be reading from then on.
  */
-function AreaBloom({ theme }: { theme: ThemeTokens }) {
+function AreaBloom({
+  theme,
+  onOpen,
+}: {
+  theme: ThemeTokens;
+  onOpen: (areaId: string) => void;
+}) {
   return (
     <View style={styles.areas}>
       {AREAS.map((area) => (
-        <View key={area.id} style={styles.areaRow}>
+        <Pressable
+          key={area.id}
+          onPress={() => onOpen(area.id)}
+          accessibilityRole="button"
+          accessibilityLabel={area.name}
+          accessibilityHint="Shows what this area covers"
+          style={({ pressed }) => [styles.areaRow, { opacity: pressed ? 0.6 : 1 }]}
+        >
           <View
             style={[
               styles.areaDot,
               { backgroundColor: theme.areas[area.id] ?? theme.muted },
             ]}
           />
-          <AppText color={theme.ink}>{area.name}</AppText>
-        </View>
+          <AppText color={theme.ink} style={styles.grow}>
+            {area.name}
+          </AppText>
+          {/* The affordance. Six coloured names with no sign they do
+              anything is exactly how this screen shipped, and nobody
+              taps what does not look tappable. */}
+          <Chevron theme={theme} size={15} />
+        </Pressable>
       ))}
     </View>
   );
@@ -264,6 +287,8 @@ export default function OnboardingScreen() {
   /** Onboarding stands between the user and the whole app, so a failed
    *  read here strands them completely. It gets a way out. */
   const [error, setError] = useState<Error | null>(null);
+  /** Which area's explanation is open, if any. */
+  const [openArea, setOpenArea] = useState<string | null>(null);
   /** Loaded once the diagnostic has produced a snapshot; the `weights`
    *  screen is the user's own ranking, not an example of one. */
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -431,7 +456,16 @@ export default function OnboardingScreen() {
         <AppText variant="display" color={theme.ink}>
           Six areas, eighteen parts
         </AppText>
-        <AreaBloom theme={theme} />
+        <AreaBloom theme={theme} onOpen={setOpenArea} />
+        {openArea !== null && AREA_INFO[openArea] ? (
+          <AreaInfoSheet
+            visible
+            onClose={() => setOpenArea(null)}
+            info={AREA_INFO[openArea]}
+            accent={theme.areas[openArea] ?? theme.accent}
+            theme={theme}
+          />
+        ) : null}
         <AppText color={theme.ink} style={styles.lead}>
           You will see them two at a time. The question is never whether
           something matters. It is which of these two matters more to
@@ -654,7 +688,9 @@ const styles = StyleSheet.create({
   progress: { flexDirection: "row", gap: 4, height: 3, marginBottom: space.xl },
   progressBar: { height: 3, borderRadius: 2 },
   areas: { gap: space.sm, paddingVertical: space.xs },
-  areaRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+  /** 44pt so each area is a real target, not a line of text. */
+  areaRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
+  grow: { flex: 1 },
   /** 10pt, the same pip the portfolio and the unit chips use. */
   areaDot: { width: 10, height: 10, borderRadius: 5 },
   band: { gap: space.sm, paddingVertical: space.xs },

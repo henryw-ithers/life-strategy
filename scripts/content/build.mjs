@@ -129,6 +129,33 @@ function parseUnits() {
   return info;
 }
 
+/**
+ * The six Strategic Life Areas.
+ *
+ * Simpler than a unit: one paragraph and a list of what is inside,
+ * because areas are presentational (ADR-0021) and carry no guidelines,
+ * no note, and nothing the scoring engine reads. The count is checked
+ * against the taxonomy the same way units are — six, exactly, with the
+ * ids the database seeds.
+ */
+function parseAreas() {
+  const secs = sections(readDoc("areas.md"), "areas.md");
+  const info = {};
+  for (const s of secs) {
+    const { paras, bullets } = blocks(s.lines);
+    if (paras.length === 0) fail(`areas.md: ${s.id} has no description`);
+    if (paras.length > 1) {
+      warn(`areas.md: ${s.id} has ${paras.length} paragraphs; only the first is used`);
+    }
+    if (bullets.length === 0) fail(`areas.md: ${s.id} has no unit list`);
+    info[s.id] = { name: s.name, description: paras[0] ?? "", covers: bullets };
+  }
+  if (Object.keys(info).length !== 6) {
+    fail(`areas.md defines ${Object.keys(info).length} areas; the taxonomy has 6 (db/taxonomy.ts)`);
+  }
+  return info;
+}
+
 function parseKeywords() {
   const secs = sections(readDoc("keywords.md"), "keywords.md");
   const map = {};
@@ -401,6 +428,20 @@ const BANNER = (src) => `/**
 
 const j = (v) => JSON.stringify(v, null, 2);
 
+function emitAreas(areas) {
+  return `${BANNER("areas.md")}
+export interface AreaInfo {
+  /** The area's display name, so a caller with only an id can title it. */
+  name: string;
+  description: string;
+  /** What sits inside it, in plain language — one line per unit. */
+  covers: string[];
+}
+
+export const AREA_INFO: Record<string, AreaInfo> = ${j(areas)};
+`;
+}
+
 function emitUnits(units) {
   return `${BANNER("units.md")}
 export interface UnitInfo {
@@ -517,6 +558,7 @@ export const LIBRARY: Record<string, UnitLibrary> = ${j(lib)};
 
 // ── Run ─────────────────────────────────────────────────────────────
 
+const areas = parseAreas();
 const units = parseUnits();
 const keywords = parseKeywords();
 const notifications = parseNotifications();
@@ -524,6 +566,7 @@ const library = parseLibrary();
 crossCheck({ units, keywords, library });
 
 const outputs = [
+  ["areas.ts", emitAreas(areas)],
   ["units.ts", emitUnits(units)],
   ["notificationCopy.ts", emitNotifications(notifications)],
   ["tagKeywords.ts", emitKeywords(keywords)],
