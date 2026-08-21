@@ -6,7 +6,7 @@
  * The date header expands the current month (calendar phase, early).
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
+import { addDays, specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useFocusEffect, type Href } from "expo-router";
@@ -30,18 +30,17 @@ import { DayKindSheet } from "../../components/today/DayKindSheet";
 import { DayNumber } from "../../components/today/DayNumber";
 import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
-import { DayPlannerSheet } from "../../components/today/DayPlannerSheet";
 import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
 import {
   ANYTIME_LABEL,
+  compareForDay,
   emptyPeriodNote,
-  isDueOn,
-  parseWeekdays,
   PART_OF_DAY_LABEL,
   PART_OF_DAY_ORDER,
+  pinnedElsewhere,
   type PartOfDay,
 } from "../../components/plan/planning";
 import { AppText } from "../../components/ui/AppText";
@@ -65,6 +64,7 @@ import {
   setDayKind,
   setCompletionTags,
   clearPlacementForDay,
+  isPlannable,
   placeTaskForDay,
   toggleCompletion,
   updateActivity,
@@ -149,7 +149,6 @@ export default function TodayScreen() {
   const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
   /** A future day being arranged (ADR-0024 §4). Holds its own
    *  loaded day, since the screen behind it still shows today. */
-  const [planning, setPlanning] = useState<DayData | null>(null);
   /** The row whose slot is being changed (ADR-0024 phase 3). */
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
   /** A cross-slot drop awaiting its scope answer. */
@@ -195,11 +194,15 @@ export default function TodayScreen() {
   );
 
   const select = (date: string) => {
-    // A future day cannot be recorded, only arranged — so tapping
-    // one opens the planner and leaves the checklist where it is
-    // (ADR-0024 §4).
+    // A future day cannot be recorded, only arranged — so tapping one
+    // leaves Home where it is and opens the planner (ADR-0024 §4).
+    // Beyond the planning window there is nothing to arrange yet, so
+    // the tap does nothing rather than opening a screen that would
+    // have to explain itself.
     if (date > currentLocalDate()) {
-      void loadDay(date).then(setPlanning);
+      if (isPlannable(date, currentLocalDate())) {
+        router.push(`/day/${date}` as Href);
+      }
       return;
     }
     setSelected(date === currentLocalDate() ? null : date);
@@ -252,57 +255,20 @@ export default function TodayScreen() {
   const allTasks = day ? [...day.daily, ...day.week, ...day.doneThisWeek] : [];
 
   /**
-   * ADR-0024 §3's order: planned-today first, then flexible with runs
-   * left, then the rest. Ties keep their incoming order, which is the
-   * unit ranking, so the diagnostic still shows through.
-   *
-   * "The rest" is a task pinned to *other* days. It stays visible and
-   * tappable — a plan is an intention, so doing Friday's run on
-   * Tuesday is a perfect week and the row must never imply otherwise.
+   * Ordering and the other-days split both live in `planning.ts`, so
+   * the checklist and the planner cannot drift into arranging the same
+   * day two ways. See `compareForDay` and `pinnedElsewhere` there for
+   * why the order is what it is.
    */
-  const planRank = (t: TodayTask): number => {
-    const pins = parseWeekdays(t.plannedWeekdays);
-    if (day && isDueOn(t, day.date)) return 0;
-    if (pins.length === 0) return 1;
-    return 2;
-  };
-  /**
-   * Your own order first, the plan's second.
-   *
-   * `dayOrder` is what dragging writes (persistent, so yesterday's
-   * arrangement follows you into today). Rows that have never been
-   * dragged have none and sort after the ones that have, falling back
-   * to the plan ordering — so a first drag moves one row to the top
-   * without scrambling everything below it.
-   */
-  const byPlan = (a: TodayTask, b: TodayTask) => {
-    const ao = a.dayOrder ?? Number.MAX_SAFE_INTEGER;
-    const bo = b.dayOrder ?? Number.MAX_SAFE_INTEGER;
-    if (ao !== bo) return ao - bo;
-    return planRank(a) - planRank(b);
-  };
+  const byPlan = (a: TodayTask, b: TodayTask) =>
+    compareForDay(a, b, day?.date ?? "");
 
   const openTasks = day
     ? [...day.daily, ...day.week].filter((t) => !t.completedToday)
     : [];
 
-  /**
-   * Pinned to days that are not this one (ADR-0024 §1).
-   *
-   * These used to sit in today's slots, sorted last — so a Monday plan
-   * padded Tuesday's morning with things Tuesday was never meant to
-   * hold, and the day's shape stopped describing the day. They get
-   * their own section instead.
-   *
-   * **Still open, still tappable, and worth full points.** A plan is an
-   * intention, not an obligation (§2): doing Friday's run on Tuesday is
-   * a perfect week, and the copy here never suggests otherwise.
-   */
-  const isElsewhere = (t: TodayTask): boolean => {
-    if (!day) return false;
-    const pins = parseWeekdays(t.plannedWeekdays);
-    return pins.length > 0 && !isDueOn(t, day.date);
-  };
+  const isElsewhere = (t: TodayTask): boolean =>
+    day ? pinnedElsewhere(t, day.date) : false;
   const todayTasks = openTasks.filter((t) => !isElsewhere(t));
   const otherDayTasks = openTasks.filter(isElsewhere).sort(byPlan);
 
@@ -588,6 +554,36 @@ export default function TodayScreen() {
                 />
               </Animated.View>
             )}
+
+            {/* The planner's discoverable way in. Tapping a future day
+                in the strip above opens the same screen, but that is a
+                gesture you have to already know about, and ADR-0024 §4
+                wants planning to be a thing you do rather than a thing
+                you find.
+
+                It sits here, under the dates, rather than at the foot
+                of the scroll where it used to: an affordance about
+                *which day* belongs beside the days, and the bottom of a
+                scroll is where you put something you hope nobody
+                needs. Right-aligned and quiet, so it reads as an exit
+                from the strip and never competes with the grade. */}
+            {day.hasTasks ? (
+              <Pressable
+                onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
+                accessibilityRole="button"
+                accessibilityLabel="Plan ahead"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.planAhead,
+                  { opacity: pressed ? 0.5 : 1 },
+                ]}
+              >
+                <AppText variant="footnote" color={theme.accent}>
+                  Plan ahead
+                </AppText>
+                <Chevron color={theme.accent} theme={theme} size={13} />
+              </Pressable>
+            ) : null}
           </View>
 
           <ScrollView
@@ -895,35 +891,6 @@ export default function TodayScreen() {
               </>
             ) : null}
 
-            {/* Tomorrow, from today — the planner's discoverable way
-                in. Tapping a future day in the week strip opens the
-                same sheet, but that is a gesture you have to already
-                know about, and ADR-0024 §4 wants planning to be a
-                thing you do rather than a thing you find. Only on
-                today: planning from inside last Tuesday is a route to
-                nowhere useful. */}
-            {isToday && day.hasTasks ? (
-              <Pressable
-                onPress={() => {
-                  const tomorrow = editWindowDays(day.today).find(
-                    (d) => d > day.today,
-                  );
-                  if (tomorrow) void loadDay(tomorrow).then(setPlanning);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Plan tomorrow"
-                style={({ pressed }) => [
-                  styles.planAhead,
-                  { opacity: pressed ? 0.5 : 1 },
-                ]}
-              >
-                <AppText variant="label" color={theme.accent}>
-                  Plan tomorrow
-                </AppText>
-                <Chevron color={theme.accent} theme={theme} size={15} />
-              </Pressable>
-            ) : null}
-
             {/* Takes up whatever's left so the footer sits at the
                 bottom on a short day (an empty state, a rest day)
                 instead of floating mid-screen above blank canvas. */}
@@ -1039,31 +1006,6 @@ export default function TodayScreen() {
             </View>
           </Modal>
 
-          {planning ? (
-            <DayPlannerSheet
-              visible
-              date={planning.date}
-              dayLabel={spokenDate(planning.date).split(",")[0] ?? "that day"}
-              tasks={[...planning.daily, ...planning.week]}
-              areaColors={theme.areas}
-              accent={theme.accent}
-              theme={theme}
-              onClose={() => setPlanning(null)}
-              onPlace={(taskId, part) => {
-                const date = planning.date;
-                void placeTaskForDay(taskId, date, part)
-                  .then(() => loadDay(date))
-                  .then(setPlanning);
-              }}
-              onAddTask={() => {
-                // The plan screen owns creating tasks; sending you there
-                // beats a second add sheet that would have to explain
-                // that a task is not a one-off.
-                setPlanning(null);
-                router.push("/plan" as Href);
-              }}
-            />
-          ) : null}
           {movingTask ? (
             <MoveTaskSheet
               visible
@@ -1192,7 +1134,15 @@ const styles = StyleSheet.create({
   headerRight: { alignItems: "flex-end", gap: space.xs },
   weekStat: { marginTop: space.xs },
   kindButton: { minWidth: 44, minHeight: 32, alignItems: "flex-end" },
-  planAhead: { minHeight: 44, justifyContent: "center", marginTop: space.lg },
+  /** A trailing row in the fixed header. Right-aligned under the
+   *  strip's last day, so it reads as "and beyond this". */
+  planAhead: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 2,
+    minHeight: 32,
+  },
   /** Icon and label as one unit, so the pair never wraps apart. */
   recordAction: { flexDirection: "row", alignItems: "center", gap: 4 },
   recordButtons: {

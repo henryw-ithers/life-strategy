@@ -300,6 +300,84 @@ placed, and nothing on the daily surface asks you to re-plan.
 > nothing is still flexible, still the default, and still not a lesser
 > state.
 
+> **Amendment (2026-08-20): the look-ahead planner is a route, reaches
+> four weeks, and is arranged by dragging.**
+>
+> The planner shipped as a bottom sheet opened by a text link at the
+> foot of Home's scroll, labelled *Plan tomorrow*. Four things were
+> wrong with that, and only one was cosmetic.
+>
+> - **It could not reach past Saturday.** The link and the week strip
+>   both drew on `editWindowDays`, which returns fourteen days starting
+>   at `weekStart(today) − 7` — last week plus this week. On a Friday
+>   the entire look-ahead was one day. A surface for planning that
+>   cannot see next week is not a planning surface. The window is now
+>   its own function, `planningDays`, and it is **the next 28 days**:
+>   far enough to hold an appointment made a fortnight out, short
+>   enough that the arrows stay a reasonable way to travel it.
+> - **A sheet cannot host a drag.** §3's cross-section drag is a
+>   long-press-armed downward pan, which is exactly the gesture a
+>   bottom sheet reads as *dismiss me*. So the planner moved tasks by
+>   **tapping** — a second, weaker grammar for the one operation the
+>   rest of the app does by hand. As a pushed route it reuses
+>   `SectionedChecklist` unchanged, and arranging tomorrow is the same
+>   gesture as arranging today.
+> - **The link sat last on a scroll**, under the record buttons, which
+>   is where you put something you hope nobody needs. It is now a quiet
+>   trailing control in the date header, beneath the week strip:
+>   an affordance about *which day* belongs beside the days.
+> - **It could only ever mean tomorrow.** The route takes the date as a
+>   parameter and steps with arrows, and tapping any future day in the
+>   strip or the month grid opens it at that date.
+>
+> **The drag here never asks the scope question.** §3's amendment has
+> a drop into another slot ask *just today* or *from now on*; on a
+> future day that prompt is noise, because "just this day" is the only
+> thing a drag on a day you are planning can mean.
+>
+> A drop writes the same two things a drop on the checklist writes,
+> and they are separate on purpose. **Which slot** is a statement about
+> that date: a `planned_occurrence`, never the task — verified by
+> dropping a morning task into tomorrow's evening and confirming today,
+> the following day, and the task row itself were all untouched.
+> **Where in the slot** is `dayOrder`, which this ADR settled as
+> persistent and shared by every day, so a row arranged in the planner
+> is arranged on Home too. A same-slot reorder briefly wrote *nothing*
+> — the row animated into place and snapped back on the next load —
+> which is the failure mode a silent no-op with visual feedback always
+> is.
+>
+> **Rows pinned to other days are not part of the day's shape.** They
+> get the same treatment §3 gives them on the checklist: their own
+> group, below the periods, outside the drag. Without that split a task
+> pinned to Monday sat in Friday's Afternoon slot looking exactly like
+> something due Friday, so the one screen whose whole job is showing a
+> day's shape showed the wrong one. They are not draggable here because
+> a placement made on them would be sorted straight back out of the
+> slot on reload — a control that appears to work and does not. The
+> ordering and the split are now one implementation in `planning.ts`
+> (`compareForDay`, `pinnedElsewhere`), shared by both screens and
+> covered by tests, because a day arranged one way on Home and another
+> way in the planner is the same day disagreeing with itself.
+>
+> **The route parameter is not trusted.** A deep link to a past date,
+> or one past the window, falls back to tomorrow: the arrows already
+> refuse to go there, and a placement written on a settled day would
+> change a record rather than a plan.
+>
+> **Adding from inside a day makes a one-off dated to that day.** The
+> add sheet takes a `lockedOneOffDate`, which fixes the date and hides
+> the Repeats/Once switch: you came to arrange Thursday, and a
+> recurring task created from there would quietly change every
+> Thursday. Making a repeating task is a tab away, where you can see
+> the plan you are changing.
+>
+> §2 is untouched. A placement made here is still an intention, still
+> lapses silently, and still yields no adherence statistic. Completion
+> remains absent by construction — `isEditable` refuses anything after
+> today, and offering the tick would invite the get-ahead mechanic the
+> grade exists to ignore.
+
 ### 5. Pinned-day reminders: the trigger fires, the copy does not change
 
 ADR-0010 §1 deferred pinned-day reminders until this phase. It is now

@@ -189,6 +189,71 @@ export function isDueOn(
   return weekOfFortnight(localDate) === (task.fortnightOffset ?? 0);
 }
 
+/** The fields any surface needs to sort a day's rows. */
+export interface DayOrderable {
+  plannedWeekdays: string | null;
+  timesPerWeek: number;
+  fortnightOffset?: number;
+  dayOrder?: number | null;
+}
+
+/**
+ * A task pinned to days that are not this one (ADR-0024 §1).
+ *
+ * These must not sit in the day's periods. They used to, sorted last,
+ * which padded a Tuesday morning with Monday's plan and stopped the
+ * day describing the day — the same reason they get their own section
+ * on the checklist and on the planner. They stay visible and worth
+ * full points: doing Friday's run on Tuesday is still a perfect week.
+ *
+ * Flexible tasks are never "elsewhere" — an unpinned task belongs to
+ * whichever day you give it.
+ */
+export function pinnedElsewhere(
+  task: DayOrderable,
+  localDate: string,
+): boolean {
+  return (
+    parseWeekdays(task.plannedWeekdays).length > 0 && !isDueOn(task, localDate)
+  );
+}
+
+/**
+ * Where a task sits against the day's plan: due here, flexible, or
+ * pinned elsewhere. Only a tiebreak — `compareForDay` reads it after
+ * the user's own arrangement.
+ */
+export function planRank(task: DayOrderable, localDate: string): number {
+  if (isDueOn(task, localDate)) return 0;
+  if (parseWeekdays(task.plannedWeekdays).length === 0) return 1;
+  return 2;
+}
+
+/**
+ * Your own order first, the plan's second.
+ *
+ * `dayOrder` is what dragging writes — persistent, so yesterday's
+ * arrangement follows you into today (ADR-0024 §3 as amended, on
+ * Henry's call: *"if I put sunlight and supplements at the start of my
+ * tasks I want it to stay there"*). Rows never dragged have none and
+ * sort after the ones that have, falling back to the plan ordering, so
+ * a first drag lifts one row to the top without scrambling the rest.
+ *
+ * Shared by the checklist and the planner because a day arranged one
+ * way on Home and another way in the planner is the same day
+ * disagreeing with itself.
+ */
+export function compareForDay(
+  a: DayOrderable,
+  b: DayOrderable,
+  localDate: string,
+): number {
+  const ao = a.dayOrder ?? Number.MAX_SAFE_INTEGER;
+  const bo = b.dayOrder ?? Number.MAX_SAFE_INTEGER;
+  if (ao !== bo) return ao - bo;
+  return planRank(a, localDate) - planRank(b, localDate);
+}
+
 /**
  * ISO weekday for a local date string, without constructing a Date in
  * the device timezone — `new Date('2026-08-16')` parses as UTC and can

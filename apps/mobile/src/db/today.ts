@@ -942,6 +942,33 @@ export function editWindowDays(today: string): string[] {
   return Array.from({ length: 14 }, (_, i) => addDays(start, i));
 }
 
+/**
+ * How far ahead a day can be planned: the next four weeks.
+ *
+ * **Not the edit window.** `editWindowDays` reaches backward — last
+ * week plus this one — because that is the range a person might still
+ * be correcting. Planning reaches the other way, and until now it
+ * borrowed that window and so could not see past Saturday. The two
+ * horizons have nothing to do with each other and now say so.
+ *
+ * Four weeks rather than open-ended, because a placement further out
+ * than the monthly checkpoint is stale before it arrives: the
+ * diagnostic re-ranks, point values move, and an arrangement made
+ * against a plan that no longer exists is worse than no arrangement.
+ * The bound is the product's own rhythm, not a round number.
+ *
+ * Starts **tomorrow**. Today is not planned, it is lived; the Home
+ * screen already arranges it.
+ */
+export function planningDays(today: string): string[] {
+  return Array.from({ length: 28 }, (_, i) => addDays(today, i + 1));
+}
+
+/** Whether `date` is a day the planner will open. */
+export function isPlannable(date: string, today: string): boolean {
+  return date > today && date <= addDays(today, 28);
+}
+
 /** The seven days (Sun-first) of the week containing `date`. */
 export function weekOf(date: string): string[] {
   const start = weekStart(date);

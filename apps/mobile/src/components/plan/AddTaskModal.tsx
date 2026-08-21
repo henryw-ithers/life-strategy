@@ -93,6 +93,15 @@ interface AddTaskModalProps {
    */
   homeUnitId?: string;
   areaColors: Record<string, string>;
+  /**
+   * Set when the sheet is opened from inside one day (the planner).
+   *
+   * It forces a one-off dated to that day and hides the cadence switch:
+   * you came to arrange Thursday, and a recurring task created from
+   * there would silently change every Thursday. The full sheet on the
+   * Tasks tab is where a repeating task gets made.
+   */
+  lockedOneOffDate?: string;
   theme: ThemeTokens;
   /** `unitIds[0]` is the home unit — where the task is listed.
    *  `plannedWeekdays` is `"1,3,5"` or null for flexible;
@@ -114,6 +123,7 @@ export function AddTaskModal({
   units,
   homeUnitId,
   areaColors,
+  lockedOneOffDate,
   theme,
   onCommit,
 }: AddTaskModalProps) {
@@ -127,8 +137,12 @@ export function AddTaskModal({
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(null);
   /** Repeats by default: most of a plan recurs, and a one-off is the
    *  deliberate exception. */
-  const [once, setOnce] = useState(false);
-  const [oneOff, setOneOff] = useState<OneOffState>({ size: "normal", date: null, due: null });
+  const [once, setOnce] = useState(lockedOneOffDate !== undefined);
+  const [oneOff, setOneOff] = useState<OneOffState>({
+    size: "normal",
+    date: lockedOneOffDate ?? null,
+    due: null,
+  });
   const [saving, setSaving] = useState(false);
 
   /** The home unit's area hue, or the app accent until one is picked —
@@ -145,8 +159,8 @@ export function AddTaskModal({
     setUnitIds(homeUnitId ? [homeUnitId] : []);
     setWeekdays([]);
     setPartOfDay(null);
-    setOnce(false);
-    setOneOff({ size: "normal", date: null, due: null });
+    setOnce(lockedOneOffDate !== undefined);
+    setOneOff({ size: "normal", date: lockedOneOffDate ?? null, due: null });
     setSaving(false);
     onClose();
   };
@@ -203,7 +217,7 @@ export function AddTaskModal({
           <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
 
           <AppText variant="title" color={theme.ink}>
-            New task
+            {lockedOneOffDate === undefined ? "New task" : "Add to this day"}
           </AppText>
 
           {/* Scrolls in its content area only, with the actions pinned
@@ -261,6 +275,7 @@ export function AddTaskModal({
           <SchedulePicker
             once={once}
             onOnceChange={setOnce}
+            canChangeCadence={lockedOneOffDate === undefined}
             oneOff={oneOff}
             onOneOffChange={setOneOff}
             timesPerWeek={timesPerWeek}

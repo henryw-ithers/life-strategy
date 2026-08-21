@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { MIN_TIMES_PER_WEEK } from "../frequency";
 
 import {
+  compareForDay,
   emptyPeriodNote,
   formatWeekdays,
   formatWeekdaySummary,
@@ -16,6 +17,8 @@ import {
   isPinnedOn,
   parseWeekdays,
   PART_OF_DAY_ORDER,
+  pinnedElsewhere,
+  planRank,
   sortForDisplay,
   WEEKDAY_ORDER,
   type Weekday,
@@ -184,5 +187,81 @@ describe("frequencyForWeekdays and the fortnight", () => {
     expect(frequencyForWeekdays([], MIN_TIMES_PER_WEEK)).toBe(
       MIN_TIMES_PER_WEEK,
     );
+  });
+});
+
+describe("pinnedElsewhere", () => {
+  // 2026-08-21 is a Friday (ISO 5); 2026-08-24 is a Monday (ISO 1).
+  const FRIDAY = "2026-08-21";
+  const MONDAY = "2026-08-24";
+  const mondayOnly = { plannedWeekdays: "1", timesPerWeek: 1 };
+  const flexible = { plannedWeekdays: null, timesPerWeek: 3 };
+
+  it("keeps a Monday task out of Friday's periods", () => {
+    // The bug this exists to stop: a task pinned to Monday rendered in
+    // Friday's Afternoon slot, indistinguishable from something
+    // actually due Friday, so the day stopped describing the day.
+    expect(pinnedElsewhere(mondayOnly, FRIDAY)).toBe(true);
+  });
+
+  it("lets a Monday task into Monday", () => {
+    expect(pinnedElsewhere(mondayOnly, MONDAY)).toBe(false);
+  });
+
+  it("never treats a flexible task as elsewhere", () => {
+    // Unpinned is not a lesser state: it belongs to whichever day you
+    // give it, so it is never exiled to the other-days section.
+    expect(pinnedElsewhere(flexible, FRIDAY)).toBe(false);
+    expect(pinnedElsewhere(flexible, MONDAY)).toBe(false);
+  });
+});
+
+describe("compareForDay", () => {
+  const FRIDAY = "2026-08-21";
+  const dueHere = { plannedWeekdays: "5", timesPerWeek: 1 };
+  const flexible = { plannedWeekdays: null, timesPerWeek: 3 };
+  const elsewhere = { plannedWeekdays: "1", timesPerWeek: 1 };
+
+  it("ranks due-here before flexible before elsewhere", () => {
+    expect(planRank(dueHere, FRIDAY)).toBe(0);
+    expect(planRank(flexible, FRIDAY)).toBe(1);
+    expect(planRank(elsewhere, FRIDAY)).toBe(2);
+  });
+
+  it("puts the user's own arrangement ahead of the plan's", () => {
+    // An elsewhere task dragged to the top outranks a due-today task
+    // that has never been touched — the whole point of dayOrder.
+    const dragged = { ...elsewhere, dayOrder: 1 };
+    const untouched = { ...dueHere, dayOrder: null };
+    expect(compareForDay(dragged, untouched, FRIDAY)).toBeLessThan(0);
+  });
+
+  it("sorts dragged rows above rows never dragged", () => {
+    const dragged = { ...flexible, dayOrder: 4 };
+    const untouched = { ...flexible, dayOrder: null };
+    expect(compareForDay(dragged, untouched, FRIDAY)).toBeLessThan(0);
+    expect(compareForDay(untouched, dragged, FRIDAY)).toBeGreaterThan(0);
+  });
+
+  it("falls back to the plan when neither row has been dragged", () => {
+    // So a first drag lifts one row without scrambling everything else.
+    expect(compareForDay(flexible, elsewhere, FRIDAY)).toBeLessThan(0);
+    expect(compareForDay(dueHere, flexible, FRIDAY)).toBeLessThan(0);
+  });
+
+  it("is a total order over a mixed day", () => {
+    const rows = [
+      { id: "elsewhere", ...elsewhere },
+      { id: "flexible", ...flexible },
+      { id: "dueHere", ...dueHere },
+      { id: "pinnedTop", ...elsewhere, dayOrder: 1 },
+    ];
+    const sorted = [...rows].sort((a, b) => compareForDay(a, b, FRIDAY));
+    expect(sorted.map((r) => r.id)).toEqual([
+      "pinnedTop",
+      "dueHere",
+      "flexible",
+      "elsewhere",
+    ]);
   });
 });
