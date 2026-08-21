@@ -28,6 +28,10 @@ status to *Accepted*.
 | [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
 | [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Accepted |
+| [0028](0028-schedule-mode.md) | Schedule mode | Proposed |
+| [0029](0029-the-academic-module.md) | The academic module is a parallel model | Proposed |
+| [0030](0030-commitments-carry-times-plans-carry-cues.md) | Commitments carry times; plans carry cues | Proposed |
+| [0031](0031-the-semester-score.md) | The semester score | Proposed |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -38,6 +42,26 @@ carries the accumulated schema amendments from 0003–0009.
 it before touching anything that prices a task or grades a day. It
 takes 0026's number out of order because the 112-point day would not
 wait for the load meter.
+
+**0028–0031 are the academic module, and are the first ADRs here that
+are *proposed* rather than accepted.** They were drafted together on
+2026-08-21 around four calls Henry made that day, and they are written
+to be read in order: 0028 decides that the app has two modes and that
+one switch reaches exactly five surfaces; 0029 gives courses their own
+model beside the SLU hierarchy; 0030 is the **reopening ADR-0024 §1
+requires** before any clock time exists anywhere; 0031 adds a second
+100-point scale on a horizon the daily grade cannot see.
+
+Read 0030 before touching anything that plans a day. It amends the one
+rule the app has restated most often, and it does so as a **closed
+list of three columns** — `fixed_commitment.start_minute`, `.end_minute`,
+`assessment.due_minute` — so a fourth reopens 0030 the way 0030 reopened
+0024. The accepted ADRs they amend (0002, 0007, 0010, 0021, 0023, 0024,
+0027) are **not yet edited**: those pointers are action items inside
+0028–0031, and land when these flip to Accepted.
+
+The phase plan and surface detail live in
+[design/hour-grid-day-view.md](../design/hour-grid-day-view.md).
 
 ## Work not tracked by any action item
 

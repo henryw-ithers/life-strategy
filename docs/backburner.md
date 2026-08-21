@@ -709,3 +709,45 @@ weight derivation, so moving it does **not** bump `FORMULA_VERSION` —
 the constant says so explicitly. It only affects how finished days
 aggregate, so unlike the rest of this section it could ship on its own
 without adding a version boundary to history.
+
+## Timetable import
+
+*Parked 2026-08-21, by Henry's call, while
+[ADR-0029](adr/0029-the-academic-module.md) was being drafted.*
+
+**The idea:** stop making people type a timetable in. Henry's first
+framing was "a local AI that is pre-trained on reading university
+schedules."
+
+**Why it's parked, not rejected:** the need is real and the ordering
+is wrong. Three things, in the order they should happen:
+
+- **`.ics` first, and it may be most of the answer.** Canvas, Moodle,
+  Blackboard and Banner all publish a calendar feed or export. Parsing
+  one is exact rather than probabilistic, testable off-device, needs no
+  model, and runs in Expo Go. `fixed_commitment` is already the
+  expanded form an importer produces — an `RRULE` with `EXDATE`s maps
+  onto `weeks` plus one-off `specific_date` rows.
+- **The seam is already paid for** (ADR-0029 §7): `source` and
+  `external_id` are two inert nullable columns, and every commitment is
+  written through one `createCommitment()`. An importer is a second
+  caller of one function, not a second write path.
+- **On-device extraction is the second pass**, for the PDF and the
+  screenshot `.ics` misses. Apple's Vision framework does the OCR with
+  nothing bundled; a structured-extraction pass over the text is the
+  part that wants a model. Note that "pre-trained on reading
+  university schedules" is not what would actually happen — you do not
+  train, you prompt with a schema and validate the result.
+
+**What it must not do.** [privacy.md](privacy.md) promises no server,
+no analytics and no third-party SDK that phones home, and the app's
+whole disposition rests on that being simply true. A cloud call would
+send someone's timetable — which is to say their location, hour by
+hour, for four months — off the device. So: on-device only, and
+**bundling a model or calling a network service reopens the privacy
+story rather than extending it.** Planned **ADR-0017** already reserves
+the on-device-LLM question and is where this lands.
+
+Note also that custom native code means **no Expo Go**, the same
+constraint ADR-0020 put on backup and for the same reason. That is a
+real cost for a feature whose whole promise is "this is quick."
