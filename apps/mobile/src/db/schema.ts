@@ -305,17 +305,16 @@ export const task = sqliteTable("task", {
    * Non-null marks this task as a **one-off**: done once, then archived.
    *
    * It doubles as the discriminator because a one-off always has a size
-   * — that is how it is priced, at `SIZE_RATE × the unit's variable day
-   * rate`, the same arithmetic a logged activity uses. Null means an
-   * ordinary recurring task and `times_per_week` governs instead.
+   * — that is how it is priced, at `SIZE_RATE × its unit's weight`, the
+   * same three ratios a logged activity uses. Null means an ordinary
+   * recurring task and `times_per_week` governs instead.
    *
-   * One-offs are deliberately kept **out of `bandPointValues`**. Letting
-   * one into the recurring allocation would make every other non-daily
-   * task in its unit drop in value while the errand existed and jump
-   * back when it was ticked — the same instability ADR-0027's amendment
-   * removed from the variable band, reintroduced across time. The 20
-   * point cap in `computeDayScore` is what keeps generous one-off
-   * pricing from inflating a day.
+   * One-offs are deliberately kept **out of `taskWeights`**. Letting one
+   * into the recurring allocation would make every other task in its
+   * unit drop in weight while the errand existed and jump back when it
+   * was ticked — the same instability ADR-0027's amendment removed from
+   * the variable band, reintroduced across time. A one-off joins the
+   * day's flexible pool like any other unpinned work (ADR-0029 §1).
    */
   oneOffSize: text("one_off_size", { enum: ["quick", "normal", "big"] }),
   /** The day it was planned for. Null is "no particular day". It never

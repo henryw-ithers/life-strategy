@@ -79,6 +79,15 @@ number.
 golf genuinely was exercise, and a life log that refuses to credit real
 effort is dishonest in the other direction.
 
+> **`UNPLANNED_CAP` is 10 as of
+> [ADR-0029](0029-a-day-is-the-fraction-you-got-through.md) §2**
+> (25 → 20 → 10). ADR-0027 §3 had widened it to cover planned weekly
+> work as well as spontaneity; planned work now has a band of its own
+> at every cadence, so this constant means only what this ADR named it
+> for. The ordering rule below — planned work has first claim — is
+> retired with it: there is nothing left to order, because the two
+> kinds of credit no longer share a pool.
+
 ## Decision
 
 ### 1. At most `UNPLANNED_CAP` = 25 points of a day come from unplanned work

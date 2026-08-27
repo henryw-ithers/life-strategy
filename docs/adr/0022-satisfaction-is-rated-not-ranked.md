@@ -71,6 +71,14 @@ quantities actually are.
 
 ### 1. Priority is ranked. Satisfaction is rated 1–10.
 
+> **Still true, and now the end of the story**
+> ([ADR-0028](0028-priority-is-the-only-input.md) §1, 2026-08-26).
+> This ADR fixed *how* satisfaction is measured so the gap term would
+> behave; formula v8 removed the gap term outright. Satisfaction is
+> rated rather than ranked for exactly the reasons below, and what it
+> now feeds is the portfolio graph, `unitProfile`, and the calibration
+> experiment — never a weight.
+
 The asymmetry is the point, and it follows from what each axis is:
 
 - **Priority is a preference.** It is only meaningful relative to the

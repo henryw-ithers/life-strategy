@@ -123,6 +123,22 @@ is the correct representation for most of the plan.
 
 ### 2. Plans never touch the grade. This is an invariant.
 
+> **Withdrawn by [ADR-0029](0029-a-day-is-the-fraction-you-got-through.md)
+> §3 (2026-08-26).** The grade now reads `planned_weekdays`: a day's
+> denominator is the work actually due that day, so a Tuesday with
+> three pinned tasks asks more than a Tuesday with one.
+>
+> **The fear this section was written from is answered directly, not
+> abandoned.** Obligations are counted per *week*, and nothing anywhere
+> compares a completion's date to the day it was pinned to. So the
+> three bullets below all still hold, word for word: three runs on
+> three unplanned days is still a perfect week, an unfulfilled
+> placement still lapses silently and never returns as a debt, and no
+> adherence rate, streak or plan-completion percentage is computed,
+> stored, or derivable from what is. What changed is that the plan now
+> shapes *what today asks of you*, which is not the same thing as
+> charging you for doing the right work on the wrong day.
+
 `times_per_week` remains the sole scoring source of truth. Day plans
 shape **presentation and defaults** — what the checklist leads with,
 where runs sit on the calendar, what the weekly pass proposes — and

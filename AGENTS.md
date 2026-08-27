@@ -94,12 +94,38 @@ Use these terms consistently in code, docs, and UI copy:
 ## Product invariants — do not violate
 
 - Active SLU weights always sum to exactly **100**.
-- Weight derivation is **importance first, satisfaction-gap boost
-  second** (see ADR-0003).
+- Weight derivation reads **priority rank and nothing else**
+  (ADR-0028 §1, formula v8). ADR-0003 §1's satisfaction-gap boost is
+  withdrawn and `GAP_COEFFICIENT` retired. Satisfaction is still
+  diagnosed, stored, plotted, and read by `unitProfile` — it is the
+  measure of whether the plan is working, never an input to it. The
+  rank score is flattened to `WEIGHT_SPREAD` (2) before normalizing, so
+  no unit in the portfolio is too small to hold a task worth having.
 - Every derived value is user-overridable, and every override still
   displays the recommended value beside it.
 - Daily grades measure consistency, never one-time achievements;
   achievements feed monthly/yearly summaries only.
+- **A day is the fraction of itself you got through** (ADR-0029,
+  formula v9). The day's denominator is the weight of the work actually
+  **due** that day: every-day tasks and anything pinned to today count
+  in full, and flexible work — anything with no weekday pin — is pooled
+  and divided evenly over the days the week has left. Do what the day
+  asked and the planned band pays 90 of the 100; the other 10 is the
+  unplanned pool. Cadence decides how often something is due, never
+  what it is worth, and how many tasks a unit holds never changes what
+  that unit is worth.
+- **A task's point value is a property of the day, not the task.**
+  `task.point_value` stores a *weight* (a share of the 100); points are
+  `90 × weight ÷ that day's expected load`, computed per day. Do not
+  reintroduce a fixed stored point value.
+- **Obligations are weekly** (ADR-0029 §3). The grade reads
+  `planned_weekdays` — ADR-0024 §2 is withdrawn — but nothing anywhere
+  compares a completion's date to the day it was pinned to. Doing
+  Friday's run on Tuesday is still a perfect week; a missed pinned day
+  lapses silently and never returns as a debt; no adherence rate,
+  streak, or plan-completion percentage is computed, stored, or
+  derivable. Adding one would be the schedule-violation mechanic
+  ADR-0024 §2 existed to prevent.
 - **Planned work is what pays** (ADR-0023). At most `UNPLANNED_CAP`
   points of a day may come from anything the user didn't plan —
   activity credit and the special-day rating bonus share that one

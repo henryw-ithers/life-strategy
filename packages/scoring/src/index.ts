@@ -1,5 +1,5 @@
 export {
-  GAP_COEFFICIENT,
+  WEIGHT_SPREAD,
   EXTRA_RUN_RATE,
   UNPLANNED_CAP,
   FORMULA_VERSION,
@@ -7,17 +7,23 @@ export {
 } from "./constants";
 export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
-export type { UnitCoverage } from "./weights";
-export { deriveWeights, spendableWeights } from "./weights";
+export { deriveWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
 export type { BandTask, BandUnit } from "./bands";
 export {
-  bandPointValues,
-  dayCeiling,
-  isRoutine,
-  ROUTINE_BAND,
-  VARIABLE_BAND,
+  taskWeights,
+  unitCoverage,
+  PLANNED_BAND,
+  UNPLANNED_BAND,
 } from "./bands";
+export type { LoadTask, LoadCompletion, DayLoad } from "./dayLoad";
+export {
+  computeDayLoad,
+  daysLeftInWeek,
+  isAnchoredOn,
+  isoWeekday,
+  isPinnedElsewhere,
+} from "./dayLoad";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
 export type {
@@ -69,7 +75,6 @@ export type {
   CompletionRow,
   TaskBand,
   TaskDayStatus,
-  DayTaskInput,
   ActivityCredit,
   DayScoreInput,
   DayScore,

@@ -23,6 +23,15 @@ being reacted to is often more painful than being left alone.
 
 ### 1. Mechanism: insight + suggestion, user confirms
 
+> **The suggestion half is dormant**
+> ([ADR-0028](0028-priority-is-the-only-input.md) §4, 2026-08-26).
+> `GAP_COEFFICIENT` was the only thing this ever proposed changing, and
+> formula v8 retired it. The insight half — the cold-start gate, the
+> divergence, the rank agreement — is untouched and still shown; the
+> app simply has nothing to offer to adjust. Choosing a new lever (the
+> 80/20 band split is the candidate) is an open action item there. The
+> invariants in this section stand and are, for now, partly vacuous.
+
 - Calibration compares weekly grades against contentment check-ins
   over a rolling window (~12 weeks) using simple, explainable
   statistics (direction and size of the divergence, rank agreement) —

@@ -25,19 +25,47 @@ status to *Accepted*.
 | [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
-| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
+| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | §2 withdrawn by 0029 |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Accepted |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029 |
+| [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
+| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
 carries the accumulated schema amendments from 0003–0009.
 
-**0027 is the scoring rewrite** (formula v7). It withdraws ADR-0003
-§5's uncovered-weight reallocation and amends ADR-0025 §§1–5, so read
-it before touching anything that prices a task or grades a day. It
-takes 0026's number out of order because the 112-point day would not
-wait for the load meter.
+**0027, 0028 and 0029 are the scoring rewrite** (formulas v7, v8 and
+v9), and they have to be read as a sequence. **0029 is the one in
+force**; read it first and read the other two for why.
+
+- **0027** fixed a day that could score 112, with two bands allocated
+  separately and a constant denominator of 100. It also made a plan's
+  coverage decide its ceiling.
+- **0028** withdrew that ceiling — every daily task done pays 80 at any
+  coverage — removed satisfaction from weight derivation, and flattened
+  the spread between units to 2:1. **§§1–2 are still in force**; §3 is
+  not.
+- **0029** replaced the line between the bands. It ran between *daily*
+  and *weekly*, which made a genuinely weekly commitment worth a
+  fraction of a daily one; it now runs between *planned* and
+  *unplanned*, at 90 / 10, and a day is scored on the fraction of its
+  actually-due work that got done. It is the first of the three to say
+  what a day *is* rather than how its points are divided, and the only
+  one that withdraws ADR-0024 §2 so the grade can see a weekday pin.
+
+Between them they amend ADR-0003 §§1/5/6, ADR-0008 §1, ADR-0022 §1,
+ADR-0023 §1, ADR-0024 §2 and ADR-0025 §§1–5. Read 0029 before touching
+anything that prices a task or grades a day. 0027 takes 0026's number
+out of order because the 112-point day would not wait for the load
+meter.
+
+**Four formulas in nine days is more churn than this engine should
+take.** v7 landed on the 18th; v8 and v9 both landed on the 26th, out
+of one conversation. 0029's Consequences commits to the obvious
+correction: **the next change to this engine waits for a fortnight of
+use.** No window in the calibration experiment (ADR-0008) currently
+spans a single formula.
 
 ## Work not tracked by any action item
 

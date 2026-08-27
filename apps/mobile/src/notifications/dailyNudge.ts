@@ -57,7 +57,7 @@ export async function requestPermission(): Promise<PermissionState> {
  *  earlier day and don't need today's action, so they don't block this. */
 export function isDayHandled(day: DayData): boolean {
   if (day.kind !== "normal") return true;
-  return [...day.daily, ...day.week].every((t) => t.completedToday);
+  return [...day.due, ...day.week].every((t) => t.completedToday);
 }
 
 function parseTime(time: string): { hour: number; minute: number } {

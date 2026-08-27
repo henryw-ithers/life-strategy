@@ -8,8 +8,7 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
-  VARIABLE_BAND,
-  bandPointValues,
+  taskWeights,
   DAILY_BUDGET,
   largestRemainder,
   type BandTask,
@@ -230,32 +229,40 @@ export async function loadPlan(): Promise<PlanData> {
 }
 
 /**
- * Re-derive every task's point value across the whole plan at once
- * (ADR-0027 §1). Runs whenever weights move (a new diagnostic, a
- * manual re-rank) **and whenever any task is added, archived, restored,
- * re-ranked, or re-homed** — the variable band is one pool shared by
- * every non-daily task in the portfolio, so adding a weekly task in one
- * unit can move what a weekly task in another unit is worth.
+ * Re-derive every task's **weight** across the whole plan at once
+ * (ADR-0029 §1). Runs whenever weights move (a new diagnostic, a manual
+ * re-rank) and whenever any task is added, archived, restored,
+ * re-ranked, or re-homed — a unit divides its weight across the tasks
+ * it holds, so adding one changes what its siblings are worth.
+ *
+ * **`point_value` stores a weight now, not points.** A task's worth in
+ * points is a property of the day it is done on — `PLANNED_BAND × its
+ * weight ÷ that day's expected load` — because a day is graded on the
+ * fraction of itself you got through. The column keeps its name (the
+ * schema is forward-only, ADR-0002) and keeps summing to 100 across the
+ * portfolio, which is what the Tasks screen's right column shows.
  *
  * Each membership (`task_unit` row) is priced separately and keyed by
  * `taskId::unitId`, since a task serving two units takes a rank and
  * earns a share in each (ADR-0019). Ranks are normalized to 1..n first
  * — closing the gap a delete or a unit change leaves — because
- * `bandPointValues` reads rank order, not the stored numbers.
+ * `taskWeights` reads rank order, not the stored numbers.
  *
- * **No reallocation** (ADR-0027 §2): a unit's weight is 0 the moment it
- * is excluded, never scaled up because some other unit has nothing to
- * spend its own weight on. A unit with no tasks simply prices nothing.
+ * **Cadence does not appear here at all** (ADR-0029 §2). A daily task
+ * and a weekly one in the same unit are priced by rank alone; how often
+ * each is *due* is the day loader's business. An **excluded** unit is
+ * weight 0 and prices nothing — a statement about scope, not cadence.
  *
  * `loadPlan` and `loadDay` both read the stored `task.point_value`, so
  * anything that skips this leaves the checklist scoring against a plan
  * that no longer exists.
  */
 /**
- * What share of its unit's variable budget each size claims. The same
- * three ratios logged activities use, so the sizes mean the same thing
- * wherever they appear — but applied to the unit's real budget rather
- * than the flat notional rate, which is what makes them distinguishable.
+ * What share of its unit's weight a one-off run claims. The same three
+ * ratios logged activities use, so the sizes mean the same thing
+ * wherever they appear: a *big* errand is worth about what a week of
+ * planned work in that unit is worth, and a *quick* one a quarter of
+ * that.
  */
 const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
   quick: 0.25,
@@ -288,12 +295,11 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       oneOffSize: task.oneOffSize,
     })
     .from(task);
-  const timesPerWeekByTask = new Map(taskRows.map((t) => [t.id, t.timesPerWeek]));
   const oneOffSizeByTask = new Map(taskRows.map((t) => [t.id, t.oneOffSize]));
   const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
 
   // Normalize each unit's ranks to 1..n before pricing, so a gap left
-  // by an archive or a unit change never reaches `bandPointValues`.
+  // by an archive or a unit change never reaches `taskWeights`.
   const normalizedRank = new Map<string, number>();
   for (const unitId of new Set(memberships.map((m) => m.unitId))) {
     memberships
@@ -317,61 +323,31 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     .map((m) => ({
       id: `${m.taskId}::${m.unitId}`,
       unitId: m.unitId,
-      timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
       rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
     }));
-  const points = bandPointValues(bandUnits, bandTasks);
+  const points = taskWeights(bandUnits, bandTasks);
 
   /**
-   * A one-off's worth: its size against **its unit's own variable
-   * budget** — so a big errand in a part of your life is worth about
-   * what a week of planned work there is worth, and a quick one a
-   * quarter of that.
+   * A one-off's weight: its size against **its unit's own weight**, so
+   * a big errand carries about what a week of planned work in that part
+   * of your life carries, and a quick one a quarter of it.
    *
-   * The first attempt priced these at the flat activity rate
-   * (`20/100 × weight`), which came out at 1, 1 and 2 points for the
-   * three sizes in a weight-10 unit while a weekly task in the same
-   * unit was worth 20. Two of the three sizes were indistinguishable,
-   * which would have made the size control decorative.
+   * Computed **outside `taskWeights`**, so a one-off appearing or being
+   * ticked off never moves a recurring task's weight. That is the
+   * property this whole design exists to protect: an errand on the list
+   * must not quietly devalue the habits beside it.
    *
-   * **The budget is worked out over units holding any non-daily item,
-   * one-offs included** — otherwise an errand in a unit with no weekly
-   * work would divide by a budget of zero and price at the floor. That
-   * means the variable band's *notional* total can exceed 20 while
-   * one-offs are outstanding. It cannot exceed it in practice:
-   * `computeDayScore` caps what the band pays at `VARIABLE_BAND`, and
-   * the day's denominator is a constant 100 either way (ADR-0027 §1).
-   *
-   * Crucially this is computed **outside `bandPointValues`**, so a
-   * one-off appearing or being ticked off never moves a recurring
-   * task's value. That is the property this whole design exists to
-   * protect.
-   *
-   * A floor of one point, for ADR-0003 §5's reason: a zero-point row
-   * cannot move the number, so it is not a task.
+   * A floor of one, for ADR-0003 §5's reason — a zero-weight row cannot
+   * move the number, so it is not a task.
    */
-  const oneOffMemberships = memberships.filter(
-    (m) => oneOffSizeByTask.get(m.taskId) != null,
-  );
-  if (oneOffMemberships.length > 0) {
-    const holdsNonDaily = new Set<string>([
-      ...bandTasks.map((t) => t.unitId),
-      ...oneOffMemberships.map((m) => m.unitId),
-    ]);
-    const spread = bandUnits
-      .filter((u) => holdsNonDaily.has(u.unitId) && u.weight > 0)
-      .reduce((sum, u) => sum + u.weight, 0);
-
-    for (const m of oneOffMemberships) {
-      const size = oneOffSizeByTask.get(m.taskId);
-      if (size == null) continue;
-      const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
-      const budget = spread > 0 ? (VARIABLE_BAND * weight) / spread : 0;
-      points.set(
-        `${m.taskId}::${m.unitId}`,
-        Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * budget)),
-      );
-    }
+  for (const m of memberships) {
+    const size = oneOffSizeByTask.get(m.taskId);
+    if (size == null) continue;
+    const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
+    points.set(
+      `${m.taskId}::${m.unitId}`,
+      weight > 0 ? Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * weight)) : 0,
+    );
   }
 
   // Totals are summed here rather than re-read per task. This used to

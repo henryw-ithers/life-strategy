@@ -34,15 +34,35 @@ function directionLine(direction: "higher" | "lower" | "aligned"): string {
   return "Your grades and how your weeks felt have been lining up.";
 }
 
+/**
+ * What a stored suggestion would do — or, for every suggestion the app
+ * has ever written, what it *would have* done.
+ *
+ * `gapCoefficient` was the only kind, and formula v8 removed the
+ * constant it moved (ADR-0028 §1). A pending row from before that can
+ * still be sitting here, so it is described honestly and offered only a
+ * Dismiss: an Accept that silently applies nothing would be the app
+ * telling the user it did something it did not.
+ */
 function describeChange(proposedChange: string): string | null {
   try {
-    const change = JSON.parse(proposedChange) as { type: string; value: number };
+    const change = JSON.parse(proposedChange) as { type: string };
     if (change.type === "gapCoefficient") {
-      return `Would set the satisfaction-gap boost to ${change.value.toFixed(2)}.`;
+      return "Scoring has changed since this was suggested — satisfaction no longer affects your weights, so there is nothing left for this to adjust.";
     }
     return null;
   } catch {
     return null;
+  }
+}
+
+/** True when accepting the suggestion would actually change something.
+ *  Nothing currently does; see `describeChange`. */
+function isApplicable(proposedChange: string): boolean {
+  try {
+    return (JSON.parse(proposedChange) as { type: string }).type !== "gapCoefficient";
+  } catch {
+    return false;
   }
 }
 
@@ -182,12 +202,14 @@ export default function CalibrationScreen() {
                     </AppText>
                   ) : null}
                   <View style={styles.suggestionActions}>
-                    <Button
-                      label="Accept"
-                      color={theme.accent}
-                      onPress={() => void resolve(s.id, "accepted")}
-                      theme={theme}
-                    />
+                    {isApplicable(s.proposedChange) ? (
+                      <Button
+                        label="Accept"
+                        color={theme.accent}
+                        onPress={() => void resolve(s.id, "accepted")}
+                        theme={theme}
+                      />
+                    ) : null}
                     <Button
                       label="Dismiss"
                       variant="quiet"

@@ -1,31 +1,40 @@
 /**
- * How much of your hundred is actually reachable, as one bar.
+ * How much of your hundred has a daily habit in it, as one bar.
  *
  * **This is what the Tasks screen is for, drawn instead of described.**
- * ADR-0027 §2 makes coverage decide the ceiling: the routine band pays
- * `0.8 × w` per unit, and a unit with no daily task leaves its share
- * unearnable — nobody else receives it. So the most consequential fact
- * about a plan is *which parts of your life have a daily habit in
- * them*, and until now a person could only discover it by expanding
- * eighteen units and doing arithmetic. The number that answers it,
- * `dayCeiling`, had been written, tested, and called by nothing.
+ * Eighteen units is more than anyone holds in their head, and the most
+ * consequential fact about a plan is *which parts of your life have a
+ * daily habit in them* — a thing a person could otherwise only discover
+ * by expanding every unit and doing arithmetic.
+ *
+ * **It stopped being arithmetic on 2026-08-26** (ADR-0028 §3). Under
+ * ADR-0027 §2 an uncovered unit forfeited its `0.8 × w`, so this bar
+ * carried `dayCeiling` — the literal maximum the day could pay — and a
+ * half-covered plan was capped near half the points. That is withdrawn:
+ * each band is now spent in full by the units holding its work, so the
+ * ceiling is 100 for any plan with a daily task in it and the number
+ * would be a constant.
+ *
+ * The bar stays anyway, because the advice it gives was always the good
+ * part. It now reads as what it is: coverage, not a cap. A mostly-empty
+ * bar means a plan that touches a corner of your life, which is worth
+ * seeing and is nobody's business to penalise.
  *
  * Each filled segment is one area at its covered weight, in that area's
  * own hue — the same six colours the checklist, the portfolio bubbles
  * and every chip use, so the bar is legible without a legend. The
- * hairline remainder is weight you ranked and cannot currently earn.
+ * hairline remainder is weight you ranked and have no daily habit in.
  *
- * **Coverage means a *daily* task, not any task.** A unit whose only
- * work is weekly earns from the variable band and still leaves its
- * routine share on the table, which is exactly the distinction the bar
- * has to make visible; a version that counted any task would say a plan
- * was complete when it was not.
+ * **Coverage means any task** since ADR-0029 §2. It used to mean a
+ * *daily* task, because that was the only kind the routine band would
+ * pay; cadence no longer decides what a band pays, so a unit with a
+ * weekly commitment in it is a unit you are working on.
  *
  * No caption explains it. A mostly-filled bar reads as "most of my life
  * is covered" on sight, and the number to its right is the same
  * right-column grammar the area and unit rows below already use.
  */
-import { dayCeiling, isRoutine } from "@glide/scoring";
+import { unitCoverage } from "@glide/scoring";
 import { StyleSheet, View } from "react-native";
 
 import type { PlanArea } from "../../db/tasks";
@@ -50,23 +59,17 @@ export function CoverageBar({
   const scored = units.filter((u) => u.includeInScoring && u.weight !== null);
   if (scored.length === 0) return null;
 
-  /** A unit counts as covered when it holds at least one daily task. */
-  const isCovered = (u: (typeof scored)[number]) =>
-    u.tasks.some((t) => isRoutine(t.timesPerWeek));
+  /** A unit counts as covered when it holds any task at all. Cadence
+   *  stopped deciding what a band pays (ADR-0029 §2), so a weekly
+   *  commitment is a part of your life you are working on. */
+  const isCovered = (u: (typeof scored)[number]) => u.tasks.length > 0;
 
-  const ceiling = dayCeiling(
+  const { covered: coveredWeight, total } = unitCoverage(
     scored.map((u) => ({ unitId: u.id, weight: u.weight ?? 0 })),
     units.flatMap((u) =>
-      u.tasks.map((t) => ({
-        id: t.id,
-        unitId: u.id,
-        timesPerWeek: t.timesPerWeek,
-        rankInUnit: t.rankInUnit,
-      })),
+      u.tasks.map(() => ({ unitId: u.id })),
     ),
   );
-
-  const total = scored.reduce((sum, u) => sum + (u.weight ?? 0), 0);
   const covered = areas
     .map((area) => ({
       id: area.id,
@@ -81,7 +84,7 @@ export function CoverageBar({
     <View
       style={styles.root}
       accessible
-      accessibilityLabel={`${total - uncovered} of ${total} points covered by a daily task. Today can reach ${ceiling}.`}
+      accessibilityLabel={`${coveredWeight} of ${total} points have something planned in them.`}
     >
       <View style={styles.track}>
         {covered.map((area) => (
@@ -100,7 +103,7 @@ export function CoverageBar({
         ) : null}
       </View>
       <AppText variant="label" color={theme.ink} tabular>
-        {ceiling}
+        {coveredWeight}
       </AppText>
     </View>
   );

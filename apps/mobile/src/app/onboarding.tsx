@@ -55,7 +55,7 @@
  * A progress track runs across the top. Six screens without one is a
  * corridor with no windows.
  */
-import { ROUTINE_BAND, VARIABLE_BAND } from "@glide/scoring";
+import { PLANNED_BAND, UNPLANNED_BAND } from "@glide/scoring";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -210,27 +210,27 @@ function AreaBloom({
  */
 function BandBar({ theme }: { theme: ThemeTokens }) {
   return (
-    <View style={styles.band} accessible accessibilityLabel={`Routine ${ROUTINE_BAND} points, everything else ${VARIABLE_BAND} points`}>
+    <View style={styles.band} accessible accessibilityLabel={`Your plan ${PLANNED_BAND} points, the unplanned ${UNPLANNED_BAND} points`}>
       <View style={styles.bandTrack}>
         <View
           style={[
             styles.bandFill,
-            { flex: ROUTINE_BAND, backgroundColor: theme.accent },
+            { flex: PLANNED_BAND, backgroundColor: theme.accent },
           ]}
         />
         <View
           style={[
             styles.bandFill,
-            { flex: VARIABLE_BAND, backgroundColor: theme.hairline },
+            { flex: UNPLANNED_BAND, backgroundColor: theme.hairline },
           ]}
         />
       </View>
       <View style={styles.bandLabels}>
         <AppText variant="caption" color={theme.accent}>
-          {ROUTINE_BAND} · your daily habits
+          {PLANNED_BAND} · what you planned
         </AppText>
         <AppText variant="caption" color={theme.muted}>
-          {VARIABLE_BAND} · everything else
+          {UNPLANNED_BAND} · everything else
         </AppText>
       </View>
     </View>
@@ -545,14 +545,13 @@ export default function OnboardingScreen() {
         </AppText>
         <BandBar theme={theme} />
         <AppText color={theme.ink} style={styles.lead}>
-          Do every daily habit, every day, and you land around{" "}
-          {ROUTINE_BAND}. The rest comes from what is not automatic: the
-          weekly things, the one offs, the walk you were not planning to
-          take.
+          Do everything the day asks of you and you land on{" "}
+          {PLANNED_BAND}. The last {UNPLANNED_BAND} comes from what you
+          did not plan: the walk you logged, the day worth remembering.
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          So a 90 means you went past your routine. A score you can max
-          out by getting through a normal day is not telling you
+          So a 100 means the day went past your own plan. A score you
+          can max out by getting through a normal day is not telling you
           anything.
         </AppText>
       </Page>

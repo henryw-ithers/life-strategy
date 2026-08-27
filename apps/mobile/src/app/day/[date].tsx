@@ -140,7 +140,7 @@ export default function PlanDayScreen() {
 
   /** Everything that would show up on this day, still open. */
   const all: TodayTask[] = useMemo(
-    () => (day ? [...day.daily, ...day.week] : []),
+    () => (day ? [...day.due, ...day.week] : []),
     [day],
   );
 

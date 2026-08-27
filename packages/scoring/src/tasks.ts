@@ -21,8 +21,8 @@ export function rankShares(taskCount: number): number[] {
  * 2026-07-30). Rank shares alone put the tail at zero as soon as a
  * unit's task count approached its weight — a 3-point unit with three
  * tasks paid 2/1/**0** — and a zero-point task is not a small task, it
- * is a dead one: `dayShare` gives it no place in the day's denominator
- * and completing it cannot move the grade. The checklist would show a
+ * is a dead one: it takes no place in the day's expected load and
+ * completing it cannot move the grade. The checklist would show a
  * row that does nothing, which is worse than not offering it.
  *
  * So a point is reserved per task and only the surplus is ranked. The

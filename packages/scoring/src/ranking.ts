@@ -9,12 +9,10 @@
  * 1–10-equivalent number so the weight formula, bubble chart, and
  * history views keep working unchanged.
  *
- * **Satisfaction is deliberately not ranked.** Ranking both axes over
- * the same units forces identical value multisets onto each, so
- * `Σ I = Σ S` and the mean of `I − S` is exactly 0 — the gap term
- * collapses into a measure of disagreement between two orderings, and
- * how satisfied the user actually is cancels out. Satisfaction arrives
- * here as an absolute 1–10 rating instead.
+ * **Satisfaction is deliberately not ranked**, and since formula v8 it
+ * does not reach weights at all (ADR-0028 §1). It arrives as an
+ * absolute 1–10 rating, and stays a measure of whether the plan is
+ * working rather than an input to it.
  */
 import { deriveWeights } from "./weights";
 import type { DerivedWeight } from "./types";
@@ -41,11 +39,8 @@ export interface PriorityOrderInput {
    * would for the very same order.
    */
   order: readonly string[];
-  /** Carried from the snapshot; re-ranking never restates it. */
-  satisfaction: ReadonlyMap<string, number>;
   /** Units that count toward the 100. */
   scored: ReadonlySet<string>;
-  gapCoefficient?: number;
 }
 
 /**
@@ -61,14 +56,10 @@ export function weightsForPriorityOrder(
   if (total === 0) return [];
 
   const ratings = input.order
-    .map((unitId, i) => ({
-      unitId,
-      importance: rankToScore(i + 1, total),
-      satisfaction: input.satisfaction.get(unitId) ?? 1,
-    }))
+    .map((unitId, i) => ({ unitId, importance: rankToScore(i + 1, total) }))
     .filter((r) => input.scored.has(r.unitId));
 
-  return deriveWeights(ratings, input.gapCoefficient);
+  return deriveWeights(ratings);
 }
 
 export interface AreaRank {
