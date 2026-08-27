@@ -186,9 +186,15 @@ export default function GoalsScreen() {
                         <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
                           {g.title}
                         </AppText>
-                        {g.milestoneCount > 0 ? (
-                          <AppText variant="caption" color={theme.muted}>
-                            {g.completedMilestoneCount}/{g.milestoneCount}
+                        {/* What is actually behind the goal. It used to
+                            read "2/5" of milestones, which was 0/0 on
+                            most goals and, after ADR-0030, counts a
+                            concept that no longer exists — conditions
+                            run in parallel and never complete, so there
+                            is no fraction to show. */}
+                        {g.taskCount > 0 ? (
+                          <AppText variant="caption" color={theme.muted} tabular>
+                            {g.taskCount} {g.taskCount === 1 ? "task" : "tasks"}
                           </AppText>
                         ) : null}
                         <AppText
@@ -222,7 +228,7 @@ export default function GoalsScreen() {
           homeUnitId={addingTo?.id}
           // Straight to the goal you just made, rather than back to a
           // list where it is one row among many. Everything that makes
-          // a goal a goal — milestones, a metric, the tasks that serve
+          // a goal a goal — conditions, a metric, the tasks that serve
           // it — lives on that screen and nowhere else, so landing on
           // the list left the richest surface in the app undiscovered.
           onCommit={async (unitId, title, description, target, unit) => {

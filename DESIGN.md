@@ -182,9 +182,11 @@ Six categorical hues, one per Strategic Life Area, each lifted in lightness (not
 - **Green** (`#4a925c` / `#6fc082`) — Physical Health
 - **Teal** (`#007a80` / `#3ebfc6`) — Mental Wellbeing (= accent)
 - **Blue** (`#3d73b6` / `#64a1ee`) — Work & Money
-- **Amber** (`#b8892d` / `#e3ad4b`) — Wellness (token ids keep the
-  original `home-environment` slug; ADR-0002 never re-keys taxonomy
-  rows, so a rename is a label change and the hue travels with it)
+- **Amber** (`#b8892d` / `#e3ad4b`) — Environment (token ids keep the
+  `home-environment` slug throughout; ADR-0002 never re-keys taxonomy
+  rows, so a rename is a label change and the hue travels with it. The
+  label has been *Home & environment*, then *Wellness*, and since
+  2026-08-26 *Environment* again — the slug was right all along)
 - **Violet** (`#7d5fad` / `#ab8be3`) — Leisure & Creativity
 
 **Area hues are identity, not text, and not a fill behind text.** They

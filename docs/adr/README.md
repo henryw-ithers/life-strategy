@@ -30,6 +30,7 @@ status to *Accepted*.
 | [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029 |
 | [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
 | [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted |
+| [0030](0030-goals-have-conditions.md) | Goals have conditions | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002

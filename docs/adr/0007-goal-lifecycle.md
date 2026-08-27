@@ -13,6 +13,15 @@ design" (vision.md) requires that abandoning and revising be
 first-class outcomes, not failures. Goals end; the units they serve
 don't — so the lifecycle must answer what a goal leaves behind.
 
+> **§3's milestones are retired**
+> ([ADR-0030](0030-goals-have-conditions.md) §5, 2026-08-26). A goal's
+> authored child is a **condition** — a parallel prerequisite that never
+> completes — rather than an ordered rung, and nothing in the app
+> creates, completes, edits or displays a milestone any more. The
+> `milestone` table stays in the schema and stops being written
+> (ADR-0002 is forward-only, and rows a user earned are theirs).
+> §§1–2's state machine is untouched.
+
 ## Decisions
 
 ### 1. States and transitions

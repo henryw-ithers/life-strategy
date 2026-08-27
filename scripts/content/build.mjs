@@ -200,11 +200,15 @@ function parseNotifications() {
 
 const PROFILES = new Set(["gap-closing", "maintenance", "light"]);
 /**
- * `habit` is ADR-0015's third kind, decided 2026-08-16 and not yet
- * built (see docs/backburner.md). It carries **no target** — a habit
- * goal is meant to be permanent, so it never completes — and its
- * milestones are day counts, 7 · 30 · 66 by default. 66 is Lally's
- * median to automaticity, so even the top rung is a research number.
+ * `habit` is ADR-0015's third kind. It carries **no target** — a habit
+ * goal is meant to be permanent, so it never completes — and its rungs
+ * are day counts, 7 · 30 · 66. 66 is Lally's median to automaticity, so
+ * even the top rung is a research number.
+ *
+ * **The rungs are not authored here** (ADR-0030 §5). They were once a
+ * `milestones:` field every habit goal had to repeat; they are now
+ * `HABIT_LADDER` in `@glide/scoring`, computed against the streak, so
+ * the library states the kind and nothing else.
  */
 const METRIC_KINDS = new Set(["cumulative", "target", "habit"]);
 /** ADR-0025 §5: the library never proposes a task for these. */
@@ -235,13 +239,7 @@ function entries(lines, unitId, kind) {
   return out.map((e) => finishEntry(e, unitId, kind));
 }
 
-const PARSEABLE_FIELDS = new Set([
-  "profiles",
-  "frequency",
-  "goal",
-  "milestones",
-  "metric",
-]);
+const PARSEABLE_FIELDS = new Set(["profiles", "frequency", "goal", "metric"]);
 
 function finishEntry(e, unitId, kind) {
   const where = `library.md: ${unitId}/${e.id}`;
@@ -265,7 +263,7 @@ function finishEntry(e, unitId, kind) {
   };
 
   if (kind === "goal") {
-    const goal = { ...base, milestones: list(e.fields.milestones), metric: null };
+    const goal = { ...base, metric: null };
     if (e.fields.metric) {
       const [mk, unit, target] = list(e.fields.metric);
       if (!METRIC_KINDS.has(mk)) {
@@ -274,12 +272,10 @@ function finishEntry(e, unitId, kind) {
         );
       } else if (mk === "habit") {
         // A habit has no finish line, so `metric: habit` takes no unit
-        // and no number. Rungs are days, and they live in `milestones`.
+        // and no number. Its rungs are the HABIT_LADDER constant
+        // (ADR-0030 §5), so there is nothing else to declare.
         if (unit || target) {
           fail(`${where}: a habit metric takes no unit or target — just "metric: habit"`);
-        }
-        if (goal.milestones.length === 0) {
-          fail(`${where}: a habit goal needs milestones (days), e.g. "milestones: 7, 30, 66"`);
         }
         goal.metric = { kind: mk, unit: "days", suggestedTarget: null };
       } else if (!unit) {
@@ -513,15 +509,13 @@ export interface GoalTemplate {
   title: string;
   description: string | null;
   profiles: Profile[];
-  /** Ordered rung titles; empty when the goal has none. */
-  milestones: string[];
   /**
-   * ADR-0015 §1, plus \`habit\` (decided 2026-08-16, unbuilt — see
-   * docs/backburner.md). Null when the goal is not countable.
+   * ADR-0015 §1, plus \`habit\`. Null when the goal is not countable.
    *
    * A \`habit\` goal has **no target**: it is meant to be permanent, so
-   * it never completes. Its rungs are day counts in \`milestones\`,
-   * 7 · 30 · 66 by default, where 66 is Lally's median to automaticity.
+   * it never completes. Its rungs are \`HABIT_LADDER\` — 7 · 30 · 66,
+   * where 66 is Lally's median to automaticity — computed against the
+   * streak rather than stored (ADR-0030 §5).
    */
   metric: {
     kind: "cumulative" | "target" | "habit";

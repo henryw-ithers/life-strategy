@@ -19,7 +19,6 @@ This file is where the writing goes.
 
     #### <goal-id> · <Goal title>
     profiles: gap-closing, light
-    milestones: Run 1k, Run 3k, Run 5k
     metric: cumulative, km, 5
 
     What finishing looks like. One line, optional.
@@ -42,15 +41,16 @@ This file is where the writing goes.
 | `profiles` | both | `gap-closing`, `maintenance`, `light` — one or more. Required. |
 | `frequency` | tasks | `0`–`7`. 7 is daily, 0 is once a fortnight. Required. |
 | `goal` | tasks | A goal id in the same unit. Optional — habit tasks attach straight to the unit. |
-| `milestones` | goals | Comma-separated rung titles, in order. Optional. |
 | `metric` | goals | `<kind>, <unit>, <target>` for `cumulative` or `target` (ADR-0015 §1). For a habit, just `habit` — see below. Optional. |
 
 **Habit goals** take `metric: habit` with **no unit and no target**,
 because a habit is meant to be permanent and never completes. Its rungs
-are day counts in `milestones` — **7, 30, 66** by default, where 66 is
-Lally's median time to automaticity, so the top rung is a research
-number rather than a round one. Decided 2026-08-16; the app support is
-not built yet ([backburner.md](../backburner.md)).
+are day counts — **7, 30, 66**, where 66 is Lally's median time to
+automaticity, so the top rung is a research number rather than a round
+one. They are not written here: the ladder is `HABIT_LADDER` in
+`@glide/scoring`, computed against the streak
+([ADR-0030](../adr/0030-goals-have-conditions.md) §5), so a habit goal
+declares its kind and nothing else.
 
 **Numbers come from actual recommendations for a healthy person**, not
 from what's typical. WHO's 150–300 active minutes and 2 strength days,
@@ -109,7 +109,6 @@ profile tag has nothing to offer whoever isn't in that situation.
 
 #### run-5k · Run 5k without stopping
 profiles: gap-closing
-milestones: Run 1k without stopping, Run 3k without stopping, Run 5k without stopping
 metric: target, km, 5
 
 A single continuous 5k, at any pace.
@@ -122,7 +121,6 @@ From a dead hang, chin over the bar.
 
 #### gym-twice-weekly · Two gym sessions a week for three months
 profiles: gap-closing, maintenance
-milestones: 8 sessions, 16 sessions, 24 sessions
 metric: cumulative, sessions, 24
 
 Two a week is the strength recommendation, and three months is long enough to feel it.
@@ -135,7 +133,6 @@ The weekly floor for a healthy adult. Walking counts.
 
 #### walk-daily · Walk every day
 profiles: maintenance, light
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -191,26 +188,22 @@ The one that takes half a morning.
 
 #### five-a-day · Five a day, every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 400g of fruit and veg. Frozen and tinned count.
 
 #### fibre-30 · 30g of fibre a day
 profiles: gap-closing
-milestones: 7, 30, 66
 metric: habit
 
 The recommended amount. Most people manage about 17.
 
 #### cook-20 · Cook 20 dinners this month
 profiles: gap-closing, maintenance
-milestones: 5 dinners, 10 dinners, 20 dinners
 metric: cumulative, meals, 20
 
 #### no-weeknight-takeaway · No takeaway on weeknights
 profiles: gap-closing, light
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -262,19 +255,16 @@ profiles: gap-closing, light
 
 #### phone-out-bedroom · Phone out of the bedroom
 profiles: gap-closing
-milestones: 7, 30, 66
 metric: habit
 
 #### same-wake-time · Up at the same time every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 Weekends included. That's the part that does the work.
 
 #### caffeine-cutoff · No caffeine after midday
 profiles: gap-closing, light
-milestones: 7, 30, 66
 metric: habit
 
 #### seven-hours · Seven hours a night for a fortnight
@@ -336,19 +326,16 @@ Ten minutes outside sets the clock for that night.
 
 #### write-daily · Write something down every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### name-feelings · Name how you're actually feeling, daily
 profiles: gap-closing
-milestones: 7, 30, 66
 metric: habit
 
 Putting words to it is most of the work.
 
 #### ten-minutes-quiet · Ten minutes of quiet every day
 profiles: maintenance, light
-milestones: 7, 30, 66
 metric: habit
 
 #### proper-conversation · A proper conversation every week for two months
@@ -406,12 +393,10 @@ An hour, awake.
 
 #### quiet-practice · A quiet practice every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### gratitude-written · Three things, written down, every day
 profiles: maintenance, light
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -452,7 +437,6 @@ profiles: light, maintenance
 
 #### volunteer-six · Volunteer twice a month for three months
 profiles: gap-closing
-milestones: 2 sessions, 4 sessions, 6 sessions
 metric: cumulative, sessions, 6
 
 #### regular-donation · Set up a regular donation
@@ -461,7 +445,6 @@ metric: target, set up, 1
 
 #### small-thing-daily · One small thing for someone, every day
 profiles: gap-closing, maintenance, light
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -505,12 +488,10 @@ A real reply rather than a holding one.
 
 #### deep-work-month · Two hours of deep work a day for a month
 profiles: gap-closing
-milestones: 10 hours, 20 hours, 40 hours
 metric: cumulative, hours, 40
 
 #### leave-on-time · Leave on time every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### ask-for-raise · Ask for a raise
@@ -574,17 +555,14 @@ profiles: light
 
 #### read-12 · Read 12 books this year
 profiles: gap-closing, maintenance
-milestones: 3 books, 6 books, 12 books
 metric: cumulative, books, 12
 
 #### fifty-hours · 50 hours on one skill
 profiles: gap-closing
-milestones: 10 hours, 25 hours, 50 hours
 metric: cumulative, hours, 50
 
 #### practice-daily · Practice something every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### finish-course · Finish a course
@@ -636,7 +614,6 @@ profiles: light
 
 #### three-months-saved · Three months of expenses saved
 profiles: gap-closing
-milestones: 1 month, 2 months, 3 months
 metric: target, months, 3
 
 The standard buffer. It buys calm well beyond its size.
@@ -651,7 +628,6 @@ metric: target, cleared, 1
 
 #### track-a-month · Track every expense for a month
 profiles: gap-closing, light
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -696,12 +672,10 @@ profiles: maintenance
 
 #### make-bed · Make the bed every day
 profiles: maintenance, light
-milestones: 7, 30, 66
 metric: habit
 
 #### tidy-ten · Ten minutes of tidying every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### clear-a-room · Clear one room properly
@@ -760,19 +734,16 @@ profiles: gap-closing, light
 
 #### two-hours-outside · 120 minutes outside a week for a month
 profiles: gap-closing, maintenance
-milestones: 120 minutes, 240 minutes, 480 minutes
 metric: cumulative, minutes, 480
 
 Any combination, one long walk or ten short ones. Below two hours a week the benefit doesn't show.
 
 #### outside-daily · Outside every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### morning-daylight · Daylight before 10am every day
 profiles: gap-closing, light
-milestones: 7, 30, 66
 metric: habit
 
 #### somewhere-new · Somewhere new every week for two months
@@ -823,12 +794,10 @@ profiles: light, gap-closing
 
 #### floss-daily · Floss every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 #### brush-twice · Brush twice a day, every day
 profiles: gap-closing, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 Two minutes each time.
@@ -839,7 +808,6 @@ metric: target, booked, 1
 
 #### skincare-daily · Skincare every day
 profiles: light, maintenance
-milestones: 7, 30, 66
 metric: habit
 
 ### Tasks
@@ -895,7 +863,6 @@ metric: target, done, 1
 
 #### hours-this-quarter · 24 hours on a hobby this quarter
 profiles: gap-closing, maintenance
-milestones: 6 hours, 12 hours, 24 hours
 metric: cumulative, hours, 24
 
 #### make-for-someone · Make something for someone
@@ -942,17 +909,14 @@ profiles: light
 
 #### watch-12-films · Watch 12 films this year
 profiles: gap-closing, light
-milestones: 3 films, 6 films, 12 films
 metric: cumulative, films, 12
 
 #### read-6-novels · Read 6 novels this year
 profiles: gap-closing, maintenance
-milestones: 2 books, 4 books, 6 books
 metric: cumulative, books, 6
 
 #### six-live-events · Go to 6 live events this year
 profiles: gap-closing, light
-milestones: 2 events, 4 events, 6 events
 metric: cumulative, events, 6
 
 #### four-galleries · Visit 4 galleries or museums this year
@@ -999,7 +963,6 @@ profiles: light, maintenance
 
 #### four-new-places · Visit 4 new places this year
 profiles: gap-closing, maintenance
-milestones: 1 place, 2 places, 4 places
 metric: cumulative, places, 4
 
 #### four-weekends-away · 4 weekends away this year
@@ -1012,7 +975,6 @@ metric: target, done, 1
 
 #### ten-new-things · Try 10 new things this year
 profiles: maintenance, light
-milestones: 3 things, 6 things, 10 things
 metric: cumulative, things, 10
 
 ### Tasks
@@ -1051,7 +1013,6 @@ profiles: light, maintenance
 
 #### twelve-dates · Go on 12 dates this year
 profiles: gap-closing, maintenance
-milestones: 3 dates, 6 dates, 12 dates
 metric: cumulative, dates, 12
 
 #### trip-together · Take a trip together
@@ -1060,7 +1021,6 @@ metric: target, done, 1
 
 #### six-new-things · Do 6 new things together this year
 profiles: maintenance, light
-milestones: 2 things, 4 things, 6 things
 metric: cumulative, things, 6
 
 Novelty keeps satisfaction alive where routine wears it down.
@@ -1075,7 +1035,6 @@ metric: target, done, 1
 
 #### visit-six · Visit 6 times this year
 profiles: gap-closing, maintenance
-milestones: 2 visits, 4 visits, 6 visits
 metric: cumulative, visits, 6
 
 #### standing-call · Set up a standing call
@@ -1110,5 +1069,4 @@ metric: target, done, 1
 
 #### twelve-things · Do 12 things with friends this year
 profiles: maintenance, light
-milestones: 3 times, 6 times, 12 times
 metric: cumulative, times, 12

@@ -51,6 +51,21 @@ Constraints in force:
   (ADR-0007 §2) — archive, follow-up, or transition to maintenance.
 - **Nothing is a clock** (ADR-0024 §1, reaffirmed in ADR-0025 §7).
 
+> **§5's rungs are retired**
+> ([ADR-0030](0030-goals-have-conditions.md) §5, 2026-08-26). A metric
+> goal is a single `target_value` and its progress entries now; the
+> intermediate rungs and the prompt-to-advance went with the `milestone`
+> table. §3's rule is untouched — reaching the target still *invites*
+> completion rather than performing it.
+>
+> **The habit ladder survives, and improved.** 7 · 30 · 66 was always a
+> research constant (`HABIT_LADDER`) measured against `streak.longest`,
+> so it stopped needing rows at all. It also stopped needing the user:
+> a rung now writes its achievement automatically, dated by
+> `rungReachedOn` to the day the run actually passed it. That was the
+> job §5's two-step date picker did by asking — the completion dates
+> were always the evidence, so nothing has to remember any more.
+
 ## Decision
 
 > **Amended 2026-08-16: a third kind, `habit`.** Decided during the

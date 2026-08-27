@@ -60,15 +60,15 @@ const AREA_COLORS_DARK: Record<string, string> = {
  * DESIGN.md recorded this as an open decision: `Button`'s primary
  * variant renders `onAccent` on whatever fill it is given, and thirteen
  * call sites hand it an area hue — 3.78:1 on Physical health, 3.16:1 on
- * Wellness. The two options it named were restricting fills to the
+ * Environment. The two options it named were restricting fills to the
  * accent or giving the variant a wash; Henry chose a third on
  * 2026-08-17: keep the hue, take it down to where the label passes.
  *
  * Same OKLCH hue and chroma, L lowered until white clears **4.8:1** —
  * AA with a little margin rather than a value sitting on the line.
  * Four of the six move by less than a step and are visually the same
- * colour; only Physical health and Wellness change materially, which is
- * exactly the pair that failed. Wellness reads as deep ochre rather
+ * colour; only Physical health and Environment change materially, which is
+ * exactly the pair that failed. Environment reads as deep ochre rather
  * than amber when filled, because an amber that carries white text *is*
  * ochre — the alternative was a 3.16:1 button.
  *
@@ -134,7 +134,7 @@ const GRADE_RAMP_DARK = ["#ef7a6d", "#e59a4a", "#d9c04b", "#6fc082", "#52d97e", 
  * **Pair it with an Ink label, never `onAccent` on the solid hue.**
  * Four of the six area hues fall under 4.5:1 in light theme when used
  * as a fill behind small text — Physical health lands at 3.78:1 and
- * Wellness at 3.16:1 — so a solid-fill chip is an AA failure for a
+ * Environment at 3.16:1 — so a solid-fill chip is an AA failure for a
  * third of the taxonomy. On a wash, Ink never drops below 13.9:1 in
  * either theme.
  *

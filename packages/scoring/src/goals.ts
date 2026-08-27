@@ -7,8 +7,6 @@ export type GoalStatus =
 
 export type GoalAction = "pause" | "resume" | "abandon" | "revive" | "complete";
 
-export type MilestoneStatus = "pending" | "current" | "completed";
-
 /**
  * Goal state machine (ADR-0007 §1). `revise` isn't an action here — it
  * doesn't just change status, it closes the goal as `revised` while
@@ -49,17 +47,13 @@ export function nextGoalStatus(
 }
 
 /**
- * Milestones are a flat, ordered list with exactly one `current`
- * (ADR-0007 §3). Given the milestone that was just completed, returns
- * the next one (by `sortOrder`) to promote to `current`, or `null` if
- * none remain — the caller should then run the goal's completion flow.
+ * `advanceMilestone` and `MilestoneStatus` **retired 2026-08-26**
+ * (ADR-0030 §5).
+ *
+ * They ran ADR-0007 §3's ordered ladder: one `current` rung at a time,
+ * promoted as each was completed. A goal's authored child is now a
+ * **condition** — a parallel prerequisite that never completes — so
+ * there is no order to advance through and no status to hold. Habit
+ * rungs, the one ladder worth keeping, are computed from
+ * `HABIT_LADDER` against a streak instead of stored (see `streak.ts`).
  */
-export function advanceMilestone(
-  milestones: { id: string; sortOrder: number; status: MilestoneStatus }[],
-  completedId: string,
-): { nextCurrentId: string | null } {
-  const next = milestones
-    .filter((m) => m.id !== completedId && m.status !== "completed")
-    .sort((a, b) => a.sortOrder - b.sortOrder)[0];
-  return { nextCurrentId: next?.id ?? null };
-}

@@ -32,11 +32,16 @@ export type {
   MetricDefinition,
   MetricState,
 } from "./metrics";
-export { barFraction, metricState, milestonesReached } from "./metrics";
+export { barFraction, metricState } from "./metrics";
 export type { Streak, StreakInput } from "./streak";
-export { computeStreak, habitMilestonesReached, HABIT_LADDER } from "./streak";
-export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
-export { nextGoalStatus, advanceMilestone } from "./goals";
+export {
+  computeStreak,
+  habitRungsReached,
+  rungReachedOn,
+  HABIT_LADDER,
+} from "./streak";
+export type { GoalStatus, GoalAction } from "./goals";
+export { nextGoalStatus } from "./goals";
 export type {
   AreaRank,
   UnitRank,

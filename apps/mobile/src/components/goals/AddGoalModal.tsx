@@ -8,7 +8,7 @@
  * screen, in a second sheet nobody had a reason to open. That is the
  * second-trip problem the task sheet was rebuilt to remove, and it bites
  * harder here, because a goal with no target cannot show progress,
- * cannot reach a milestone, and can never complete itself.
+ * cannot reach a finish line, and can never complete itself.
  *
  * It stays **optional**. Plenty of real goals are not numbers ("be a
  * better listener"), and forcing a figure onto them would make the

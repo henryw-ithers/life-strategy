@@ -461,6 +461,10 @@ export async function addTask(
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
   goalId: string | null = null,
   oneOff: OneOff | null = null,
+  /** Which of the goal's conditions this task was written under
+   *  (ADR-0030 §1). Grouping only — it never affects what the task is
+   *  worth, which still comes from its units and its rank there. */
+  conditionId: string | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
@@ -482,6 +486,7 @@ export async function addTask(
       plannedWeekdays: oneOff ? null : plannedWeekdays,
       partOfDay,
       goalId,
+      conditionId: goalId ? conditionId : null,
       oneOffSize: oneOff?.size ?? null,
       oneOffDate: oneOff?.date ?? null,
       oneOffDue: oneOff?.due ?? null,

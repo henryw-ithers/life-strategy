@@ -106,7 +106,7 @@ const AREAS: readonly { id: string; name: string }[] = [
   { id: "physical-health", name: "Physical health" },
   { id: "mental-wellbeing", name: "Mental wellbeing" },
   { id: "work-money", name: "Work & money" },
-  { id: "home-environment", name: "Wellness" },
+  { id: "home-environment", name: "Environment" },
   { id: "leisure-creativity", name: "Leisure & creativity" },
 ];
 

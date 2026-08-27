@@ -16,15 +16,13 @@ export interface GoalTemplate {
   title: string;
   description: string | null;
   profiles: Profile[];
-  /** Ordered rung titles; empty when the goal has none. */
-  milestones: string[];
   /**
-   * ADR-0015 §1, plus `habit` (decided 2026-08-16, unbuilt — see
-   * docs/backburner.md). Null when the goal is not countable.
+   * ADR-0015 §1, plus `habit`. Null when the goal is not countable.
    *
    * A `habit` goal has **no target**: it is meant to be permanent, so
-   * it never completes. Its rungs are day counts in `milestones`,
-   * 7 · 30 · 66 by default, where 66 is Lally's median to automaticity.
+   * it never completes. Its rungs are `HABIT_LADDER` — 7 · 30 · 66,
+   * where 66 is Lally's median to automaticity — computed against the
+   * streak rather than stored (ADR-0030 §5).
    */
   metric: {
     kind: "cumulative" | "target" | "habit";
@@ -65,11 +63,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [
-          "Run 1k without stopping",
-          "Run 3k without stopping",
-          "Run 5k without stopping"
-        ],
         "metric": {
           "kind": "target",
           "unit": "km",
@@ -83,7 +76,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "reps",
@@ -97,11 +89,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "maintenance"
-        ],
-        "milestones": [
-          "8 sessions",
-          "16 sessions",
-          "24 sessions"
         ],
         "metric": {
           "kind": "cumulative",
@@ -117,7 +104,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "minutes",
@@ -131,11 +117,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -250,11 +231,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -267,11 +243,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "description": "The recommended amount. Most people manage about 17.",
         "profiles": [
           "gap-closing"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -287,11 +258,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "5 dinners",
-          "10 dinners",
-          "20 dinners"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "meals",
@@ -305,11 +271,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "light"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -425,11 +386,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -443,11 +399,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "maintenance"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -463,11 +414,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -482,7 +428,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "nights",
@@ -585,11 +530,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -602,11 +542,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "description": "Putting words to it is most of the work.",
         "profiles": [
           "gap-closing"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -622,11 +557,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -641,7 +571,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "conversations",
@@ -755,11 +684,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -773,11 +697,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -869,11 +788,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [
-          "2 sessions",
-          "4 sessions",
-          "6 sessions"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "sessions",
@@ -888,7 +802,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "set up",
@@ -903,11 +816,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -1010,11 +918,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [
-          "10 hours",
-          "20 hours",
-          "40 hours"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "hours",
@@ -1029,11 +932,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1047,7 +945,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "asked",
@@ -1062,7 +959,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -1077,7 +973,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -1191,11 +1086,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "3 books",
-          "6 books",
-          "12 books"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "books",
@@ -1208,11 +1098,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "description": null,
         "profiles": [
           "gap-closing"
-        ],
-        "milestones": [
-          "10 hours",
-          "25 hours",
-          "50 hours"
         ],
         "metric": {
           "kind": "cumulative",
@@ -1228,11 +1113,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1247,7 +1127,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -1348,11 +1227,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [
-          "1 month",
-          "2 months",
-          "3 months"
-        ],
         "metric": {
           "kind": "target",
           "unit": "months",
@@ -1367,7 +1241,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "checks",
@@ -1381,7 +1254,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "cleared",
@@ -1395,11 +1267,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "light"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -1503,11 +1370,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1522,11 +1384,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1540,7 +1397,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -1555,7 +1411,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -1681,11 +1536,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "120 minutes",
-          "240 minutes",
-          "480 minutes"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "minutes",
@@ -1699,11 +1549,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "maintenance"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -1719,11 +1564,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1737,7 +1577,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "places",
@@ -1841,11 +1680,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
-        ],
         "metric": {
           "kind": "habit",
           "unit": "days",
@@ -1859,11 +1693,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "maintenance"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -1879,7 +1708,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "booked",
@@ -1893,11 +1721,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "light",
           "maintenance"
-        ],
-        "milestones": [
-          "7",
-          "30",
-          "66"
         ],
         "metric": {
           "kind": "habit",
@@ -2012,7 +1835,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2027,7 +1849,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2042,11 +1863,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "6 hours",
-          "12 hours",
-          "24 hours"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "hours",
@@ -2060,7 +1876,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2162,11 +1977,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [
-          "3 films",
-          "6 films",
-          "12 films"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "films",
@@ -2180,11 +1990,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "gap-closing",
           "maintenance"
-        ],
-        "milestones": [
-          "2 books",
-          "4 books",
-          "6 books"
         ],
         "metric": {
           "kind": "cumulative",
@@ -2200,11 +2005,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [
-          "2 events",
-          "4 events",
-          "6 events"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "events",
@@ -2219,7 +2019,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "visits",
@@ -2323,11 +2122,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "1 place",
-          "2 places",
-          "4 places"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "places",
@@ -2342,7 +2136,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "cumulative",
           "unit": "trips",
@@ -2357,7 +2150,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2371,11 +2163,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "3 things",
-          "6 things",
-          "10 things"
         ],
         "metric": {
           "kind": "cumulative",
@@ -2469,11 +2256,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "3 dates",
-          "6 dates",
-          "12 dates"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "dates",
@@ -2488,7 +2270,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2502,11 +2283,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "2 things",
-          "4 things",
-          "6 things"
         ],
         "metric": {
           "kind": "cumulative",
@@ -2522,7 +2298,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2542,11 +2317,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [
-          "2 visits",
-          "4 visits",
-          "6 visits"
-        ],
         "metric": {
           "kind": "cumulative",
           "unit": "visits",
@@ -2562,7 +2332,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2577,7 +2346,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2591,7 +2359,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2611,7 +2378,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2626,7 +2392,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "light"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2641,7 +2406,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing",
           "maintenance"
         ],
-        "milestones": [],
         "metric": {
           "kind": "target",
           "unit": "done",
@@ -2655,11 +2419,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
         "profiles": [
           "maintenance",
           "light"
-        ],
-        "milestones": [
-          "3 times",
-          "6 times",
-          "12 times"
         ],
         "metric": {
           "kind": "cumulative",

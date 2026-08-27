@@ -40,7 +40,7 @@ export interface LogEntry {
   notes: string[];
   /** File URIs; the screen resolves and handles missing files. */
   photos: { id: string; uri: string; caption: string | null }[];
-  /** Titles of goals and milestones reached that day. */
+  /** Titles of goals and habit rungs reached that day. */
   achievements: string[];
   /** A day the user marked worth keeping (`day_grade.flagged`). */
   flagged: boolean;

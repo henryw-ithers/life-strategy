@@ -52,7 +52,7 @@ import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LIBRARY } from "../../content/library";
 import { UNIT_INFO } from "../../content/units";
-import { addMilestone, createGoal, loadGoals, setGoalMetric } from "../../db/goals";
+import { createGoal, loadGoals, setGoalMetric } from "../../db/goals";
 import {
   addTask,
   archiveTask,
@@ -796,10 +796,11 @@ export default function PlanScreen() {
                 g.title,
                 g.description ?? undefined,
               );
-              // The library's rungs and metric arrive with it — a goal
-              // stripped of them would be the title only, which is the
-              // least useful half of what was written.
-              for (const title of g.milestones) await addMilestone(id, title);
+              // The library's metric arrives with it — a goal stripped
+              // of it would be the title only, which is the least useful
+              // half of what was written. Its rungs are gone with the
+              // milestone concept (ADR-0030 §5); a habit's ladder is
+              // computed, and a metric goal has one finish line.
               if (g.metric && g.metric.suggestedTarget !== null) {
                 await setGoalMetric(id, {
                   kind: g.metric.kind,

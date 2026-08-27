@@ -47,7 +47,7 @@ What you do for a living and what it pays for.
 - Learning and growth: skills you are building on purpose.
 - Finances: what you earn, spend, owe, and keep.
 
-## home-environment — Wellness
+## home-environment — Environment
 
 The conditions you live in, and the upkeep that keeps them liveable.
 

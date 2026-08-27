@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { computeStreak, habitMilestonesReached } from "../streak";
+import {
+  computeStreak,
+  habitRungsReached,
+  rungReachedOn,
+  HABIT_LADDER,
+} from "../streak";
 
 /** A run of consecutive dates, oldest first. */
 const run = (from: string, days: number): string[] => {
@@ -105,36 +110,64 @@ describe("days off", () => {
   });
 });
 
-describe("habitMilestonesReached", () => {
-  const ladder = [
-    { id: "wk", targetValue: 7 },
-    { id: "mo", targetValue: 30 },
-    { id: "auto", targetValue: 66 },
-    { id: "plain", targetValue: null },
-  ];
+describe("habitRungsReached", () => {
+  it("is the ladder itself, not a table of rows (ADR-0030 §5)", () => {
+    expect(HABIT_LADDER).toEqual([7, 30, 66]);
+  });
 
   it("reports rungs the run has passed", () => {
     const s = computeStreak({ done: run("2026-07-25", 23), today: "2026-08-16" });
-    expect(habitMilestonesReached(s, ladder)).toEqual(["wk"]);
+    expect(habitRungsReached(s)).toEqual([7]);
   });
 
   it("reads the longest run, not the current one", () => {
-    // Hitting 30 and then missing a day must not take the rung back
-    // before the user has even been asked about it.
+    // Hitting 30 and then missing a day must not take the rung back.
     const s = computeStreak({
       done: [...run("2026-06-01", 30), "2026-08-16"],
       today: "2026-08-16",
     });
     expect(s.current).toBe(1);
-    expect(habitMilestonesReached(s, ladder)).toEqual(["wk", "mo"]);
+    expect(habitRungsReached(s)).toEqual([7, 30]);
   });
 
-  it("ignores rungs with no threshold", () => {
+  it("reports the whole ladder once automaticity is passed", () => {
     const s = computeStreak({ done: run("2026-01-01", 300), today: "2026-08-16" });
-    expect(habitMilestonesReached(s, ladder)).not.toContain("plain");
+    expect(habitRungsReached(s)).toEqual([7, 30, 66]);
   });
 
   it("reports nothing on an empty history", () => {
-    expect(habitMilestonesReached({ current: 0, longest: 0 }, ladder)).toEqual([]);
+    expect(habitRungsReached({ current: 0, longest: 0 })).toEqual([]);
+  });
+});
+
+describe("rungReachedOn", () => {
+  it("returns the day a run first stood at that length", () => {
+    // Seven days from the 1st: the seventh is the 7th.
+    expect(rungReachedOn({ done: run("2026-07-01", 20), today: "2026-08-16" }, 7)).toBe(
+      "2026-07-07",
+    );
+  });
+
+  it("returns null when the run never got there", () => {
+    expect(rungReachedOn({ done: run("2026-07-01", 5), today: "2026-08-16" }, 7)).toBeNull();
+  });
+
+  it("counts the first time, not the best time", () => {
+    // A later, longer run must not restate when the rung was passed.
+    const done = [...run("2026-01-01", 10), ...run("2026-06-01", 40)];
+    expect(rungReachedOn({ done, today: "2026-08-16" }, 7)).toBe("2026-01-07");
+  });
+
+  it("bridges declared days off, exactly as the streak does", () => {
+    const done = [...run("2026-07-01", 3), ...run("2026-07-05", 4)];
+    const reached = rungReachedOn(
+      { done, daysOff: ["2026-07-04"], today: "2026-08-16" },
+      7,
+    );
+    expect(reached).toBe("2026-07-08");
+  });
+
+  it("is null for a nonsense rung", () => {
+    expect(rungReachedOn({ done: run("2026-07-01", 20), today: "2026-08-16" }, 0)).toBeNull();
   });
 });

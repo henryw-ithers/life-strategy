@@ -54,10 +54,10 @@ leisure distinguishes making from taking in):
 | 2 | Physical health | Exercise & fitness · Nutrition · Sleep & recovery |
 | 3 | Mental wellbeing | Mental & emotional health · Spirituality · Giving & service |
 | 4 | Work & money | Job/career · Learning & growth · Finances |
-| 5 | Wellness | Living space · Nature · Hygiene |
+| 5 | Environment | Living space · Nature · Hygiene |
 | 6 | Leisure & creativity | Hobbies & projects · Art & media · Adventure & experiences |
 
-**Wellness is the maintenance area.** Where the other five are largely
+**Environment is the maintenance area.** Where the other five are largely
 about growth, these three are low-effort, high-return upkeep: getting
 outside, a living space that's clean and comfortable, and looking after
 your own hygiene. It exists so the basics have somewhere to live and
