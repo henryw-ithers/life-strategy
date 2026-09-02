@@ -8,6 +8,7 @@
  * several units at once, which a drill-down destroys. Expanding one
  * collapses the rest, so the screen never becomes a wall.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import {
@@ -36,7 +37,6 @@ import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEdit
 import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
 import {
-  COMMUNAL_TASK_NOTE,
   type PartOfDay,
 } from "../../components/plan/planning";
 import { CoverageBar } from "../../components/plan/CoverageBar";
@@ -420,13 +420,54 @@ export default function PlanScreen() {
                         <View style={styles.chev}>
                           <Disclosure open={open} theme={theme} size={15} />
                         </View>
+                        {/* Shrinks rather than grows, so the glyph sits
+                            against the end of the name however long the
+                            name is, and a long one truncates instead of
+                            shoving it away. */}
                         <AppText
                           color={excluded ? theme.muted : theme.ink}
-                          style={styles.grow}
+                          style={styles.unitName}
                           numberOfLines={1}
                         >
                           {unit.name}
                         </AppText>
+
+                        {/* What the unit covers, as a glyph rather than
+                            the line of link text this used to be inside
+                            the panel — and beside the name, where the
+                            question "what is this one?" is actually
+                            asked. It shows only while the unit is open:
+                            eighteen of these down a closed list would be
+                            the clutter this pass removed.
+
+                            Nested inside the row's own Pressable on
+                            purpose. React Native's responder system gives
+                            the touch to the deepest view that claims it,
+                            so this wins and the row does not also toggle
+                            — which is what lets the whole row stay one
+                            large tap target instead of shrinking to the
+                            width of the name. */}
+                        {open && !excluded && UNIT_INFO[unit.id] ? (
+                          <Pressable
+                            onPress={() => setInfoUnit(unit)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`What ${unit.name} covers`}
+                            hitSlop={12}
+                            style={({ pressed }) => [
+                              styles.info,
+                              { opacity: pressed ? 0.4 : 1 },
+                            ]}
+                          >
+                            <Ionicons
+                              name="information-circle-outline"
+                              size={17}
+                              color={theme.muted}
+                            />
+                          </Pressable>
+                        ) : null}
+
+                        <View style={styles.grow} />
+
                         {excluded ? (
                           <AppText variant="caption" color={theme.muted}>
                             not scored
@@ -467,8 +508,8 @@ export default function PlanScreen() {
                           style={[styles.panel, { backgroundColor: theme.surface }]}
                         >
                           <AppText variant="caption" color={theme.muted}>
-                            Not part of your plan, so its points sit outside
-                            your 100 and the rest of your units share them.
+                            Outside your 100 — your other units share its
+                            points.
                           </AppText>
                           <Pressable
                             onPress={() => {
@@ -494,37 +535,25 @@ export default function PlanScreen() {
                           layout={layout}
                           style={[styles.panel, { backgroundColor: theme.surface }]}
                         >
-                          {UNIT_INFO[unit.id] ? (
-                            <Pressable
-                              onPress={() => setInfoUnit(unit)}
-                              accessibilityRole="button"
-                              accessibilityLabel={`What ${unit.name} covers`}
-                              style={({ pressed }) => [
-                                styles.panelHead,
-                                { opacity: pressed ? 0.5 : 1 },
-                              ]}
-                            >
-                              <AppText variant="caption" color={theme.accent}>
-                                What this covers
-                              </AppText>
-                            </Pressable>
-                          ) : null}
+                          {/* Three blocks of prose used to open this
+                              panel: a "What this covers" link, the
+                              communal note, and a line about unearned
+                              points. All three are gone.
 
-                          {/* A nudge, not a gate (ADR-0027 §4): the unit
-                              takes a task exactly like any other, this
-                              just says the part a checklist can't hold. */}
-                          {unit.motivationKind === "communal" ? (
-                            <AppText variant="caption" color={theme.muted}>
-                              {COMMUNAL_TASK_NOTE}
-                            </AppText>
-                          ) : null}
-
-                          {unit.tasks.length === 0 ? (
-                            <AppText variant="caption" color={theme.muted}>
-                              No tasks yet, so these points go unearned until
-                              you add one.
-                            </AppText>
-                          ) : (
+                              The link is the glyph on the row above. The
+                              communal note belongs where a task is
+                              actually being *filed* — the add dialog and
+                              the edit sheet, which is what ADR-0027 §4
+                              asks for; repeating it on a panel you opened
+                              to look at a list was the app explaining
+                              itself to someone who had not asked. And the
+                              empty line restated the "no tasks" caption
+                              two rows above it, while claiming the points
+                              "go unearned" — which stopped being true at
+                              ADR-0029: a unit holding no work is not in
+                              play at all, and the units that do hold work
+                              share the band between them. */}
+                          {unit.tasks.length === 0 ? null : (
                             // Rank is the thing you most often want to
                             // change while looking at the list, so the
                             // grip is here rather than two taps away in
@@ -579,46 +608,51 @@ export default function PlanScreen() {
                             </AppText>
                           </Pressable>
 
-                          {/* The library's one way in (ADR-0006 §3:
-                              available when a unit is opened, silent
-                              otherwise). Sits under the add row because
-                              writing your own is the primary act and
-                              borrowing an idea is the fallback. */}
-                          {LIBRARY[unit.id] ? (
+                          {/* Both tertiary actions on one line, at
+                              opposite ends. Stacked, they were a third
+                              and a fourth left-aligned muted line under
+                              the add row — which read as a list of things
+                              to consider rather than two controls. The
+                              library (ADR-0006 §3) sits left because it
+                              is the one you might want; the exclusion
+                              valve (ADR-0027 §2) sits right, away from
+                              it, worded as scope and never as giving
+                              up. */}
+                          <View style={styles.panelFoot}>
+                            {LIBRARY[unit.id] ? (
+                              <Pressable
+                                onPress={() => setSuggestingFor(unit)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Ideas for ${unit.name}`}
+                                style={({ pressed }) => [
+                                  styles.footAction,
+                                  { opacity: pressed ? 0.5 : 1 },
+                                ]}
+                              >
+                                <AppText variant="caption" color={theme.muted}>
+                                  Need ideas?
+                                </AppText>
+                              </Pressable>
+                            ) : (
+                              <View />
+                            )}
                             <Pressable
-                              onPress={() => setSuggestingFor(unit)}
+                              onPress={() => {
+                                void setUnitScoring(unit.id, false).then(reload);
+                              }}
                               accessibilityRole="button"
-                              accessibilityLabel={`Ideas for ${unit.name}`}
+                              accessibilityLabel={`Take ${unit.name} out of my plan for now`}
+                              accessibilityHint="One tap puts it back"
                               style={({ pressed }) => [
-                                styles.setAside,
+                                styles.footAction,
                                 { opacity: pressed ? 0.5 : 1 },
                               ]}
                             >
                               <AppText variant="caption" color={theme.muted}>
-                                Need ideas?
+                                Not in my plan
                               </AppText>
                             </Pressable>
-                          ) : null}
-
-                          {/* The exclusion valve (ADR-0027 §2). Worded
-                              as scope, never as giving up, and quiet —
-                              it sits under the action you actually came
-                              for. No confirmation: it is one tap back. */}
-                          <Pressable
-                            onPress={() => {
-                              void setUnitScoring(unit.id, false).then(reload);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Take ${unit.name} out of my plan for now`}
-                            style={({ pressed }) => [
-                              styles.setAside,
-                              { opacity: pressed ? 0.5 : 1 },
-                            ]}
-                          >
-                            <AppText variant="caption" color={theme.muted}>
-                              Not part of my plan right now
-                            </AppText>
-                          </Pressable>
+                          </View>
                         </Animated.View>
                       ) : null}
                     </Animated.View>
@@ -872,10 +906,12 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingLeft: space.sm,
   },
+  /** Shrinks, never grows: a spacer after the info glyph does the
+   *  pushing, so the glyph stays against the name. */
+  unitName: { flexShrink: 1 },
   chev: { width: 14 },
   /** Quieter than the add row above it: scope is a rarer decision than
    *  adding a task, and shouldn't compete with it. */
-  setAside: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   /** One right-hand column for every number on the page. */
   pts: { minWidth: 30, textAlign: "right" },
   /** The open unit is the only surface on the screen, which is what
@@ -888,11 +924,22 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
     marginBottom: space.sm,
   },
-  panelHead: {
-    alignSelf: "flex-start",
+  /** The glyph that replaced the panel's "What this covers" line. The
+   *  negative inset pulls it against the name, inside the row's own
+   *  `gap`, so it reads as part of the title rather than the next item
+   *  in a row of things. */
+  info: {
     minHeight: 28,
+    marginLeft: -space.sm,
+    alignItems: "center",
     justifyContent: "center",
   },
+  panelFoot: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  footAction: { minHeight: 44, justifyContent: "center" },
   addRow: {
     minHeight: 44,
     alignItems: "center",

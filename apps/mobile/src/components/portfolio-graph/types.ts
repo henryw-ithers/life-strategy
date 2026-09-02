@@ -16,6 +16,11 @@ export interface GraphSnapshot {
   id: string;
   /** Short human label for the scrubber, e.g. "Feb 2026" */
   label: string;
+  /** `YYYY-MM` of `taken_at`. The month review needs to find the
+   *  snapshot belonging to *its* month, and parsing the display label
+   *  back into a date would break the first time one falls back to
+   *  "Jul 16" because a month held two. */
+  month: string;
   /**
    * Which instrument produced this snapshot's satisfaction (ADR-0022,
    * `formula_version` ≥ 4 is `"rated"`).

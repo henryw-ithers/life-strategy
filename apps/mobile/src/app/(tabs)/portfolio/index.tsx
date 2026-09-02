@@ -22,12 +22,11 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { useSharedValue } from "react-native-reanimated";
 
-import { PortfolioGraph, type GraphSnapshot } from "../../../components/portfolio-graph";
+import type { GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
-import { Chevron } from "../../../components/ui/Chevron";
 import { Group } from "../../../components/ui/Group";
+import { MonthReview } from "../../../components/log/MonthReview";
 import { loadMonthCheckpoint, type MonthCheckpoint } from "../../../db/log";
 import { currentLocalDate } from "../../../db/today";
 import { SettingsRow } from "../../../components/ui/SettingsRow";
@@ -44,9 +43,8 @@ import {
   type RankingBoard,
 } from "../../../db/ranking";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
-import { radius, space } from "../../../theme/tokens";
+import { space } from "../../../theme/tokens";
 
-const PREVIEW_SIZE = 168;
 
 export default function PortfolioScreen() {
   const scheme = useColorScheme();
@@ -173,10 +171,20 @@ export default function PortfolioScreen() {
             it opens on how the month went; the order you can change and
             the history behind it follow. It used to open on the graph,
             which is evidence rather than an answer. */}
-        {checkpoint ? <Checkpoint checkpoint={checkpoint} theme={theme} /> : null}
-
-        {snapshots && snapshots.length > 0 ? (
-          <GraphPreview snapshots={snapshots} theme={theme} />
+        {/* One block, and the only place the portfolio graph appears.
+            It used to be two: a month checkpoint, then a permanent graph
+            card. The graph is a history chart, and this is the screen
+            you come to in order to change *today's* priorities — a
+            question it cannot answer. It belongs to a retrospective, so
+            it lives in one, and the Log shows the same block for every
+            month (2026-08-26). */}
+        {checkpoint ? (
+          <MonthReview
+            month={checkpoint}
+            snapshots={snapshots ?? []}
+            theme={theme}
+            title="This month"
+          />
         ) : null}
 
         <AppText variant="caption" color={theme.muted} style={styles.lead}>
@@ -238,113 +246,7 @@ export default function PortfolioScreen() {
   );
 }
 
-/**
- * How the month is going: the grade, what stands behind it, and what
- * the month actually held.
- *
- * **Framed as a reading, not a verdict.** PRODUCT.md calls every score
- * a guideline and rules out shame mechanics, so the number is set at
- * Title rather than the day screen's Numeral, carries no colour ramp,
- * and sits beside the count of days it rests on — a month two days old
- * says so instead of implying a bad month.
- *
- * The line underneath is deliberately about what happened rather than
- * what was scored: notes, photos, goals reached. Design principle 5
- * again — over time the memories are the point, and a checkpoint that
- * only showed a percentage would teach the opposite.
- */
-function Checkpoint({
-  checkpoint,
-  theme,
-}: {
-  checkpoint: MonthCheckpoint;
-  theme: ThemeTokens;
-}) {
-  const { grade, totals, daysRecorded } = checkpoint;
-  const held = [
-    totals.notes > 0 ? `${totals.notes} note${totals.notes === 1 ? "" : "s"}` : null,
-    totals.photos > 0 ? `${totals.photos} photo${totals.photos === 1 ? "" : "s"}` : null,
-    totals.achievements > 0 ? `${totals.achievements} reached` : null,
-  ].filter(Boolean);
 
-  return (
-    <Group theme={theme} title="This month">
-      <View style={styles.checkpointRow}>
-        <AppText variant="title" color={theme.ink} tabular>
-          {grade.base === null ? "—" : `${grade.base}`}
-        </AppText>
-        <AppText color={theme.muted} style={styles.grow}>
-          {grade.gradedDays === 0
-            ? "Nothing graded yet this month."
-            : `across ${grade.gradedDays} day${grade.gradedDays === 1 ? "" : "s"}`}
-        </AppText>
-      </View>
-      <AppText variant="caption" color={theme.muted}>
-        {held.length > 0
-          ? `${daysRecorded} day${daysRecorded === 1 ? "" : "s"} in your log · ${held.join(" · ")}`
-          : "Nothing in your log this month yet."}
-      </AppText>
-    </Group>
-  );
-}
-
-/** The graph, small and inert — a way in, not a control. */
-function GraphPreview({
-  snapshots,
-  theme,
-}: {
-  snapshots: GraphSnapshot[];
-  theme: ThemeTokens;
-}) {
-  // The graph reads its position from shared values even at rest; a
-  // preview just parks them on the newest snapshot.
-  const progress = useSharedValue(snapshots.length - 1);
-  const settle = useSharedValue(1);
-
-  return (
-    <Pressable
-      onPress={() => router.push("/portfolio/graph")}
-      accessibilityRole="button"
-      accessibilityLabel={`Portfolio graph, ${snapshots.length} ${
-        snapshots.length === 1 ? "diagnostic" : "diagnostics"
-      }. Opens full size.`}
-      style={({ pressed }) => [styles.preview, { opacity: pressed ? 0.7 : 1 }]}
-    >
-      <View pointerEvents="none" style={styles.previewCanvas}>
-        <PortfolioGraph
-          snapshots={snapshots}
-          size={PREVIEW_SIZE}
-          mode="now"
-          progress={progress}
-          settle={settle}
-          displayIndex={snapshots.length - 1}
-          selectedUnitId={null}
-          focusAreaId={null}
-          onSelectUnit={() => {}}
-          theme={theme}
-          reduceMotion
-          compareOldIndex={0}
-        />
-      </View>
-      <View style={styles.previewText}>
-        <AppText variant="headline" color={theme.ink}>
-          Your portfolio
-        </AppText>
-        <AppText variant="caption" color={theme.muted}>
-          {snapshots.length === 1
-            ? "One diagnostic so far"
-            : `${snapshots.length} diagnostics · see what moved`}
-        </AppText>
-        <View style={styles.openRow}>
-          <AppText variant="label" color={theme.accent}>
-            Open
-          </AppText>
-          <Chevron color={theme.accent} theme={theme} size={15} />
-        </View>
-      </View>
-    </Pressable>
-  );
-}
 
 function RankRow({
   rank,
@@ -382,8 +284,6 @@ function RankRow({
 }
 
 const styles = StyleSheet.create({
-  openRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  checkpointRow: { flexDirection: "row", alignItems: "baseline", gap: space.sm },
   root: { flex: 1, overflow: "hidden" },
   body: { flex: 1 },
   container: {
@@ -394,19 +294,6 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   empty: { gap: space.lg, marginTop: space.xxl, paddingHorizontal: space.screen },
   centerText: { textAlign: "center" },
-  preview: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.lg,
-    marginBottom: space.xl,
-  },
-  previewCanvas: {
-    width: PREVIEW_SIZE,
-    height: PREVIEW_SIZE,
-    borderRadius: radius.md,
-    overflow: "hidden",
-  },
-  previewText: { flex: 1, gap: space.xs },
   lead: { marginBottom: space.md },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, flex: 1 },
   rank: { minWidth: 20, textAlign: "right" },

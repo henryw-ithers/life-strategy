@@ -56,6 +56,9 @@ export function makeFixtureSnapshots(seed = 7): GraphSnapshot[] {
     }
     snapshots.push({
       id: `snapshot-${month}`,
+      // The fixture months are labels, not real dates; a stable key is
+      // all the graph asks for.
+      month: `2026-${String(month + 1).padStart(2, "0")}`,
       label: MONTH_LABELS[month] ?? `Month ${month + 1}`,
       // The demo is all one scale — it exists to show migration, and a
       // fabricated scale boundary would only show the warning about it.
