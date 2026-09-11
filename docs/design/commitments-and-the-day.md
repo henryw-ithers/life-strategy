@@ -264,15 +264,60 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    from use, not now.
 4. **Is 40 a sensible default** for the commitment band, and is it per
    commitment or shared across all of them?
-5. **Is "the user chooses" now a stated product principle?** Three
-   consecutive calls have gone the same way: drop the recommended task
-   range; *"shape around the user's tasks, not the other way around"*;
-   and *"we give the freedom to the user to choose how they want to use
-   the tool."* Three decisions on one axis is a principle, and it sits
-   in real tension with PRODUCT.md's *"Strategy before execution"* and
-   design principle 2, which are about the app having opinions. If it
-   is a principle it belongs in PRODUCT.md, where it can settle the next
-   argument instead of being rediscovered.
+5. ~~**Is "the user chooses" now a stated product principle?**~~
+   **Answered 2026-09-11 — see below.** It is, and it is narrower and
+   better than "the app has no opinions."
+
+## The principle underneath all of this
+
+Henry, 2026-09-11:
+
+> It's most important that we allow users to use the app however they
+> like. If someone wants to plan every second of their day then so be
+> it. However we will absolutely **not force** that kind of scheduling
+> on them, and I think that's the feature a lot of planners miss out on.
+
+Four calls in this session ran on one axis — drop the recommended task
+range; *"shape around the user's tasks, not the other way around"*; any
+task may carry a time; and this. That is a principle, not four
+decisions.
+
+**It is not in tension with PRODUCT.md, as an earlier draft of this
+note claimed.** Design principle 4 already says most of it — *"A tool,
+not a taskmaster. Partial use is valid use."* What is new is extending
+it to a dimension it never covered: **granularity**. And design
+principle 2 — *"a checklist and a number, closable in under a
+minute"* — survives once read as a statement about what the app
+**defaults to and pushes toward**, not a cap on what it permits.
+
+So: **the opinion lives in the defaults; the ceiling belongs to the
+user.** Which makes `anytime` and part-of-day being the defaults
+load-bearing rather than incidental — they are where the product's
+opinion now lives, and they must not drift.
+
+**Proposed PRODUCT.md amendment**, for Henry's sign-off — it changes
+the whole product, not this feature, so it wants its own commit rather
+than riding a scheduling branch:
+
+> **6. Granularity is the user's.** The app supports planning a day to
+> the minute and planning it not at all, and neither is the lesser use.
+> Defaults sit at the light end — `anytime` is first-class, part-of-day
+> is the default, nothing requires a time — and every step toward
+> precision is offered while none is required. The opinion lives in the
+> defaults; the ceiling belongs to the user.
+
+**Why this is the positioning, not just a preference.** Most planners
+force one granularity and lose everyone it does not fit: Google
+Calendar makes everything a time slot, so "read more" must become
+7:30–8:00 or not exist; a flat-list to-do app makes a lecture a
+checkbox; a build-it-yourself tool makes you design the structure
+before you can use it.
+
+**The window model is what lets one app span both** — not as a
+compromise, but because a window is a two-hour gap between classes *or*
+a whole Sunday morning, so precision is a property of the item rather
+than of the app. That is a sharper claim than "better than Google
+Calendar for students," and it is the one worth building toward.
 
 ## What this changes
 
