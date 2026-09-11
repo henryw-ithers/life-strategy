@@ -62,6 +62,40 @@ export const lifeUnit = sqliteTable("life_unit", {
   })
     .notNull()
     .default("instrumental"),
+  /**
+   * The commitment this unit sits inside (ADR-0029 §1). Null for all 18
+   * life units and for a commitment itself; set on a **sub-commitment**
+   * — School → COMP2521.
+   *
+   * Two levels only: a sub-commitment may not itself be a parent. That
+   * is enforced at the write seam rather than by the schema, which
+   * cannot express it.
+   *
+   * Sub-commitments **price nothing**. ADR-0032 §3 divides the band
+   * across a commitment's eligible *tasks*, so this column groups and
+   * labels; it never takes a cut. Treat it the way ADR-0021 treats
+   * `area_id` — a soft attribute that may decide colour and grouping
+   * and never a stored score.
+   */
+  parentUnitId: text("parent_unit_id").references(
+    (): AnySQLiteColumn => lifeUnit.id,
+  ),
+  /**
+   * A **commitment's** relative share of the commitment band
+   * (ADR-0032 §3) — School 50, Work 30, Basketball 20. Null on the 18
+   * life units, on sub-commitments, and on any unit that is not a
+   * commitment.
+   *
+   * Relative, not a percentage: shares are normalised at read time
+   * across the commitments that actually hold work on the day being
+   * scored, so a Monday with only School gives School the whole band
+   * rather than leaving the others' shares dead. They are deliberately
+   * **not** required to sum to anything.
+   *
+   * The band's own size is a single number and lives in `app_setting`
+   * under `commitment.band` — see `db/settings.ts`.
+   */
+  commitmentShare: real("commitment_share"),
   archivedAt: text("archived_at"),
   ...timestamps,
 });
