@@ -308,6 +308,23 @@ planned* — the only thing undecided was which one would get done. So:
 That keeps `EXTRA_RUN_RATE` meaning exactly what it means today and
 needs no new constant.
 
+**A task may be completed at most once per window** (Henry,
+2026-09-11). This is a necessary tightening rather than a preference:
+without it, *"every completion pays `V`"* could be read as ticking one
+task three times for `3V`.
+
+It needs **no scoring rule** — it falls out of placement. A task may be
+placed at most once in a window, so it can only be ticked once there.
+The one thing to get right is that uniqueness is scoped to the
+**window**, not the pool: a window holding two pools must not carry the
+same task in both.
+
+**Extra runs are unaffected.** `task_completion` has no unique
+constraint on `(task_id, local_date)` — multiple completions a day are
+exactly how `EXTRA_RUN_RATE` works. This rule scopes a repeat to a
+*different window*, which is more honest anyway: the same task twice
+inside one two-hour gap is rarely two real sessions.
+
 Open: where `V` comes from — the members are equal-priced by §3d's
 rule, so the pool needs one value, and whether that is a tier's value,
 the highest member's, or its own is unsettled.
