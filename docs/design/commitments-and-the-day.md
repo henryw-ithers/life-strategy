@@ -1,14 +1,24 @@
 # Working Note — Commitments, windows, and the third band
 
-> **Status: in flux (2026-09-11).** This records a design worked out
-> across one long session with Henry. It is **not** decided — it is
-> written down because the shape changed on almost every pass and the
-> conversation was the only copy.
+> **Status: working note. The decisions now live in ADRs**
+> (2026-09-11).
 >
-> It **supersedes most of ADR-0028..0031** on this branch. Those four
-> were drafted against an earlier shape (a parallel academic module)
-> that this note replaces. See [What this changes](#what-this-changes)
-> at the foot. Do not implement from the ADRs without reading this.
+> This is the working-out — how the design moved across one long
+> session, what was tried and dropped, and crucially **which numbers
+> are measured against the scoring engine and which are hand-computed
+> arithmetic.** It is kept for that; the ADRs are the decisions.
+>
+> | Decision | ADR |
+> |---|---|
+> | Commitments are custom units | [0029](../adr/0029-commitments-are-custom-units.md) |
+> | The commitment band (formula v8) | [0032](../adr/0032-the-commitment-band.md) |
+> | Windows and pools | [0033](../adr/0033-windows-and-pools.md) |
+> | Any task may carry a time | [0030](../adr/0030-granularity-is-the-users.md) |
+> | Task size and day load | [0026](../adr/0026-task-size-and-day-load.md) |
+> | Partial credit | [0014](../adr/0014-partial-credit.md) |
+> | Schedule mode · the semester score | [0028](../adr/0028-schedule-mode.md) · [0031](../adr/0031-the-semester-score.md) — **both withdrawn** |
+>
+> Where this note and an ADR disagree, **the ADR wins.**
 
 ## The problem, as it actually turned out
 

@@ -16,6 +16,15 @@
 > fate of tagging, and the action items — was drafted around those
 > calls.
 
+> **Extended 2026-09-11 by [ADR-0032](0032-the-commitment-band.md)**
+> — formula v8 adds a **third band** on days with scheduled commitment
+> work, and makes the day's split date-dependent for the first time.
+> The two-band model here is unchanged on every other day, the
+> denominator stays a constant 100, and the coverage principle in §2
+> is reused rather than revised. The caveat this ADR records — *"20
+> points cannot finely price 20+ non-daily tasks"* — is exactly the
+> edge that forced 0032.
+
 ## Context
 
 **The report (2026-08-18, from real use):** completing every task

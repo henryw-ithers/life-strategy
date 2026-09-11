@@ -1,16 +1,21 @@
 # Planning Note — The hour grid
 
-> Status: planned, not built (2026-08-21). The decisions live in
-> [ADR-0028](../adr/0028-schedule-mode.md) (the mode),
-> [ADR-0029](../adr/0029-the-academic-module.md) (the model) and
-> [ADR-0030](../adr/0030-commitments-carry-times-plans-carry-cues.md)
-> (times, the grid, and cue-based placement). Read those first; this is
-> the phase plan and the surface detail, in the shape
+> Status: planned, not built. Rewritten 2026-09-11 — the first draft
+> (2026-09-08) described a grid gated behind a schedule mode, with
+> `fixed_commitment` rows and a courses module behind it. None of that
+> survived; see the note at the foot.
+>
+> The decisions live in
+> [ADR-0033](../adr/0033-windows-and-pools.md) (windows, pools,
+> carry-forward, what the grid draws),
+> [ADR-0029](../adr/0029-commitments-are-custom-units.md) (the model)
+> and [ADR-0030](../adr/0030-granularity-is-the-users.md) (times).
+> Read those first; this is the surface detail, in the shape
 > [calendar-and-day-planning.md](calendar-and-day-planning.md) set.
 
 ## The idea
 
-Henry, 2026-08-21:
+Henry, 2026-09-08:
 
 > In my vision, you have classes and quizzes and assignments and then
 > in the free time the regular tasks appear. You choose which tasks
@@ -18,12 +23,15 @@ Henry, 2026-08-21:
 
 Two layouts for one day, chosen by a control in the date header:
 
-- **List** — today's checklist, grouped by part of day. Unchanged.
-- **Day** — hour rows, with commitments as blocks, the gaps between
-  them named, and tasks placed into those gaps.
+- **List** — today's checklist, grouped by window. Largely unchanged;
+  on a day with no commitments the windows *are* the parts of day, so
+  it is exactly today's screen.
+- **Day** — hour rows, with commitments as blocks and the gaps between
+  them named and fillable.
 
-The Day layout exists only in Schedule mode (ADR-0028 §2.1). Off, there
-is no timetable to draw and an hour grid is an empty ruler.
+Preference in `app_setting` under `today.layout`, default `checklist`.
+**No mode gates it** — a person with no commitments has no blocks to
+draw, so the Day layout simply has nothing to show and is not offered.
 
 ## What the grid shows
 
@@ -44,13 +52,14 @@ is no timetable to draw and an hour grid is an empty ruler.
 
 Three kinds of row, three grammars:
 
-**Blocks** are commitments and timed exams, positioned by their minutes
-(ADR-0030 §2). Course hue as a **wash with an Ink label**, never a
-solid hue behind small text — four of the six hues fall under AA that
-way in light theme (DESIGN.md, Colors). Inert: tapping opens the
-course, dragging does nothing (ADR-0030 §5).
+**Blocks** are commitment sessions and timed work, positioned by their
+minutes. Commitment hue as a **wash with an Ink label**, never a solid
+hue behind small text — four of the six hues fall under AA that way in
+light theme (DESIGN.md, Colors). Inert: tapping opens the commitment,
+dragging does nothing, because dragging a lecture would assert the
+lecture moved (ADR-0033 §5).
 
-**Free intervals** are gaps of 30 minutes or more, captioned with their
+**Windows** are gaps of 30 minutes or more, captioned with their
 length, reusing the existing `FREE_LABEL`. They are drop targets even
 when empty — that is most of the point, since "do this in the gap"
 matters most when the gap is empty and there is no row to drop beside.
@@ -60,75 +69,93 @@ not as free time. Fifteen minutes between two lectures across campus is
 not time you have, and a grid that offers it is lying to the person
 reading it.
 
-## The window
+## How many hours it draws
 
-> **Superseded 2026-09-11** — see
-> [commitments-and-the-day.md](commitments-and-the-day.md) §3g. The
-> grid draws the span of the day's *windows* (not a fixed range, and
-> not just its blocks); the stretches before the first and after the
-> last collapse to one row each; and the planning surface shows all 24
-> hours. A day with nothing planned draws its three parts of day rather
-> than an empty ruler. The paragraph below is the original assumption,
-> kept for the record.
+**The span of the day's windows** — not a fixed range, and not just the
+blocks, or a single 9am lecture would draw one hour on a tall screen
+(ADR-0033 §4). The stretches before the first window and after the last
+collapse to one row each, *earlier* / *later*, tappable to expand. The
+planning surface shows all 24 hours: display is bounded by the day,
+placement is not.
 
-~~Default **07:00–22:00**, widened to contain any block, so an empty day
-is one screen and a 6am lab still renders.~~ `MINUTE_PX` derives from a
-passed-in `fontScale` — the way `checklistLayout` takes `gap` as an
-argument rather than importing tokens — so an hour row survives Dynamic
-Type instead of clipping. A `MIN_BLOCK_PX` floor keeps a fifteen-minute
-tutorial tappable.
+`MINUTE_PX` derives from a passed-in `fontScale` — the way
+`checklistLayout` takes `gap` as an argument rather than importing
+tokens — so an hour row survives Dynamic Type instead of clipping. A
+`MIN_BLOCK_PX` floor keeps a fifteen-minute tutorial tappable.
 
-**The window is not the day.** The rollover hour is 3am (`ROLLOVER_HOUR`,
-ADR-0004 §1); a 1am session belongs to the previous day. The window is
-a display concern and the two must not be confused.
+**The drawn span is not the day.** The rollover hour is 3am
+(`ROLLOVER_HOUR`, ADR-0004 §1); a 1am session belongs to the previous
+day. One is a display concern and the other is the day boundary, and
+they must not be confused.
 
 ## Where tasks go
 
-A placement is **cued, not timed** (ADR-0030 §4): `task_placement`
-stores which commitment the task follows, never a start time. "After
-the 11am lecture" survives the lecture moving to 2pm; "12:15" would
-silently become wrong.
+Into windows. A task may carry an explicit clock time if its owner set
+one (ADR-0030), sit in a window without one, or sit in a part of day —
+and all three render in the same structure, because a part of day *is*
+a window on an uncommitted day.
 
-An unplaced task sits in its part-of-day lane, ordered by
-`compareForDay`. Tasks pinned to other days get their own group below
-the periods and outside the drag, exactly as they do on the checklist —
-ADR-0024's 2026-08-20 amendment settled that, and a day arranged one
-way here and another way on Home is the same day disagreeing with
-itself.
+A placement may still be **cued** rather than timed — storing which
+commitment it follows, so "after the 11am lecture" survives that
+lecture moving to 2pm. No longer the required mechanism, still the
+better one where it applies (ADR-0030 §3).
 
-`PART_OF_DAY_BOUNDS` decides where a lane label sits. **Display-only.
-Never written back.** See ADR-0030 §3 — it is the sharpest invariant
-risk in the module.
+An unplaced task sits in its part-of-day window, ordered by
+`compareForDay`. Tasks pinned to other days get their own group below,
+outside the drag, exactly as on the checklist — ADR-0024's 2026-08-20
+amendment settled that, and a day arranged one way here and another way
+on Home is the same day disagreeing with itself.
 
-## Build phases
+A window may hold a **pool** of up to three equal-priced options
+(ADR-0033 §3). It must read as *one choice with three routes*, never a
+list of three things owed — that is a copy rule with research behind
+it, and the reasoning is in
+[scheduling-and-motivation.md](scheduling-and-motivation.md)'s
+2026-09-11 addendum.
 
-1. **The mode.** `mode.schedule` in `app_setting`, the Settings row,
-   and one gate read that five surfaces share. Nothing else visible.
-2. **Terms and courses.** Schema, `db/academic.ts`, the
-   `Goals · Courses` segment, `study/term.tsx`. Fix `reset.ts` while
-   in there — it is already three tables behind.
-3. **Commitments and the timetable math.** `fixed_commitment`,
-   `packages/scoring/src/timetable.ts` with `occursOn` as the single
-   answer to "does this block happen on this date." Vitest only; no
-   device needed.
-4. **The grid.** `dayGridLayout.ts` (pure, tested), `DayGrid.tsx`, the
-   layout toggle. Read-only for arrangement.
-5. **Placement.** `task_placement`, drag into and between gaps, on the
-   weekly pass and the look-ahead planner.
-6. **Assessments**, then **study sessions and the semester score**,
-   then **term end**. See the ADRs.
+## Build order
+
+1. **Commitments.** `life_unit.parent_unit_id`, the create/edit/archive
+   path, `is_custom` finally written. **Fix `reset.ts` first** — it is
+   three tables behind (ADR-0029 action item 2).
+2. **The band.** Third band in `packages/scoring`, formula v8, behind
+   tests. **Run a real plan through it before any UI** — nearly every
+   number in these notes is hand-computed.
+3. **Window derivation.** `timetable.ts` — windows, gap vs buffer,
+   `occursOn` as the single answer to "does this happen on this date."
+   Pure, vitest only, no device needed.
+4. **The grid.** `dayGridLayout.ts` (pure, tested, following
+   `checklistLayout.ts`'s precedent because a misplaced block fails
+   silently), `DayGrid.tsx`, the layout toggle.
+5. **Pools and carry-forward.** Planned count, equal pricing,
+   once-per-window uniqueness.
+6. **Task size** (ADR-0026), then **partial credit** (ADR-0014).
 
 ## Things deliberately not in this note
 
 - **Backwards planning from a deadline** — proposing work sessions
-  across the gaps between now and a due date. Henry's call on
-  2026-08-21 was that free intervals are *shown, not filled*. It is the
-  strongest single argument for the whole feature and it stays parked
-  until the grid is in real use.
-- **Auto-placement.** Same call, and it is the direct route to the
-  taskmaster PRODUCT.md names as an anti-reference.
-- **A load meter.** That is planned ADR-0026's business (task size and
-  day load), and ADR-0024 §6 defers to it by name. The grid makes it
-  more obviously worth building, not less.
-- **Commitment reminders.** ADR-0030 §6 — a course name on the lock
+  across the gaps between now and a due date. Henry's call was that
+  free intervals are *shown, not filled*. It is the strongest single
+  argument for the whole feature and it stays parked until the grid is
+  in real use.
+- **Auto-placement.** Same call, and the direct route to the taskmaster
+  PRODUCT.md names as an anti-reference.
+- **Commitment reminders.** ADR-0030 §4 — a course name on the lock
   screen is what ADR-0010 §3 exists to prevent.
+- **Timetable import.** Backburnered; see
+  [backburner.md](../backburner.md).
+
+## What the first draft got wrong
+
+Kept because the reasoning is instructive:
+
+- **A schedule mode** gating the whole thing. Dissolved once
+  commitments became ordinary custom units — there was nothing
+  school-shaped left to hide. ADR-0028, withdrawn.
+- **`fixed_commitment` as its own table**, with `term`, `course` and
+  `assessment` behind it. Collapsed into `life_unit` plus two columns.
+- **Cue-based placement as the required mechanism**, on the argument
+  that only externally-set things may carry times. Reversed by
+  ADR-0030: any task may, and part-of-day is merely the default.
+- **A fixed 07:00–22:00 grid window.** Replaced by the day's own span —
+  a number the app had no business picking.

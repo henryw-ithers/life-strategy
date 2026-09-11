@@ -102,6 +102,17 @@ Constraints already in force:
 
 ### 1. A plan is a weekday and a part of day. Never a clock time.
 
+> **Superseded 2026-09-11 by [ADR-0030](0030-granularity-is-the-users.md).**
+> Any task may now carry an explicit clock time. This section's own
+> functional argument is what licensed the change — it refused times
+> because *"a clock time would drive nothing this app does,"* and
+> [ADR-0033](0033-windows-and-pools.md) added an hour grid and a
+> timetable, which are things it drives. **Part-of-day remains the
+> default and `anytime` remains first-class**, so the Tonietto &
+> Malkoc protection still applies to anyone who does not reach for a
+> time; those defaults are now load-bearing rather than incidental.
+> §§2–3 below stand, with one amendment to §2 noted there.
+
 > **Challenged and reaffirmed, 2026-08-16.** Henry argued for times on
 > the strength of real cases — a weekly band practice, a Tuesday night
 > movie tradition, a tee time — and the argument that carried for
@@ -122,6 +133,20 @@ task with no part-of-day preference is *deliberately* flexible, which
 is the correct representation for most of the plan.
 
 ### 2. Plans never touch the grade. This is an invariant.
+
+> **Amended 2026-09-11 by [ADR-0032](0032-the-commitment-band.md) §4,
+> for commitment work only.** A commitment task done on its scheduled
+> day pays from the commitment band; the same work on an unscheduled
+> day pays from the ordinary unplanned route. So *when* changes what
+> it is worth — Henry's call, on the reasoning that Thursday pays
+> nothing because Thursday's work did not happen, and Sunday pays
+> from the unplanned pool because that is what the pool is for.
+>
+> **Everything else in this section stands in full**: no adherence
+> rate, no plan-completion percentage, no streak, and an unfulfilled
+> placement still lapses silently. Ordinary (non-commitment) tasks are
+> untouched — three runs on three unplanned days is still a perfect
+> week.
 
 `times_per_week` remains the sole scoring source of truth. Day plans
 shape **presentation and defaults** — what the checklist leads with,

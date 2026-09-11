@@ -1,8 +1,39 @@
 # ADR-0031: The semester score
 
-> **Status:** Proposed\
-> **Date:** 2026-08-21\
+> **Status:** **Withdrawn 2026-09-11, never accepted**\
+> **Date:** 2026-09-08 (proposed) · withdrawn 2026-09-11\
 > **Deciders:** Henry
+
+> **Withdrawn before acceptance. Do not implement.**
+>
+> A term-length score needed a **term**, and the term was the most
+> irreducibly academic thing in the whole design. Once commitments
+> generalised to cover a club, a job or a team
+> ([ADR-0029](0029-commitments-are-custom-units.md)), a semester-shaped
+> horizon stopped fitting the model: a basketball club does not have
+> one, and inventing a term for it to be scored against would have been
+> the academic module reasserting itself through the back door.
+>
+> What replaced it is smaller and more general. A commitment is a
+> scoring bucket with its own band
+> ([ADR-0032](0032-the-commitment-band.md)), so "how much am I putting
+> into school" is answered by the same daily and weekly numbers that
+> answer it for everything else. Per-goal progress (ADR-0015) covers
+> the rest, and generalises to a club for free.
+>
+> Two things here are worth keeping in mind if a second scale is ever
+> proposed again:
+>
+> - **The refusals in §5** — no marks, no absence record, no attendance
+>   percentage, no comparison — were right, and ADR-0029 §§2–3 carry
+>   them forward as properties of the model rather than of a score.
+> - **The elapsed-denominator idea** in §2 (count only weeks that have
+>   finished; never count the current one) is a good answer to "what
+>   does a long-horizon number read in week two," and it is not
+>   recorded anywhere else.
+>
+> The body below is kept unedited as the record of a decision
+> considered and dropped.
 
 > **What Henry decided (2026-08-21), and what is drafted around it.**
 > Two calls are his: school gets **its own score** — *"a semester grade

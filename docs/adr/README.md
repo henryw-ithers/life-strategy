@@ -19,6 +19,7 @@ status to *Accepted*.
 | [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
 | [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
 | [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
+| [0014](0014-partial-credit.md) | Partial credit | Proposed |
 | [0015](0015-metric-linked-goals.md) | Metric-linked goals | Accepted |
 | [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
 | [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
@@ -27,11 +28,14 @@ status to *Accepted*.
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
 | [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
+| [0026](0026-task-size-and-day-load.md) | Task size and day load | Proposed |
 | [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Accepted |
-| [0028](0028-schedule-mode.md) | Schedule mode | Proposed |
-| [0029](0029-the-academic-module.md) | The academic module is a parallel model | Proposed |
-| [0030](0030-commitments-carry-times-plans-carry-cues.md) | Commitments carry times; plans carry cues | Proposed |
-| [0031](0031-the-semester-score.md) | The semester score | Proposed |
+| [0028](0028-schedule-mode.md) | Schedule mode | **Withdrawn** |
+| [0029](0029-commitments-are-custom-units.md) | Commitments are custom units | Proposed |
+| [0030](0030-granularity-is-the-users.md) | Granularity is the user's | Proposed |
+| [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
+| [0032](0032-the-commitment-band.md) | The commitment band | Proposed |
+| [0033](0033-windows-and-pools.md) | Windows and pools | Proposed |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -43,35 +47,42 @@ it before touching anything that prices a task or grades a day. It
 takes 0026's number out of order because the 112-point day would not
 wait for the load meter.
 
-**0028–0031 are the academic module, and are the first ADRs here that
-are *proposed* rather than accepted.** They were drafted together on
-2026-08-21 around four calls Henry made that day, and they are written
-to be read in order: 0028 decides that the app has two modes and that
-one switch reaches exactly five surfaces; 0029 gives courses their own
-model beside the SLU hierarchy; 0030 is the **reopening ADR-0024 §1
-requires** before any clock time exists anywhere; 0031 adds a second
-100-point scale on a horizon the daily grade cannot see.
+**0014, 0026 and 0029–0033 are the commitments work**, drafted
+together across one long session on 2026-09-08..11 and still
+**proposed**. Read them in this order:
 
-Read 0030 before touching anything that plans a day. It amends the one
-rule the app has restated most often, and it does so as a **closed
-list of three columns** — `fixed_commitment.start_minute`, `.end_minute`,
-`assessment.due_minute` — so a fourth reopens 0030 the way 0030 reopened
-0024. The accepted ADRs they amend (0002, 0007, 0010, 0021, 0023, 0024,
-0027) are **not yet edited**: those pointers are action items inside
-0028–0031, and land when these flip to Accepted.
+1. **[0029](0029-commitments-are-custom-units.md)** — a commitment is a
+   custom `life_unit` in two levels, not a goal and not a parallel
+   model. It also carries the measured finding that forced the whole
+   design: thirteen non-daily tasks in a weight-12 unit price at
+   `1,1,1,1,1,1,1,1,0,0,0,0,0` — **five worth literally zero** — which
+   is the edge ADR-0027 named and parked.
+2. **[0032](0032-the-commitment-band.md)** — a third band on days with
+   scheduled commitment work. **Formula v8**, and the first
+   date-dependent split in the app's history. Read ADR-0027 first.
+3. **[0033](0033-windows-and-pools.md)** — the day divides into
+   windows, work carries forward, and a window may hold a pool of up to
+   three equal-priced options.
+4. **[0030](0030-granularity-is-the-users.md)** — **the reopening
+   ADR-0024 §1 demands.** Any task may carry a clock time; part-of-day
+   stays the default, and that default is now load-bearing.
+5. **[0026](0026-task-size-and-day-load.md)** and
+   **[0014](0014-partial-credit.md)** — two reserved slots, both
+   filled ahead of their stated triggers because this design needed
+   them. Each records that, and why it proceeded anyway. **A third
+   would be a signal.**
 
-The phase plan and surface detail live in
+**[0028](0028-schedule-mode.md) and [0031](0031-the-semester-score.md)
+are withdrawn**, never accepted — the first because generalising
+commitments left nothing school-shaped to hide behind a mode, the
+second because a term-length score needed a term and terms did not
+survive generalisation. Both keep their bodies as the record.
+
+The working-out, including what is measured against the engine versus
+hand-computed, is in
+[design/commitments-and-the-day.md](../design/commitments-and-the-day.md).
+The surface detail is in
 [design/hour-grid-day-view.md](../design/hour-grid-day-view.md).
-
-> **Read [design/commitments-and-the-day.md](../design/commitments-and-the-day.md)
-> before implementing any of 0028–0031.** A later session reworked the
-> shape substantially: commitments became **custom units** rather than a
-> parallel model, which withdraws 0028 and 0031 and rewrites 0029. That
-> note is in flux and decides nothing, but it is ahead of these four and
-> records why. It also carries the measured finding that forced the
-> rework — a semester's worth of tasks in one unit leaves five of
-> thirteen worth **zero points**, which is the edge ADR-0027 named and
-> parked.
 
 ## Work not tracked by any action item
 
@@ -121,11 +132,9 @@ code.
 | # | Title | Trigger — open this ADR when… | Decides |
 |---|-------|-------------------------------|---------|
 | 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
-| 0014 | Partial credit | …calibration data (ADR-0008) shows binary completion diverging from felt contentment — the trigger written into ADR-0004 | The completion-fraction model and its UI without breaking one-tap simplicity |
 | 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
 | 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
 | 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
-| 0026 | Task size and day load | …the weekly planning pass (ADR-0024) is in real use and "is this day too full?" has come up unprompted | Effort size on tasks (`quick`/`normal`/`big`, reusing `activity.size`'s vocabulary), the per-day load indicator, and the confirmation that load stays presentational and never reaches the grade |
 
 **0019–0022 were written ahead of the reserved numbers.** The
 remaining reserved slots stay reserved for the triggers listed above;

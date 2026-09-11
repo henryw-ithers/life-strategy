@@ -713,7 +713,7 @@ without adding a version boundary to history.
 ## Timetable import
 
 *Parked 2026-08-21, by Henry's call, while
-[ADR-0029](adr/0029-the-academic-module.md) was being drafted.*
+[ADR-0029](adr/0029-commitments-are-custom-units.md) was being drafted.*
 
 **The idea:** stop making people type a timetable in. Henry's first
 framing was "a local AI that is pre-trained on reading university

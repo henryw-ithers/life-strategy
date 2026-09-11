@@ -4,6 +4,14 @@
 > **Date:** 2026-07-15\
 > **Deciders:** Henry
 
+> **Note added 2026-09-11.** A *commitment*
+> ([ADR-0029](0029-commitments-are-custom-units.md)) is deliberately
+> **not** a goal. An intermediate draft made it a goal kind; a thing
+> that carries weight and holds tasks is unit-shaped, and goals do not
+> carry weight. Ordinary goals still live inside a commitment — "get
+> better at basketball" under Basketball Club — and this lifecycle
+> governs them unchanged.
+
 ## Context
 
 Goals sit between SLUs and tasks: specific, measurable, temporary.

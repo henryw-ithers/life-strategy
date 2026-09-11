@@ -1,8 +1,35 @@
 # ADR-0028: Schedule mode
 
-> **Status:** Proposed\
-> **Date:** 2026-08-21\
+> **Status:** **Withdrawn 2026-09-11, never accepted**\
+> **Date:** 2026-09-08 (proposed) · withdrawn 2026-09-11\
 > **Deciders:** Henry
+
+> **Withdrawn before acceptance. Do not implement.**
+>
+> This ADR existed to solve a problem that no longer exists. It gated
+> the academic module behind a switch because that module was a
+> **foreign body** — its own hierarchy, its own seven tables — and a
+> person who was not at university had to be shielded from it.
+>
+> The module was then generalised twice, and now commitments are
+> ordinary custom `life_unit` rows scored from their own band
+> ([ADR-0029](0029-commitments-are-custom-units.md),
+> [ADR-0032](0032-the-commitment-band.md)). **Nothing is
+> school-shaped any more**, so there is nothing to hide: a person with
+> no commitments simply has none, and every surface this ADR gated is
+> either empty or absent on its own.
+>
+> What survives: the List / Day layout preference, which is an ordinary
+> setting rather than a mode, and is recorded in
+> [ADR-0033](0033-windows-and-pools.md).
+>
+> §3's invariant — *a mode is presentation and grammar, never
+> arithmetic* — was the best thing here and it is **not** carried
+> forward, because with no mode there is nothing for it to constrain.
+> It is worth re-reading if a mode is ever proposed again.
+>
+> The body below is kept unedited as the record of a decision
+> considered and dropped.
 
 > **What Henry decided (2026-08-21), and what is drafted around it.**
 > Four calls are his and are recorded as made: the academic layer is a
