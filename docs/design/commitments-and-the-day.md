@@ -244,6 +244,46 @@ unit's band pays for it? Simplest answer is the completed member's
 unit, but that interacts with the one-slot rule and needs working
 through.
 
+### 3d. An option pool is equal-priced, and holds at most three
+
+Henry, 2026-09-11, refining §3c — **this is window planning, not a
+change to how units rank their tasks:**
+
+> You have pools or tiers of tasks, and tasks in the same pool are all
+> worth the same points. We can also cap the number of tasks you can
+> have per pool to maybe 3, so you never have too many to choose from.
+
+`task.rank_in_unit` and `rankShares` are untouched. A unit still orders
+and prices its own tasks exactly as ADR-0003 §5 has it. A **pool** is a
+window-level object: up to three candidate tasks, any of which
+satisfies that window's intention.
+
+**Equal pricing is the load-bearing part, and it solves a problem §3c
+had.** If a pool held "write the essay (8)" beside "do the reading
+(3)," the choice would be made by the scoreboard rather than by what
+you actually need — you would always take the eight. Equal points
+inside a pool makes the choice **free**: pick on appetite, energy or
+usefulness, and the number is indifferent. That is the app refusing to
+put its thumb on a scale it has no business touching.
+
+**The cap of three is defensible here in a way it would not be at unit
+level.** It limits how many things one *choice* holds, not how much a
+person may plan — so it does not conflict with dropping
+`recommendedTaskRange`, which was the app prescribing the shape of a
+plan. A window may hold several pools; a person may hold as many
+windows as their day has.
+
+**Open — what does completing more than one member pay?** A pool
+should be **one slot**: complete any member and the slot is earned in
+full, which is the only reading that matches "planning to pick one of."
+Extra completions then have an existing home — ADR-0023 already treats
+extra runs of planned tasks as the one uncapped route above 100, so a
+second pool member done in the same window is an extra run rather than
+a second slot. Needs confirming, but it wants no new machinery.
+
+Open too: where a pool's point value comes from — the highest-ranked
+member's, an average, or a value of its own.
+
 ### 4. Weights are set directly, on a pie
 
 The direct-manipulation write path **already exists**:
@@ -323,9 +363,13 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    from use, not now.
 4. **Is 40 a sensible default** for the commitment band, and is it per
    commitment or shared across all of them?
-6. **Choice set or pool** for window options, and how many members
-   before a plan stops being a plan (§3c). Wants a literature pass, not
-   a guess.
+6. **Choice set or pool** for window options (§3c). Partly answered by
+   §3d — pools are equal-priced and capped at three — but whether a
+   pool is one slot or N payable tasks is still open, and the
+   Masicampo & Baumeister question (how much optionality before a plan
+   stops being a plan) still wants a literature pass rather than a
+   guess. Three is a plausible cap on that count too, which is mild
+   evidence it is the right number.
 5. ~~**Is "the user chooses" now a stated product principle?**~~
    **Answered 2026-09-11 — see below.** It is, and it is narrower and
    better than "the app has no opinions."
