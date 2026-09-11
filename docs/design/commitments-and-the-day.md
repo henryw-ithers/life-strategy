@@ -185,6 +185,65 @@ part-of-day window; both coexist in one structure. Cue-based placement
 still follows that lecture when the timetable moves — rather than as
 the required mechanism.
 
+### 3c. A window may hold options, not just one task
+
+Henry, 2026-09-11:
+
+> You might have a group of tasks that you are planning to pick one of
+> to complete in that window, which can be commitment based or not,
+> rather than having only one task planned in that window and then
+> punishing the user for not doing exactly that task.
+
+A **new axis**. The app already has flexibility about *when* —
+`times_per_week` unpinned is "three times, you pick the days,"
+`anytime` is "you pick the part of day." This adds flexibility about
+*what*, which nothing in the model does yet. It also fits ADR-0024 §2:
+a placement is an intention that lapses silently, and *one of these
+three* is an intention that is harder to fail.
+
+**An option set must be one scoring slot, not N tasks.** This is the
+constraint the feature lives or dies on. Three options modelled as
+three ordinary tasks take three rank slots and split their unit's
+budget three ways — and only one is ever completed, so two thirds of
+that slot goes unearned *every day, by design*. Options would quietly
+lower the day's ceiling, which is the opposite of the intent.
+
+So: one rank position, one point value, **any member completes it in
+full**. New machinery — `task_unit` gives one task many units; this is
+the inverse, many tasks one slot.
+
+**Two features may be hiding under one name.** Worth settling before
+building:
+
+- **A choice set** — "run, swim, or gym"; "revise COMP2521 or
+  MATH1231." *Substitutes*: one intention, several ways to satisfy it.
+  One slot, one value.
+- **A pool** — "in this window, work on whatever school work is
+  outstanding." Not substitutes; a queue being drawn from. Each item
+  keeps its own value and the window does not pre-assign which.
+
+The wording points at the first; the stated motivation (not punishing a
+user for not doing exactly the planned task) points at the second. But
+**carry-forward already solves the pool case** — unfinished work rolls
+to the next window — which suggests building the choice set only.
+
+**Open: how much optionality before a plan stops being a plan.**
+ADR-0024 rests partly on Masicampo & Baumeister — a *specific* plan
+eliminates the intrusive-thought cost of an unfulfilled goal without
+doing the task, so *"the payoff of planning is mental quiet, not
+throughput."* If the payoff comes from specificity, optionality may
+erode what planning is for: a window holding five options is a list,
+not a decision. Two or three substitutes probably still read as a
+choice; that is an instinct, not a finding, and it wants a literature
+pass in
+[scheduling-and-motivation.md](scheduling-and-motivation.md) before it
+becomes an ADR.
+
+**Also open:** if an option set spans two commitment units, which
+unit's band pays for it? Simplest answer is the completed member's
+unit, but that interacts with the one-slot rule and needs working
+through.
+
 ### 4. Weights are set directly, on a pie
 
 The direct-manipulation write path **already exists**:
@@ -264,6 +323,9 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    from use, not now.
 4. **Is 40 a sensible default** for the commitment band, and is it per
    commitment or shared across all of them?
+6. **Choice set or pool** for window options, and how many members
+   before a plan stops being a plan (§3c). Wants a literature pass, not
+   a guess.
 5. ~~**Is "the user chooses" now a stated product principle?**~~
    **Answered 2026-09-11 — see below.** It is, and it is narrower and
    better than "the app has no opinions."
