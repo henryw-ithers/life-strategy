@@ -751,3 +751,52 @@ the on-device-LLM question and is where this lands.
 Note also that custom native code means **no Expo Go**, the same
 constraint ADR-0020 put on backup and for the same reason. That is a
 real cost for a feature whose whole promise is "this is quick."
+
+## The draggable weight pie
+
+*Parked 2026-09-11, by Henry's call — "that was a side thought."*
+
+**The idea:** replace the pairwise ranking board with a pie of the
+active units that the user drags directly, setting each unit's share of
+the 100 by hand.
+
+**Why it is worth keeping.** The write path already exists:
+`applyPriorityOrder` (`apps/mobile/src/db/ranking.ts:218`) takes a
+user-arranged ordering, writes the result to `unit_weight.override`,
+recomputes every task's points and recaches day scores;
+`resetToDiagnostic` drops the overrides. The schema already says
+*"Effective weight = override ?? derived."* And it is already a product
+invariant that every derived value is overridable with the recommended
+value still shown — which a pie renders beautifully: **the dragged
+slice with a ghost mark where the diagnostic put it.**
+
+**What parked it:** it is orthogonal to the commitment work that this
+branch is actually for, and it is the kind of change that would
+otherwise quietly become the main event.
+
+**Two things to settle before it is built:**
+
+- **It would be the first thing to bypass `deriveWeights`.** Today's
+  override still runs *through* the formula — the ranking board turns
+  an ordering into synthetic importance via `rankToScore` — so the
+  satisfaction-gap boost still applies. A pie sets the weight directly,
+  which trips the AGENTS.md invariant *"importance first,
+  satisfaction-gap boost second."* Recommended framing: the pie is the
+  **override editor**, not a replacement for the diagnostic, which
+  keeps the diagnostic's importance and satisfaction feeding the
+  portfolio graph.
+- **A literal pie is probably the wrong control.** Eighteen-plus slices
+  on a phone puts several units under 3% — about 10° of arc — against
+  44pt hit targets, 200% Dynamic Type and AA contrast across eighteen
+  colours from a six-hue palette. ADR-0021 carries the relevant scar:
+  *"No UI may let the user re-rank, re-weight, or reorder areas into a
+  stored value; that has been built once and it destroyed data."*
+  Likely shape: **pie as the display, a row per unit as the editor.**
+  Also needs a rule for what absorbs a drag — proportionally across the
+  rest, from a neighbour, or with locks. `largestRemainder` already
+  keeps the integers summing to 100.
+
+**Not needed by the commitment work.** The commitment band has its own
+controls — a slider for the band and a share per commitment — and the
+18 life units keep the diagnostic and the existing ranking board. This
+orphans nothing.

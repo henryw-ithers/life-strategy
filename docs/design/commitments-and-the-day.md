@@ -155,6 +155,13 @@ zero-point finding at the head of this note, and with no resolution
 left to tell sleep from exercise from nutrition. A flat 60 keeps the
 worst case at ~3. (Design arithmetic; the band is not in the engine.)
 
+**The Tasks screen shows a task's value for that day** (Henry,
+2026-09-11), not a range and not a weekly total. A task whose value
+depends on the day gets the day's answer. This is the column ADR-0027
+was written to fix, when it summed to 118 and *"a page whose stated job
+is 'where are my points going' answers with a number that is not 100."*
+A single day-scoped number keeps that property.
+
 **Sub-commitments do no arithmetic.** §2 divides the band across every
 eligible commitment *task* that day, not across sub-commitments — so
 "all sub-commitments are worth the same" (Henry) means they are purely
@@ -419,20 +426,25 @@ exactly how `EXTRA_RUN_RATE` works. This rule scopes a repeat to a
 *different window*, which is more honest anyway: the same task twice
 inside one two-hour gap is rarely two real sessions.
 
-**Open — how much is a pool worth?** A window pool of three, on a day
-whose band pays 8 per commitment task:
+**A pool counts as its *planned count* when the band is divided**
+(Henry, 2026-09-11, choosing option A with a refinement).
 
-- **A: the pool counts as one task** when the band is divided. Worth 8.
-  Do one member → 8; do two → 16, the second beyond plan.
-- **B: each member counts separately.** The three hold 24, 8 each. Do
-  one → 8; do all three → 24.
+A pool carries how many of its members you intend to do — usually one,
+but a plan may legitimately be "two of these three." On a day whose
+band pays 8 per commitment task:
 
-Per task they pay the same. The difference is the **day's ceiling**:
-under B, planning three options you only ever intend to do one of
-inflates what the day was theoretically worth, so an ordinary day
-always reads as a partial one. **A is recommended** — it matches
-"planning to pick one of," and doing two then genuinely reads as going
-beyond the plan.
+| Pool | Counts as | Do one | Do two | Do three |
+|---|---|---|---|---|
+| 3 members, plan 1 | 1 task → 8 | 8 | 16 | 24 |
+| 3 members, plan 2 | 2 tasks → 16 | 8 | 16 | 24 |
+
+Per member the value is the same; the planned count sets the day's
+**ceiling**, not the payout. Anything beyond the planned count is
+beyond-plan work, which ADR-0027 §1 asks for by name.
+
+The rejected alternative was counting every member regardless of intent:
+that inflates the ceiling with options you never meant to take, so an
+ordinary day would permanently read as a partial one.
 
 ### 3e. Window capacity — how much fits
 
@@ -554,41 +566,24 @@ business picking.
 - **The planning surface shows all 24 hours.** Display is bounded by
   the day; placement is not.
 
-### 4. Weights are set directly, on a pie
+### 4. Setting the weights
 
-The direct-manipulation write path **already exists**:
-`applyPriorityOrder` (`db/ranking.ts:218`) writes user-arranged weights
-to `unit_weight.override`, recomputes every task's points, and recaches
-day scores; `resetToDiagnostic` drops them. The schema already says
-*"Effective weight = override ?? derived."*
+**The draggable pie is backburnered** (Henry, 2026-09-11 — *"that was a
+side thought"*). It was orthogonal to the commitment work this branch
+is for, and the reasoning, the existing write path and the two things
+to settle before building it are recorded in
+[backburner.md](../backburner.md) under *The draggable weight pie*.
 
-What is new is that today's override still runs **through** the formula
-— the priority board converts an ordering into synthetic importance via
-`rankToScore` and feeds `deriveWeights`, so the satisfaction gap still
-applies. A pie sets the weight **directly**, which is the first thing to
-bypass `deriveWeights`, and it trips the AGENTS.md invariant *"importance
-first, satisfaction-gap boost second."*
+Nothing here depends on it:
 
-Recommended: the pie is the **override editor**, not a replacement for
-the diagnostic. The diagnostic still seeds it and still records
-importance and satisfaction for the portfolio graph. The existing
-invariant — *every override still displays the recommended value beside
-it* — renders as **the dragged slice with a ghost mark where the
-diagnostic put it.**
+- **The commitment band** has its own controls — one slider for the
+  band (10–60, steps of 5) and a share per commitment.
+- **The 18 life units** keep the diagnostic and the existing
+  pairwise-ranking override (`applyPriorityOrder`,
+  `resetToDiagnostic`), unchanged.
 
-**The pie and commitment-units are one feature.** Adding a commitment
-has to take weight from somewhere, and the pie is the only honest place
-to do it.
-
-**Not a literal pie, probably.** Eighteen-plus slices on a phone puts
-several units under 3% — about 10° of arc — against 44pt hit targets,
-200% Dynamic Type, and AA contrast across 18 colours from a 6-hue
-palette. ADR-0021 carries the relevant scar: *"No UI may let the user
-re-rank, re-weight, or reorder areas into a stored value; that has been
-built once and it destroyed data."* Recommended shape: **pie as the
-display, a row per unit as the editor.** Also decide what absorbs a
-drag — proportionally across the rest, from a neighbour, or with locks.
-`largestRemainder` already keeps the integers summing to 100.
+This also closes the question of whether a pie would replace the
+diagnostic: it is not being built, so the diagnostic stands.
 
 ### 5. Clock times, narrowly
 
@@ -620,50 +615,35 @@ Each of these is an accepted ADR. None should be absorbed quietly.
 
 ## Open questions
 
-Settled items have been struck from this list and live in their
-sections. What is genuinely left, in plain terms:
+Settled items live in their sections. What is genuinely left:
 
-1. **How much is a window pool worth?** Does a pool of three count as
-   *one* task when the band is divided, or as three? Same value per
-   task either way; the difference is whether planning options you only
-   ever intend to do one of inflates the day's ceiling. **Recommended:
-   one.** Worked through in §3d.
+1. **Write ADR-0026 (task size and day load).** Three separate parts of
+   this design need it (§3e). Shape already fixed by ADR-0024 §6 —
+   `quick | normal | big`, never minutes.
 
-2. **What number does the Tasks screen show?** "Revise COMP2521" is
-   worth ~8 on a scheduled day and something else on a free one — the
-   same task, two values — and that column's whole job is answering
-   "where are my points going." A range, a typical day, or a weekly
-   total. This is the column ADR-0027 was written to fix, when it
-   summed to 118. **Recommended: the scheduled-day value** for
-   commitment tasks, since that is when they are earned.
-
-3. **Does the pie replace the diagnostic, or sit beside it?** Beside
-   means the diagnostic still runs monthly, still records importance
-   and satisfaction for the portfolio graph, and seeds a pie the user
-   drags to override. Instead means there is no diagnostic and the
-   bubble chart loses its data. **Recommended: beside**, with the
-   honest counter that if Henry always overrides in real use, the
-   diagnostic is ceremony. Decide from use.
-
-4. **Does PRODUCT.md get principle 6?** *"Granularity is the user's"*
-   is drafted below. It changes the whole product rather than this
-   feature, so it wants its own commit off `main` rather than riding
-   this branch.
-
-5. **How much optionality before a plan stops being a plan?** Not a
-   decision — a literature question. ADR-0024 rests partly on Masicampo
-   & Baumeister, where the payoff of planning is mental quiet and quiet
-   comes from having decided. Three options may still read as a
-   decision; five probably does not. Wants a pass in
-   [scheduling-and-motivation.md](scheduling-and-motivation.md) rather
-   than a guessed number.
-
-6. **Write ADR-0026 (task size and day load) now.** Three separate
-   parts of this design need it (§3e). Its shape is already fixed by
-   ADR-0024 §6 — `quick | normal | big`, never minutes.
-
-7. **Write ADR-0014 (partial credit)**, recording that its calibration
+2. **Write ADR-0014 (partial credit)**, recording that its calibration
    gate has not fired and why the premise changed anyway (§3f).
+
+3. **Rewrite the ADR set** — withdraw 0028 and 0031, rewrite 0029 as
+   commitment-units, rewrite 0030 (superseded by §3b), add the
+   third-band ADR. See [What this changes](#what-this-changes).
+
+4. **Correct the stale dates.** ADR-0028..0031 are stamped 2026-08-21,
+   inferred from the repo's recent ADRs rather than checked.
+
+5. **Build the third band in `packages/scoring`.** Every figure in this
+   note marked *design arithmetic* is hand-computed. The one measured
+   finding — five tasks worth zero — is what restructured the design,
+   which is the argument for measuring the rest.
+
+**Recently answered:** the Tasks screen shows a task's value *for that
+day* (§2, Henry 2026-09-11) rather than a range or a weekly total;
+partial-completion rounding pays the rounded running total minus what
+is already paid (§3f); the pie is backburnered (§4); the optionality
+limit had its literature pass —
+[scheduling-and-motivation.md](scheduling-and-motivation.md), addendum
+2026-09-11 — which found three safe on choice-overload grounds and
+identified **framing**, not the number, as the lever that matters.
 
 ## The principle underneath all of this
 

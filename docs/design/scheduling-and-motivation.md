@@ -322,6 +322,68 @@ Raised by the research, not by the scheduling question:
 - Masicampo, E. J., & Baumeister, R. F. (2011). Consider it done! Plan
   making can eliminate the cognitive effects of unfulfilled goals.
   *Journal of Personality and Social Psychology*, 101(4), 667–683.
+## Addendum (2026-09-11) — how many options may a window hold?
+
+Asked by the window-pool design in
+[commitments-and-the-day.md](commitments-and-the-day.md) §§3c–3d: a
+window may hold a **pool** of candidate tasks, capped at three, any of
+which satisfies that window's intention. Is three still "a plan" in the
+sense ADR-0024 relies on, or does optionality give back the mental
+quiet planning buys (Masicampo & Baumeister)?
+
+**What the literature actually says, and what it does not.**
+
+- **Dalton & Spiller (2012)** is the closest direct finding, and it is
+  a caution: the benefit of implementation intentions for *one* goal
+  **does not extend to multiple goals.** Their proposed mechanism is
+  that implemental planning *draws attention to the difficulty* of
+  executing several goals, which undermines commitment. In their
+  six-goal study the benefit only appeared when the load was **framed**
+  as manageable (participants were told others had been given ten);
+  without that framing, planning six goals produced no benefit.
+- **Chernev, Böckenholt & Goodman (2015)**, a meta-analysis of 99
+  observations across 53 studies (N = 7,202), finds **no universal
+  optimal number of options.** Choice overload is moderated by choice-
+  set complexity, decision-task difficulty, preference uncertainty and
+  decision goal. The assortment sizes where overload is reliably
+  observed are far larger than three — that literature typically
+  contrasts roughly six against twenty-four or more.
+- **The gap: neither addresses this case.** Dalton & Spiller studied
+  multiple *goals*; Chernev studied consumer *assortments*. A pool is
+  neither — it is several *means to one intention*, inside a bounded
+  window. No direct evidence was found for that shape, and this note
+  does not claim any.
+
+**What follows for the design, stated at the confidence the evidence
+supports.**
+
+1. **Three is safe on the choice-overload count.** It is an order of
+   magnitude below where that literature observes the effect. The cap
+   needs no defence from this direction.
+2. **Framing is the lever, not the number.** Dalton & Spiller's own
+   rescue was framing. So a pool should read as **one choice with three
+   routes** ("pick one"), never as a list of three things owed. That is
+   a copy rule, and it is the actionable finding here.
+3. **The risk concentrates where a pool's planned count exceeds one.**
+   A pool of three where two are planned is closer to Dalton &
+   Spiller's "multiple goals" than to a single choice, so that is where
+   their caution most plausibly bites. Worth watching in real use
+   rather than designing around now.
+
+**Confidence: low-to-moderate.** The inference to pools is analogical.
+The honest position is that three is defensible and the framing rule is
+well-supported, while the multi-planned-count case is genuinely
+unknown.
+
+## Sources added 2026-09-11
+
+- Dalton, A. N., & Spiller, S. A. (2012). Too much of a good thing: the
+  benefits of implementation intentions depend on the number of goals.
+  *Journal of Consumer Research*, 39(3), 600–614.
+- Chernev, A., Böckenholt, U., & Goodman, J. (2015). Choice overload: a
+  conceptual review and meta-analysis. *Journal of Consumer
+  Psychology*, 25(2), 333–358.
+
 - Lally, P., van Jaarsveld, C. H. M., Potts, H. W. W., & Wardle, J.
   (2010). How are habits formed: modelling habit formation in the real
   world. *European Journal of Social Psychology*, 40(6), 998–1009.
