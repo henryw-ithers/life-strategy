@@ -273,16 +273,69 @@ person may plan — so it does not conflict with dropping
 plan. A window may hold several pools; a person may hold as many
 windows as their day has.
 
-**Open — what does completing more than one member pay?** A pool
-should be **one slot**: complete any member and the slot is earned in
-full, which is the only reading that matches "planning to pick one of."
-Extra completions then have an existing home — ADR-0023 already treats
-extra runs of planned tasks as the one uncapped route above 100, so a
-second pool member done in the same window is an extra run rather than
-a second slot. Needs confirming, but it wants no new machinery.
+**A second member pays again, at full value** (Henry, 2026-09-11):
 
-Open too: where a pool's point value comes from — the highest-ranked
-member's, an average, or a value of its own.
+> If you manage to complete two S-tier tasks in one window we should
+> reward you for that. Sometimes an assignment with a lot of weighting
+> turns out to be easier than we thought, but that shouldn't make it
+> less valuable.
+
+The pool holds **one slot worth `V`, and every completion pays `V`.**
+This is the only model that is neither punishing nor accidental:
+
+| | Do one | Do three |
+|---|---|---|
+| **Pool = one slot, each pays `V`** | `V` — a complete window ✓ | `3V` — beyond plan, which ADR-0027 wants ✓ |
+| **Each member holds `V/3`** | `V/3` — the silent cap ✗ | `V` ✓ |
+
+Doing two or three is genuinely *beyond* what was planned ("one of
+these"), which is the route ADR-0027 §1 asks for by name — *"a grade
+above 90 must mean you went beyond your plan."*
+
+**On the rate, against an existing precedent.** `EXTRA_RUN_RATE = 0.5`
+already pays beyond-plan work at half: a fourth run of a 3×/week task
+is *"the plan done harder, not spontaneity"* (ADR-0023 §2), credited
+outside `UNPLANNED_CAP`.
+
+A second pool member is **not** that. An extra run is the same task
+again, and the fourth is fairly worth less because the plan asked for
+three. A second pool member is a *different task that was also
+planned* — the only thing undecided was which one would get done. So:
+
+> **Same task repeated → 50% (`EXTRA_RUN_RATE`, unchanged).
+> A different planned thing → 100%.**
+
+That keeps `EXTRA_RUN_RATE` meaning exactly what it means today and
+needs no new constant.
+
+Open: where `V` comes from — the members are equal-priced by §3d's
+rule, so the pool needs one value, and whether that is a tier's value,
+the highest member's, or its own is unsettled.
+
+### 3e. Window capacity — how much fits
+
+Henry, 2026-09-11: *"I was assuming that in a window you would only
+plan for one task. That is variable based on task size and window
+size."*
+
+So a window has a **capacity**, and how many tasks fit depends on their
+size against its length. A two-hour gap holds more than a twenty-minute
+one.
+
+**This is the third time planned ADR-0026 (task size and day load) has
+become load-bearing in this design** — first for size-weighted
+allocation, then for "what fits in this gap," now for window capacity.
+ADR-0024 §6 deferred it by name, and its stated trigger was *"the
+weekly planning pass is in real use and 'is this day too full?' has
+come up unprompted."* Three independent pulls is that trigger firing:
+**write 0026 as part of this work rather than deferring it a fourth
+time.**
+
+ADR-0024 §6 already fixed its shape, and that constraint carries here:
+sizes are `quick | normal | big` (reusing `activity.size`'s
+vocabulary), **never minute estimates**, because minutes inherit the
+planning fallacy the app cannot correct. So capacity is a rough fit —
+"about two normal things" — not an arithmetic of minutes.
 
 ### 4. Weights are set directly, on a pie
 
@@ -363,13 +416,16 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    from use, not now.
 4. **Is 40 a sensible default** for the commitment band, and is it per
    commitment or shared across all of them?
-6. **Choice set or pool** for window options (§3c). Partly answered by
-   §3d — pools are equal-priced and capped at three — but whether a
-   pool is one slot or N payable tasks is still open, and the
-   Masicampo & Baumeister question (how much optionality before a plan
-   stops being a plan) still wants a literature pass rather than a
-   guess. Three is a plausible cap on that count too, which is mild
-   evidence it is the right number.
+6. ~~**Choice set or pool**~~ **Settled by §§3d–3e:** equal-priced
+   pools of at most three, one slot, every completion pays full. What
+   remains open is narrower — where the pool's value `V` comes from,
+   and the Masicampo & Baumeister question (how much optionality before
+   a plan stops being a plan), which still wants a literature pass
+   rather than a guessed number. Three is a plausible answer on that
+   count too, which is mild evidence the cap is right.
+7. **Write ADR-0026 (task size and day load) now.** Three separate
+   parts of this design need it (§3e). Its shape is already fixed by
+   ADR-0024 §6 — `quick | normal | big`, never minutes.
 5. ~~**Is "the user chooses" now a stated product principle?**~~
    **Answered 2026-09-11 — see below.** It is, and it is narrower and
    better than "the app has no opinions."
