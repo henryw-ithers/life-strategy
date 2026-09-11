@@ -63,6 +63,16 @@ list of three columns** — `fixed_commitment.start_minute`, `.end_minute`,
 The phase plan and surface detail live in
 [design/hour-grid-day-view.md](../design/hour-grid-day-view.md).
 
+> **Read [design/commitments-and-the-day.md](../design/commitments-and-the-day.md)
+> before implementing any of 0028–0031.** A later session reworked the
+> shape substantially: commitments became **custom units** rather than a
+> parallel model, which withdraws 0028 and 0031 and rewrites 0029. That
+> note is in flux and decides nothing, but it is ahead of these four and
+> records why. It also carries the measured finding that forced the
+> rework — a semester's worth of tasks in one unit leaves five of
+> thirteen worth **zero points**, which is the edge ADR-0027 named and
+> parked.
+
 ## Work not tracked by any action item
 
 Each ADR's own action items are the checklist for that decision. These
