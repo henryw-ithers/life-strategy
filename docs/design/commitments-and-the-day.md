@@ -49,12 +49,24 @@ schema and the launch-time sync both anticipated user-created units.
 Nothing writes it. No screen has ever set it. This is the same
 situation ADR-0027 found with `include_in_scoring`.
 
-A commitment — COMP2521, Basketball Club, a job — is a custom unit
-carrying its own weight, holding its own tasks.
+A commitment — School, Work, Basketball Club — is a custom unit
+carrying its own weight and holding its own tasks, with
+**sub-commitments** inside it (School → COMP2521, MATH1231). At most
+three commitments; see §2 for the band and its caps.
 
-Measured: splitting school into five course-units at weight 8 takes its
-total from **8 points to 15** and, more importantly, **removes every
-zero-point task.** No dead rows.
+> **Revised 2026-09-11.** This section first described commitments as
+> a *flat* set of custom units — five course-units at weight 8 each —
+> sitting on the same pie as the 18. Both halves of that are
+> superseded: they are **two levels** (commitment → sub-commitment),
+> and their points come from **their own band**, not the pie. The
+> measurement below was taken under the flat model and is kept because
+> what it demonstrates still holds.
+
+Measured (under the superseded flat model): splitting school into five
+course-units at weight 8 takes its total from **8 points to 15** and,
+more importantly, **removes every zero-point task.** No dead rows. The
+lesson carries — giving school its own buckets is what stops its tasks
+starving — even though the structure that delivers it has changed.
 
 **Commitments are weighted, not diagnosed.** The diagnostic keeps
 rating the 18 life dimensions on importance and satisfaction; it stays
@@ -86,7 +98,7 @@ constraint and five courses were carving the same 20.
 
 So a day with scheduled commitment work splits **three** ways:
 
-    commitment band   — the commitment weights (e.g. 40)
+    commitment band   — user-set, capped by count (§2)
     routine band      — 80% of what is left
     variable band     — 20% of what is left
 
@@ -101,35 +113,71 @@ modelling rather than an artefact. Scaling it by the day's share of the
 week was tried on paper and fails the goal — it makes school ~8% of a
 week rather than 40%.
 
-**The band size is the user's, 10–60 in steps of 5** (Henry,
-2026-09-11), replacing the arbitrary 40 this note used to assume. The
-range is itself a mild opinion — 60% max means life always keeps at
-least 40% — and that is a guardrail rather than a violation of the
-principle below: 0 would make the feature pointless and 100 would
-delete the rest of a life.
+**The band size is the user's, in steps of 5** (Henry, 2026-09-11),
+replacing the arbitrary 40 this note used to assume. It runs from 10 to
+a ceiling set by how many commitments are held — 60, 70 or 80, per the
+table below. The floor and ceiling are themselves a mild opinion, and a
+defensible one: 0 would make the feature pointless, and 100 would
+delete the rest of a life from a scheduled day.
 
-> **Open, and it changes §1: is the band set or emergent?** §1 makes
-> commitments custom units carrying their own weight *on the pie*,
-> which makes the band **emergent** — five course-units at 8 each *is*
-> a 40% band, and a slider would be a second control fighting the
-> first. A slider instead implies two distributions: the band set
-> directly, and the pie sharing what is left among the 18 life units.
->
-> The slider reading is probably right, because the band is carved off
-> **before** the 80/20 split and so is structurally separate from unit
-> weights already. That gives: one slider for how much of a scheduled
-> day belongs to commitments; commitments sharing that band by their
-> own relative weights; the pie distributing the remaining 40–90 across
-> the 18. Under that reading **commitment-units do not appear on the
-> main pie**, which contradicts §1 as written. Needs settling.
+**Commitment points are separate from the 18 units' points.** Settled,
+and settled earlier than this note admitted — *"its own special bucket
+of points separate from the 80/20 framework."* An earlier draft here
+described commitments as units *on the pie*, which made the band the
+sum of their slices; that was this note carrying a stale framing
+forward, not a real ambiguity. The band is set directly and the pie
+distributes what is left among the 18.
+
+**At most three commitments, each holding sub-commitments** (Henry,
+2026-09-11). School is a commitment; its classes are sub-commitments
+inside it. The band cap scales with how many you hold:
+
+| Commitments | Band cap | Life pool | Routine | Variable |
+|---|---|---|---|---|
+| 1 | 60 | 40 | 32 | 8 |
+| 2 | 70 | 30 | 24 | 6 |
+| 3 | 80 | 20 | 16 | 4 |
+
+**Design arithmetic worth seeing before the caps are fixed.** An
+ordinary daily habit — exercise at weight 9, one daily task — is worth
+about **7 points** today. On a scheduled day it becomes ~3 at one
+commitment, ~2 at two, and **~1 at three.**
+
+At the top cap, all 18 life units share 20 points and their daily
+habits sit at the one-point floor — the same floor that produced the
+zero-point finding at the head of this note. Sleep, exercise and
+nutrition become worth roughly the same as each other because there is
+not enough resolution left to separate them. That may be correct — a
+day holding school *and* work *and* sport genuinely is mostly
+commitments — but it should be chosen knowingly. These are **caps, not
+defaults**, so the floor case only bites at the top of the slider.
+
+**Open at the sub-commitment level:**
+- **Do sub-commitments carry their own weights?** Presumably yes —
+  a major class should outweigh a gen-ed — but that makes three levels
+  of weighting (band → commitment → sub-commitment), which is a lot of
+  dials.
+- **Are sub-commitments capped?** Commitments are capped at three;
+  five classes is a normal semester, so sub-commitments are presumably
+  uncapped or generously capped.
+- **May a task hang off a commitment directly**, rather than off a
+  sub-commitment? "School" holds work belonging to no single class.
+  Presumably yes.
+
+**Schema.** Commitments can stay `life_unit` rows with `is_custom`,
+plus a nullable `parent_unit_id` for the sub-level — one table, full
+reuse of `task.unit_id` and `task_unit`. **What separates them is the
+band, not the table.** Reusing `life_area` as the parent level is the
+obvious alternative and is ruled out: ADR-0021 forbids an area carrying
+weight, and notes that it has been built once and destroyed data.
 
 **Within a day, the band divides across every commitment-unit task
 eligible that day** — scheduled sessions *and* assignment work planned
 for that day. Not across scheduled sessions alone, or a Friday holding
 one tutorial would pay 40 points for one hour in a room.
 
-    Monday, 3 lectures + 2 assignment tasks   → 40 ÷ 5 ≈ 8 each
-    Friday, 1 tutorial + 2 assignment tasks   → 40 ÷ 3 ≈ 13 each
+    band 40, Monday, 3 lectures + 2 assignment tasks → 40 ÷ 5 ≈ 8
+    band 40, Friday, 1 tutorial + 2 assignment tasks → 40 ÷ 3 ≈ 13
 
 Against **1 point** today. (Design arithmetic — the third band does not
 exist in the engine yet, so this is not measured.)
