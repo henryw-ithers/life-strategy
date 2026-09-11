@@ -136,18 +136,46 @@ still lapses silently.
 and their stamp (ADR-0002). `recacheAllDayScores` already exists and
 already honours the `finalized_at` guard ADR-0023 added.
 
+> **Not yet bumped (2026-09-11).** The band is built and tested, but
+> `FORMULA_VERSION` stays at 7 until the app actually passes a
+> `CommitmentDay`. A version stamp records how a grade was *derived*,
+> and nothing's derivation has changed while every caller still omits
+> the parameter — moving it early would mark a whole era of days as
+> belonging to a formula they were not graded under. It moves with the
+> first caller.
+
 ## Consequences
 
-**Easier.** A semester's work is worth something: roughly 8–13 points
-per task at a band of 40 against **1 point** today. Commitment work
-stops competing with every weekly task in the app for the same 20
-points.
+**Easier.** A semester's work is worth something. **Measured** against
+the engine, with a band of 40 and a realistic 18-unit plan: five tasks
+eligible on a Monday price at **8 points each**, and thirteen eligible
+on one day price at **3–4 each** — against the `1,1,…,0,0,0` the
+two-band model produced. Commitment work stops competing with every
+weekly task in the app for the same 20 points.
+
+The §2 table is also measured rather than reasoned: a weight-9 daily
+habit is **7 points** on an ordinary day and **3** at a band of 60,
+exactly as tabulated.
 
 **Harder.** The day's split is now **date-dependent**, which is new.
 `task.point_value` can no longer be a single stored number that means
 one thing — the Tasks screen shows a task's value *for that day*
 (Henry's call), which keeps the column honest but makes it contextual.
 And the band is a third thing to explain in a scale that had two.
+
+**A limit measurement found, and the band does not remove it.** When a
+day's eligible commitment tasks outnumber the band's points, the
+one-point floor is dropped and the tail rounds to zero — thirteen tasks
+eligible on one day against a band of 10 leaves three worth nothing.
+This is the property ADR-0027 already records for the variable band
+(*"20 points cannot finely price 20+ non-daily tasks"*), reappearing at
+the bottom of this band's range.
+
+The band **raises** the threshold rather than curing it: the old model
+hit this with thirteen non-daily tasks at any setting, and the new one
+needs them all eligible on a single day at the lowest band. Raising the
+band fixes it, and that is the user's own lever — measured, 25 is
+enough for thirteen. Covered by tests in `commitmentBand.test.ts`.
 
 **Accepted cost.** On a scheduled day your life tasks are worth up to
 40% less than on a free one — the same gym session, different value,
@@ -162,12 +190,18 @@ of it reaches a screen.
 
 ## Action items
 
-1. [ ] `packages/scoring`: third band in `bandPointValues`;
-       date-dependent split; `FORMULA_VERSION` 8. Pure, vitest-covered,
-       no React Native imports.
-2. [ ] **Run a real plan through it before building UI.** Every number
-       in this ADR except the zero-point finding and the 8→15
-       improvement is hand-computed arithmetic.
+1. [~] `packages/scoring`: third band in `bandPointValues` and
+       `dayCeiling` — **built 2026-09-11**, 21 tests, pure and free of
+       React Native imports, behind an optional parameter so a day with
+       no eligible commitment work is byte-for-byte what it is today
+       (all 188 pre-existing tests pass unchanged).
+       **`FORMULA_VERSION` is not yet bumped** — it moves when the app
+       starts passing a `CommitmentDay`, not when the capability lands,
+       so no stored grade changes meaning before there is anything to
+       change it.
+2. [x] **Run a real plan through it before building UI.** Done
+       2026-09-11 — the §2 table and the Consequences figures are now
+       measured, and measuring found the low-band tail described above.
 3. [ ] Migration: the band size, and a share per commitment.
 4. [ ] Amend ADR-0024 §2 with a pointer to §4 here; amend ADR-0027 with
        a pointer to the third band.

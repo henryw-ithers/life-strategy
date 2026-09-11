@@ -71,6 +71,139 @@ export interface BandTask {
   rankInUnit: number;
 }
 
+// ── The commitment band (ADR-0032) ──────────────────────────────────
+
+/** The band's permitted range, in steps of 5 (ADR-0032 §2). */
+export const COMMITMENT_BAND_MIN = 10;
+export const COMMITMENT_BAND_MAX = 60;
+export const COMMITMENT_BAND_STEP = 5;
+
+/** At most three commitments (ADR-0029 §1). */
+export const MAX_COMMITMENTS = 3;
+
+/**
+ * One commitment and the units that roll up to it.
+ *
+ * `unitIds` is the commitment's own unit plus its sub-commitments,
+ * resolved by the caller. The scoring package does not walk
+ * `parent_unit_id` — hierarchy is the app's business, arithmetic is
+ * this package's.
+ */
+export interface CommitmentGroup {
+  commitmentId: string;
+  /** Relative share of the band. Need not sum to anything. */
+  share: number;
+  /** This commitment's unit plus its sub-commitments. */
+  unitIds: readonly string[];
+}
+
+/**
+ * A window's pool of interchangeable options (ADR-0033 §3).
+ *
+ * `plannedCount` is how many of them the user means to do. It sets the
+ * **divisor**, not the payout: every member is worth one slot, so doing
+ * more than planned is beyond-plan work rather than a discount on each.
+ */
+export interface Pool {
+  taskIds: readonly string[];
+  /** 1..taskIds.length. */
+  plannedCount: number;
+}
+
+/**
+ * What a day's commitment work looks like. Omit it — or pass one with
+ * nothing eligible — and the day is an ordinary two-band day.
+ */
+export interface CommitmentDay {
+  /** 10–60. Clamped and snapped to a step of 5 by `normalizeBand`. */
+  band: number;
+  commitments: readonly CommitmentGroup[];
+  /** Ids of the commitment tasks scheduled or planned for this date. */
+  eligibleTaskIds: readonly string[];
+  /** Pools among today's eligible tasks. */
+  pools?: readonly Pool[];
+}
+
+/** Clamp to [10, 60] and snap to the nearest step of 5 (ADR-0032 §2). */
+export function normalizeBand(band: number): number {
+  if (!Number.isFinite(band)) return COMMITMENT_BAND_MIN;
+  const snapped =
+    Math.round(band / COMMITMENT_BAND_STEP) * COMMITMENT_BAND_STEP;
+  return Math.min(COMMITMENT_BAND_MAX, Math.max(COMMITMENT_BAND_MIN, snapped));
+}
+
+/**
+ * The share of the day left to the 18 life units, as a multiplier.
+ *
+ * A day with no eligible commitment work returns 1 — the band does not
+ * exist on days it could not be earned, which is what stops an empty
+ * Sunday capping below 100 (ADR-0032 §1).
+ */
+function lifeScale(day: CommitmentDay | undefined, eligible: Set<string>): number {
+  if (!day || eligible.size === 0) return 1;
+  return (100 - normalizeBand(day.band)) / 100;
+}
+
+/**
+ * Which of today's eligible tasks belong to each commitment, and how
+ * many slots each commitment's work occupies.
+ *
+ * A pool contributes its `plannedCount`; every other eligible task
+ * contributes one. Pool members still each receive a full slot's value
+ * — the count is the ceiling, not the payout (ADR-0033 §3).
+ */
+function commitmentSlots(
+  day: CommitmentDay,
+  eligible: Set<string>,
+  tasks: readonly BandTask[],
+): Map<string, { taskIds: string[]; slots: number }> {
+  const unitOwner = new Map<string, string>();
+  for (const c of day.commitments) {
+    for (const unitId of c.unitIds) unitOwner.set(unitId, c.commitmentId);
+  }
+
+  const byCommitment = new Map<string, { taskIds: string[]; slots: number }>();
+  const pooled = new Set<string>();
+  for (const pool of day.pools ?? []) {
+    for (const id of pool.taskIds) pooled.add(id);
+  }
+
+  for (const task of tasks) {
+    if (!eligible.has(task.id)) continue;
+    const owner = unitOwner.get(task.unitId);
+    if (owner === undefined) continue;
+    const entry = byCommitment.get(owner) ?? { taskIds: [], slots: 0 };
+    entry.taskIds.push(task.id);
+    // Loose tasks take a slot each; pooled ones are counted below.
+    if (!pooled.has(task.id)) entry.slots += 1;
+    byCommitment.set(owner, entry);
+  }
+
+  // Each pool adds its planned count once, to whichever commitment its
+  // members belong to. A pool spanning two commitments is not a shape
+  // the app can create, and is ignored rather than guessed at.
+  for (const pool of day.pools ?? []) {
+    const owners = new Set(
+      pool.taskIds
+        .map((id) => tasks.find((t) => t.id === id))
+        .filter((t): t is BandTask => t !== undefined)
+        .map((t) => unitOwner.get(t.unitId))
+        .filter((o): o is string => o !== undefined),
+    );
+    if (owners.size !== 1) continue;
+    const owner = [...owners][0] as string;
+    const entry = byCommitment.get(owner);
+    if (!entry) continue;
+    const planned = Math.max(
+      1,
+      Math.min(pool.plannedCount, pool.taskIds.length),
+    );
+    entry.slots += planned;
+  }
+
+  return byCommitment;
+}
+
 /**
  * Point values for every task, keyed by task id.
  *
@@ -86,12 +219,61 @@ export interface BandTask {
 export function bandPointValues(
   units: readonly BandUnit[],
   tasks: readonly BandTask[],
+  day?: CommitmentDay,
 ): Map<string, number> {
   // Every task starts at 0 and is overwritten if its band can pay it.
   // A task in an excluded unit has no share to receive but must still
   // have a value — a consumer reading `undefined` here would find it at
   // the point it tried to add a number to a grade.
   const values = new Map<string, number>(tasks.map((t) => [t.id, 0]));
+
+  // ── Commitment band (ADR-0032) ──
+  // Carved off the top, and **only on days it can be earned**: a day
+  // with no scheduled commitment work is an ordinary two-band day, so
+  // an empty Sunday cannot cap below 100 through somebody else's
+  // timetable (§1).
+  //
+  // Divided between the commitments that have work today — not all of
+  // them — for the same reason one level down: a Monday holding only
+  // School gives School the whole band rather than leaving Work's
+  // share dead (§3).
+  //
+  // Divided *within* a commitment **equally across today's eligible
+  // tasks**, not by rank. Sub-commitments take no cut: they group tasks
+  // and price nothing (ADR-0029 §1).
+  const eligible = new Set(day?.eligibleTaskIds ?? []);
+  if (day && eligible.size > 0) {
+    const slots = commitmentSlots(day, eligible, tasks);
+    const active = day.commitments.filter(
+      (c) => (slots.get(c.commitmentId)?.slots ?? 0) > 0 && c.share > 0,
+    );
+    const shareTotal = active.reduce((a, c) => a + c.share, 0);
+    if (shareTotal > 0) {
+      const band = normalizeBand(day.band);
+      const budgets = largestRemainder(
+        active.map((c) => (band * c.share) / shareTotal),
+        band,
+      );
+      active.forEach((c, i) => {
+        const entry = slots.get(c.commitmentId);
+        const budget = budgets[i] ?? 0;
+        if (!entry || budget <= 0) return;
+        // Every eligible task is worth one slot, including each member
+        // of a pool — the planned count sets the ceiling, not the
+        // payout (ADR-0033 §3).
+        const perSlot = budget / entry.slots;
+        assign(
+          values,
+          entry.taskIds.map((id) => ({ id, claim: perSlot })),
+        );
+      });
+    }
+  }
+
+  // What is left for the 18 life units. Their stored weights still sum
+  // to 100 — the invariant is untouched — and are scaled here at read
+  // time rather than restated (ADR-0029 §2).
+  const scale = lifeScale(day, eligible);
 
   // ── Routine band ──
   // Allocated **per unit, and settled per unit**, because a unit's
@@ -118,7 +300,7 @@ export function bandPointValues(
     if (daily.length === 0 || unit.weight <= 0) continue;
 
     const shares = rankShares(daily.length);
-    const budget = (ROUTINE_BAND / 100) * unit.weight;
+    const budget = (ROUTINE_BAND / 100) * unit.weight * scale;
     assign(
       values,
       daily.map((t, i) => ({ id: t.id, claim: budget * (shares[i] ?? 0) })),
@@ -141,10 +323,11 @@ export function bandPointValues(
       tasks.some((t) => t.unitId === u.unitId && !isRoutine(t.timesPerWeek)),
   );
   const variableWeight = variableUnits.reduce((a, u) => a + u.weight, 0);
-  if (variableWeight > 0) {
+  const variableBand = Math.round(VARIABLE_BAND * scale);
+  if (variableWeight > 0 && variableBand > 0) {
     const budgets = largestRemainder(
-      variableUnits.map((u) => (VARIABLE_BAND * u.weight) / variableWeight),
-      VARIABLE_BAND,
+      variableUnits.map((u) => (variableBand * u.weight) / variableWeight),
+      variableBand,
     );
     variableUnits.forEach((unit, u) => {
       const budget = budgets[u] ?? 0;
@@ -205,6 +388,7 @@ function assign(
 export function dayCeiling(
   units: readonly BandUnit[],
   tasks: readonly BandTask[],
+  day?: CommitmentDay,
 ): number {
   const covered = new Set(
     tasks.filter((t) => isRoutine(t.timesPerWeek)).map((t) => t.unitId),
@@ -212,5 +396,18 @@ export function dayCeiling(
   const coveredWeight = units
     .filter((u) => covered.has(u.unitId))
     .reduce((a, u) => a + u.weight, 0);
-  return Math.round((ROUTINE_BAND / 100) * coveredWeight) + VARIABLE_BAND;
+
+  // The commitment band is wholly earnable on a day it exists: it is
+  // split only between commitments that have work today, so none of it
+  // is left stranded (ADR-0032 §3). That is why it adds to the ceiling
+  // in full where the routine band adds only its *covered* share.
+  const eligible = new Set(day?.eligibleTaskIds ?? []);
+  const band = day && eligible.size > 0 ? normalizeBand(day.band) : 0;
+  const scale = lifeScale(day, eligible);
+
+  return (
+    band +
+    Math.round((ROUTINE_BAND / 100) * coveredWeight * scale) +
+    Math.round(VARIABLE_BAND * scale)
+  );
 }

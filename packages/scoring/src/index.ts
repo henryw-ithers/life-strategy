@@ -10,11 +10,22 @@ export { largestRemainder } from "./rounding";
 export type { UnitCoverage } from "./weights";
 export { deriveWeights, spendableWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
-export type { BandTask, BandUnit } from "./bands";
+export type {
+  BandTask,
+  BandUnit,
+  CommitmentDay,
+  CommitmentGroup,
+  Pool,
+} from "./bands";
 export {
   bandPointValues,
   dayCeiling,
   isRoutine,
+  normalizeBand,
+  COMMITMENT_BAND_MAX,
+  COMMITMENT_BAND_MIN,
+  COMMITMENT_BAND_STEP,
+  MAX_COMMITMENTS,
   ROUTINE_BAND,
   VARIABLE_BAND,
 } from "./bands";
