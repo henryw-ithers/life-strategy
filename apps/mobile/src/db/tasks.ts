@@ -14,6 +14,7 @@ import {
   largestRemainder,
   type BandTask,
   type BandUnit,
+  type CommitmentDay,
 } from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -263,8 +264,18 @@ const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
   big: 1,
 };
 
-export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
-  const weights = await latestWeights(tx);
+/**
+ * Everything `bandPointValues` needs, read once.
+ *
+ * Shared by `recomputeAllUnitPoints`, which stores date-independent
+ * values, and by `taskPointsOn`, which prices a **particular date**
+ * once a commitment band is in play (ADR-0032). Both must build their
+ * inputs the same way or a commitment day would price the 18 life
+ * units differently from every other day for reasons unrelated to the
+ * band.
+ */
+async function bandInputs(tx: Tx | typeof db) {
+  const weights = await latestWeights(tx as Tx);
   const units = await tx
     .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
     .from(lifeUnit);
@@ -320,36 +331,51 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
       rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
     }));
-  const points = bandPointValues(bandUnits, bandTasks);
+  return {
+    bandUnits,
+    bandTasks,
+    memberships,
+    oneOffSizeByTask,
+    normalizedRank,
+    homeUnitByTask,
+  };
+}
 
-  /**
-   * A one-off's worth: its size against **its unit's own variable
-   * budget** — so a big errand in a part of your life is worth about
-   * what a week of planned work there is worth, and a quick one a
-   * quarter of that.
-   *
-   * The first attempt priced these at the flat activity rate
-   * (`20/100 × weight`), which came out at 1, 1 and 2 points for the
-   * three sizes in a weight-10 unit while a weekly task in the same
-   * unit was worth 20. Two of the three sizes were indistinguishable,
-   * which would have made the size control decorative.
-   *
-   * **The budget is worked out over units holding any non-daily item,
-   * one-offs included** — otherwise an errand in a unit with no weekly
-   * work would divide by a budget of zero and price at the floor. That
-   * means the variable band's *notional* total can exceed 20 while
-   * one-offs are outstanding. It cannot exceed it in practice:
-   * `computeDayScore` caps what the band pays at `VARIABLE_BAND`, and
-   * the day's denominator is a constant 100 either way (ADR-0027 §1).
-   *
-   * Crucially this is computed **outside `bandPointValues`**, so a
-   * one-off appearing or being ticked off never moves a recurring
-   * task's value. That is the property this whole design exists to
-   * protect.
-   *
-   * A floor of one point, for ADR-0003 §5's reason: a zero-point row
-   * cannot move the number, so it is not a task.
-   */
+/**
+ * A one-off's worth: its size against **its unit's own variable
+ * budget** — so a big errand in a part of your life is worth about
+ * what a week of planned work there is worth, and a quick one a
+ * quarter of that.
+ *
+ * The first attempt priced these at the flat activity rate
+ * (`20/100 × weight`), which came out at 1, 1 and 2 points for the
+ * three sizes in a weight-10 unit while a weekly task in the same
+ * unit was worth 20. Two of the three sizes were indistinguishable,
+ * which would have made the size control decorative.
+ *
+ * **The budget is worked out over units holding any non-daily item,
+ * one-offs included** — otherwise an errand in a unit with no weekly
+ * work would divide by a budget of zero and price at the floor. That
+ * means the variable band's *notional* total can exceed 20 while
+ * one-offs are outstanding. It cannot exceed it in practice:
+ * `computeDayScore` caps what the band pays at `VARIABLE_BAND`, and
+ * the day's denominator is a constant 100 either way (ADR-0027 §1).
+ *
+ * Crucially this is computed **outside `bandPointValues`**, so a
+ * one-off appearing or being ticked off never moves a recurring
+ * task's value. That is the property this whole design exists to
+ * protect.
+ *
+ * A floor of one point, for ADR-0003 §5's reason: a zero-point row
+ * cannot move the number, so it is not a task.
+ */
+function priceOneOffs(
+  points: Map<string, number>,
+  bandUnits: BandUnit[],
+  bandTasks: BandTask[],
+  memberships: readonly { taskId: string; unitId: string }[],
+  oneOffSizeByTask: Map<string, "quick" | "normal" | "big" | null>,
+): void {
   const oneOffMemberships = memberships.filter(
     (m) => oneOffSizeByTask.get(m.taskId) != null,
   );
@@ -373,6 +399,50 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       );
     }
   }
+}
+
+/**
+ * What every task is worth **on one particular date**, once a
+ * commitment band is in play (ADR-0032).
+ *
+ * The band makes a day's split date-dependent — the first time
+ * anything in this app has been — so `task.point_value` can no longer
+ * be one stored number that is true every day. On a day with eligible
+ * commitment work the values are computed here at read time; on every
+ * other day `loadDay` keeps reading the stored column, which is why
+ * this returns `null` for those days rather than a map that happens to
+ * match.
+ *
+ * Returns totals per task, summed across memberships the way
+ * `task.point_value` is.
+ */
+export async function taskPointsOn(
+  day: CommitmentDay,
+): Promise<Map<string, number>> {
+  const { bandUnits, bandTasks, memberships, oneOffSizeByTask } =
+    await bandInputs(db);
+  const points = bandPointValues(bandUnits, bandTasks, day);
+  priceOneOffs(points, bandUnits, bandTasks, memberships, oneOffSizeByTask);
+
+  const totals = new Map<string, number>();
+  for (const m of memberships) {
+    const value = points.get(`${m.taskId}::${m.unitId}`) ?? 0;
+    totals.set(m.taskId, (totals.get(m.taskId) ?? 0) + value);
+  }
+  return totals;
+}
+
+export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
+  const {
+    bandUnits,
+    bandTasks,
+    memberships,
+    oneOffSizeByTask,
+    normalizedRank,
+    homeUnitByTask,
+  } = await bandInputs(tx);
+  const points = bandPointValues(bandUnits, bandTasks);
+  priceOneOffs(points, bandUnits, bandTasks, memberships, oneOffSizeByTask);
 
   // Totals are summed here rather than re-read per task. This used to
   // call `refreshTaskTotal` in a second loop, which cost three more

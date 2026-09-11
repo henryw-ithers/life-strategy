@@ -82,6 +82,17 @@ export const UNPLANNED_CAP = VARIABLE_BAND;
  *  contradicts AGENTS.md's cap invariant outright. *The
  *  daily-denominator retune* was never decided — docs/backburner.md
  *  lists four directions and none was chosen — so there was nothing to
- *  build. Both are open questions, not omissions. */
-export const FORMULA_VERSION = 7;
+ *  build. Both are open questions, not omissions.
+ *  v8 (2026-09-11): **the commitment band** (ADR-0032). A day holding
+ *  eligible commitment work splits three ways — the band, then 80/20
+ *  on what remains — and the 18 life units are scaled into that
+ *  remainder. This is the first time a day's split depends on the
+ *  *date*, so a task's value is no longer one stored number true on
+ *  every day; `loadDay` computes it for the date when a band applies
+ *  and reads the stored column otherwise. A day with no commitment
+ *  work is arithmetically identical to v7, but the version moves
+ *  regardless: the stamp records how a grade *could* have been
+ *  derived, and two eras where the same plan can score differently are
+ *  not comparable. Grades finalize; history is not rewritten. */
+export const FORMULA_VERSION = 8;
 export const DAILY_BUDGET = 100;

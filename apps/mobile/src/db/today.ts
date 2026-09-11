@@ -28,8 +28,13 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
+import { loadCommitmentDay } from "./commitments";
 import { autocountForTask, removeAutocountForTask } from "./goals";
-import { latestWeights as latestIncludedWeights, type Tx } from "./tasks";
+import {
+  latestWeights as latestIncludedWeights,
+  taskPointsOn,
+  type Tx,
+} from "./tasks";
 import {
   activity,
   activityTag,
@@ -270,11 +275,30 @@ export async function loadDay(
         )
     : [];
 
+  /**
+   * What tasks are worth **today** (ADR-0032).
+   *
+   * The commitment band makes a day's split date-dependent, so on a
+   * day with eligible commitment work `task.point_value` is not the
+   * answer: the band is carved off the top and the 18 life units are
+   * scaled into what remains. Those values are computed here rather
+   * than stored, because there is no one number that is true on both a
+   * scheduled day and a free one.
+   *
+   * On every other day this is `null` and the stored column is read
+   * exactly as before — which is what keeps a day with no commitments
+   * byte-for-byte what it is today.
+   */
+  const commitmentDay = await loadCommitmentDay(date);
+  const pointsToday = commitmentDay ? await taskPointsOn(commitmentDay) : null;
+  const pointsFor = (t: { id: string; pointValue: number }) =>
+    pointsToday?.get(t.id) ?? t.pointValue;
+
   const statuses = deriveChecklist(
     tasks.map((t) => ({
       taskId: t.id,
       unitId: t.unitId,
-      pointValue: t.pointValue,
+      pointValue: pointsFor(t),
       timesPerWeek: t.timesPerWeek,
     })),
     completions.map((c) => ({ taskId: c.taskId, localDate: c.localDate })),
@@ -355,7 +379,7 @@ export async function loadDay(
       title: t.title,
       unitId: t.unitId,
       areaId: unitById.get(t.unitId)?.areaId ?? "",
-      pointValue: t.pointValue,
+      pointValue: pointsFor(t),
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,
       fortnightOffset: t.fortnightOffset,
