@@ -121,10 +121,9 @@ week rather than 40%.
 **The band size is the user's, in steps of 5** (Henry, 2026-09-11),
 replacing the arbitrary 40 this note used to assume. It runs from
 **10 to 60**, a flat ceiling regardless of how many commitments are
-held. The floor
-and ceiling are themselves a mild opinion, and a defensible one: 0
-would make the feature pointless, and 100 would delete the rest of a
-life from a scheduled day.
+held. The floor and ceiling are themselves a mild opinion, and a
+defensible one: 0 would make the feature pointless, and 100 would
+delete the rest of a life from a scheduled day.
 
 **Commitment points are separate from the 18 units' points.** Settled,
 and settled earlier than this note admitted — *"its own special bucket
@@ -420,9 +419,20 @@ exactly how `EXTRA_RUN_RATE` works. This rule scopes a repeat to a
 *different window*, which is more honest anyway: the same task twice
 inside one two-hour gap is rarely two real sessions.
 
-Open: where `V` comes from — the members are equal-priced by §3d's
-rule, so the pool needs one value, and whether that is a tier's value,
-the highest member's, or its own is unsettled.
+**Open — how much is a pool worth?** A window pool of three, on a day
+whose band pays 8 per commitment task:
+
+- **A: the pool counts as one task** when the band is divided. Worth 8.
+  Do one member → 8; do two → 16, the second beyond plan.
+- **B: each member counts separately.** The three hold 24, 8 each. Do
+  one → 8; do all three → 24.
+
+Per task they pay the same. The difference is the **day's ceiling**:
+under B, planning three options you only ever intend to do one of
+inflates what the day was theoretically worth, so an ordinary day
+always reads as a partial one. **A is recommended** — it matches
+"planning to pick one of," and doing two then genuinely reads as going
+beyond the plan.
 
 ### 3e. Window capacity — how much fits
 
@@ -503,16 +513,23 @@ explicitly *not* a scoring event: "no points, no denominator, no effect
 on any day's number." Partial completion **is** one. They look alike
 and must stay separate.
 
-**Open:**
-- **Which tasks get it?** "Brush teeth, 50%" is meaningless, and a
-  fraction picker on every habit is what ADR-0014's scope warns
-  against. Probably limited to sized or one-off work — assignments,
-  essays, projects — which ties to ADR-0026 again.
-- **Does a 50% pool member half-earn the slot** (`0.5 × V`)? Presumably,
-  but it interacts with §3d's "every completion pays in full" and
-  should be stated rather than inferred.
-- **Rounding.** `fraction × integer points` does not land on integers;
-  `largestRemainder` already exists for this shape.
+**Which tasks get it is a per-task toggle, set when the task is
+made** (Henry, 2026-09-11). Better than the alternative considered
+here — the app deciding, by limiting it to sized or one-off work —
+and consistent with the principle below: the app offers the capability
+and the user says where it applies. "Brush teeth" simply has the toggle
+off.
+
+**A partially completed pool member earns `fraction × V`.** Flagged as
+open in an earlier draft; it is not. §3d's "every completion pays in
+full" is about *multiple members*, and this is about *fractions* —
+orthogonal, no conflict.
+
+**Rounding: pay `round(total fraction so far × value)` minus what has
+already been paid.** A 3-point task marked 25% pays 1; the next 25%
+pays 0; reaching 75% pays 1 more. The total can never exceed the task's
+value, and each step is individually honest. Without this, four
+quarter-marks pay 4 points on a 3-point task.
 
 ### 3g. How many hours the grid draws
 
@@ -603,35 +620,50 @@ Each of these is an accepted ADR. None should be absorbed quietly.
 
 ## Open questions
 
-1. ~~**Does carry-forward accumulate visibly?**~~ **Settled
-   2026-09-11:** yes, and that is normal planner behaviour. See §3.
-2. **What does the Tasks screen's point column say** when a task's
-   value depends on the day? That column is exactly what ADR-0027 was
-   written to fix — it summed to 118, and *"a page whose stated job is
-   'where are my points going' answers with a number that is not 100."*
-   A range, a typical day, or a weekly total.
-3. **Does the pie replace the diagnostic or sit beside it?** Recommended
-   beside. The honest counter: the diagnostic is 18 units × 2 ratings,
-   monthly, and if Henry always overrides then it is ceremony. Decide
-   from use, not now.
-4. ~~**Is 40 a sensible default** for the commitment band?~~
-   **Settled 2026-09-11:** the user picks, 10–60 in steps of 5. What
-   replaced it is sharper and is in §2: **is the band set or
-   emergent?** A slider and "commitments are weighted units on the pie"
-   are two controls for one number, and only one can be right.
-5. ~~**Choice set or pool**~~ **Settled by §§3d–3e:** equal-priced
-   pools of at most three, one slot, every completion pays full. What
-   remains open is narrower — where the pool's value `V` comes from,
-   and the Masicampo & Baumeister question (how much optionality before
-   a plan stops being a plan), which still wants a literature pass
-   rather than a guessed number. Three is a plausible answer on that
-   count too, which is mild evidence the cap is right.
-6. ~~**Is "the user chooses" now a stated product principle?**~~
-   **Answered 2026-09-11 — see below.** It is, and it is narrower and
-   better than "the app has no opinions."
-7. **Write ADR-0026 (task size and day load) now.** Three separate
+Settled items have been struck from this list and live in their
+sections. What is genuinely left, in plain terms:
+
+1. **How much is a window pool worth?** Does a pool of three count as
+   *one* task when the band is divided, or as three? Same value per
+   task either way; the difference is whether planning options you only
+   ever intend to do one of inflates the day's ceiling. **Recommended:
+   one.** Worked through in §3d.
+
+2. **What number does the Tasks screen show?** "Revise COMP2521" is
+   worth ~8 on a scheduled day and something else on a free one — the
+   same task, two values — and that column's whole job is answering
+   "where are my points going." A range, a typical day, or a weekly
+   total. This is the column ADR-0027 was written to fix, when it
+   summed to 118. **Recommended: the scheduled-day value** for
+   commitment tasks, since that is when they are earned.
+
+3. **Does the pie replace the diagnostic, or sit beside it?** Beside
+   means the diagnostic still runs monthly, still records importance
+   and satisfaction for the portfolio graph, and seeds a pie the user
+   drags to override. Instead means there is no diagnostic and the
+   bubble chart loses its data. **Recommended: beside**, with the
+   honest counter that if Henry always overrides in real use, the
+   diagnostic is ceremony. Decide from use.
+
+4. **Does PRODUCT.md get principle 6?** *"Granularity is the user's"*
+   is drafted below. It changes the whole product rather than this
+   feature, so it wants its own commit off `main` rather than riding
+   this branch.
+
+5. **How much optionality before a plan stops being a plan?** Not a
+   decision — a literature question. ADR-0024 rests partly on Masicampo
+   & Baumeister, where the payoff of planning is mental quiet and quiet
+   comes from having decided. Three options may still read as a
+   decision; five probably does not. Wants a pass in
+   [scheduling-and-motivation.md](scheduling-and-motivation.md) rather
+   than a guessed number.
+
+6. **Write ADR-0026 (task size and day load) now.** Three separate
    parts of this design need it (§3e). Its shape is already fixed by
    ADR-0024 §6 — `quick | normal | big`, never minutes.
+
+7. **Write ADR-0014 (partial credit)**, recording that its calibration
+   gate has not fired and why the premise changed anyway (§3f).
 
 ## The principle underneath all of this
 
