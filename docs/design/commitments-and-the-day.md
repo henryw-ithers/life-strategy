@@ -144,6 +144,47 @@ recording that the first one was missed** — which is what lets
 carry-forward coexist with ADR-0024 §2's silent lapse rather than
 contradict it.
 
+**Accumulation is accepted** (Henry, 2026-09-11): a backlog building up
+across windows is normal planner behaviour, not a shame mechanic. The
+concern raised against it was that a pile growing in front of you is
+the loss-aversion shape PRODUCT.md names as an anti-reference; the
+call is that a planner which silently drops what you did not get to is
+the worse failure. Roll-forward stays a display rule either way, so
+nothing is written and nothing is counted.
+
+### 3a. A day with no commitments is just today's app
+
+Saturday and Sunday do not need a special case. They hold planned or
+scheduled tasks exactly as the app does now — **commitment-based or
+not** — and the user decides how precise to be.
+
+### 3b. Any task may carry an explicit time, if the user wants one
+
+> **This supersedes rather than amends ADR-0030 §1 and ADR-0024 §1.**
+> Both were built on the principle that *only things somebody else set
+> carry a clock time*, with a closed list of three columns and
+> self-scheduled work kept rough. Henry's call on 2026-09-11 — *"they
+> can be an explicit time slot or just placed in morning, afternoon, or
+> evening. We give the freedom to the user to choose how they want to
+> use the tool"* — removes that line. Read app-wide, not weekend-only:
+> a rule permitting a time slot on Saturday but not Tuesday would not
+> be coherent.
+
+What this costs, honestly: the Tonietto & Malkoc protection ADR-0024
+§1 was built around — rough scheduling avoids the enjoyment penalty
+that specific scheduling puts on discretionary activity — is now the
+user's to opt into rather than the app's to enforce. `anytime` and
+part-of-day stay the **default**, which preserves the finding for
+anyone who does not reach for a time.
+
+What it does not cost: **nothing in the scoring engine touches a
+time.** Bands key off frequency and unit. A timed task sorts into
+whichever window contains its time; an untimed one sits in its
+part-of-day window; both coexist in one structure. Cue-based placement
+(ADR-0030 §4) survives as a *nicety* — a placement cued to a lecture
+still follows that lecture when the timetable moves — rather than as
+the required mechanism.
+
 ### 4. Weights are set directly, on a pie
 
 The direct-manipulation write path **already exists**:
@@ -182,15 +223,18 @@ drag — proportionally across the rest, from a neighbour, or with locks.
 
 ### 5. Clock times, narrowly
 
-Unchanged from
-[ADR-0030](../adr/0030-commitments-carry-times-plans-carry-cues.md),
-which survives this rework. Times live on scheduled sessions and on
-deadlines, because those are set by somebody else; self-scheduled work
-keeps part-of-day and cues. The containment argument weakens under the
-new shape — times now sit **on** `task` rather than on a separate
-table, so "no minute column on `task`" is no longer a structural
-guarantee and becomes a conditional invariant enforced at the write
-seam.
+~~Unchanged from ADR-0030, which survives this rework.~~
+**Superseded 2026-09-11 — see §3b.** Any task may carry an explicit
+time; part-of-day stays the default. ADR-0030 needs rewriting rather
+than amending: its §1 (*only things somebody else set*) and §2 (the
+closed list of three columns) were the whole argument, and both are
+gone.
+
+What survives from it: **§4's cue-based placement**, now as a nicety
+rather than the mechanism, and **§6's refusal of commitment
+notifications** — a course name on the lock screen is still exactly
+what ADR-0010 §3 exists to prevent, and having a clock time only ever
+made that feature possible, never right.
 
 ## Invariants this breaks, and what each needs
 
@@ -200,18 +244,15 @@ Each of these is an accepted ADR. None should be absorbed quietly.
 |---|---|---|
 | **ADR-0024 §2** — plans never touch the grade; an unplanned day scores identically | A session pays from the commitment band on its day and from the 20 pool otherwise | **Henry's call, taken knowingly:** you lose Thursday's points because you did not do Thursday's work, and gain Sunday's from the bonus pool because unplanned work is what that pool is for. Needs an argued amendment |
 | **ADR-0024 §1** — flexible is a first-class value and the default | Commitment sessions must be scheduled | Structurally necessary: the band exists only on scheduled days, so an unscheduled session could never be earned at all |
+| **ADR-0024 §1 / ADR-0030 §§1–2** — no clock time on a self-scheduled task; a closed list of three columns | Any task may carry an explicit time (§3b) | **Superseded, not amended.** Henry, 2026-09-11. ADR-0030 needs rewriting; part-of-day stays the default, so the research finding survives for anyone who does not reach for a time |
 | **ADR-0027** — the day is two bands, denominator a constant 100 | A third band, and a day-dependent split | Formula **v8**. Past days stay on v7 (ADR-0002) |
 | **AGENTS.md** — importance first, satisfaction-gap boost second | The pie sets weights without `deriveWeights` | Only if the pie replaces derivation rather than overriding it (§4) |
 | **ADR-0003 §6** — recommended task counts | Henry: *"we should shape around the user's tasks, not the other way around."* | §6 is load-bearing: `bands.ts` and `tasks.ts` both cite it as the reason a task may be worth zero. Removing the advice obliges fixing the allocation |
 
 ## Open questions
 
-1. **Does carry-forward accumulate visibly?** Plan three things
-   Wednesday, do none, and Thursday inherits them on top of its own
-   plan; by Friday a pile is growing in front of you. That is the
-   loss-aversion shape PRODUCT.md names as an anti-reference. Options: a
-   quiet count ("2 waiting") rather than stacked rows, or a cap on how
-   far something rolls before it reverts to undated work.
+1. ~~**Does carry-forward accumulate visibly?**~~ **Settled
+   2026-09-11:** yes, and that is normal planner behaviour. See §3.
 2. **What does the Tasks screen's point column say** when a task's
    value depends on the day? That column is exactly what ADR-0027 was
    written to fix — it summed to 118, and *"a page whose stated job is
@@ -223,6 +264,15 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    from use, not now.
 4. **Is 40 a sensible default** for the commitment band, and is it per
    commitment or shared across all of them?
+5. **Is "the user chooses" now a stated product principle?** Three
+   consecutive calls have gone the same way: drop the recommended task
+   range; *"shape around the user's tasks, not the other way around"*;
+   and *"we give the freedom to the user to choose how they want to use
+   the tool."* Three decisions on one axis is a principle, and it sits
+   in real tension with PRODUCT.md's *"Strategy before execution"* and
+   design principle 2, which are about the app having opinions. If it
+   is a principle it belongs in PRODUCT.md, where it can settle the next
+   argument instead of being rediscovered.
 
 ## What this changes
 
