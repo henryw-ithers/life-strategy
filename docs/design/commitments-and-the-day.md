@@ -101,6 +101,28 @@ modelling rather than an artefact. Scaling it by the day's share of the
 week was tried on paper and fails the goal — it makes school ~8% of a
 week rather than 40%.
 
+**The band size is the user's, 10–60 in steps of 5** (Henry,
+2026-09-11), replacing the arbitrary 40 this note used to assume. The
+range is itself a mild opinion — 60% max means life always keeps at
+least 40% — and that is a guardrail rather than a violation of the
+principle below: 0 would make the feature pointless and 100 would
+delete the rest of a life.
+
+> **Open, and it changes §1: is the band set or emergent?** §1 makes
+> commitments custom units carrying their own weight *on the pie*,
+> which makes the band **emergent** — five course-units at 8 each *is*
+> a 40% band, and a slider would be a second control fighting the
+> first. A slider instead implies two distributions: the band set
+> directly, and the pie sharing what is left among the 18 life units.
+>
+> The slider reading is probably right, because the band is carved off
+> **before** the 80/20 split and so is structurally separate from unit
+> weights already. That gives: one slider for how much of a scheduled
+> day belongs to commitments; commitments sharing that band by their
+> own relative weights; the pie distributing the remaining 40–90 across
+> the 18. Under that reading **commitment-units do not appear on the
+> main pie**, which contradicts §1 as written. Needs settling.
+
 **Within a day, the band divides across every commitment-unit task
 eligible that day** — scheduled sessions *and* assignment work planned
 for that day. Not across scheduled sessions alone, or a Friday holding
@@ -419,6 +441,29 @@ and must stay separate.
 - **Rounding.** `fraction × integer points` does not land on integers;
   `largestRemainder` already exists for this shape.
 
+### 3g. How many hours the grid draws
+
+Henry, 2026-09-11: *"What is displayed should be based on what the user
+has planned. The planning menu should display all hours of the day."*
+
+This replaces an earlier assumption in this note that the grid drew a
+fixed 07:00–22:00, widened to fit outliers — a number the app had no
+business picking.
+
+- **The grid draws the span of the day's windows**, not just its
+  blocks. Windows are what work is placed into, so a 9am lecture with a
+  free afternoon draws both; deriving the extent from blocks alone
+  would show one hour on a tall screen.
+- **The stretches before the first window and after the last collapse
+  to one row each** — *earlier* / *later* — tappable to expand to the
+  full day. So no day is ever un-plannable and no day draws sixteen
+  hours of nothing.
+- **A day with nothing planned needs no special case.** §3 already
+  makes an uncommitted day's windows morning / afternoon / evening, so
+  it draws those three rather than an empty ruler. Same rule.
+- **The planning surface shows all 24 hours.** Display is bounded by
+  the day; placement is not.
+
 ### 4. Weights are set directly, on a pie
 
 The direct-manipulation write path **already exists**:
@@ -496,21 +541,24 @@ Each of these is an accepted ADR. None should be absorbed quietly.
    beside. The honest counter: the diagnostic is 18 units × 2 ratings,
    monthly, and if Henry always overrides then it is ceremony. Decide
    from use, not now.
-4. **Is 40 a sensible default** for the commitment band, and is it per
-   commitment or shared across all of them?
-6. ~~**Choice set or pool**~~ **Settled by §§3d–3e:** equal-priced
+4. ~~**Is 40 a sensible default** for the commitment band?~~
+   **Settled 2026-09-11:** the user picks, 10–60 in steps of 5. What
+   replaced it is sharper and is in §2: **is the band set or
+   emergent?** A slider and "commitments are weighted units on the pie"
+   are two controls for one number, and only one can be right.
+5. ~~**Choice set or pool**~~ **Settled by §§3d–3e:** equal-priced
    pools of at most three, one slot, every completion pays full. What
    remains open is narrower — where the pool's value `V` comes from,
    and the Masicampo & Baumeister question (how much optionality before
    a plan stops being a plan), which still wants a literature pass
    rather than a guessed number. Three is a plausible answer on that
    count too, which is mild evidence the cap is right.
+6. ~~**Is "the user chooses" now a stated product principle?**~~
+   **Answered 2026-09-11 — see below.** It is, and it is narrower and
+   better than "the app has no opinions."
 7. **Write ADR-0026 (task size and day load) now.** Three separate
    parts of this design need it (§3e). Its shape is already fixed by
    ADR-0024 §6 — `quick | normal | big`, never minutes.
-5. ~~**Is "the user chooses" now a stated product principle?**~~
-   **Answered 2026-09-11 — see below.** It is, and it is narrower and
-   better than "the app has no opinions."
 
 ## The principle underneath all of this
 

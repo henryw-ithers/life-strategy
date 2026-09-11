@@ -62,8 +62,17 @@ reading it.
 
 ## The window
 
-Default **07:00–22:00**, widened to contain any block, so an empty day
-is one screen and a 6am lab still renders. `MINUTE_PX` derives from a
+> **Superseded 2026-09-11** — see
+> [commitments-and-the-day.md](commitments-and-the-day.md) §3g. The
+> grid draws the span of the day's *windows* (not a fixed range, and
+> not just its blocks); the stretches before the first and after the
+> last collapse to one row each; and the planning surface shows all 24
+> hours. A day with nothing planned draws its three parts of day rather
+> than an empty ruler. The paragraph below is the original assumption,
+> kept for the record.
+
+~~Default **07:00–22:00**, widened to contain any block, so an empty day
+is one screen and a 6am lab still renders.~~ `MINUTE_PX` derives from a
 passed-in `fontScale` — the way `checklistLayout` takes `gap` as an
 argument rather than importing tokens — so an hour row survives Dynamic
 Type instead of clipping. A `MIN_BLOCK_PX` floor keeps a fifteen-minute
