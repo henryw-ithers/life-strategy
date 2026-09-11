@@ -354,6 +354,71 @@ vocabulary), **never minute estimates**, because minutes inherit the
 planning fallacy the app cannot correct. So capacity is a rough fit —
 "about two normal things" — not an arithmetic of minutes.
 
+### 3f. Partial completion
+
+Henry, 2026-09-11:
+
+> If you genuinely work the full window but don't complete the
+> assignment, we'll still give you part of it. The user specifies the
+> percentage they completed (25%, 50%, 75%), which informs how many
+> points they get. When they complete on a later date they only get the
+> remaining points.
+
+**This pulls forward reserved ADR-0014, whose gate has not fired.**
+ADR-0004 §2 is explicit: *"Completion is binary (v1)... The
+`task_completion` schema **anticipates a partial-credit fraction
+column**; it gets added only if ADR-0008 calibration shows
+all-or-nothing grading diverges from felt contentment."* No such
+calibration exists — `meetsColdStartGate` has not been satisfied by
+anyone.
+
+**The argument for doing it anyway is that windows changed the
+premise**, not that the gate is inconvenient. Before windows, "I worked
+on it and did not finish" was *invisible* — no object represented the
+two hours. A window makes it a visible, recurring event, and binary
+completion against a window is wrong in a way it was not obviously
+wrong against a day. Same shape of argument ADR-0030 used against
+ADR-0024: the premise moved, so the ADR's own logic licenses
+revisiting.
+
+> Note the pattern: this is the **second reserved ADR in two passes**
+> that this design has pulled forward (0026 in §3e, 0014 here). Not
+> necessarily wrong, but the window model keeps demanding things the
+> app deliberately deferred until evidence arrived, and that is worth
+> noticing before a third.
+
+**The remaining-points rule needs no new state.** Sum
+`task_completion.fraction` across a task's completions; at 1.0 it is
+done. Points denormalize at each completion exactly as they do now, so
+a day that banked 50% keeps 50% when the rest lands later — ADR-0002's
+"history never restates" holds without special handling.
+
+**One-tap survives, which is ADR-0014's stated constraint.** Tap =
+done. Long-press = the 25/50/75 picker. Press-and-hold is already the
+app's grammar for a row's second action (completion tagging in
+ADR-0025, moving between parts of day in ADR-0024).
+
+**Copy rule.** It renders as progress — *"50% done"* — never as deficit
+or *"incomplete."* The feature exists to give credit that would
+otherwise be lost; presenting it as a shortfall would invert that and
+trip ADR-0008.
+
+**Do not unify with `goal_progress`.** ADR-0015 §7 makes goal progress
+explicitly *not* a scoring event: "no points, no denominator, no effect
+on any day's number." Partial completion **is** one. They look alike
+and must stay separate.
+
+**Open:**
+- **Which tasks get it?** "Brush teeth, 50%" is meaningless, and a
+  fraction picker on every habit is what ADR-0014's scope warns
+  against. Probably limited to sized or one-off work — assignments,
+  essays, projects — which ties to ADR-0026 again.
+- **Does a 50% pool member half-earn the slot** (`0.5 × V`)? Presumably,
+  but it interacts with §3d's "every completion pays in full" and
+  should be stated rather than inferred.
+- **Rounding.** `fraction × integer points` does not land on integers;
+  `largestRemainder` already exists for this shape.
+
 ### 4. Weights are set directly, on a pie
 
 The direct-manipulation write path **already exists**:
