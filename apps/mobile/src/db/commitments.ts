@@ -7,7 +7,7 @@
  * band rather than from the 18 life units' pool — **what separates a
  * commitment from a life unit is its band, not its table.**
  */
-import { type CommitmentDay } from "@glide/scoring";
+import { MAX_COMMITMENTS, type CommitmentDay } from "@glide/scoring";
 import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 
 import { db } from "./client";
@@ -176,4 +176,89 @@ export async function hasCommitments(): Promise<boolean> {
     )
     .limit(1);
   return row !== undefined;
+}
+
+export interface CommitmentDetail {
+  id: string;
+  name: string;
+  share: number;
+  /** This commitment's share as a whole-number percent of the band. */
+  sharePercent: number;
+  archivedAt: string | null;
+  subCommitments: { id: string; name: string; taskCount: number }[];
+  /** Tasks hanging off the commitment itself, not off a class. */
+  directTaskCount: number;
+  taskCount: number;
+}
+
+export interface CommitmentsScreenData {
+  /** Null when the user has never set one — every day is two-band. */
+  band: number | null;
+  commitments: CommitmentDetail[];
+  archived: CommitmentDetail[];
+  /** False once three are held, so the add control can say why. */
+  canAddMore: boolean;
+}
+
+/**
+ * Everything the Commitments surface renders, in one read.
+ *
+ * Shares are relative and need not sum to anything (ADR-0032 §3), so
+ * the percentage shown beside each one is normalised here — the screen
+ * should show what a commitment actually claims, not the raw number
+ * behind it.
+ */
+export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
+  const [band, units, taskRows] = await Promise.all([
+    loadCommitmentBand(),
+    db.select().from(lifeUnit).where(eq(lifeUnit.isCustom, true)),
+    db
+      .select({ unitId: task.unitId })
+      .from(task)
+      .where(eq(task.active, true)),
+  ]);
+
+  const counts = new Map<string, number>();
+  for (const t of taskRows) {
+    counts.set(t.unitId, (counts.get(t.unitId) ?? 0) + 1);
+  }
+
+  const parents = units.filter(
+    (u) => u.parentUnitId === null && u.commitmentShare !== null,
+  );
+  const liveTotal = parents
+    .filter((p) => p.archivedAt === null)
+    .reduce((a, p) => a + (p.commitmentShare ?? 0), 0);
+
+  const detail = (p: (typeof parents)[number]): CommitmentDetail => {
+    const subs = units
+      .filter((u) => u.parentUnitId === p.id && u.archivedAt === null)
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        taskCount: counts.get(u.id) ?? 0,
+      }));
+    const direct = counts.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      name: p.name,
+      share: p.commitmentShare ?? 0,
+      sharePercent:
+        liveTotal > 0 && p.archivedAt === null
+          ? Math.round(((p.commitmentShare ?? 0) / liveTotal) * 100)
+          : 0,
+      archivedAt: p.archivedAt,
+      subCommitments: subs,
+      directTaskCount: direct,
+      taskCount: direct + subs.reduce((a, s) => a + s.taskCount, 0),
+    };
+  };
+
+  const live = parents.filter((p) => p.archivedAt === null).map(detail);
+  return {
+    band,
+    commitments: live,
+    archived: parents.filter((p) => p.archivedAt !== null).map(detail),
+    canAddMore: live.length < MAX_COMMITMENTS,
+  };
 }
