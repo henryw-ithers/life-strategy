@@ -41,6 +41,10 @@ import {
 } from "../../components/plan/planning";
 import { CoverageBar } from "../../components/plan/CoverageBar";
 import type { OneOffState } from "../../components/plan/SchedulePicker";
+import {
+  NO_DETAIL,
+  type TaskDetail,
+} from "../../components/plan/TaskDetailPicker";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -60,9 +64,12 @@ import {
   loadPlan,
   reorderUnitTasks,
   restoreTask,
+  setTaskAllowsPartial,
   setTaskDetails,
   setTaskFortnightOffset,
   setTaskOneOff,
+  setTaskSize,
+  setTaskTime,
   setTaskFrequency,
   setTaskGoal,
   setTaskPlanning,
@@ -261,6 +268,7 @@ export default function PlanScreen() {
     plannedWeekdays: string | null,
     partOfDay: PartOfDay | null,
     oneOff: OneOffState | null = null,
+    detail: TaskDetail = NO_DETAIL,
   ) => {
     const id = await addTask(
       unitIds,
@@ -270,6 +278,7 @@ export default function PlanScreen() {
       partOfDay,
       null,
       oneOff,
+      detail,
     );
     const home = unitIds[0];
     if (home) setOpenUnitId(home);
@@ -703,6 +712,10 @@ export default function PlanScreen() {
               oneOffSize: editing.task.oneOffSize,
               oneOffDate: editing.task.oneOffDate,
               oneOffDue: editing.task.oneOffDue,
+              startMinute: editing.task.startMinute,
+              endMinute: editing.task.endMinute,
+              size: editing.task.size,
+              allowsPartial: editing.task.allowsPartial,
             } satisfies EditableTask
           }
           units={allUnits}
@@ -752,6 +765,22 @@ export default function PlanScreen() {
                 next.oneOff.date,
                 next.oneOff.due,
               );
+            }
+            if (
+              next.detail.startMinute !== t.startMinute ||
+              next.detail.endMinute !== t.endMinute
+            ) {
+              await setTaskTime(
+                t.id,
+                next.detail.startMinute,
+                next.detail.endMinute,
+              );
+            }
+            if (next.detail.size !== t.size) {
+              await setTaskSize(t.id, next.detail.size);
+            }
+            if (next.detail.allowsPartial !== t.allowsPartial) {
+              await setTaskAllowsPartial(t.id, next.detail.allowsPartial);
             }
             await reload();
           }}

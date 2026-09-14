@@ -14,11 +14,13 @@ import {
   fortnightStart,
   isEditable,
   isFinalized,
+  isSettled,
   localDateOf,
   monthStart,
   nextMonthStart,
   normalizeFraction,
   partialPoints,
+  progressOf,
   storedDayScore,
   VARIABLE_BAND,
   weekStart,
@@ -97,6 +99,32 @@ export interface TodayTask {
    * Shown, never enforced (ADR-0004 §5). It does not reach the grade.
    */
   streak: number | null;
+  /** Whether its owner turned part credit on (ADR-0014 §1). */
+  allowsPartial: boolean;
+  /**
+   * How much of it is done, 0–1. A one-off accumulates across days; a
+   * recurring task's is today's own fraction, since its Tuesday is not
+   * a continuation of its Monday.
+   *
+   * **Progress, never deficit** (ADR-0014 §5): 0.5 reads as "half
+   * done", never as "half missing", and nothing conditions on it.
+   */
+  progress: number;
+  /** What today's completion paid, when it was a partial one. */
+  earnedToday: number | null;
+  /**
+   * The fraction today's own completion was for, or null for none.
+   *
+   * Distinct from `progress`, which for a one-off also carries earlier
+   * days. The picker adds to `progress − fractionToday`, because a day
+   * holds one completion and picking again replaces it.
+   */
+  fractionToday: number | null;
+  /** Minutes from local midnight, or null (ADR-0030 §1). */
+  startMinute: number | null;
+  endMinute: number | null;
+  /** Effort size, or null for unsized (ADR-0026 §1). */
+  size: "quick" | "normal" | "big" | null;
 }
 
 export interface TodayActivity {
@@ -228,20 +256,38 @@ export async function loadDay(
    * the moment it exists, which is what "no particular day" means.
    */
   const oneOffIds = everyTask.filter((t) => t.oneOffSize != null).map((t) => t.id);
+  /**
+   * **Settled means finished, not touched** (ADR-0014 §2). A one-off
+   * someone did a quarter of on Tuesday is still outstanding, and
+   * testing for *any* completion would have taken it off the list on
+   * Wednesday with no way to ever finish it — the exact case §2 is
+   * written to support.
+   */
+  const priorFractions = new Map<string, number[]>();
+  if (oneOffIds.length > 0) {
+    const rows = await db
+      .select({
+        taskId: taskCompletion.taskId,
+        fraction: taskCompletion.fraction,
+      })
+      .from(taskCompletion)
+      .where(
+        and(
+          inArray(taskCompletion.taskId, oneOffIds),
+          lt(taskCompletion.localDate, date),
+        ),
+      );
+    for (const r of rows) {
+      priorFractions.set(r.taskId, [
+        ...(priorFractions.get(r.taskId) ?? []),
+        r.fraction,
+      ]);
+    }
+  }
   const settledBefore = new Set(
-    oneOffIds.length > 0
-      ? (
-          await db
-            .select({ taskId: taskCompletion.taskId })
-            .from(taskCompletion)
-            .where(
-              and(
-                inArray(taskCompletion.taskId, oneOffIds),
-                lt(taskCompletion.localDate, date),
-              ),
-            )
-        ).map((c) => c.taskId)
-      : [],
+    [...priorFractions.entries()]
+      .filter(([, fractions]) => isSettled(fractions))
+      .map(([taskId]) => taskId),
   );
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
@@ -297,6 +343,40 @@ export async function loadDay(
     pointsToday?.get(t.id) ?? t.pointValue;
   /** Which of today's rows the commitment band pays for (ADR-0032 §3). */
   const commitmentTaskIds = new Set(commitmentDay?.eligibleTaskIds ?? []);
+
+  /**
+   * How much of each task is already done, and how much today's own
+   * completion was for.
+   *
+   * **Scope is the difference between the two kinds of task.** A
+   * one-off accumulates toward 1.0 across days — that is ADR-0014 §2's
+   * "finishing on a later day pays only what is left". A recurring task
+   * starts again every day: its Tuesday is not a continuation of its
+   * Monday, and summing across days would have made its second
+   * completion pay nothing at all.
+   */
+  const oneOffIdSet = new Set(oneOffIds);
+  const progressByTask = new Map<string, number>();
+  const fractionToday = new Map<string, number>();
+  /** What today's completion actually paid, for the bands to credit. */
+  const earnedByTask = new Map<string, number>();
+  for (const t of tasks) {
+    const mine = completions.filter((c) => c.taskId === t.id);
+    const todays = mine.find((c) => c.localDate === date);
+    if (todays) {
+      fractionToday.set(t.id, todays.fraction);
+      if (todays.fraction < 1) earnedByTask.set(t.id, todays.pointsEarned);
+    }
+    progressByTask.set(
+      t.id,
+      oneOffIdSet.has(t.id)
+        ? progressOf([
+            ...(priorFractions.get(t.id) ?? []),
+            ...(todays ? [todays.fraction] : []),
+          ])
+        : progressOf(todays ? [todays.fraction] : []),
+    );
+  }
 
   const statuses = deriveChecklist(
     tasks.map((t) => ({
@@ -404,6 +484,13 @@ export async function loadDay(
       pointsIfCompletedNow: s.pointsIfCompletedNow,
       tagUnitIds: tagsByTask.get(t.id) ?? [],
       streak: streakByTask.get(t.id) ?? null,
+      allowsPartial: t.allowsPartial,
+      progress: progressByTask.get(t.id) ?? 0,
+      earnedToday: earnedByTask.get(t.id) ?? null,
+      fractionToday: fractionToday.get(t.id) ?? null,
+      startMinute: t.startMinute,
+      endMinute: t.endMinute,
+      size: t.size,
     };
   });
 
@@ -499,6 +586,10 @@ export async function loadDay(
             completedToday: t.completedToday,
             extraToday: t.extraToday,
             isCommitment: commitmentTaskIds.has(t.id),
+            // Null on every whole completion, which is every row this
+            // app wrote before part credit existed — so a day with no
+            // fractions scores byte-for-byte what it scored before.
+            ...(t.earnedToday !== null ? { earnedToday: t.earnedToday } : {}),
           })),
           extraRunCredit,
           activities: activityCredits,
@@ -642,91 +733,115 @@ function assertEditable(date: string): void {
 export async function toggleCompletion(
   taskId: string,
   date: string,
-  /**
-   * How much of the task this completion represents (ADR-0014).
-   *
-   * Omitted is a whole completion, which is what one tap means and what
-   * every row written before partial credit existed was. A fraction
-   * reaches here only from the long-press picker, and only on a task
-   * whose owner turned `allows_partial` on.
-   */
-  fraction?: number,
 ): Promise<void> {
   assertEditable(date);
-  const existing = await db
-    .select()
-    .from(taskCompletion)
-    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
-  if (existing.length > 0) {
-    // Tags hang off the completion, so unchecking takes them with it —
-    // otherwise the row would be orphaned against its foreign key and
-    // a re-check would silently inherit yesterday's tags.
-    await db.delete(taskCompletionTag).where(
-      inArray(
-        taskCompletionTag.completionId,
-        existing.map((c) => c.id),
-      ),
-    );
-    await db
-      .delete(taskCompletion)
-      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
-    await removeAutocountForTask(taskId, date);
-  } else {
-    const day = await loadDay(date);
-    const status = [...day.daily, ...day.week, ...day.doneThisWeek].find(
-      (t) => t.id === taskId,
-    );
-    if (!status) return;
-    // What a partial completion pays: the rounded running total minus
-    // what earlier fractions already paid (ADR-0014 §3). Never more
-    // than the task is worth, however it is split up.
-    const settled = await partialFractionsFor(taskId);
-    const asked = fraction === undefined ? 1 : normalizeFraction(fraction);
-    const allowsPartial = await taskAllowsPartial(taskId);
-    const applied = allowsPartial ? asked : 1;
-    const points =
-      applied === 1 && settled.length === 0
-        ? status.pointsIfCompletedNow
-        : partialPoints(status.pointsIfCompletedNow, settled, applied);
-
-    await db.insert(taskCompletion).values({
-      id: Crypto.randomUUID(),
-      taskId,
-      localDate: date,
-      completedAt: new Date().toISOString(),
-      pointsEarned: points,
-      fraction: applied,
-    });
-    // ADR-0015 §2. A goal that nominated this task gets a visible,
-    // deletable progress row — the completion scores, the row does not
-    // (§7 keeps the two meanings apart).
-    await autocountForTask(taskId, date);
-  }
+  const cleared = await clearCompletion(taskId, date);
+  if (!cleared) await writeCompletion(taskId, date, 1);
   await cacheDayScore(date);
 }
 
 /**
- * Fractions already recorded against a task, across every day.
+ * Record how much of a task was done today (ADR-0014 §4's picker).
+ *
+ * **Replaces the day's fraction rather than adding to it.** Within one
+ * day there is one completion row per task, so picking a half after a
+ * quarter means "actually, a half" — not "a quarter and then a half".
+ * Across days a one-off still accumulates, which is what `settledFor`
+ * scopes and what §2's "finishing on a later day" relies on.
+ */
+export async function setCompletionFraction(
+  taskId: string,
+  date: string,
+  fraction: number,
+): Promise<void> {
+  assertEditable(date);
+  await clearCompletion(taskId, date);
+  await writeCompletion(taskId, date, fraction);
+  await cacheDayScore(date);
+}
+
+/** Removes the day's completion if there is one. Returns whether there was. */
+async function clearCompletion(taskId: string, date: string): Promise<boolean> {
+  const existing = await db
+    .select()
+    .from(taskCompletion)
+    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
+  if (existing.length === 0) return false;
+  // Tags hang off the completion, so unchecking takes them with it —
+  // otherwise the row would be orphaned against its foreign key and
+  // a re-check would silently inherit yesterday's tags.
+  await db.delete(taskCompletionTag).where(
+    inArray(
+      taskCompletionTag.completionId,
+      existing.map((c) => c.id),
+    ),
+  );
+  await db
+    .delete(taskCompletion)
+    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
+  await removeAutocountForTask(taskId, date);
+  return true;
+}
+
+/** Writes one completion for `date`, priced per ADR-0014 §3. */
+async function writeCompletion(
+  taskId: string,
+  date: string,
+  fraction: number,
+): Promise<void> {
+  const day = await loadDay(date);
+  const status = [...day.daily, ...day.week, ...day.doneThisWeek].find(
+    (t) => t.id === taskId,
+  );
+  if (!status) return;
+  // What a partial completion pays: the rounded running total minus
+  // what earlier fractions already paid (ADR-0014 §3). Never more
+  // than the task is worth, however it is split up.
+  const applied = status.allowsPartial ? normalizeFraction(fraction) : 1;
+  const settled = await settledFor(taskId, date, status.oneOffSize != null);
+  const points =
+    applied === 1 && settled.length === 0
+      ? status.pointsIfCompletedNow
+      : partialPoints(status.pointsIfCompletedNow, settled, applied);
+
+  await db.insert(taskCompletion).values({
+    id: Crypto.randomUUID(),
+    taskId,
+    localDate: date,
+    completedAt: new Date().toISOString(),
+    pointsEarned: points,
+    fraction: applied,
+  });
+  // ADR-0015 §2. A goal that nominated this task gets a visible,
+  // deletable progress row — the completion scores, the row does not
+  // (§7 keeps the two meanings apart).
+  await autocountForTask(taskId, date);
+}
+
+/**
+ * Fractions already settled against a task, before `date`.
  *
  * Progress is their **sum** (ADR-0014 §2) — there is deliberately no
  * stored progress on `task`, so nothing can disagree with the
  * completion history.
+ *
+ * **Only a one-off accumulates across days.** A recurring task's
+ * Tuesday is a fresh instance, not a continuation of its Monday:
+ * summing every day's fraction would have made its second completion
+ * pay `round(1×v) − round(1×v)` — nothing at all — for the rest of the
+ * task's life.
  */
-async function partialFractionsFor(taskId: string): Promise<number[]> {
+async function settledFor(
+  taskId: string,
+  date: string,
+  oneOff: boolean,
+): Promise<number[]> {
+  if (!oneOff) return [];
   const rows = await db
     .select({ fraction: taskCompletion.fraction })
     .from(taskCompletion)
-    .where(eq(taskCompletion.taskId, taskId));
+    .where(and(eq(taskCompletion.taskId, taskId), lt(taskCompletion.localDate, date)));
   return rows.map((r) => r.fraction);
-}
-
-/** Whether this task's owner turned partial completion on. */
-async function taskAllowsPartial(taskId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ allowsPartial: task.allowsPartial })
-    .from(task)
-    .where(eq(task.id, taskId));
-  return row?.allowsPartial ?? false;
 }
 
 /**

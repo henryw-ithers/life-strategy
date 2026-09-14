@@ -50,6 +50,7 @@ import {
 } from "./planning";
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import type { OneOffSize } from "./OneOffPicker";
+import { type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 export interface EditableTask {
@@ -70,6 +71,11 @@ export interface EditableTask {
   oneOffSize: OneOffSize | null;
   oneOffDate: string | null;
   oneOffDue: string | null;
+  /** All optional, all unset by default (ADR-0030 §2, ADR-0026 §1). */
+  startMinute: number | null;
+  endMinute: number | null;
+  size: OneOffSize | null;
+  allowsPartial: boolean;
 }
 
 interface TaskEditSheetProps {
@@ -93,6 +99,7 @@ interface TaskEditSheetProps {
     fortnightOffset: number;
     /** Null when the task is not a one-off; unchanged cadence either way. */
     oneOff: OneOffState | null;
+    detail: TaskDetail;
   }) => void;
   onDelete: () => void;
 }
@@ -119,6 +126,12 @@ export function TaskEditSheet({
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
   const [goalId, setGoalId] = useState<string | null>(task.goalId);
   const [fortnightOffset, setFortnightOffset] = useState(task.fortnightOffset);
+  const [detail, setDetail] = useState<TaskDetail>({
+    startMinute: task.startMinute,
+    endMinute: task.endMinute,
+    size: task.size,
+    allowsPartial: task.allowsPartial,
+  });
 
   /** Pinned days *are* the frequency (ADR-0024 §Schema) — the wheel
    *  retires while any chip is lit, inside `SchedulePicker`. */
@@ -132,7 +145,11 @@ export function TaskEditSheet({
     storedWeekdays !== task.plannedWeekdays ||
     partOfDay !== task.partOfDay ||
     goalId !== task.goalId ||
-    fortnightOffset !== task.fortnightOffset;
+    fortnightOffset !== task.fortnightOffset ||
+    detail.startMinute !== task.startMinute ||
+    detail.endMinute !== task.endMinute ||
+    detail.size !== task.size ||
+    detail.allowsPartial !== task.allowsPartial;
 
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
@@ -159,6 +176,10 @@ export function TaskEditSheet({
       goalId,
       fortnightOffset,
       oneOff: once ? oneOff : null,
+      // A one-off prices itself from its own "How big" above, and
+      // `setTaskOneOff` mirrors that into `size`. Sending this one's
+      // stale copy back would undo it.
+      detail: once ? { ...detail, size: task.size } : detail,
     });
     onClose();
   };
@@ -254,6 +275,8 @@ export function TaskEditSheet({
             onPartOfDayChange={setPartOfDay}
             fortnightOffset={fortnightOffset}
             onFortnightOffsetChange={setFortnightOffset}
+            detail={detail}
+            onDetailChange={setDetail}
             accent={accent}
             theme={theme}
           />

@@ -79,6 +79,7 @@ import {
   type Weekday,
 } from "./planning";
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
+import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 
 interface AddTaskModalProps {
@@ -114,6 +115,8 @@ interface AddTaskModalProps {
     partOfDay: PartOfDay | null,
     /** Non-null makes this a one-off; cadence and pins are ignored. */
     oneOff: OneOffState | null,
+    /** A clock time, a size, part credit — all unset unless asked for. */
+    detail: TaskDetail,
   ) => Promise<void> | void;
 }
 
@@ -143,6 +146,7 @@ export function AddTaskModal({
     date: lockedOneOffDate ?? null,
     due: null,
   });
+  const [detail, setDetail] = useState<TaskDetail>(NO_DETAIL);
   const [saving, setSaving] = useState(false);
 
   /** The home unit's area hue, or the app accent until one is picked —
@@ -161,6 +165,7 @@ export function AddTaskModal({
     setPartOfDay(null);
     setOnce(lockedOneOffDate !== undefined);
     setOneOff({ size: "normal", date: lockedOneOffDate ?? null, due: null });
+    setDetail(NO_DETAIL);
     setSaving(false);
     onClose();
   };
@@ -180,6 +185,11 @@ export function AddTaskModal({
     const committedDays = once ? null : formatWeekdays(weekdays);
     const committedPart = partOfDay;
     const committedOneOff = once ? oneOff : null;
+    // A one-off's size comes from its own block; `addTask` mirrors it
+    // into `size`, so this must not send a null over the top of it.
+    const committedDetail = once
+      ? { ...detail, size: null }
+      : detail;
     close();
     void onCommit(
       committedTitle,
@@ -188,6 +198,7 @@ export function AddTaskModal({
       committedDays,
       committedPart,
       committedOneOff,
+      committedDetail,
     );
   };
 
@@ -282,6 +293,8 @@ export function AddTaskModal({
             onTimesPerWeekChange={setTimesPerWeek}
             weekdays={weekdays}
             onWeekdaysChange={setWeekdays}
+            detail={detail}
+            onDetailChange={setDetail}
             partOfDay={partOfDay}
             onPartOfDayChange={setPartOfDay}
             accent={accent}

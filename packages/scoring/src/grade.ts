@@ -95,6 +95,22 @@ export interface DayTaskInput {
   completedToday: boolean;
   /** Today's completion was beyond the weekly goal (extra run). */
   extraToday?: boolean;
+  /**
+   * What today's completion actually paid, when that is less than the
+   * task is worth — a partial completion (ADR-0014 §3).
+   *
+   * Omitted means a whole one, which is what every completion written
+   * before `task_completion.fraction` existed was, and what one tap
+   * still means. Without it a band would credit the full value of a
+   * task somebody did a quarter of, and the day's number would
+   * disagree with the points its own completion row recorded.
+   */
+  earnedToday?: number;
+}
+
+/** What a completed task adds to a band: its partial pay, or its worth. */
+function earnedOf(t: DayTaskInput): number {
+  return t.earnedToday ?? t.pointValue;
 }
 
 /** One credited activity's tags, in log order. */
@@ -246,7 +262,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       !(onCommitmentDay && t.isCommitment) &&
       t.completedToday &&
       !t.extraToday
-        ? t.pointValue
+        ? earnedOf(t)
         : 0),
     0,
   );
@@ -267,7 +283,10 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     ? Math.min(
         input.tasks.reduce(
           (a, t) =>
-            a + (t.isCommitment && t.completedToday && !t.extraToday ? t.pointValue : 0),
+            a +
+            (t.isCommitment && t.completedToday && !t.extraToday
+              ? earnedOf(t)
+              : 0),
           0,
         ),
         band,
@@ -288,7 +307,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       !(onCommitmentDay && t.isCommitment) &&
       t.completedToday &&
       !t.extraToday
-        ? t.pointValue
+        ? earnedOf(t)
         : 0),
     0,
   );

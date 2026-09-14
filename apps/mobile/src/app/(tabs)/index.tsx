@@ -31,6 +31,7 @@ import { DayNumber } from "../../components/today/DayNumber";
 import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
 import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
+import { PartialSheet } from "../../components/today/PartialSheet";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
@@ -66,6 +67,7 @@ import {
   clearPlacementForDay,
   isPlannable,
   placeTaskForDay,
+  setCompletionFraction,
   toggleCompletion,
   updateActivity,
   updateJournalEntry,
@@ -151,6 +153,8 @@ export default function TodayScreen() {
    *  loaded day, since the screen behind it still shows today. */
   /** The row whose slot is being changed (ADR-0024 phase 3). */
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
+  /** The row whose part-credit sheet is open (ADR-0014 §4). */
+  const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
   /** A cross-slot drop awaiting its scope answer. */
   const [dropped, setDropped] = useState<{
     task: TodayTask;
@@ -214,7 +218,14 @@ export default function TodayScreen() {
   const onToggle = async (task: TodayTask) => {
     if (!day) return;
     void Haptics.selectionAsync();
-    await toggleCompletion(task.id, day.date);
+    // Tap always moves forward until the task is done: on a part-done
+    // row it finishes rather than throwing away what was logged. Undo
+    // lives on the row that is actually finished, and on the sheet.
+    if (task.progress > 0 && task.progress < 1) {
+      await setCompletionFraction(task.id, day.date, 1);
+    } else {
+      await toggleCompletion(task.id, day.date);
+    }
     const next = await reload(day.date);
     // The visual feedback is the climbing number; give screen readers
     // the same loop.
@@ -743,6 +754,11 @@ export default function TodayScreen() {
                               ? () => setTaggingTask(t)
                               : undefined
                           }
+                          onPartial={
+                            t.allowsPartial && day.editable && t.progress < 1
+                              ? () => setPartialTask(t)
+                              : undefined
+                          }
                           onMove={
                             day.editable && !t.completedToday
                               ? () => setMovingTask(t)
@@ -807,6 +823,11 @@ export default function TodayScreen() {
                             onTag={
                               t.completedToday && day.editable && day.communalUnits.length > 0
                                 ? () => setTaggingTask(t)
+                                : undefined
+                            }
+                            onPartial={
+                              t.allowsPartial && day.editable && t.progress < 1
+                                ? () => setPartialTask(t)
                                 : undefined
                             }
                             onMove={
@@ -1005,6 +1026,42 @@ export default function TodayScreen() {
               </View>
             </View>
           </Modal>
+
+          {partialTask ? (
+            <PartialSheet
+              visible
+              task={partialTask}
+              accent={hueFor(partialTask)}
+              theme={theme}
+              onClose={() => setPartialTask(null)}
+              onPick={(fraction) => {
+                const t = partialTask;
+                setPartialTask(null);
+                void Haptics.selectionAsync();
+                void setCompletionFraction(t.id, day.date, fraction).then(() =>
+                  reload(day.date),
+                );
+              }}
+              onClear={() => {
+                const t = partialTask;
+                setPartialTask(null);
+                void toggleCompletion(t.id, day.date).then(() =>
+                  reload(day.date),
+                );
+              }}
+              // The gesture's older job, kept reachable rather than
+              // taken over (ADR-0024 §3).
+              onMove={
+                partialTask.completedToday
+                  ? undefined
+                  : () => {
+                      const t = partialTask;
+                      setPartialTask(null);
+                      setMovingTask(t);
+                    }
+              }
+            />
+          ) : null}
 
           {movingTask ? (
             <MoveTaskSheet

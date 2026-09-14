@@ -40,6 +40,7 @@ import { OneOffPicker, type OneOffSize } from "./OneOffPicker";
 import { Segmented } from "./Segmented";
 import { PartOfDayPicker } from "./PartOfDayPicker";
 import { frequencyForWeekdays, type PartOfDay, type Weekday } from "./planning";
+import { TaskDetailPicker, type TaskDetail } from "./TaskDetailPicker";
 import { WeekdayPicker } from "./WeekdayPicker";
 
 interface SchedulePickerProps {
@@ -70,6 +71,10 @@ interface SchedulePickerProps {
   fortnightOffset?: number;
   /** Omit and the switch-weeks control never shows. */
   onFortnightOffsetChange?: (offset: 0 | 1) => void;
+  /** A clock time, a size, and part credit — all optional, all closed
+   *  by default (ADR-0030 §2). */
+  detail: TaskDetail;
+  onDetailChange: (next: TaskDetail) => void;
   accent: string;
   theme: ThemeTokens;
 }
@@ -100,6 +105,8 @@ export function SchedulePicker({
   onPartOfDayChange,
   fortnightOffset = 0,
   onFortnightOffsetChange,
+  detail,
+  onDetailChange,
   accent,
   theme,
 }: SchedulePickerProps) {
@@ -216,6 +223,18 @@ export function SchedulePicker({
           theme={theme}
         />
       </View>
+
+      {/* Last, and closed. Part of day above it is the default and the
+          answer most tasks will ever need; this is the step toward
+          precision that is offered and never required (ADR-0030 §2).
+          A one-off is not asked its size twice — it answered above. */}
+      <TaskDetailPicker
+        value={detail}
+        onChange={onDetailChange}
+        showSize={!once}
+        accent={accent}
+        theme={theme}
+      />
     </View>
   );
 }

@@ -60,6 +60,15 @@ export interface PlanTask {
   oneOffDate: string | null;
   /** Its deadline, or null. */
   oneOffDue: string | null;
+  /** Minutes from local midnight, or null for no clock time
+   *  (ADR-0030 §1). Presentation and fit only; never scored. */
+  startMinute: number | null;
+  endMinute: number | null;
+  /** Effort size, or null for unsized (ADR-0026 §1). Does not reprice
+   *  a recurring task; a one-off's mirrors its `oneOffSize`. */
+  size: "quick" | "normal" | "big" | null;
+  /** Whether quarter completions are offered (ADR-0014 §1). */
+  allowsPartial: boolean;
 }
 
 export interface PlanUnit {
@@ -212,6 +221,10 @@ export async function loadPlan(): Promise<PlanData> {
                 oneOffSize: t.oneOffSize,
                 oneOffDate: t.oneOffDate,
                 oneOffDue: t.oneOffDue,
+                startMinute: t.startMinute,
+                endMinute: t.endMinute,
+                size: t.size,
+                allowsPartial: t.allowsPartial,
                 goalId: t.goalId,
                 pointValue: t.pointValue,
                 rankInUnit: m.rankInUnit,
@@ -539,6 +552,21 @@ async function attachUnits(
  * Returns the new task's id so the caller can point at it; null when
  * there is no home unit to file it under.
  */
+/**
+ * The optional refinements, all null-by-default (ADR-0030 §2).
+ *
+ * A caller that omits this creates exactly the task the app made before
+ * these columns existed, which is the point: the light defaults are
+ * where the product's opinion about granularity lives, so nothing here
+ * may be supplied unasked.
+ */
+export interface TaskDetail {
+  startMinute: number | null;
+  endMinute: number | null;
+  size: "quick" | "normal" | "big" | null;
+  allowsPartial: boolean;
+}
+
 export interface OneOff {
   size: "quick" | "normal" | "big";
   /** The day you mean to do it. Null is "no particular day". */
@@ -555,6 +583,7 @@ export async function addTask(
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
   goalId: string | null = null,
   oneOff: OneOff | null = null,
+  detail: TaskDetail | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
@@ -579,6 +608,11 @@ export async function addTask(
       oneOffSize: oneOff?.size ?? null,
       oneOffDate: oneOff?.date ?? null,
       oneOffDue: oneOff?.due ?? null,
+      ...clockTimes(detail?.startMinute ?? null, detail?.endMinute ?? null),
+      // A one-off's size lands in both columns: `one_off_size` prices
+      // it, `size` is what the day's load and a window's capacity read.
+      size: oneOff?.size ?? detail?.size ?? null,
+      allowsPartial: detail?.allowsPartial ?? false,
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
@@ -852,6 +886,11 @@ export async function setTaskPartOfDay(
  * completions between recurring and one-off would strand its history:
  * a recurring task turned one-off would count as already settled and
  * vanish the moment it was saved.
+ *
+ * The size is written to **both** columns. `one_off_size` prices it;
+ * `size` is what window capacity and day load read (ADR-0026 §1: "one
+ * effort vocabulary"), and a one-off invisible to the day's load would
+ * be the vocabulary splitting in two.
  */
 export async function setTaskOneOff(
   taskId: string,
@@ -862,7 +901,7 @@ export async function setTaskOneOff(
   await db.transaction(async (tx) => {
     await tx
       .update(task)
-      .set({ oneOffSize: size, oneOffDate: date, oneOffDue: due })
+      .set({ oneOffSize: size, size, oneOffDate: date, oneOffDue: due })
       .where(eq(task.id, taskId));
     await recomputeAllUnitPoints(tx);
   });
@@ -893,17 +932,33 @@ export async function setTaskTime(
   startMinute: number | null,
   endMinute: number | null,
 ): Promise<void> {
+  const times = clockTimes(startMinute, endMinute);
+  if (times.startMinute !== null && endMinute !== null && times.endMinute === null) {
+    throw new Error("A task's end time must be after its start time.");
+  }
+  await db.update(task).set(times).where(eq(task.id, taskId));
+}
+
+/**
+ * The one place a pair of clock times is made storable.
+ *
+ * Clamps to the day, and drops an end that does not come after its
+ * start — a negative-height block would silently vanish from the grid
+ * rather than looking wrong. An end with no start is dropped too: it is
+ * not a block, and nothing in the window math can read one.
+ * `setTaskTime` turns the dropped end into an error; creation takes the
+ * coercion, because a new task should not fail to exist over it.
+ */
+function clockTimes(
+  startMinute: number | null,
+  endMinute: number | null,
+): { startMinute: number | null; endMinute: number | null } {
   const clamp = (m: number | null) =>
     m === null ? null : Math.max(0, Math.min(1439, Math.round(m)));
   const start = clamp(startMinute);
   const end = clamp(endMinute);
-  if (start !== null && end !== null && end <= start) {
-    throw new Error("A task's end time must be after its start time.");
-  }
-  await db
-    .update(task)
-    .set({ startMinute: start, endMinute: end })
-    .where(eq(task.id, taskId));
+  if (start === null) return { startMinute: null, endMinute: null };
+  return { startMinute: start, endMinute: end !== null && end > start ? end : null };
 }
 
 /**

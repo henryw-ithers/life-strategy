@@ -683,6 +683,8 @@ export default function GoalDetailScreen() {
                   unitIds,
                   plannedWeekdays,
                   partOfDay,
+                  oneOff,
+                  detail,
                 ) => {
                   await addTask(
                     unitIds,
@@ -691,6 +693,8 @@ export default function GoalDetailScreen() {
                     plannedWeekdays,
                     partOfDay,
                     goal.id,
+                    oneOff,
+                    detail,
                   );
                   await reload();
                 }}

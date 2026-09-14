@@ -434,8 +434,25 @@ export default function PlanDayScreen() {
           areaColors={theme.areas}
           theme={theme}
           lockedOneOffDate={date}
-          onCommit={async (title, timesPerWeek, unitIds, weekdays, part, oneOff) => {
-            await addTask(unitIds, title, timesPerWeek, weekdays, part, null, oneOff);
+          onCommit={async (
+            title,
+            timesPerWeek,
+            unitIds,
+            weekdays,
+            part,
+            oneOff,
+            detail,
+          ) => {
+            await addTask(
+              unitIds,
+              title,
+              timesPerWeek,
+              weekdays,
+              part,
+              null,
+              oneOff,
+              detail,
+            );
             await load();
           }}
         />

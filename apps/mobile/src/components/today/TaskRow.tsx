@@ -7,6 +7,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { TodayTask } from "../../db/today";
+import { progressLabel } from "./PartialSheet";
 import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -26,6 +27,12 @@ interface TaskRowProps {
    * not one you are still deciding when to do.
    */
   onMove?: () => void;
+  /**
+   * Press-and-hold on a part-credit row: how much of it did you do
+   * (ADR-0014 §4). Takes precedence over `onMove`, and the sheet it
+   * opens carries the move along so nothing is lost.
+   */
+  onPartial?: () => void;
   /** Area hue per tagged unit, for the pips. */
   tagHues?: Record<string, string>;
   theme: ThemeTokens;
@@ -76,6 +83,7 @@ export function TaskRow({
   onToggle,
   onTag,
   onMove,
+  onPartial,
   tagHues,
   theme,
   reduceMotion,
@@ -94,14 +102,20 @@ export function TaskRow({
     opacity: fill.value,
   }));
 
+  // Part done leads, because it is the most specific true thing about
+  // the row and the only one a tap is about to change. It reads as a
+  // count up, never as a shortfall (ADR-0014 §5).
+  const partial = task.progress > 0 && task.progress < 1;
   // Daily tasks have no frequency caption, so the run takes that slot
   // rather than adding a line to the row.
-  const caption = progressCaption(task) ?? streakCaption(task);
+  const caption = partial
+    ? progressLabel(task.progress)
+    : (progressCaption(task) ?? streakCaption(task));
 
   return (
     <Pressable
       onPress={onToggle}
-      onLongPress={onTag ?? onMove}
+      onLongPress={onTag ?? onPartial ?? onMove}
       delayLongPress={350}
       disabled={disabled}
       accessibilityRole="checkbox"
@@ -117,12 +131,16 @@ export function TaskRow({
       accessibilityActions={
         onTag
           ? [{ name: "magicTap", label: "Where else it counts" }]
-          : onMove
-            ? [{ name: "magicTap", label: "Move to another part of the day" }]
-            : undefined
+          : onPartial
+            ? [{ name: "magicTap", label: "How much of it you did" }]
+            : onMove
+              ? [{ name: "magicTap", label: "Move to another part of the day" }]
+              : undefined
       }
       onAccessibilityAction={(e) => {
-        if (e.nativeEvent.actionName === "magicTap") (onTag ?? onMove)?.();
+        if (e.nativeEvent.actionName === "magicTap") {
+          (onTag ?? onPartial ?? onMove)?.();
+        }
       }}
       style={({ pressed }) => [
         styles.row,
@@ -134,6 +152,20 @@ export function TaskRow({
           raw Green or Amber is the same 3.78:1 / 3.16:1 the primary
           button had. */}
       <View style={[styles.circle, { borderColor: hue }]}>
+        {/* A partial fills from the bottom rather than dimming or
+            half-ticking: "some of it" needs to read as a level, and a
+            faded tick reads as a disabled one. */}
+        {partial ? (
+          <View
+            style={[
+              styles.level,
+              {
+                backgroundColor: solidFill(hue, theme),
+                height: CIRCLE * task.progress,
+              },
+            ]}
+          />
+        ) : null}
         <Animated.View
           style={[styles.circleFill, { backgroundColor: solidFill(hue, theme) }, fillStyle]}
         >
@@ -179,6 +211,9 @@ export function TaskRow({
   );
 }
 
+/** The check circle's diameter; the partial level is a share of it. */
+const CIRCLE = 26;
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
@@ -188,17 +223,19 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   circle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  level: { position: "absolute", left: 0, right: 0, bottom: 0 },
   circleFill: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
     alignItems: "center",
     justifyContent: "center",
   },
