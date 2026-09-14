@@ -62,12 +62,16 @@ export {
   progressOf,
   PARTIAL_FRACTIONS,
 } from "./partial";
-export type { Block, PartOfDay, Window } from "./windows";
+export type { Block, PartOfDay, TaskSize, Window } from "./windows";
 export {
   formatMinutes,
   gridExtent,
+  dayLoadHours,
+  fitsInWindow,
+  windowCapacity,
   windowLength,
   windowsFor,
+  SIZE_HOURS,
   MIN_WINDOW_MINUTES,
   PART_OF_DAY_BOUNDS,
 } from "./windows";

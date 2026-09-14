@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatMinutes,
   gridExtent,
+  dayLoadHours,
+  fitsInWindow,
+  windowCapacity,
   windowsFor,
   MIN_WINDOW_MINUTES,
   PART_OF_DAY_BOUNDS,
@@ -126,5 +129,48 @@ describe("formatMinutes", () => {
   it("wraps rather than producing nonsense", () => {
     expect(formatMinutes(24 * 60)).toBe("00:00");
     expect(formatMinutes(-60)).toBe("23:00");
+  });
+});
+
+describe("capacity and load — ADR-0026", () => {
+  const twoHours = {
+    start: 11 * 60,
+    end: 13 * 60,
+    afterTaskId: "lecture",
+    partOfDay: null,
+  };
+
+  it("says roughly how many normal things a window holds", () => {
+    expect(windowCapacity(twoHours)).toBe(4);
+    expect(windowCapacity({ ...twoHours, end: 12 * 60 })).toBe(2);
+  });
+
+  it("fits work by size rather than by count", () => {
+    expect(fitsInWindow(twoHours, ["big", "big"])).toBe(true);
+    expect(fitsInWindow(twoHours, ["big", "big", "quick"])).toBe(false);
+    expect(fitsInWindow(twoHours, ["quick", "quick", "quick", "quick"])).toBe(true);
+  });
+
+  it("treats an unsized task as normal, without writing that anywhere", () => {
+    // A fit has to assume something and the middle is least wrong. The
+    // assumption is local to this call — task.size stays null.
+    expect(fitsInWindow(twoHours, [null, null, null, null])).toBe(true);
+    expect(fitsInWindow(twoHours, [null, null, null, null, null])).toBe(false);
+  });
+
+  it("sums a day's load in hours, counting unsized work as nothing", () => {
+    // Unsized work is *unknown*, not zero-effort — but a load meter
+    // that invented an estimate would be guessing at the user.
+    expect(dayLoadHours(["big", "normal", "quick"])).toBe(1.75);
+    expect(dayLoadHours([null, null])).toBe(0);
+    expect(dayLoadHours([])).toBe(0);
+  });
+
+  it("returns a bare number, with no threshold state to colour", () => {
+    // ADR-0026 §3: shown, never warned about. If this ever returns an
+    // object with a `tooFull` or a band, that rule has been broken.
+    expect(typeof dayLoadHours(["big", "big", "big", "big", "big"])).toBe(
+      "number",
+    );
   });
 });

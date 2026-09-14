@@ -153,10 +153,14 @@ too generous, or unnecessary.
 
 ## Action items
 
-1. [ ] `task_completion.fraction` and `task.allows_partial`; migration.
-2. [ ] The rounding rule in `packages/scoring`, pure and tested,
-       including the four-quarter-marks case.
-3. [ ] Long-press picker; verify tap-to-complete is unchanged.
+1. [x] `task_completion.fraction` and `task.allows_partial`; migration
+       0015 (2026-09-14).
+2. [x] The rounding rule in `packages/scoring/src/partial.ts`, pure and
+       tested, including the four-quarter-marks case. Building it
+       corrected §3's worked example — see the note there.
+       `toggleCompletion` takes an optional fraction.
+3. [ ] Long-press picker (UI); verify tap-to-complete is unchanged.
+       The write path is done and defaults to a whole completion.
 4. [ ] Decide what a partial day means for `computeStreak`.
 5. [ ] Copy review against §5 — progress, never deficit.
 6. [ ] Amend ADR-0004 §2 with a pointer here, recording that the

@@ -158,3 +158,59 @@ export function formatMinutes(minutes: number): string {
   const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
+
+// ── Capacity and load (ADR-0026) ────────────────────────────────────
+
+/**
+ * Roughly how long each size takes, as a share of an hour.
+ *
+ * **Deliberately coarse, and deliberately not minutes.** ADR-0024 §6's
+ * reasoning holds: a minute estimate inherits the planning fallacy,
+ * which the app cannot correct without task segmentation it does not
+ * have. These are the ratios `ONE_OFF_SIZE_RATE` already uses, so one
+ * effort scale means the same thing everywhere.
+ *
+ * Capacity is therefore an answer to "about how much fits here", never
+ * an arithmetic anyone should trust to the minute.
+ */
+export const SIZE_HOURS = { quick: 0.25, normal: 0.5, big: 1 } as const;
+export type TaskSize = keyof typeof SIZE_HOURS;
+
+/** About how many `normal`-sized things a window holds. */
+export function windowCapacity(w: Window): number {
+  return (w.end - w.start) / 60 / SIZE_HOURS.normal;
+}
+
+/**
+ * Whether a set of sized tasks plausibly fits a window.
+ *
+ * Unsized tasks count as `normal` **here only** — a fit has to assume
+ * something, and assuming the middle is the least wrong. It does not
+ * write that assumption anywhere: `task.size` stays null (ADR-0026 §1).
+ */
+export function fitsInWindow(
+  w: Window,
+  sizes: readonly (TaskSize | null)[],
+): boolean {
+  const needed = sizes.reduce(
+    (a, s) => a + SIZE_HOURS[s ?? "normal"] * 60,
+    0,
+  );
+  return needed <= w.end - w.start;
+}
+
+/**
+ * A day's load, in hours, from its sized work.
+ *
+ * **Shown, never warned about** (ADR-0026 §3). This returns a number
+ * and nothing else: no threshold, no "too full", no state a caller
+ * could colour red. A load meter that scolds is the taskmaster
+ * PRODUCT.md names as an anti-reference, and it is also the guidance
+ * that was deleted for telling the user how to live.
+ *
+ * It never touches the grade — load is presentation, in the sense
+ * ADR-0024 §2 means.
+ */
+export function dayLoadHours(sizes: readonly (TaskSize | null)[]): number {
+  return sizes.reduce((a, s) => a + (s === null ? 0 : SIZE_HOURS[s]), 0);
+}

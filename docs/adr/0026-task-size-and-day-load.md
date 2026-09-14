@@ -120,11 +120,14 @@ real plan, which is a formula-version conversation.
 
 ## Action items
 
-1. [ ] `task.size` (nullable `quick | normal | big`), migration, and
-       the optional control on create/edit.
-2. [ ] Window capacity in `packages/scoring` — a rough fit, pure and
-       tested.
-3. [ ] The day-load indicator, with a review rule that it has no
-       threshold state and no advisory copy.
+1. [~] `task.size` (nullable `quick | normal | big`) and migration
+       0015 landed with `setTaskSize` (2026-09-14). The optional
+       control on create/edit is UI and remains.
+2. [x] Window capacity in `packages/scoring/src/windows.ts` —
+       `windowCapacity`, `fitsInWindow`, `SIZE_HOURS`. A rough fit,
+       never minutes, pure and tested.
+3. [~] `dayLoadHours` computes it and deliberately returns a **bare
+       number** — no threshold, no band, nothing a caller could colour
+       red. A test asserts that shape. The indicator itself is UI.
 4. [ ] Amend ADR-0024 §6 with a pointer here, noting the trigger that
        actually fired.

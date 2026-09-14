@@ -183,13 +183,17 @@ mental quiet planning is for.
 
 ## Action items
 
-1. [ ] `packages/scoring/src/timetable.ts` — window derivation, gap vs
-       buffer, `occursOn` as the single answer to "does this happen on
-       this date." Pure, tested.
-2. [ ] `components/today/dayGridLayout.ts` — the pixel walk, RN-free
-       and tested, following `checklistLayout.ts`'s precedent.
-3. [ ] Pools: the planned count, equal pricing, once-per-window
-       uniqueness at the write seam.
+1. [x] Window derivation, gap vs buffer and the grid extent shipped as
+       `packages/scoring/src/windows.ts` rather than `timetable.ts`
+       (2026-09-14) — pure and tested. Eligibility ("does this happen on
+       this date") reuses the checklist's own `isDueOn` instead of a new
+       `occursOn`, so the day a task is *shown* and the day it is *paid*
+       cannot diverge.
+2. [ ] `components/today/dayGridLayout.ts` — the pixel walk. UI-side;
+       `gridExtent` gives it its bounds.
+3. [x] Pools: `pool`/`pool_member` (migration 0015), the planned count
+       honoured by `bandPointValues`, and once-per-window uniqueness
+       enforced in `commitmentPlan.poolProblem` and tested.
 4. [ ] Copy review against §3's framing rule — "pick one," never a list
        of three.
 5. [ ] The List / Day layout preference in `app_setting`
