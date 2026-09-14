@@ -89,9 +89,16 @@ no special handling.
 
     pay = round(total fraction so far × value) − points already paid
 
-A 3-point task marked 25% pays **1**; the next 25% pays **0**; reaching
-75% pays **1** more. The total can never exceed the task's value, and
-each step is individually honest.
+On a 3-point task the four quarters pay **1, 1, 0, 1**. The steps are
+uneven because each is the rounded total so far minus what has been
+paid, and `round(1.5)` is 2 — that unevenness is the mechanism working,
+not a defect. The total is always exactly the task's value, and no step
+can overpay.
+
+> **Corrected 2026-09-11.** An earlier draft of this section claimed
+> the quarters pay 1, 0, 1, 1. The totals were right and the breakdown
+> was not; building it and testing the arithmetic is what showed the
+> difference.
 
 Without this rule, four quarter-marks pay 4 points on a 3-point task —
 `fraction × value` does not land on integers, and rounding each step

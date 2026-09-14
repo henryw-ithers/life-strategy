@@ -37,6 +37,10 @@ import { syncTaxonomy } from "./seed";
 const TABLES_IN_DELETE_ORDER = [
   "activity_tag",
   "activity",
+  // Before `pool` and `task`, both of which it references.
+  "pool_member",
+  // Before `task`, which it references.
+  "pool",
   // Before `task_completion`, which it references.
   "task_completion_tag",
   "task_completion",

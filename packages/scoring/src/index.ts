@@ -54,6 +54,23 @@ export {
   weightsForPriorityOrder,
 } from "./ranking";
 export { recommendedTaskRange } from "./taskGuidance";
+export type { PartialFraction } from "./partial";
+export {
+  isSettled,
+  normalizeFraction,
+  partialPoints,
+  progressOf,
+  PARTIAL_FRACTIONS,
+} from "./partial";
+export type { Block, PartOfDay, Window } from "./windows";
+export {
+  formatMinutes,
+  gridExtent,
+  windowLength,
+  windowsFor,
+  MIN_WINDOW_MINUTES,
+  PART_OF_DAY_BOUNDS,
+} from "./windows";
 export type { Profile, UnitSituation } from "./profile";
 export { GAP_THRESHOLD, unitProfile } from "./profile";
 export type {

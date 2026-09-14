@@ -1,4 +1,4 @@
-import { isRoutine, VARIABLE_BAND } from "./bands";
+import { isRoutine, normalizeBand, VARIABLE_BAND } from "./bands";
 import { DAILY_BUDGET, EXTRA_RUN_RATE } from "./constants";
 import { addDays, fortnightStart, weekStart } from "./days";
 
@@ -85,6 +85,9 @@ export function deriveChecklist(
 }
 
 export interface DayTaskInput {
+  /** Priced from the commitment band rather than the variable one
+   *  (ADR-0032). Ignored when `commitmentBand` is null. */
+  isCommitment?: boolean;
   unitId: string;
   pointValue: number;
   /** 1–7 (7 = daily); 0 = once per fortnight. */
@@ -105,6 +108,18 @@ export interface DayScoreInput {
   satisfactionRating?: number | null;
   /** Every active task, whatever its cadence. */
   tasks: DayTaskInput[];
+  /**
+   * The commitment band's size on this date, or `null` on an ordinary
+   * two-band day (ADR-0032 §1).
+   *
+   * When set, tasks flagged `isCommitment` are spent from **this** band
+   * rather than from the variable one, and the routine and variable
+   * bands are scaled into what remains. Without it a commitment task
+   * would be counted as ordinary non-daily work and squashed into the
+   * 20-point variable cap — the band would price at 60 and the grade
+   * would pay 20.
+   */
+  commitmentBand?: number | null;
   /** Sum of extra-run pointsEarned completed on this day. Outside the
    *  cap (ADR-0023 §2) — this is the plan done harder. */
   extraRunCredit?: number;
@@ -215,25 +230,69 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   // and the app shows its own empty state for that.
   const possible = input.tasks.length > 0 ? DAILY_BUDGET : 0;
 
+  // Whether the commitment band applies today, decided once. A band of
+  // null is an ordinary two-band day and every branch below collapses
+  // to exactly the v7 arithmetic.
+  const onCommitmentDay =
+    input.commitmentBand != null && input.commitmentBand > 0;
+  const lifeScale = onCommitmentDay
+    ? (100 - normalizeBand(input.commitmentBand ?? 0)) / 100
+    : 1;
+
   const routineEarned = input.tasks.reduce(
     (a, t) =>
       a +
-      (isRoutine(t.timesPerWeek) && t.completedToday && !t.extraToday
+      (isRoutine(t.timesPerWeek) &&
+      !(onCommitmentDay && t.isCommitment) &&
+      t.completedToday &&
+      !t.extraToday
         ? t.pointValue
         : 0),
     0,
   );
 
+  // ── The commitment band (ADR-0032) ──
+  // Spent separately, and *before* the variable band is measured,
+  // because a commitment task is non-daily and would otherwise be
+  // counted as ordinary variable work and capped at 20 — the band
+  // would price at 60 and the grade would pay 20.
+  //
+  // The band's own cap is itself: `bandPointValues` already divides
+  // exactly `band` points across the day's eligible commitment work, so
+  // completing all of it earns the band once. The cap here catches
+  // anything the two could disagree about rather than doing the
+  // dividing a second time.
+  const band = onCommitmentDay ? normalizeBand(input.commitmentBand ?? 0) : 0;
+  const commitmentEarned = onCommitmentDay
+    ? Math.min(
+        input.tasks.reduce(
+          (a, t) =>
+            a + (t.isCommitment && t.completedToday && !t.extraToday ? t.pointValue : 0),
+          0,
+        ),
+        band,
+      )
+    : 0;
+
+  // What the life bands hold today. On a commitment day they are scaled
+  // into what the band leaves, exactly as `bandPointValues` scales the
+  // values that fill them — the two must agree or a day could pay more
+  // than it priced.
+  const variableBand = Math.round(VARIABLE_BAND * lifeScale);
+
   // Planned non-daily work has first claim on the variable band.
   const plannedVariable = input.tasks.reduce(
     (a, t) =>
       a +
-      (!isRoutine(t.timesPerWeek) && t.completedToday && !t.extraToday
+      (!isRoutine(t.timesPerWeek) &&
+      !(onCommitmentDay && t.isCommitment) &&
+      t.completedToday &&
+      !t.extraToday
         ? t.pointValue
         : 0),
     0,
   );
-  const variableEarned = Math.min(plannedVariable, VARIABLE_BAND);
+  const variableEarned = Math.min(plannedVariable, variableBand);
 
   // Then the unplanned pool, in the order it was earned: activities as
   // logged, then the special day's rating, which goes last because it is
@@ -251,10 +310,23 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   const ratingBonus =
     input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
   const unplannedRaw = activityCredit + ratingBonus;
-  const unplanned = Math.min(unplannedRaw, VARIABLE_BAND - variableEarned);
+  // Floored at zero. Without the floor this goes **negative** whenever
+  // `variableEarned` exceeds its band, silently cancelling the
+  // overspend instead of surfacing it — which is precisely how a
+  // mis-scaled cap would hide. Found by mutation testing 2026-09-14:
+  // breaking the scale produced a correct-looking total built from a
+  // 20-point overspend and a −12 credit.
+  const unplanned = Math.max(
+    0,
+    Math.min(unplannedRaw, variableBand - variableEarned),
+  );
 
   const earned =
-    routineEarned + variableEarned + unplanned + (input.extraRunCredit ?? 0);
+    commitmentEarned +
+    routineEarned +
+    variableEarned +
+    unplanned +
+    (input.extraRunCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded
   // pair, so the day screen and the calendar can never read one point

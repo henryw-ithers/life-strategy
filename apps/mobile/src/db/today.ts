@@ -17,6 +17,8 @@ import {
   localDateOf,
   monthStart,
   nextMonthStart,
+  normalizeFraction,
+  partialPoints,
   storedDayScore,
   VARIABLE_BAND,
   weekStart,
@@ -293,6 +295,8 @@ export async function loadDay(
   const pointsToday = commitmentDay ? await taskPointsOn(commitmentDay) : null;
   const pointsFor = (t: { id: string; pointValue: number }) =>
     pointsToday?.get(t.id) ?? t.pointValue;
+  /** Which of today's rows the commitment band pays for (ADR-0032 §3). */
+  const commitmentTaskIds = new Set(commitmentDay?.eligibleTaskIds ?? []);
 
   const statuses = deriveChecklist(
     tasks.map((t) => ({
@@ -483,12 +487,18 @@ export async function loadDay(
       : computeDayScore({
           kind,
           satisfactionRating: dayRow?.satisfactionRating ?? null,
+          // The band is spent separately from the variable one. Without
+          // these two fields a commitment task is treated as ordinary
+          // non-daily work and squashed into the 20-point variable cap:
+          // the band prices at 60 and the grade pays 20 (ADR-0032 §1).
+          commitmentBand: commitmentDay?.band ?? null,
           tasks: todayTasks.map((t) => ({
             unitId: t.unitId,
             pointValue: t.pointValue,
             timesPerWeek: t.timesPerWeek,
             completedToday: t.completedToday,
             extraToday: t.extraToday,
+            isCommitment: commitmentTaskIds.has(t.id),
           })),
           extraRunCredit,
           activities: activityCredits,
@@ -629,7 +639,19 @@ function assertEditable(date: string): void {
 }
 
 /** One completion per task per day: a second toggle unchecks. */
-export async function toggleCompletion(taskId: string, date: string): Promise<void> {
+export async function toggleCompletion(
+  taskId: string,
+  date: string,
+  /**
+   * How much of the task this completion represents (ADR-0014).
+   *
+   * Omitted is a whole completion, which is what one tap means and what
+   * every row written before partial credit existed was. A fraction
+   * reaches here only from the long-press picker, and only on a task
+   * whose owner turned `allows_partial` on.
+   */
+  fraction?: number,
+): Promise<void> {
   assertEditable(date);
   const existing = await db
     .select()
@@ -655,12 +677,25 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
       (t) => t.id === taskId,
     );
     if (!status) return;
+    // What a partial completion pays: the rounded running total minus
+    // what earlier fractions already paid (ADR-0014 §3). Never more
+    // than the task is worth, however it is split up.
+    const settled = await partialFractionsFor(taskId);
+    const asked = fraction === undefined ? 1 : normalizeFraction(fraction);
+    const allowsPartial = await taskAllowsPartial(taskId);
+    const applied = allowsPartial ? asked : 1;
+    const points =
+      applied === 1 && settled.length === 0
+        ? status.pointsIfCompletedNow
+        : partialPoints(status.pointsIfCompletedNow, settled, applied);
+
     await db.insert(taskCompletion).values({
       id: Crypto.randomUUID(),
       taskId,
       localDate: date,
       completedAt: new Date().toISOString(),
-      pointsEarned: status.pointsIfCompletedNow,
+      pointsEarned: points,
+      fraction: applied,
     });
     // ADR-0015 §2. A goal that nominated this task gets a visible,
     // deletable progress row — the completion scores, the row does not
@@ -668,6 +703,30 @@ export async function toggleCompletion(taskId: string, date: string): Promise<vo
     await autocountForTask(taskId, date);
   }
   await cacheDayScore(date);
+}
+
+/**
+ * Fractions already recorded against a task, across every day.
+ *
+ * Progress is their **sum** (ADR-0014 §2) — there is deliberately no
+ * stored progress on `task`, so nothing can disagree with the
+ * completion history.
+ */
+async function partialFractionsFor(taskId: string): Promise<number[]> {
+  const rows = await db
+    .select({ fraction: taskCompletion.fraction })
+    .from(taskCompletion)
+    .where(eq(taskCompletion.taskId, taskId));
+  return rows.map((r) => r.fraction);
+}
+
+/** Whether this task's owner turned partial completion on. */
+async function taskAllowsPartial(taskId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ allowsPartial: task.allowsPartial })
+    .from(task)
+    .where(eq(task.id, taskId));
+  return row?.allowsPartial ?? false;
 }
 
 /**

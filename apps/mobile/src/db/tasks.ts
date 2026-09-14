@@ -874,3 +874,68 @@ export async function setTaskFortnightOffset(
 ): Promise<void> {
   await db.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId));
 }
+
+/**
+ * Give a task a clock time, or take one away (ADR-0030 §1).
+ *
+ * **Any task may carry one and nothing requires one.** Pass `null` to
+ * clear it and the task goes back to part-of-day, which is the default
+ * and stays the default: those defaults are the only place the
+ * product's opinion about granularity now lives (PRODUCT.md
+ * principle 6), so no caller here should ever supply one unasked.
+ *
+ * Times are integer minutes from local midnight. A range that ends
+ * before it starts is refused rather than stored — it would render as a
+ * negative-height block and silently vanish from the grid.
+ */
+export async function setTaskTime(
+  taskId: string,
+  startMinute: number | null,
+  endMinute: number | null,
+): Promise<void> {
+  const clamp = (m: number | null) =>
+    m === null ? null : Math.max(0, Math.min(1439, Math.round(m)));
+  const start = clamp(startMinute);
+  const end = clamp(endMinute);
+  if (start !== null && end !== null && end <= start) {
+    throw new Error("A task's end time must be after its start time.");
+  }
+  await db
+    .update(task)
+    .set({ startMinute: start, endMinute: end })
+    .where(eq(task.id, taskId));
+}
+
+/**
+ * Set or clear a task's effort size (ADR-0026 §1).
+ *
+ * `null` is a first-class value, not a missing one: an unsized task
+ * behaves exactly as tasks did before this column existed, and a person
+ * who never wants to think about size should never have to.
+ *
+ * Size does **not** reprice a recurring task (ADR-0026 §2) — rank
+ * already does that job — so this writes no points and needs no
+ * recompute. One-offs are the exception and keep pricing through
+ * `ONE_OFF_SIZE_RATE`, which `setTaskOneOff` handles.
+ */
+export async function setTaskSize(
+  taskId: string,
+  size: "quick" | "normal" | "big" | null,
+): Promise<void> {
+  await db.update(task).set({ size }).where(eq(task.id, taskId));
+}
+
+/**
+ * Turn partial completion on or off for a task (ADR-0014 §1).
+ *
+ * Off by default. Turning it **off** leaves any fractions already
+ * recorded exactly where they are: they are history, and ADR-0002 does
+ * not let a setting rewrite what a day earned. Subsequent completions
+ * are simply whole ones.
+ */
+export async function setTaskAllowsPartial(
+  taskId: string,
+  allowsPartial: boolean,
+): Promise<void> {
+  await db.update(task).set({ allowsPartial }).where(eq(task.id, taskId));
+}

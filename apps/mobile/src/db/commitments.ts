@@ -16,7 +16,7 @@ import {
   eligibleTaskIds,
   groupCommitments,
 } from "./commitmentPlan";
-import { lifeUnit, task, taskCompletion } from "./schema";
+import { lifeUnit, pool, poolMember, task, taskCompletion } from "./schema";
 import { loadCommitmentBand } from "./settings";
 
 export interface CommitmentRow {
@@ -103,9 +103,10 @@ async function eligibleOn(date: string, unitIds: string[]): Promise<string[]> {
  * is what stops an empty Sunday capping below 100 through somebody
  * else's timetable.
  *
- * Pools (ADR-0033 §3) are not passed yet: nothing in the schema stores
- * one. When they land they attach here, and `bandPointValues` already
- * takes them.
+ * Pools (ADR-0033 §3) are read for the date and passed through. A pool
+ * contributes its **planned count** to the divisor rather than its
+ * member count, so planning three options you mean to pick one of does
+ * not inflate the day's ceiling.
  */
 export async function loadCommitmentDay(
   date: string,
@@ -124,7 +125,40 @@ export async function loadCommitmentDay(
     date,
     groups.flatMap((g) => [...g.unitIds]),
   );
-  return buildCommitmentDay(band, groups, eligible);
+  const day = buildCommitmentDay(band, groups, eligible);
+  if (day === null) return null;
+
+  return { ...day, pools: await poolsOn(date, new Set(eligible)) };
+}
+
+/**
+ * This date's pools, restricted to members the band actually pays for.
+ *
+ * A pool holding a task that is not eligible today would otherwise add
+ * a slot the day cannot fill, quietly lowering what every other task in
+ * the commitment is worth. Pools left empty by that filter are dropped.
+ */
+async function poolsOn(
+  date: string,
+  eligible: ReadonlySet<string>,
+): Promise<{ taskIds: string[]; plannedCount: number }[]> {
+  const rows = await db.select().from(pool).where(eq(pool.localDate, date));
+  if (rows.length === 0) return [];
+
+  const members = await db
+    .select()
+    .from(poolMember)
+    .where(inArray(poolMember.poolId, rows.map((p) => p.id)));
+
+  return rows
+    .map((p) => ({
+      taskIds: members
+        .filter((m) => m.poolId === p.id && eligible.has(m.taskId))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((m) => m.taskId),
+      plannedCount: p.plannedCount,
+    }))
+    .filter((p) => p.taskIds.length > 0);
 }
 
 /** Whether any commitment exists at all — for deciding what to show. */

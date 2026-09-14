@@ -7,7 +7,7 @@
  * runner only handles modules free of those imports (ADR-0013). The
  * queries live there; the rules live here.
  */
-import type { CommitmentDay, CommitmentGroup } from "@glide/scoring";
+import { MAX_COMMITMENTS, type CommitmentDay, type CommitmentGroup } from "@glide/scoring";
 
 import { isDueOn } from "../components/plan/planning";
 
@@ -104,4 +104,65 @@ export function buildCommitmentDay(
     commitments: [...groups],
     eligibleTaskIds: [...eligible],
   };
+}
+
+// ── Write-seam rules (ADR-0029 §1, ADR-0033 §3) ─────────────────────
+//
+// The schema can express neither of these, so they live here and every
+// write goes through them.
+
+// `MAX_COMMITMENTS` deliberately is **not** redefined here — it lives
+// in `@glide/scoring` beside the band arithmetic that depends on it.
+// Two constants for one rule is how the two drift apart.
+
+/** At most three options in one pool (ADR-0033 §3). */
+export const MAX_POOL_MEMBERS = 3;
+
+/**
+ * Whether another commitment may be created.
+ *
+ * Counts **commitments only** — a sub-commitment is not one, and
+ * sub-commitments are deliberately uncapped so a semester of any size
+ * fits under a cap of three.
+ */
+export function canAddCommitment(
+  active: readonly { id: string; parentUnitId: string | null }[],
+): boolean {
+  return active.filter((u) => u.parentUnitId === null).length < MAX_COMMITMENTS;
+}
+
+export interface PoolValidationInput {
+  taskIds: readonly string[];
+  /** Other pools already in the same window. */
+  existing: readonly { poolId: string; taskIds: readonly string[] }[];
+}
+
+/**
+ * Why a pool is invalid, or `null` if it is fine.
+ *
+ * Returned rather than thrown so a caller can decide whether this is an
+ * error or a disabled button.
+ */
+export function poolProblem(input: PoolValidationInput): string | null {
+  if (input.taskIds.length === 0) return "A pool needs at least one option.";
+  if (input.taskIds.length > MAX_POOL_MEMBERS) {
+    return `A pool holds at most ${MAX_POOL_MEMBERS} options.`;
+  }
+  if (new Set(input.taskIds).size !== input.taskIds.length) {
+    return "A task can only appear once in a pool.";
+  }
+  // A task in two pools in the same window would let "every completion
+  // pays in full" be read as ticking one task twice (ADR-0033 §3).
+  const elsewhere = new Set(input.existing.flatMap((p) => [...p.taskIds]));
+  const clash = input.taskIds.find((id) => elsewhere.has(id));
+  if (clash !== undefined) {
+    return "That task is already an option in this window.";
+  }
+  return null;
+}
+
+/** `poolProblem`, as a throw — for write paths that cannot continue. */
+export function assertPoolSize(input: PoolValidationInput): void {
+  const problem = poolProblem(input);
+  if (problem !== null) throw new Error(problem);
 }
