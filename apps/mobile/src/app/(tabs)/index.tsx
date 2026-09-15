@@ -19,6 +19,7 @@ import {
   ScrollView,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +33,13 @@ import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
 import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
 import { PartialSheet } from "../../components/today/PartialSheet";
+import { DayGrid } from "../../components/today/DayGrid";
+import {
+  loadDayLayout,
+  setDayLayout,
+  type DayLayout,
+} from "../../db/settings";
+import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
@@ -106,6 +114,12 @@ import { radius, space } from "../../theme/tokens";
  *  Fits a title plus its factual caption with the row's own padding. */
 const CHECKLIST_ROW_HEIGHT = 56;
 
+/** Two words, because the difference is the whole point. */
+const LAYOUTS = [
+  { value: "checklist" as const, label: "List" },
+  { value: "grid" as const, label: "Hours" },
+];
+
 /** The header block above each part of the day, including the air
  *  that separates it from the slot above. Fixed, because the drag
  *  layout walks these to place every row. */
@@ -128,6 +142,8 @@ export default function TodayScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
+  /** Dynamic Type, so the grid's hours grow with its labels. */
+  const { fontScale } = useWindowDimensions();
 
   /** Null = follow today (so an overnight rollover moves with us);
    *  a date = the user navigated somewhere in the edit window. */
@@ -155,6 +171,8 @@ export default function TodayScreen() {
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
   /** The row whose part-credit sheet is open (ADR-0014 §4). */
   const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
+  /** Checklist or hours. Presentation only — both hold the same day. */
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
   /** A cross-slot drop awaiting its scope answer. */
   const [dropped, setDropped] = useState<{
     task: TodayTask;
@@ -173,6 +191,7 @@ export default function TodayScreen() {
 
   useEffect(() => {
     void isOnboardingComplete().then(setOnboarded);
+    void loadDayLayout().then(setDayLayoutState);
   }, []);
 
   const reload = useCallback(async (date: string, month?: string | null) => {
@@ -352,11 +371,40 @@ export default function TodayScreen() {
    *  the page is not. Empty periods stay in — they are drop
    *  targets, so a section with nothing in it still has to be
    *  somewhere the finger can land. */
+  /**
+   * The day's rows as the grid draws them: everything for today,
+   * finished or not.
+   *
+   * Completed work stays in, dimmed. The grid's job is the *shape* of
+   * the day, and a 9am lecture you attended leaving a hole in the
+   * morning would misreport that shape — which is the one thing this
+   * view exists to get right.
+   */
+  const gridTasks = day
+    ? [...todayTasks, ...allTasks.filter((t) => t.completedToday)]
+    : [];
+
+  /**
+   * Whether the hours are worth offering.
+   *
+   * Nothing timed means the grid is an empty ruler with the whole day
+   * in chips underneath — strictly less than the checklist. The
+   * exception is being in it already: a toggle you can enter and not
+   * leave is a trap.
+   */
+  const showsGrid =
+    dayLayout === "grid" ||
+    gridTasks.some((t) => t.startMinute !== null && t.endMinute !== null);
+
   const ARRANGEABLE: SectionKey[] = ["morning", "afternoon", "evening", "anytime"];
   const arrangeable = sections.filter((s) =>
     ARRANGEABLE.includes(s.key),
   );
-  const tailSections = sections.filter((s) => !ARRANGEABLE.includes(s.key));
+  const tailSections = sections
+    .filter((s) => !ARRANGEABLE.includes(s.key))
+    // The grid already shows today's completed work in place, so the
+    // Completed section would be the same rows a second time.
+    .filter((s) => !(dayLayout === "grid" && s.key === "completed"));
 
   /**
    * A row was dropped. Two different things can have happened, and
@@ -579,21 +627,43 @@ export default function TodayScreen() {
                 needs. Right-aligned and quiet, so it reads as an exit
                 from the strip and never competes with the grade. */}
             {day.hasTasks ? (
-              <Pressable
-                onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
-                accessibilityRole="button"
-                accessibilityLabel="Plan ahead"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.planAhead,
-                  { opacity: pressed ? 0.5 : 1 },
-                ]}
-              >
-                <AppText variant="footnote" color={theme.accent}>
-                  Plan ahead
-                </AppText>
-                <Chevron color={theme.accent} theme={theme} size={13} />
-              </Pressable>
+              <View style={styles.headerActions}>
+                {/* Only once the day has an hour to show, or once you
+                    are already in the grid and need the way back. A
+                    toggle whose other side is an empty ruler is a
+                    control offering nothing, and the checklist is the
+                    app for anyone who never times anything. */}
+                {showsGrid ? (
+                  <View style={styles.layoutToggle}>
+                    <Segmented
+                      segments={LAYOUTS}
+                      value={dayLayout}
+                      onChange={(next) => {
+                        setDayLayoutState(next);
+                        void setDayLayout(next);
+                      }}
+                      accent={theme.accent}
+                      theme={theme}
+                      label="How to show the day"
+                    />
+                  </View>
+                ) : null}
+                <Pressable
+                  onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Plan ahead"
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.planAhead,
+                    { opacity: pressed ? 0.5 : 1 },
+                  ]}
+                >
+                  <AppText variant="footnote" color={theme.accent}>
+                    Plan ahead
+                  </AppText>
+                  <Chevron color={theme.accent} theme={theme} size={13} />
+                </Pressable>
+              </View>
             ) : null}
           </View>
 
@@ -698,7 +768,23 @@ export default function TodayScreen() {
                     targets too, which is the point — "do this in the
                     afternoon" matters most when the afternoon is
                     empty. */}
-                {arrangeable.length > 0 ? (
+                {dayLayout === "grid" ? (
+                  <DayGrid
+                    tasks={gridTasks}
+                    hueFor={hueFor}
+                    theme={theme}
+                    fontScale={fontScale}
+                    // A line for where you are, and only on the day you
+                    // are actually in. On any other day it would point
+                    // at an hour that has nothing to do with it.
+                    nowMinute={
+                      day.date === day.today
+                        ? new Date().getHours() * 60 + new Date().getMinutes()
+                        : null
+                    }
+                    onPress={(t) => void onToggle(t)}
+                  />
+                ) : arrangeable.length > 0 ? (
                   <SectionedChecklist
                     sections={arrangeable.map((s) => ({
                       key: s.key,
@@ -1200,6 +1286,16 @@ const styles = StyleSheet.create({
     gap: 2,
     minHeight: 32,
   },
+  /** The toggle and the planner share the row under the dates rather
+   *  than taking one each — the space was already there. */
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.md,
+  },
+  /** Bounded so two words do not stretch to half the screen. */
+  layoutToggle: { flex: 1, maxWidth: 180 },
   /** Icon and label as one unit, so the pair never wraps apart. */
   recordAction: { flexDirection: "row", alignItems: "center", gap: 4 },
   recordButtons: {

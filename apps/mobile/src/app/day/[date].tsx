@@ -42,7 +42,14 @@ import { addDays } from "@glide/scoring";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useColorScheme,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
@@ -54,6 +61,13 @@ import {
   pinnedElsewhere,
   type PartOfDay,
 } from "../../components/plan/planning";
+import { DayGrid } from "../../components/today/DayGrid";
+import {
+  loadDayLayout,
+  setDayLayout,
+  type DayLayout,
+} from "../../db/settings";
+import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../components/ui/Backdrop";
@@ -83,6 +97,12 @@ const HEADER_HEIGHT = 44;
  *  things live when you have not decided, so it reads as the remainder. */
 const SLOTS: readonly (PartOfDay | "anytime")[] = [...PART_OF_DAY_ORDER, "anytime"];
 
+/** Same two words as Home's, because it is the same choice. */
+const LAYOUTS = [
+  { value: "checklist" as const, label: "List" },
+  { value: "grid" as const, label: "Hours" },
+];
+
 /** "2026-08-21" → "Thursday 21 August". Written out, because this screen
  *  is *about* the date and abbreviating it would bury the subject. */
 function spoken(localDate: string): string {
@@ -109,6 +129,8 @@ export default function PlanDayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
+  /** Dynamic Type, so the grid's hours grow with its labels. */
+  const { fontScale } = useWindowDimensions();
   const params = useLocalSearchParams<{ date?: string }>();
 
   const today = currentLocalDate();
@@ -128,13 +150,21 @@ export default function PlanDayScreen() {
   );
   const [day, setDay] = useState<DayData | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Shared with Home through `app_setting`, so the day reads the same
+   *  way wherever you opened it from. Presentation only. */
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
   const [adding, setAdding] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   const load = useCallback(async () => {
-    const [nextDay, nextPlan] = await Promise.all([loadDay(date), loadPlan()]);
+    const [nextDay, nextPlan, layout] = await Promise.all([
+      loadDay(date),
+      loadPlan(),
+      loadDayLayout(),
+    ]);
     setDay(nextDay);
     setPlan(nextPlan);
+    setDayLayoutState(layout);
   }, [date]);
   const { error, retry } = useScreenLoad(load);
 
@@ -157,6 +187,11 @@ export default function PlanDayScreen() {
     () => all.filter((t) => !pinnedElsewhere(t, date)),
     [all, date],
   );
+  /** Whether the hours are worth offering — see Home's own note. */
+  const showsGrid =
+    dayLayout === "grid" ||
+    tasks.some((t) => t.startMinute !== null && t.endMinute !== null);
+
   const elsewhere = useMemo(
     () =>
       all
@@ -312,10 +347,43 @@ export default function PlanDayScreen() {
           </View>
         ) : tasks.length === 0 ? null : (
           <>
+            {/* Only once there is an hour to draw, and always once you
+                are in the grid — a view you can enter and not leave is
+                a trap. */}
+            {showsGrid ? (
+              <View style={styles.layoutToggle}>
+                <Segmented
+                  segments={LAYOUTS}
+                  value={dayLayout}
+                  onChange={(next) => {
+                    setDayLayoutState(next);
+                    void setDayLayout(next);
+                  }}
+                  accent={theme.accent}
+                  theme={theme}
+                  label="How to show the day"
+                />
+              </View>
+            ) : null}
+
             <AppText variant="caption" color={theme.muted} style={styles.lead}>
-              Hold a task to move it. This changes {relativeLabel?.toLowerCase() ?? "this day"} only.
+              {dayLayout === "grid"
+                ? "Timed work sits on the hours. Switch to List to move anything."
+                : `Hold a task to move it. This changes ${relativeLabel?.toLowerCase() ?? "this day"} only.`}
             </AppText>
 
+            {dayLayout === "grid" ? (
+              <DayGrid
+                tasks={tasks}
+                hueFor={(t) => theme.areas[t.areaId] ?? theme.accent}
+                theme={theme}
+                fontScale={fontScale}
+                // This screen is never today — the strip on Home owns
+                // that — so there is no "now" to point at.
+                nowMinute={null}
+                onPress={() => undefined}
+              />
+            ) : (
             <SectionedChecklist
               sections={sections}
               rowHeight={ROW_HEIGHT}
@@ -366,6 +434,7 @@ export default function PlanDayScreen() {
                 );
               }}
             />
+            )}
           </>
         )}
 
@@ -499,5 +568,8 @@ const styles = StyleSheet.create({
    *  from here — the dimming is the affordance's absence, stated. */
   elsewhereRow: { minHeight: 44 },
   empty: { marginTop: space.xxl, gap: space.sm },
+  /** Its own row above the lead line, since this screen's header is a
+   *  full row of navigation already. */
+  layoutToggle: { maxWidth: 180, marginBottom: space.sm },
   emptyText: { maxWidth: 340 },
 });

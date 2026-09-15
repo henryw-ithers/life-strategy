@@ -151,3 +151,30 @@ export async function setCommitmentBand(band: number): Promise<void> {
 export async function clearCommitmentBand(): Promise<void> {
   await setSetting(KEY_COMMITMENT_BAND, "");
 }
+
+const KEY_DAY_LAYOUT = "today.layout";
+
+/** How the day is drawn: as a checklist, or against the hours. */
+export type DayLayout = "checklist" | "grid";
+
+/**
+ * Which way the day reads (ADR-0024 §3, amended for the hour grid).
+ *
+ * **Presentation, and only presentation.** The two views hold the same
+ * tasks with the same completion state and the same points; this
+ * decides which one is drawn and nothing else. It never reaches
+ * `loadDay`, and no scoring path reads it.
+ *
+ * Defaults to `checklist`, which is the app as it has always been —
+ * so somebody who never times anything never meets the grid.
+ *
+ * Lives in `app_setting` because `eraseAllData` already carries that
+ * table without a special case.
+ */
+export async function loadDayLayout(): Promise<DayLayout> {
+  return (await getSetting(KEY_DAY_LAYOUT)) === "grid" ? "grid" : "checklist";
+}
+
+export async function setDayLayout(layout: DayLayout): Promise<void> {
+  await setSetting(KEY_DAY_LAYOUT, layout);
+}
