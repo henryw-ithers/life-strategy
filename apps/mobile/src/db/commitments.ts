@@ -161,6 +161,44 @@ async function poolsOn(
     .filter((p) => p.taskIds.length > 0);
 }
 
+export interface PoolOnDay {
+  id: string;
+  /** The block this window follows — the cue (ADR-0030 §3). */
+  afterTaskId: string | null;
+  partOfDay: "morning" | "afternoon" | "evening" | null;
+  /** How many of them you mean to get through (ADR-0033 §3). */
+  plannedCount: number;
+  taskIds: string[];
+}
+
+/**
+ * Every pool on a date, for the planning UI.
+ *
+ * Deliberately **unfiltered**, unlike `poolsOn`. That one drops members
+ * the band cannot pay for today, which is right for pricing and wrong
+ * here: a task you put in a window has to stay visible in that window
+ * even on a day it earns nothing, or removing it would be impossible
+ * and the row would look as though it had been silently deleted.
+ */
+export async function loadPools(date: string): Promise<PoolOnDay[]> {
+  const rows = await db.select().from(pool).where(eq(pool.localDate, date));
+  if (rows.length === 0) return [];
+  const members = await db
+    .select()
+    .from(poolMember)
+    .where(inArray(poolMember.poolId, rows.map((p) => p.id)));
+  return rows.map((p) => ({
+    id: p.id,
+    afterTaskId: p.afterTaskId,
+    partOfDay: p.partOfDay,
+    plannedCount: p.plannedCount,
+    taskIds: members
+      .filter((m) => m.poolId === p.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((m) => m.taskId),
+  }));
+}
+
 /** Whether any commitment exists at all — for deciding what to show. */
 export async function hasCommitments(): Promise<boolean> {
   const [row] = await db

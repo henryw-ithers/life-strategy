@@ -12,7 +12,7 @@ import {
   MIN_BLOCK_PX,
   formatLength,
   formatSpan,
-  freeGaps,
+  clipWindows,
   gridBounds,
   gridHeight,
   hourHeight,
@@ -214,66 +214,49 @@ describe("placeBlocks", () => {
   });
 });
 
-describe("freeGaps", () => {
+describe("clipWindows", () => {
   const bounds = { startHour: 8, endHour: 18 };
-  const gaps = (spans: { startMinute: number; endMinute: number }[]) =>
-    freeGaps(spans, bounds, 30);
+  const clip = (ws: { start: number; end: number }[]) =>
+    clipWindows(ws, bounds, 30);
 
-  it("finds the space before, between and after", () => {
-    expect(
-      gaps([
-        { startMinute: 9 * 60, endMinute: 10 * 60 },
-        { startMinute: 12 * 60, endMinute: 13 * 60 },
-      ]),
-    ).toEqual([
-      { start: 8 * 60, end: 9 * 60 },
+  it("trims a window that runs past the drawn day", () => {
+    // `windowsFor` runs its last window to midnight; the grid stops at
+    // its own last hour line.
+    expect(clip([{ start: 16 * 60, end: 24 * 60 }])).toEqual([
+      { start: 16 * 60, end: 18 * 60 },
+    ]);
+  });
+
+  it("trims a window that starts before the drawn day", () => {
+    expect(clip([{ start: 0, end: 10 * 60 }])).toEqual([
+      { start: 8 * 60, end: 10 * 60 },
+    ]);
+  });
+
+  it("drops a window trimmed down to a sliver", () => {
+    expect(clip([{ start: 17 * 60 + 45, end: 24 * 60 }])).toEqual([]);
+  });
+
+  it("drops one that falls outside the grid entirely", () => {
+    expect(clip([{ start: 0, end: 6 * 60 }])).toEqual([]);
+  });
+
+  it("leaves a window already inside the grid alone", () => {
+    expect(clip([{ start: 10 * 60, end: 12 * 60 }])).toEqual([
       { start: 10 * 60, end: 12 * 60 },
-      { start: 13 * 60, end: 18 * 60 },
     ]);
   });
 
-  it("leaves a turnaround undrawn rather than calling it free", () => {
+  it("carries the rest of a window's fields through", () => {
     expect(
-      gaps([
-        { startMinute: 8 * 60, endMinute: 9 * 60 },
-        { startMinute: 9 * 60 + 20, endMinute: 18 * 60 },
-      ]),
-    ).toEqual([]);
-  });
-
-  it("merges overlapping blocks instead of inventing a gap between them", () => {
-    // 9–11 and 10–12 overlap; the only real gaps are before and after.
-    expect(
-      gaps([
-        { startMinute: 9 * 60, endMinute: 11 * 60 },
-        { startMinute: 10 * 60, endMinute: 12 * 60 },
-      ]),
+      clipWindows(
+        [{ start: 0, end: 10 * 60, afterTaskId: "lecture", partOfDay: null }],
+        bounds,
+        30,
+      ),
     ).toEqual([
-      { start: 8 * 60, end: 9 * 60 },
-      { start: 12 * 60, end: 18 * 60 },
+      { start: 8 * 60, end: 10 * 60, afterTaskId: "lecture", partOfDay: null },
     ]);
-  });
-
-  it("does not call a nested block's tail a gap", () => {
-    // 9–12 fully contains 10–11. Naively advancing the cursor to the
-    // inner block's end would draw 11–12 as free while it is not.
-    expect(
-      gaps([
-        { startMinute: 9 * 60, endMinute: 12 * 60 },
-        { startMinute: 10 * 60, endMinute: 11 * 60 },
-      ]),
-    ).toEqual([
-      { start: 8 * 60, end: 9 * 60 },
-      { start: 12 * 60, end: 18 * 60 },
-    ]);
-  });
-
-  it("draws nothing on a day with no blocks, rather than one huge band", () => {
-    expect(gaps([])).toEqual([]);
-  });
-
-  it("ignores a zero-length block entirely", () => {
-    expect(gaps([{ startMinute: 600, endMinute: 600 }])).toEqual([]);
   });
 });
 

@@ -24,7 +24,12 @@
  * small text: four of the six area hues fall under AA that way in
  * light theme (DESIGN.md, Colors).
  */
-import { formatMinutes } from "@glide/scoring";
+import {
+  formatMinutes,
+  MIN_WINDOW_MINUTES,
+  windowsFor,
+  type Window,
+} from "@glide/scoring";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import type { TodayTask } from "../../db/today";
@@ -32,9 +37,9 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import {
+  clipWindows,
   formatLength,
   formatSpan,
-  freeGaps,
   gridBounds,
   gridHeight,
   hourHeight,
@@ -46,8 +51,13 @@ import {
 /** What the grid draws when nothing is timed: an ordinary waking day. */
 const DEFAULT_SPAN = { start: 7 * 60, end: 22 * 60 };
 
-/** A gap worth naming. Shorter than this is turnaround, not free time. */
-const MIN_GAP = 30;
+/**
+ * The shortest window the grid will draw, matching the scoring
+ * package's own `MIN_WINDOW_MINUTES`. Anything shorter is buffer
+ * rather than free time — fifteen minutes between two lectures across
+ * campus is not time you have, and a band offering it would lie.
+ */
+const MIN_GAP = MIN_WINDOW_MINUTES;
 
 /** The hour rail's width, so blocks and labels share one left edge. */
 const RAIL = 46;
@@ -62,6 +72,19 @@ interface DayGridProps {
   /** Minutes past midnight, or null on a day that is not today. */
   nowMinute: number | null;
   onPress: (task: TodayTask) => void;
+  /**
+   * Open a window's options (ADR-0033 §2). Omitted on a screen where
+   * planning is not the job, and the bands then draw as plain labels
+   * rather than as controls that do nothing.
+   */
+  onPlanWindow?: (window: Window, pooled: string[]) => void;
+  /** Task ids already pooled, keyed by the window they were pooled in. */
+  pooledByWindow?: Map<string, string[]>;
+}
+
+/** A window's identity: what it follows, or which part of day it is. */
+export function windowKey(w: { afterTaskId: string | null; partOfDay: string | null }): string {
+  return `${w.afterTaskId ?? ""}|${w.partOfDay ?? ""}`;
 }
 
 export function DayGrid({
@@ -71,6 +94,8 @@ export function DayGrid({
   fontScale,
   nowMinute,
   onPress,
+  onPlanWindow,
+  pooledByWindow,
 }: DayGridProps) {
   const timed = tasks.filter(
     (t) => t.startMinute !== null && t.endMinute !== null,
@@ -93,7 +118,11 @@ export function DayGrid({
   const placed = placeBlocks(spans, bounds, hourPx);
   const byId = new Map(timed.map((t) => [t.id, t]));
 
-  const gaps = freeGaps(spans, bounds, MIN_GAP);
+  // The scoring package's own windows, so what the grid draws and what
+  // a pool is priced against cannot drift apart (ADR-0033 §1). On a day
+  // with nothing timed those are morning / afternoon / evening, which
+  // is the right answer and not a special case.
+  const windows = clipWindows(windowsFor(spans), bounds, MIN_GAP);
 
   return (
     <View style={styles.root}>
@@ -136,29 +165,48 @@ export function DayGrid({
               screen. */}
           <View style={styles.lanes}>
             {/* Free time, under the blocks so a block always wins the
-                pixel. Stated as a length, never as an invitation. */}
-            {gaps.map((g) => {
-              const top = yOf(g.start, bounds, hourPx);
+                pixel. Stated as a length — what you have, never what
+                you ought to put in it. Tapping one opens the options
+                for that window and nothing fills it on your behalf. */}
+            {windows.map((w) => {
+              const top = yOf(w.start, bounds, hourPx);
+              const pooled = pooledByWindow?.get(windowKey(w)) ?? [];
+              const length = formatLength(w.end - w.start);
+              const said = pooled.length > 0
+                ? `${pooled.length} ${pooled.length === 1 ? "option" : "options"}`
+                : "Free";
               return (
-                <View
-                  key={`${g.start}-${g.end}`}
-                  style={[
-                    styles.gap,
+                <Pressable
+                  key={`${w.start}-${w.end}`}
+                  onPress={
+                    onPlanWindow ? () => onPlanWindow(w, pooled) : undefined
+                  }
+                  disabled={onPlanWindow === undefined}
+                  accessibilityRole={onPlanWindow ? "button" : "text"}
+                  accessibilityLabel={`${said}, ${length}, ${formatSpan(w.start, w.end, formatMinutes)}${
+                    onPlanWindow ? ". Choose what might go here." : ""
+                  }`}
+                  style={({ pressed }) => [
+                    styles.window,
                     {
                       top,
-                      height: yOf(g.end, bounds, hourPx) - top,
-                      borderColor: theme.hairline,
+                      height: yOf(w.end, bounds, hourPx) - top,
+                      borderColor: pooled.length > 0 ? theme.accent : theme.hairline,
+                      borderStyle: pooled.length > 0 ? "solid" : "dashed",
+                      opacity: pressed ? 0.5 : 1,
                     },
                   ]}
-                  accessible
-                  accessibilityLabel={`Free, ${formatLength(g.end - g.start)}, ${formatSpan(g.start, g.end, formatMinutes)}`}
                 >
-                  <AppText variant="footnote" color={theme.muted}>
-                    Free · {formatLength(g.end - g.start)}
+                  <AppText
+                    variant="footnote"
+                    color={pooled.length > 0 ? theme.ink : theme.muted}
+                    numberOfLines={1}
+                  >
+                    {said} · {length}
                   </AppText>
-              </View>
-            );
-          })}
+                </Pressable>
+              );
+            })}
 
             {placed.map((p) => {
               const t = byId.get(p.taskId);
@@ -268,13 +316,12 @@ const styles = StyleSheet.create({
   },
   hourLabel: { marginTop: -7, width: RAIL - space.sm },
   lanes: { position: "absolute", left: RAIL, right: 0, top: 0, bottom: 0 },
-  gap: {
+  window: {
     position: "absolute",
     left: 0,
     right: 0,
     borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderStyle: "dashed",
     justifyContent: "center",
     paddingHorizontal: space.md,
     marginVertical: 2,

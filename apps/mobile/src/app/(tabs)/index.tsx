@@ -6,7 +6,13 @@
  * The date header expands the current month (calendar phase, early).
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { addDays, specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
+import {
+  addDays,
+  specialDayBonus,
+  weekStart,
+  type PeriodGrade,
+  type Window as GridWindow,
+} from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useFocusEffect, type Href } from "expo-router";
@@ -33,7 +39,14 @@ import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
 import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
 import { PartialSheet } from "../../components/today/PartialSheet";
-import { DayGrid } from "../../components/today/DayGrid";
+import { DayGrid, windowKey } from "../../components/today/DayGrid";
+import { WindowSheet } from "../../components/today/WindowSheet";
+import { loadPools, type PoolOnDay } from "../../db/commitments";
+import {
+  createPool,
+  deletePool,
+  updatePool,
+} from "../../db/commitmentWrites";
 import {
   loadDayLayout,
   setDayLayout,
@@ -173,6 +186,14 @@ export default function TodayScreen() {
   const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
   /** Checklist or hours. Presentation only — both hold the same day. */
   const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
+  /** This day's pools, and the one being edited (ADR-0033 §2). */
+  const [pools, setPools] = useState<PoolOnDay[]>([]);
+  const [planning, setPlanning] = useState<{
+    window: GridWindow;
+    chosen: string[];
+    plannedCount: number;
+    poolId: string | null;
+  } | null>(null);
   /** A cross-slot drop awaiting its scope answer. */
   const [dropped, setDropped] = useState<{
     task: TodayTask;
@@ -195,14 +216,16 @@ export default function TodayScreen() {
   }, []);
 
   const reload = useCallback(async (date: string, month?: string | null) => {
-    const [next, grades, week] = await Promise.all([
+    const [next, grades, week, nextPools] = await Promise.all([
       loadDay(date),
       loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
       loadWeekGrade(date),
+      loadPools(date),
     ]);
     setDay(next);
     setMonthGrades(grades);
     setWeekGrade(week);
+    setPools(nextPools);
     if (next.date === next.today) void syncDailyNudge(next);
     return next;
   }, []);
@@ -395,6 +418,11 @@ export default function TodayScreen() {
   const showsGrid =
     dayLayout === "grid" ||
     gridTasks.some((t) => t.startMinute !== null && t.endMinute !== null);
+
+  /** What each window already holds, keyed the way the grid keys them. */
+  const pooledByWindow = new Map<string, string[]>(
+    pools.map((p) => [windowKey(p), p.taskIds]),
+  );
 
   const ARRANGEABLE: SectionKey[] = ["morning", "afternoon", "evening", "anytime"];
   const arrangeable = sections.filter((s) =>
@@ -783,6 +811,22 @@ export default function TodayScreen() {
                         : null
                     }
                     onPress={(t) => void onToggle(t)}
+                    pooledByWindow={pooledByWindow}
+                    onPlanWindow={
+                      day.editable
+                        ? (w) => {
+                            const existing = pools.find(
+                              (p) => windowKey(p) === windowKey(w),
+                            );
+                            setPlanning({
+                              window: w,
+                              chosen: existing?.taskIds ?? [],
+                              plannedCount: existing?.plannedCount ?? 1,
+                              poolId: existing?.id ?? null,
+                            });
+                          }
+                        : undefined
+                    }
                   />
                 ) : arrangeable.length > 0 ? (
                   <SectionedChecklist
@@ -1112,6 +1156,70 @@ export default function TodayScreen() {
               </View>
             </View>
           </Modal>
+
+          {planning ? (
+            <WindowSheet
+              visible
+              window={planning.window}
+              // Only open work: a window is a plan for what you have
+              // not done yet, and offering something already ticked
+              // would be offering to plan the past.
+              candidates={todayTasks}
+              chosen={planning.chosen}
+              plannedCount={planning.plannedCount}
+              hueFor={hueFor}
+              accent={theme.accent}
+              theme={theme}
+              onToggle={(taskId) =>
+                setPlanning((prev) =>
+                  prev === null
+                    ? prev
+                    : {
+                        ...prev,
+                        chosen: prev.chosen.includes(taskId)
+                          ? prev.chosen.filter((id) => id !== taskId)
+                          : [...prev.chosen, taskId],
+                      },
+                )
+              }
+              onPlannedCountChange={(plannedCount) =>
+                setPlanning((prev) => (prev === null ? prev : { ...prev, plannedCount }))
+              }
+              onClose={() => setPlanning(null)}
+              onSave={() => {
+                const p = planning;
+                setPlanning(null);
+                void (async () => {
+                  if (p.poolId !== null) {
+                    await updatePool(p.poolId, {
+                      taskIds: p.chosen,
+                      plannedCount: p.plannedCount,
+                    });
+                  } else {
+                    await createPool({
+                      localDate: day.date,
+                      taskIds: p.chosen,
+                      plannedCount: p.plannedCount,
+                      afterTaskId: p.window.afterTaskId,
+                      partOfDay: p.window.partOfDay,
+                    });
+                  }
+                  await reload(day.date);
+                })();
+              }}
+              onClear={
+                planning.poolId === null
+                  ? undefined
+                  : () => {
+                      const id = planning.poolId;
+                      setPlanning(null);
+                      if (id !== null) {
+                        void deletePool(id).then(() => reload(day.date));
+                      }
+                    }
+              }
+            />
+          ) : null}
 
           {partialTask ? (
             <PartialSheet

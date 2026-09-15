@@ -38,7 +38,7 @@
  * after today, and offering the gesture would invite exactly the "get
  * ahead" mechanic the grade is built to ignore.
  */
-import { addDays } from "@glide/scoring";
+import { addDays, type Window as GridWindow } from "@glide/scoring";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -61,7 +61,14 @@ import {
   pinnedElsewhere,
   type PartOfDay,
 } from "../../components/plan/planning";
-import { DayGrid } from "../../components/today/DayGrid";
+import { DayGrid, windowKey } from "../../components/today/DayGrid";
+import { WindowSheet } from "../../components/today/WindowSheet";
+import { loadPools, type PoolOnDay } from "../../db/commitments";
+import {
+  createPool,
+  deletePool,
+  updatePool,
+} from "../../db/commitmentWrites";
 import {
   loadDayLayout,
   setDayLayout,
@@ -153,18 +160,28 @@ export default function PlanDayScreen() {
   /** Shared with Home through `app_setting`, so the day reads the same
    *  way wherever you opened it from. Presentation only. */
   const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
+  /** This day's pools, and the one being edited (ADR-0033 §2). */
+  const [pools, setPools] = useState<PoolOnDay[]>([]);
+  const [planning, setPlanning] = useState<{
+    window: GridWindow;
+    chosen: string[];
+    plannedCount: number;
+    poolId: string | null;
+  } | null>(null);
   const [adding, setAdding] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   const load = useCallback(async () => {
-    const [nextDay, nextPlan, layout] = await Promise.all([
+    const [nextDay, nextPlan, layout, nextPools] = await Promise.all([
       loadDay(date),
       loadPlan(),
       loadDayLayout(),
+      loadPools(date),
     ]);
     setDay(nextDay);
     setPlan(nextPlan);
     setDayLayoutState(layout);
+    setPools(nextPools);
   }, [date]);
   const { error, retry } = useScreenLoad(load);
 
@@ -382,6 +399,22 @@ export default function PlanDayScreen() {
                 // that — so there is no "now" to point at.
                 nowMinute={null}
                 onPress={() => undefined}
+                pooledByWindow={
+                  new Map(pools.map((p) => [windowKey(p), p.taskIds]))
+                }
+                // Planning ahead is this screen's entire job, so a
+                // window here is always a way in.
+                onPlanWindow={(w) => {
+                  const existing = pools.find(
+                    (p) => windowKey(p) === windowKey(w),
+                  );
+                  setPlanning({
+                    window: w,
+                    chosen: existing?.taskIds ?? [],
+                    plannedCount: existing?.plannedCount ?? 1,
+                    poolId: existing?.id ?? null,
+                  });
+                }}
               />
             ) : (
             <SectionedChecklist
@@ -492,6 +525,65 @@ export default function PlanDayScreen() {
           />
         </View>
       </ScrollView>
+
+      {planning ? (
+        <WindowSheet
+          visible
+          window={planning.window}
+          candidates={tasks}
+          chosen={planning.chosen}
+          plannedCount={planning.plannedCount}
+          hueFor={(t) => theme.areas[t.areaId] ?? theme.accent}
+          accent={theme.accent}
+          theme={theme}
+          onToggle={(taskId) =>
+            setPlanning((prev) =>
+              prev === null
+                ? prev
+                : {
+                    ...prev,
+                    chosen: prev.chosen.includes(taskId)
+                      ? prev.chosen.filter((id) => id !== taskId)
+                      : [...prev.chosen, taskId],
+                  },
+            )
+          }
+          onPlannedCountChange={(plannedCount) =>
+            setPlanning((prev) => (prev === null ? prev : { ...prev, plannedCount }))
+          }
+          onClose={() => setPlanning(null)}
+          onSave={() => {
+            const p = planning;
+            setPlanning(null);
+            void (async () => {
+              if (p.poolId !== null) {
+                await updatePool(p.poolId, {
+                  taskIds: p.chosen,
+                  plannedCount: p.plannedCount,
+                });
+              } else {
+                await createPool({
+                  localDate: date,
+                  taskIds: p.chosen,
+                  plannedCount: p.plannedCount,
+                  afterTaskId: p.window.afterTaskId,
+                  partOfDay: p.window.partOfDay,
+                });
+              }
+              await load();
+            })();
+          }}
+          onClear={
+            planning.poolId === null
+              ? undefined
+              : () => {
+                  const id = planning.poolId;
+                  setPlanning(null);
+                  if (id !== null) void deletePool(id).then(load);
+                }
+          }
+        />
+      ) : null}
 
       {adding && plan ? (
         <AddTaskModal

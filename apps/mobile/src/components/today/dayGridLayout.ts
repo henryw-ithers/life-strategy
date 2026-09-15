@@ -171,44 +171,34 @@ export function placeBlocks(
 }
 
 /**
- * The gaps between a day's blocks, inside the drawn span.
+ * Trim a day's windows to what the grid actually draws.
  *
- * Merges overlaps first, so two overlapping lectures leave one gap
- * after them rather than a phantom one between. Anything shorter than
- * `minMinutes` is left undrawn: a twenty-minute turnaround labelled
- * "Free" is a lie about what you can do with it.
+ * The windows themselves come from `windowsFor` in the scoring package
+ * — one definition of "a window" shared by the thing that draws them
+ * and the thing that prices work inside them, rather than a second
+ * copy here that could drift from it. What is left to do is display:
+ * that last window runs to midnight and the first can start at 00:00,
+ * and the grid draws neither.
  *
- * A day with no blocks has **no gaps**, not one enormous one. The grid
- * already reads as empty; a band captioned "Free · 15h" over the whole
- * of it says nothing the ruler did not.
+ * A window trimmed below `minMinutes` is dropped rather than drawn
+ * short, for the reason `MIN_WINDOW_MINUTES` exists at all: a
+ * twenty-minute sliver labelled "Free" is a lie about what you can do
+ * with it.
  */
-export function freeGaps(
-  spans: readonly { startMinute: number; endMinute: number }[],
+export function clipWindows<T extends { start: number; end: number }>(
+  windows: readonly T[],
   bounds: GridBounds,
   minMinutes: number,
-): { start: number; end: number }[] {
-  if (spans.length === 0) return [];
-  const merged: { start: number; end: number }[] = [];
-  for (const s of [...spans].sort((a, b) => a.startMinute - b.startMinute)) {
-    if (s.endMinute <= s.startMinute) continue;
-    const last = merged[merged.length - 1];
-    if (last && s.startMinute <= last.end) {
-      last.end = Math.max(last.end, s.endMinute);
-    } else {
-      merged.push({ start: s.startMinute, end: s.endMinute });
-    }
-  }
-  if (merged.length === 0) return [];
-
-  const out: { start: number; end: number }[] = [];
-  let cursor = bounds.startHour * 60;
-  for (const m of merged) {
-    if (m.start - cursor >= minMinutes) out.push({ start: cursor, end: m.start });
-    cursor = Math.max(cursor, m.end);
-  }
-  const dayEnd = bounds.endHour * 60;
-  if (dayEnd - cursor >= minMinutes) out.push({ start: cursor, end: dayEnd });
-  return out;
+): T[] {
+  const lo = bounds.startHour * 60;
+  const hi = bounds.endHour * 60;
+  return windows
+    .map((w) => ({
+      ...w,
+      start: Math.max(w.start, lo),
+      end: Math.min(w.end, hi),
+    }))
+    .filter((w) => w.end - w.start >= minMinutes);
 }
 
 /** `"9:00 – 10:30"`, for a block's caption and its spoken label. */
