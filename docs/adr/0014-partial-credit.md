@@ -79,6 +79,28 @@ where it applies.
 state on `task`, and therefore no state that can disagree with the
 completion history.
 
+> **Amended 2026-09-15: the sum is scoped, and this section did not say
+> so.** Taken literally — every fraction a task ever recorded, across
+> every day — the rule is right for a one-off and catastrophic for a
+> recurring one. Building it proved that: a daily habit completed
+> yesterday summed to 1.0, so its second completion paid
+> `round(1×v) − round(1×v)` and the task was worth **nothing from its
+> second day onward**, for the rest of its life.
+>
+> The scope is what this section meant and failed to write down:
+>
+> - **A one-off accumulates across days.** That is what makes
+>   "finishing on a later day pays only what is left" work.
+> - **A recurring task starts again each day.** Its Tuesday is a fresh
+>   instance, not a continuation of its Monday, and within a day
+>   picking again *replaces* the day's fraction rather than adding to
+>   it — there is one completion row per task per day.
+>
+> A related defect fell out of the same omission: a one-off with any
+> completion at all was treated as settled and disappeared from the
+> list the next day, so a task you did a quarter of could never be
+> finished. **Settled means progress reached 1**, not touched.
+
 Finishing on a later day pays only what is left, which falls out of the
 sum rather than needing a rule. Points denormalize at each completion
 exactly as they do now, so a day that banked 50% keeps 50% when the
@@ -107,6 +129,18 @@ independently either overpays or silently pays nothing.
 **A partially completed pool member earns `fraction × V`.**
 ADR-0033 §3's "every completion pays in full" is about *multiple
 members*; this is about *fractions*. Orthogonal.
+
+> **Amended 2026-09-15: the day's number has to be told.** This section
+> describes what a completion *records*, and `task_completion.points_earned`
+> records it correctly — but the grade is not built from that column.
+> `computeDayScore` sums what completed tasks are **worth**, so a task
+> somebody did a quarter of was credited in full and the day's number
+> disagreed with the row underneath it.
+>
+> `DayTaskInput` gained `earnedToday`, and it is **omitted for every
+> whole completion** — which is every row written before `fraction`
+> existed. A day with no fractions therefore scores exactly what it
+> scored before, which is what ADR-0002 requires.
 
 ### 4. One tap survives
 
@@ -158,10 +192,24 @@ too generous, or unnecessary.
 2. [x] The rounding rule in `packages/scoring/src/partial.ts`, pure and
        tested, including the four-quarter-marks case. Building it
        corrected §3's worked example — see the note there.
-       `toggleCompletion` takes an optional fraction.
-3. [ ] Long-press picker (UI); verify tap-to-complete is unchanged.
-       The write path is done and defaults to a whole completion.
-4. [ ] Decide what a partial day means for `computeStreak`.
-5. [ ] Copy review against §5 — progress, never deficit.
+3. [x] `PartialSheet` on long-press, `setCompletionFraction` behind it,
+       and `DayTaskInput.earnedToday` carrying the result into the
+       grade (2026-09-15). **Tap is unchanged on an untouched row and
+       on a finished one; on a part-done row it finishes rather than
+       clearing**, so tap always moves forward until the task is done
+       and undo lives on the sheet and on the completed row.
+       `toggleCompletion` no longer takes a fraction — a toggle that
+       also carried a value was two operations wearing one name, and
+       the picker needs to *replace* a day's fraction rather than
+       toggle it off. Building this surfaced the three defects
+       amended into §§2–3; each has a test, and the `earnedToday`
+       path is mutation-tested.
+4. [ ] Decide what a partial day means for `computeStreak`. Still
+       open, and now reachable: `deriveChecklist` counts a 25%
+       completion as a completion for the week's count, which is a
+       choice nothing has argued for yet.
+5. [~] The sheet and the row count up — "Half done", "Takes you to
+       75%" — and no copy names a remainder. Worth one more read on
+       device against §5.
 6. [ ] Amend ADR-0004 §2 with a pointer here, recording that the
        calibration gate did not fire and why this proceeded anyway.

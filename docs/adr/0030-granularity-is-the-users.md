@@ -140,12 +140,18 @@ failed, not the permission.
 
 ## Action items
 
-1. [ ] A time is optional on any task; part-of-day stays the default
-       and no flow prompts for a time.
-2. [ ] Verify at review that the time control is never made a required
-       field, and that no default anywhere is a clock time.
-3. [ ] Amend ADR-0024 §1 with a pointer here marking it superseded;
-       leave §2 and §3 standing (see ADR-0032 §4 for the one amendment
-       to §2).
-4. [ ] AGENTS.md: replace any statement that the app has no clock
-       times.
+1. [x] `task.start_minute` / `end_minute` (migration 0015) with
+       `setTaskTime`, and the control itself in `TaskDetailPicker`
+       (2026-09-15). It sits behind a **closed** disclosure at the end
+       of the schedule block: part-of-day is still the first thing
+       asked and the only thing answered by default.
+2. [~] The control is optional everywhere it appears, `addTask`
+       defaults every field of `TaskDetail` to null, and `clockTimes`
+       drops an end with no start rather than storing half a block.
+       **The standing risk is §2's, not a bug:** these defaults are now
+       the only place the product's opinion about granularity lives, so
+       a future change that opens the disclosure by default, or seeds a
+       time, removes that opinion without any decision being taken.
+       Worth re-reading this section before touching the picker.
+3. [x] ADR-0024 §1 carries the superseded notice; §2 and §3 stand.
+4. [x] AGENTS.md states the rule as it now is.

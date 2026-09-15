@@ -179,16 +179,22 @@ forgets to filter.
 
 ## Action items
 
-1. [ ] Migration: `life_unit.parent_unit_id` (nullable, self-reference).
-2. [ ] **Fix `TABLES_IN_DELETE_ORDER` in `db/reset.ts` first** — it
-       lists 19 tables against the schema's 20, missing `goal_progress`,
-       `task_completion_tag` and `planned_occurrence`, so `eraseAllData`
-       leaves those rows behind today and the constant's own
-       "children before parents" comment is already false.
-3. [ ] Write `is_custom` — the create/edit/archive path for
-       commitments and sub-commitments.
+1. [x] Migration 0015: `life_unit.parent_unit_id` (nullable,
+       self-reference) and `commitment_share` (2026-09-14).
+2. [x] `TABLES_IN_DELETE_ORDER` in `db/reset.ts` fixed (2026-09-14).
+       It listed 19 tables against the schema's 20. Writing a test that
+       derives the true order from the schema found **two ordering bugs
+       as well as the three missing tables** — the constant's own
+       "children before parents" comment was false in more ways than
+       this ADR knew. `resetCoverage.test.ts` now fails if it drifts
+       again.
+3. [x] `createCommitment`, `createSubCommitment`, `updateCommitment`,
+       `archiveCommitment`, `unarchiveCommitment` and
+       `deleteCommitment` in `db/commitmentWrites.ts`, with the
+       Commitments surface and a commitment's detail screen over them
+       (2026-09-15).
 4. [ ] Enforce `membership = 'note'` for a commitment task's life-unit
        tags at the write seam, with a test.
-5. [ ] AGENTS.md: vocabulary rows for Commitment and Sub-commitment;
-       the invariant that a commitment task never takes a scoring slot
-       in a life unit.
+5. [x] AGENTS.md: vocabulary rows for Commitment and Sub-commitment,
+       and the invariant that a commitment task never takes a scoring
+       slot in a life unit.

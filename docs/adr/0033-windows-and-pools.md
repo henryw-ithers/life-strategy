@@ -189,12 +189,24 @@ mental quiet planning is for.
        this date") reuses the checklist's own `isDueOn` instead of a new
        `occursOn`, so the day a task is *shown* and the day it is *paid*
        cannot diverge.
-2. [ ] `components/today/dayGridLayout.ts` — the pixel walk. UI-side;
-       `gridExtent` gives it its bounds.
+2. [x] `components/today/dayGridLayout.ts` and `DayGrid.tsx`
+       (2026-09-15) — the pixel walk, pure and free of React Native
+       imports, 32 tests. It computes its own bounds from the day's
+       blocks rather than through `gridExtent`, and keeps only the
+       display half of the window question: `clipWindows` trims what
+       `windowsFor` returns to the hours actually drawn. The windows
+       themselves still come from the scoring package, so what the grid
+       draws and what a pool is priced against cannot drift.
 3. [x] Pools: `pool`/`pool_member` (migration 0015), the planned count
        honoured by `bandPointValues`, and once-per-window uniqueness
        enforced in `commitmentPlan.poolProblem` and tested.
-4. [ ] Copy review against §3's framing rule — "pick one," never a list
-       of three.
-5. [ ] The List / Day layout preference in `app_setting`
-       (`today.layout`), default `checklist`.
+4. [~] `WindowSheet` asks *"Pick what might go here; any of them
+       counts"* and the planned count is a separate question, asked
+       only when there is more than one option. **Still to check on
+       device:** that a window holding three options reads as one
+       choice rather than as three outstanding tasks.
+5. [x] `loadDayLayout` / `setDayLayout` in `db/settings.ts`, default
+       `checklist`, with a List / Hours toggle on Home and on a pushed
+       day (2026-09-15). The toggle appears only once the day has an
+       hour to draw — and always once you are in the grid, since a view
+       you can enter and not leave is a trap.

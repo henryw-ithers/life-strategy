@@ -120,14 +120,23 @@ real plan, which is a formula-version conversation.
 
 ## Action items
 
-1. [~] `task.size` (nullable `quick | normal | big`) and migration
-       0015 landed with `setTaskSize` (2026-09-14). The optional
-       control on create/edit is UI and remains.
+1. [x] `task.size` (nullable `quick | normal | big`) and migration
+       0015 landed with `setTaskSize` (2026-09-14); the optional
+       control shipped in `TaskDetailPicker` (2026-09-15), closed by
+       default and captioned *"shapes your day, not your points"* —
+       because the obvious guess, that a bigger task is worth more, is
+       wrong here (§2) and is a disappointment better avoided than
+       discovered. A one-off is not asked twice: it answers "how big"
+       in its own block, and `addTask` / `setTaskOneOff` mirror that
+       answer into `size` so one effort vocabulary reaches window
+       capacity and day load.
 2. [x] Window capacity in `packages/scoring/src/windows.ts` —
        `windowCapacity`, `fitsInWindow`, `SIZE_HOURS`. A rough fit,
        never minutes, pure and tested.
 3. [~] `dayLoadHours` computes it and deliberately returns a **bare
        number** — no threshold, no band, nothing a caller could colour
-       red. A test asserts that shape. The indicator itself is UI.
+       red. A test asserts that shape. **The indicator itself is still
+       unbuilt**, and §3 is the thing to re-read before building it:
+       shown, never warned about.
 4. [ ] Amend ADR-0024 §6 with a pointer here, noting the trigger that
        actually fired.

@@ -202,8 +202,10 @@ of it reaches a screen.
 2. [x] **Run a real plan through it before building UI.** Done
        2026-09-11 — the §2 table and the Consequences figures are now
        measured, and measuring found the low-band tail described above.
-3. [ ] Migration: the band size, and a share per commitment.
-4. [ ] Amend ADR-0024 §2 with a pointer to §4 here; amend ADR-0027 with
-       a pointer to the third band.
-5. [ ] AGENTS.md: the day is three bands on scheduled days, two
-       otherwise; commitment weights are separate from the 18.
+3. [x] `life_unit.commitment_share` (migration 0015); the band size is
+       one number for the whole app and lives in `app_setting` under
+       `commitment.band`, since there is no row it belongs to. Its
+       sheet states what the setting costs in real points rather than
+       leaving a percentage to be interpreted (2026-09-15).
+4. [x] ADR-0024 §2 points at §4 here; ADR-0027 records the extension.
+5. [x] AGENTS.md carries both.
