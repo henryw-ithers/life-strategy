@@ -24,8 +24,28 @@
  * No caption explains it. A mostly-filled bar reads as "most of my life
  * is covered" on sight, and the number to its right is the same
  * right-column grammar the area and unit rows below already use.
+ *
+ * **On a day with commitment work, the band leads the bar.** The number
+ * says what *today* can reach, and on a scheduled day the commitment
+ * band is carved off the top and the life units share what is left
+ * (ADR-0032). Drawing the 18 units at full width beside a number that
+ * had already scaled them would make the bar and its own number
+ * disagree. So the band is drawn first, at its size and in the
+ * commitments' hue, and every area after it is scaled into the
+ * remainder — the same arithmetic `dayCeiling` does, drawn. The band is
+ * always fully filled because it is always fully earnable: it divides
+ * only among commitments with work today, so none of it is stranded.
+ *
+ * Whether the band applies comes from `commitmentBandOn`, the same
+ * helper the pricing uses. On a free day it is zero and the bar is
+ * exactly what it was.
  */
-import { dayCeiling, isRoutine } from "@glide/scoring";
+import {
+  commitmentBandOn,
+  dayCeiling,
+  isRoutine,
+  type CommitmentDay,
+} from "@glide/scoring";
 import { StyleSheet, View } from "react-native";
 
 import type { PlanArea } from "../../db/tasks";
@@ -37,11 +57,17 @@ import { AppText } from "../ui/AppText";
  *  so it is dropped rather than drawn as a sliver. */
 const MIN_VISIBLE_WEIGHT = 1;
 
+/** The hue commitments are drawn in everywhere else. */
+const COMMITMENT_AREA = "work-money";
+
 export function CoverageBar({
   areas,
+  day,
   theme,
 }: {
   areas: PlanArea[];
+  /** Today's commitment day, or null for an ordinary two-band day. */
+  day: CommitmentDay | null;
   theme: ThemeTokens;
 }) {
   const units = areas.flatMap((a) =>
@@ -64,7 +90,12 @@ export function CoverageBar({
         rankInUnit: t.rankInUnit,
       })),
     ),
+    day ?? undefined,
   );
+
+  const band = commitmentBandOn(day);
+  /** What the band leaves the life units, as a multiplier. */
+  const scale = (100 - band) / 100;
 
   const total = scored.reduce((sum, u) => sum + (u.weight ?? 0), 0);
   const covered = areas
@@ -81,21 +112,42 @@ export function CoverageBar({
     <View
       style={styles.root}
       accessible
-      accessibilityLabel={`${total - uncovered} of ${total} points covered by a daily task. Today can reach ${ceiling}.`}
+      accessibilityLabel={
+        band > 0
+          ? `Today has commitment work, so ${band} of today's points are your commitments. ${total - uncovered} of ${total} points of the rest are covered by a daily task. Today can reach ${ceiling}.`
+          : `${total - uncovered} of ${total} points covered by a daily task. Today can reach ${ceiling}.`
+      }
     >
       <View style={styles.track}>
+        {band > 0 ? (
+          <View
+            style={[
+              styles.fill,
+              {
+                flex: band,
+                backgroundColor: theme.areas[COMMITMENT_AREA] ?? theme.accent,
+              },
+            ]}
+          />
+        ) : null}
         {covered.map((area) => (
           <View
             key={area.id}
             style={[
               styles.fill,
-              { flex: area.weight, backgroundColor: theme.areas[area.id] ?? theme.muted },
+              {
+                flex: area.weight * scale,
+                backgroundColor: theme.areas[area.id] ?? theme.muted,
+              },
             ]}
           />
         ))}
         {uncovered > 0 ? (
           <View
-            style={[styles.fill, { flex: uncovered, backgroundColor: theme.hairline }]}
+            style={[
+              styles.fill,
+              { flex: uncovered * scale, backgroundColor: theme.hairline },
+            ]}
           />
         ) : null}
       </View>

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   bandPointValues,
+  commitmentBandOn,
   dayCeiling,
   normalizeBand,
   COMMITMENT_BAND_MAX,
@@ -358,5 +359,49 @@ describe("a semester's worth of work — the ADR-0029 finding", () => {
   it("is fixed by raising the band, which is the user's lever", () => {
     expect(valuesAt(10).filter((v) => v === 0).length).toBeGreaterThan(0);
     expect(valuesAt(25).filter((v) => v === 0).length).toBe(0);
+  });
+});
+
+describe("commitmentBandOn", () => {
+  const day = (band: number, eligibleTaskIds: string[]): CommitmentDay => ({
+    band,
+    commitments: [],
+    eligibleTaskIds,
+  });
+
+  it("is the band on a day with commitment work", () => {
+    expect(commitmentBandOn(day(40, ["essay"]))).toBe(40);
+  });
+
+  it("is zero on a day with none, however large the setting", () => {
+    // The band only exists on days it can be earned — the rule that
+    // stops an empty Sunday capping below 100 (ADR-0032 §1). A screen
+    // that drew the setting instead of this would show a band the day
+    // does not have.
+    expect(commitmentBandOn(day(60, []))).toBe(0);
+  });
+
+  it("is zero with no commitment day at all", () => {
+    expect(commitmentBandOn(null)).toBe(0);
+    expect(commitmentBandOn(undefined)).toBe(0);
+  });
+
+  it("normalises, so a caller never draws a band the pricing refuses", () => {
+    expect(commitmentBandOn(day(99, ["essay"]))).toBe(COMMITMENT_BAND_MAX);
+    expect(commitmentBandOn(day(1, ["essay"]))).toBe(COMMITMENT_BAND_MIN);
+  });
+
+  it("is exactly what dayCeiling adds on top of the life bands", () => {
+    // Ceiling on a commitment day minus the same plan's life bands,
+    // scaled by what the band leaves, is the band itself. If the two
+    // ever answered "does the band apply today" differently, this is
+    // where it would show.
+    const units = LIFE;
+    const tasks = [daily("brush", "hygiene")];
+    const d = day(40, ["essay"]);
+    const scale = (100 - commitmentBandOn(d)) / 100;
+    const life =
+      Math.round(0.8 * 4 * scale) + Math.round(20 * scale);
+    expect(dayCeiling(units, tasks, d) - life).toBe(commitmentBandOn(d));
   });
 });

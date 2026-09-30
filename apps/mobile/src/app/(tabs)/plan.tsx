@@ -8,7 +8,7 @@
  * several units at once, which a drill-down destroys. Expanding one
  * collapses the rest, so the screen never becomes a wall.
  */
-import { unitProfile } from "@glide/scoring";
+import { unitProfile, type CommitmentDay } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import {
   router,
@@ -56,7 +56,9 @@ import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LIBRARY } from "../../content/library";
 import { UNIT_INFO } from "../../content/units";
+import { loadCommitmentDay } from "../../db/commitments";
 import { addMilestone, createGoal, loadGoals, setGoalMetric } from "../../db/goals";
+import { currentLocalDate } from "../../db/today";
 import {
   addTask,
   archiveTask,
@@ -108,6 +110,8 @@ export default function PlanScreen() {
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Today's commitment day, for the coverage bar's ceiling. */
+  const [commitmentDay, setCommitmentDay] = useState<CommitmentDay | null>(null);
   /** Active goals per unit, for the edit sheet's goal row. */
   const [goalsByUnit, setGoalsByUnit] = useState<
     Record<string, { id: string; title: string }[]>
@@ -149,12 +153,17 @@ export default function PlanScreen() {
   );
 
   const reload = useCallback(async () => {
-    const [next, goals, rated] = await Promise.all([
+    const [next, goals, rated, today] = await Promise.all([
       loadPlan(),
       loadGoals(),
       latestRatings(),
+      // The bar's number is what *today* can reach, so it needs today's
+      // commitment day — without it a scheduled day is priced as an
+      // ordinary one and the number overstates the life units' share.
+      loadCommitmentDay(currentLocalDate()),
     ]);
     setPlan(next);
+    setCommitmentDay(today);
     setRatings(rated);
     const byUnit: Record<string, { id: string; title: string }[]> = {};
     for (const area of goals.areas) {
@@ -300,7 +309,9 @@ export default function PlanScreen() {
       {/* The screen's own thesis, above everything it applies to: how
           much of your hundred a daily habit currently reaches, and
           therefore what today can score. Drawn rather than written. */}
-      {plan?.hasSnapshot ? <CoverageBar areas={plan.areas} theme={theme} /> : null}
+      {plan?.hasSnapshot ? (
+        <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
+      ) : null}
 
       {/* Capture, before navigation. Adding a task used to start with
           finding its unit and expanding it; this opens the same sheet

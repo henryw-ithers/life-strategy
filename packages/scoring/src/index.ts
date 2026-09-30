@@ -19,6 +19,7 @@ export type {
 } from "./bands";
 export {
   bandPointValues,
+  commitmentBandOn,
   dayCeiling,
   isRoutine,
   normalizeBand,

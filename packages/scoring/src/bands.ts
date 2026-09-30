@@ -133,15 +133,23 @@ export function normalizeBand(band: number): number {
 }
 
 /**
- * The share of the day left to the 18 life units, as a multiplier.
+ * How much of a day the commitment band actually takes: the normalised
+ * band on a day with eligible commitment work, and **0 on any other
+ * day** — the band does not exist on days it could not be earned,
+ * which is what stops an empty Sunday capping below 100 (ADR-0032 §1).
  *
- * A day with no eligible commitment work returns 1 — the band does not
- * exist on days it could not be earned, which is what stops an empty
- * Sunday capping below 100 (ADR-0032 §1).
+ * Exported so a screen that draws the band asks the same question the
+ * pricing does, rather than re-deriving "does it apply today" and
+ * drifting from it.
  */
-function lifeScale(day: CommitmentDay | undefined, eligible: Set<string>): number {
-  if (!day || eligible.size === 0) return 1;
-  return (100 - normalizeBand(day.band)) / 100;
+export function commitmentBandOn(day: CommitmentDay | null | undefined): number {
+  if (!day || day.eligibleTaskIds.length === 0) return 0;
+  return normalizeBand(day.band);
+}
+
+/** The share of the day left to the 18 life units, as a multiplier. */
+function lifeScale(day: CommitmentDay | undefined): number {
+  return (100 - commitmentBandOn(day)) / 100;
 }
 
 /**
@@ -273,7 +281,7 @@ export function bandPointValues(
   // What is left for the 18 life units. Their stored weights still sum
   // to 100 — the invariant is untouched — and are scaled here at read
   // time rather than restated (ADR-0029 §2).
-  const scale = lifeScale(day, eligible);
+  const scale = lifeScale(day);
 
   // ── Routine band ──
   // Allocated **per unit, and settled per unit**, because a unit's
@@ -401,9 +409,8 @@ export function dayCeiling(
   // split only between commitments that have work today, so none of it
   // is left stranded (ADR-0032 §3). That is why it adds to the ceiling
   // in full where the routine band adds only its *covered* share.
-  const eligible = new Set(day?.eligibleTaskIds ?? []);
-  const band = day && eligible.size > 0 ? normalizeBand(day.band) : 0;
-  const scale = lifeScale(day, eligible);
+  const band = commitmentBandOn(day);
+  const scale = lifeScale(day);
 
   return (
     band +
