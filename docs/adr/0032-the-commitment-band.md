@@ -143,6 +143,8 @@ already honours the `finalized_at` guard ADR-0023 added.
 > the parameter — moving it early would mark a whole era of days as
 > belonging to a formula they were not graded under. It moves with the
 > first caller.
+>
+> **Bumped to 8 on 2026-09-14**, when `loadDay` began passing one.
 
 ## Consequences
 
@@ -190,15 +192,12 @@ of it reaches a screen.
 
 ## Action items
 
-1. [~] `packages/scoring`: third band in `bandPointValues` and
+1. [x] `packages/scoring`: third band in `bandPointValues` and
        `dayCeiling` — **built 2026-09-11**, 21 tests, pure and free of
        React Native imports, behind an optional parameter so a day with
        no eligible commitment work is byte-for-byte what it is today
-       (all 188 pre-existing tests pass unchanged).
-       **`FORMULA_VERSION` is not yet bumped** — it moves when the app
-       starts passing a `CommitmentDay`, not when the capability lands,
-       so no stored grade changes meaning before there is anything to
-       change it.
+       (all 188 pre-existing tests pass unchanged). `FORMULA_VERSION`
+       moved to 8 on 2026-09-14 with the first caller, as planned.
 2. [x] **Run a real plan through it before building UI.** Done
        2026-09-11 — the §2 table and the Consequences figures are now
        measured, and measuring found the low-band tail described above.
@@ -209,3 +208,36 @@ of it reaches a screen.
        leaving a percentage to be interpreted (2026-09-15).
 4. [x] ADR-0024 §2 points at §4 here; ADR-0027 records the extension.
 5. [x] AGENTS.md carries both.
+6. [x] **The app actually paying the band** (2026-09-30). Every piece
+       above was built and tested on its own, and none of it reached a
+       day: the pure package was right and the wiring around it was not.
+       Four gaps, each invisible to the unit tests because each lived in
+       the database layer:
+       - **The app priced memberships and the day named tasks.** Pricing
+         is keyed `taskId::unitId`; eligibility and pools are recorded
+         by task id. `bandPointValues` found no eligible task and paid
+         the band to nobody. `toBandKeys` translates, with a test that
+         shows 0 unkeyed and the full band keyed.
+       - **Assignments never entered the band.** One-offs are priced
+         outside `bandPointValues` so an errand cannot move a recurring
+         task's value — right for the 18, wrong for a commitment, where
+         the one-off *is* the work. Commitment one-offs now take a band
+         slot, and `priceOneOffs` no longer floors them at one point
+         from a unit with no budget.
+       - **The checklist dropped commitment tasks.** `loadDay` kept
+         only tasks in a scored unit, and a commitment is never one of
+         the 18 — so the band carved its share off the day for work
+         nobody could see or tick. A task homed in an active commitment
+         or part is now on the day in its own right.
+       - **Nothing could create one.** The unit picker offered scored
+         units only. Commitments and their parts now lead it, and the
+         commitment screen has "Add a task".
+       A test in `packages/scoring` pins that commitment tasks riding in
+       the same input move no life task's value, on either kind of day.
+7. [ ] **What off-day commitment work is worth.** §4 says the same
+       work done on an unscheduled day "pays from the ordinary
+       variable/unplanned route", and never says how much. A commitment
+       has no weight among the 18, so its tasks' stored value is 0 and
+       an assignment ticked on a Sunday currently pays nothing. Needs a
+       pricing decision — for instance, the value it would have on a
+       scheduled day, drawn from `UNPLANNED_CAP`.

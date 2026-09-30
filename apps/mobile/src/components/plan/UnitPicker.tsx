@@ -30,15 +30,9 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { COMMUNAL_TASK_NOTE } from "./planning";
+import { canPick, selectUnit, type PickableUnit } from "./unitSelection";
 
-export interface PickableUnit {
-  id: string;
-  name: string;
-  areaId: string;
-  /** ADR-0027 §4: still editorial, no longer structural. A communal
-   *  unit takes tasks like any other; picking one just shows a line. */
-  motivationKind?: "instrumental" | "communal";
-}
+export type { PickableUnit } from "./unitSelection";
 
 interface UnitPickerProps {
   units: PickableUnit[];
@@ -84,26 +78,38 @@ export function UnitPicker({
    * tap can't be taken back. The rule it enforced still holds; it's
    * enforced where it belongs, on the button that commits.
    */
-  const toggle = (id: string) => {
-    if (value.includes(id)) {
-      onChange(value.filter((v) => v !== id));
-      return;
-    }
-    if (value.length >= max) return;
-    onChange([...value, id]);
-  };
+  const toggle = (id: string) => onChange(selectUnit(value, id, units, max));
 
   const atMax = value.length >= max;
+  /** Listed under a commitment: everything else picked is a note. */
+  const homeIsCommitment =
+    units.find((u) => u.id === value[0])?.commitment === true;
 
   return (
     <View style={styles.root}>
       <View style={styles.headingRow}>
         <AppText variant="caption" color={theme.muted}>
-          {value.length > 1 ? "Counts toward" : "Unit"}
+          {homeIsCommitment
+            ? "Commitment"
+            : value.length > 1
+              ? "Counts toward"
+              : "Unit"}
         </AppText>
         {value.length === 0 ? (
           <AppText variant="footnote" color={theme.muted}>
             Pick where it’s listed
+          </AppText>
+        ) : homeIsCommitment && value.length > 1 ? (
+          // Says what the other chips do, because it is not what they
+          // do on a life task: they record where this touches your life
+          // and earn nothing there (ADR-0029 §3).
+          <AppText variant="footnote" color={theme.muted} style={styles.hint}>
+            Paid from {nameOf(units, value[0])} · also noted in{" "}
+            {value.slice(1).map((id) => nameOf(units, id)).join(", ")}
+          </AppText>
+        ) : homeIsCommitment ? (
+          <AppText variant="footnote" color={theme.muted}>
+            Paid from its share of a scheduled day
           </AppText>
         ) : value.length > 1 ? (
           <AppText variant="footnote" color={theme.muted}>
@@ -122,7 +128,7 @@ export function UnitPicker({
           const index = value.indexOf(u.id);
           const selected = index >= 0;
           const hue = areaColors[u.areaId] ?? theme.accent;
-          const blocked = !selected && atMax;
+          const blocked = !canPick(value, u.id, units, max);
           return (
             <Pressable
               key={u.id}
@@ -133,7 +139,11 @@ export function UnitPicker({
               accessibilityRole="checkbox"
               accessibilityState={{ checked: selected, disabled: blocked }}
               accessibilityLabel={
-                selected && index === 0 ? `${u.name}, listed under this unit` : u.name
+                selected && index === 0
+                  ? `${u.name}, listed under this ${u.commitment ? "commitment" : "unit"}`
+                  : selected && homeIsCommitment
+                    ? `${u.name}, noted only`
+                    : u.name
               }
               style={({ pressed }) => [
                 styles.chip,
@@ -209,4 +219,5 @@ const styles = StyleSheet.create({
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
   chipLabel: { flexShrink: 1 },
+  hint: { flexShrink: 1, textAlign: "right" },
 });

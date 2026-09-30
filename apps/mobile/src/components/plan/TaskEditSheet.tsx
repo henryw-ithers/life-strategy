@@ -52,6 +52,7 @@ import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import type { OneOffSize } from "./OneOffPicker";
 import { type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
+import { needsDays } from "./unitSelection";
 
 export interface EditableTask {
   id: string;
@@ -163,7 +164,13 @@ export function TaskEditSheet({
     due: task.oneOffDue,
   });
 
-  const savable = title.trim().length > 0 && unitIds.length > 0;
+  /** Recurring commitment work has to name its days (ADR-0033). This
+   *  bites when an unpinned task is moved under a commitment. */
+  const homeIsCommitment =
+    units.find((u) => u.id === unitIds[0])?.commitment === true;
+  const missingDays = needsDays({ homeIsCommitment, once, weekdays });
+  const savable =
+    title.trim().length > 0 && unitIds.length > 0 && !missingDays;
 
   const save = () => {
     if (!savable) return;
@@ -277,6 +284,7 @@ export function TaskEditSheet({
             onFortnightOffsetChange={setFortnightOffset}
             detail={detail}
             onDetailChange={setDetail}
+            daysRequired={homeIsCommitment && !once}
             accent={accent}
             theme={theme}
           />
@@ -348,6 +356,12 @@ export function TaskEditSheet({
           ) : null}
           </ScrollView>
 
+          {missingDays ? (
+            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+              Pick the days it happens. Commitment work is paid on the days
+              it is scheduled.
+            </AppText>
+          ) : null}
           <Button
             label={dirty ? "Save changes" : "Done"}
             color={accent}
@@ -371,6 +385,7 @@ export function TaskEditSheet({
 }
 
 const styles = StyleSheet.create({
+  blocker: { textAlign: "center", marginBottom: -space.sm },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

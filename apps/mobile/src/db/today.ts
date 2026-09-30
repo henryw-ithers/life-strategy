@@ -14,7 +14,6 @@ import {
   fortnightStart,
   isEditable,
   isFinalized,
-  isSettled,
   localDateOf,
   monthStart,
   nextMonthStart,
@@ -33,6 +32,8 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { loadCommitmentDay } from "./commitments";
+import { isCommitmentUnit } from "./commitmentPlan";
+import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { autocountForTask, removeAutocountForTask } from "./goals";
 import {
   latestWeights as latestIncludedWeights,
@@ -263,32 +264,8 @@ export async function loadDay(
    * Wednesday with no way to ever finish it — the exact case §2 is
    * written to support.
    */
-  const priorFractions = new Map<string, number[]>();
-  if (oneOffIds.length > 0) {
-    const rows = await db
-      .select({
-        taskId: taskCompletion.taskId,
-        fraction: taskCompletion.fraction,
-      })
-      .from(taskCompletion)
-      .where(
-        and(
-          inArray(taskCompletion.taskId, oneOffIds),
-          lt(taskCompletion.localDate, date),
-        ),
-      );
-    for (const r of rows) {
-      priorFractions.set(r.taskId, [
-        ...(priorFractions.get(r.taskId) ?? []),
-        r.fraction,
-      ]);
-    }
-  }
-  const settledBefore = new Set(
-    [...priorFractions.entries()]
-      .filter(([, fractions]) => isSettled(fractions))
-      .map(([taskId]) => taskId),
-  );
+  const priorFractions = await fractionsBefore(oneOffIds, date);
+  const settledBefore = settledOf(priorFractions);
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
@@ -301,9 +278,25 @@ export async function loadDay(
         .where(inArray(taskUnit.taskId, allTasks.map((t) => t.id)))
     : [];
   const scoredTaskIds = new Set(
-    memberships.filter((m) => scoredUnitIds.has(m.unitId)).map((m) => m.taskId),
+    memberships
+      .filter((m) => m.membership === "scoring" && scoredUnitIds.has(m.unitId))
+      .map((m) => m.taskId),
   );
-  const tasks = allTasks.filter((t) => scoredTaskIds.has(t.id));
+  /**
+   * Commitment units are not among the 18 and never "in scoring" the way
+   * a life unit is — they are paid from their own band (ADR-0032). So a
+   * task whose home is an active commitment or one of its parts is on
+   * the day in its own right. Without this the checklist dropped every
+   * commitment task, while the band went on pricing work nobody could
+   * see or tick. An archived commitment's units are filtered out above,
+   * which is what pauses its tasks.
+   */
+  const commitmentUnitIds = new Set(
+    units.filter(isCommitmentUnit).map((u) => u.id),
+  );
+  const tasks = allTasks.filter(
+    (t) => scoredTaskIds.has(t.id) || commitmentUnitIds.has(t.unitId),
+  );
 
   // Completions across the fortnight containing `date` cover both the
   // weekly and fortnightly counting windows.
@@ -422,6 +415,12 @@ export async function loadDay(
    * Bounded at a year: a longer run is not worth widening every day's
    * read for, and the number stops being the interesting part well
    * before then.
+   *
+   * **Every completion row counts, whatever its fraction** — decided,
+   * not incidental (ADR-0014 §4, 2026-09-30). A quarter done is a day
+   * you showed up, and Henry's call is that showing up is what a run is
+   * for: *"progress isn't linear and some days showing up is what
+   * counts."* Do not filter this to whole completions.
    */
   const dailyTaskIds = tasks.filter((t) => t.timesPerWeek === 7).map((t) => t.id);
   const streakWindowStart = addDays(date, -365);

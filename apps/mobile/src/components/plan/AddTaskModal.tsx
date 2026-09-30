@@ -81,6 +81,7 @@ import {
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
+import { needsDays } from "./unitSelection";
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -155,7 +156,14 @@ export function AddTaskModal({
   const accent =
     areaColors[units.find((u) => u.id === home)?.areaId ?? ""] ?? theme.accent;
 
-  const ready = title.trim().length > 0 && unitIds.length > 0 && !saving;
+  /** Recurring commitment work has to name its days (ADR-0033). */
+  const missingDays = needsDays({
+    homeIsCommitment: units.find((u) => u.id === unitIds[0])?.commitment === true,
+    once,
+    weekdays,
+  });
+  const ready =
+    title.trim().length > 0 && unitIds.length > 0 && !missingDays && !saving;
 
   const close = () => {
     setTitle("");
@@ -295,12 +303,26 @@ export function AddTaskModal({
             onWeekdaysChange={setWeekdays}
             detail={detail}
             onDetailChange={setDetail}
+            daysRequired={
+              !once &&
+              units.find((u) => u.id === unitIds[0])?.commitment === true
+            }
             partOfDay={partOfDay}
             onPartOfDayChange={setPartOfDay}
             accent={accent}
             theme={theme}
           />
           </ScrollView>
+
+          {/* Why Add is unavailable, beside the button that is — the
+              days row that asks may be scrolled out of sight, and a
+              disabled button with no reason reads as broken. */}
+          {missingDays && title.trim().length > 0 ? (
+            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+              Pick the days it happens. Commitment work is paid on the days
+              it is scheduled.
+            </AppText>
+          ) : null}
 
           {/* Side by side: the card is short enough that stacking two
               full-width buttons would make the actions the tallest
@@ -326,6 +348,7 @@ export function AddTaskModal({
 }
 
 const styles = StyleSheet.create({
+  blocker: { textAlign: "center" },
   /**
    * A bottom sheet, not a centred dialog (changed 2026-08-18).
    *

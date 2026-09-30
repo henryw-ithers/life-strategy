@@ -193,8 +193,26 @@ forgets to filter.
        `deleteCommitment` in `db/commitmentWrites.ts`, with the
        Commitments surface and a commitment's detail screen over them
        (2026-09-15).
-4. [ ] Enforce `membership = 'note'` for a commitment task's life-unit
-       tags at the write seam, with a test.
+4. [x] Enforced at the write seam (2026-09-30): `membershipsFor`
+       decides every row `addTask` and `setTaskUnits` write, making a
+       commitment task's life-unit tags `note` and **refusing a
+       commitment anywhere but first** — a life task that merely also
+       counted toward School would have nowhere to be paid from. The
+       picker applies the same rule (`selectUnit`: a commitment moves
+       to the front; a second replaces the first), and says what the
+       other chips now do: *"Paid from School · also noted in
+       Learning."* Pricing reads scoring rows only, so a note cannot be
+       paid even if one is written by some other route. Both rules are
+       tested and mutation-tested.
 5. [x] AGENTS.md: vocabulary rows for Commitment and Sub-commitment,
        and the invariant that a commitment task never takes a scoring
        slot in a life unit.
+6. [x] **Commitments are not listed among the 18** (2026-09-30).
+       `loadPlan` returns them separately, because a commitment is a
+       custom unit and was reaching the Tasks screen as an excluded
+       life unit — one tap from "Put back in my plan", which would have
+       made School one of the 18. They now have their own groups after
+       the areas, where their tasks edit and delete like any other.
+       Finishing a commitment pauses its tasks, and starting it again
+       now brings back exactly those; it used to restore the units and
+       leave every task inactive.

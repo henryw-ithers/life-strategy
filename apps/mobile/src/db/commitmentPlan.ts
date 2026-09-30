@@ -166,3 +166,88 @@ export function assertPoolSize(input: PoolValidationInput): void {
   const problem = poolProblem(input);
   if (problem !== null) throw new Error(problem);
 }
+
+// ── Commitment tasks (ADR-0029 §3) ─────────────────────────────────
+
+/**
+ * Whether a unit is a commitment or one of its parts.
+ *
+ * `is_custom` alone is not enough: a custom unit with neither a share
+ * nor a parent is an ordinary life unit somebody made, and it prices
+ * from the 18's weights like any other. A commitment carries a share;
+ * a part carries a parent.
+ */
+export function isCommitmentUnit(u: {
+  isCustom: boolean;
+  parentUnitId: string | null;
+  commitmentShare: number | null;
+}): boolean {
+  return u.isCustom && (u.parentUnitId !== null || u.commitmentShare !== null);
+}
+
+export type Membership = "scoring" | "note";
+
+/**
+ * The membership each chosen unit takes, home unit first.
+ *
+ * **A commitment task never takes a scoring slot in a life unit**
+ * (ADR-0029 §3). It may tag one — School work that is also Learning —
+ * but that row is a `note`: it feeds effort and the log and earns
+ * nothing. A `scoring` row would pay the same completion from two
+ * bands, which is the one route to inflating a day.
+ *
+ * **A commitment can only be where a task is listed**, never a second
+ * unit it also counts toward. A life task tagged to a commitment has
+ * nowhere to be paid from — the band prices a commitment's *own* work,
+ * found by home unit — so the tag would be a row that looks like it
+ * does something and does not. Refused here rather than stored.
+ */
+export function membershipsFor(
+  unitIds: readonly string[],
+  commitmentUnitIds: ReadonlySet<string>,
+): { unitId: string; membership: Membership }[] {
+  const [home, ...rest] = unitIds;
+  if (home === undefined) return [];
+  if (rest.some((id) => commitmentUnitIds.has(id))) {
+    throw new Error(
+      "A commitment can only be the unit a task is listed under, not a second one it counts toward.",
+    );
+  }
+  const homeIsCommitment = commitmentUnitIds.has(home);
+  return unitIds.map((unitId, i) => ({
+    unitId,
+    membership: i > 0 && homeIsCommitment ? "note" : "scoring",
+  }));
+}
+
+/**
+ * A `CommitmentDay` rewritten onto the keys the app prices by.
+ *
+ * `bandPointValues` matches a day's eligible tasks and pool members
+ * against the ids it is given. The app prices **memberships**, keyed
+ * `taskId::unitId`, while eligibility and pools are recorded against
+ * tasks — so without this the two sets never met, and the band paid
+ * nothing to anyone. A commitment task's band slot is its home-unit
+ * membership, since that is the only scoring row it has.
+ */
+export function toBandKeys(
+  day: CommitmentDay,
+  homeUnitByTask: ReadonlyMap<string, string>,
+): CommitmentDay {
+  const key = (taskId: string) => {
+    const home = homeUnitByTask.get(taskId);
+    return home === undefined ? taskId : `${taskId}::${home}`;
+  };
+  return {
+    ...day,
+    eligibleTaskIds: day.eligibleTaskIds.map(key),
+    ...(day.pools
+      ? {
+          pools: day.pools.map((p) => ({
+            ...p,
+            taskIds: p.taskIds.map(key),
+          })),
+        }
+      : {}),
+  };
+}

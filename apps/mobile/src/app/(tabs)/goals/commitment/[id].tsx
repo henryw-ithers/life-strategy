@@ -19,7 +19,7 @@
  * opens the weight; there is no row here that looks live and is not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -36,6 +36,11 @@ import {
   CommitmentSheet,
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
+import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
+import {
+  pickableUnits,
+  type PickableUnit,
+} from "../../../../components/plan/unitSelection";
 import { AppText } from "../../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../../components/ui/Backdrop";
 import { Button } from "../../../../components/ui/Button";
@@ -55,6 +60,7 @@ import {
   unarchiveCommitment,
   updateCommitment,
 } from "../../../../db/commitmentWrites";
+import { addTask, loadPlan } from "../../../../db/tasks";
 import { getTheme, SCRIM } from "../../../../theme/colors";
 import { radius, space } from "../../../../theme/tokens";
 
@@ -70,12 +76,16 @@ export default function CommitmentScreen() {
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
+  /** Everything a task can be filed under, for the add sheet. */
+  const [units, setUnits] = useState<PickableUnit[]>([]);
 
   const reload = useCallback(async () => {
-    const screen = await loadCommitmentsScreen();
+    const [screen, plan] = await Promise.all([loadCommitmentsScreen(), loadPlan()]);
     const all = [...screen.commitments, ...screen.archived];
     setData(all.find((c) => c.id === id) ?? null);
     setOthers(screen.commitments.filter((c) => c.id !== id).map((c) => c.share));
+    setUnits(pickableUnits(plan));
   }, [id]);
 
   const { error, retry } = useScreenLoad(reload);
@@ -218,6 +228,35 @@ export default function CommitmentScreen() {
               ) : null}
             </Group>
 
+            {/* The way in that was missing: until this, a commitment
+                could hold parts but there was nowhere in the app to put
+                a single task in one. */}
+            {!archived ? (
+              <Group
+                theme={theme}
+                title="Tasks"
+                footnote="Anything that repeats needs its days. It is paid from this share on the days it is scheduled."
+                flush
+              >
+                {data.taskCount > 0 ? (
+                  <ActionRow
+                    label="See its tasks"
+                    value={`${data.taskCount} ${data.taskCount === 1 ? "task" : "tasks"}`}
+                    theme={theme}
+                    onPress={() => router.push("/plan" as Href)}
+                  />
+                ) : null}
+                <ActionRow
+                  label="Add a task"
+                  theme={theme}
+                  accent={accent}
+                  icon="add"
+                  onPress={() => setAddingTask(true)}
+                  last
+                />
+              </Group>
+            ) : null}
+
             {data.directTaskCount > 0 ? (
               <AppText
                 variant="footnote"
@@ -262,6 +301,38 @@ export default function CommitmentScreen() {
                 theme={theme}
               />
             </View>
+
+            {addingTask ? (
+              <AddTaskModal
+                visible
+                onClose={() => setAddingTask(false)}
+                units={units}
+                homeUnitId={data.id}
+                areaColors={theme.areas}
+                theme={theme}
+                onCommit={async (
+                  title,
+                  timesPerWeek,
+                  unitIds,
+                  plannedWeekdays,
+                  partOfDay,
+                  oneOff,
+                  detail,
+                ) => {
+                  await addTask(
+                    unitIds,
+                    title,
+                    timesPerWeek,
+                    plannedWeekdays,
+                    partOfDay,
+                    null,
+                    oneOff,
+                    detail,
+                  );
+                  await reload();
+                }}
+              />
+            ) : null}
 
             {sheet !== null ? (
               <CommitmentSheet

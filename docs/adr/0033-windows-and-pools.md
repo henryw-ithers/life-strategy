@@ -210,3 +210,10 @@ mental quiet planning is for.
        day (2026-09-15). The toggle appears only once the day has an
        hour to draw — and always once you are in the grid, since a view
        you can enter and not leave is a trap.
+6. [x] **Recurring commitment work names its days** (2026-09-30). An
+       unpinned commitment task belongs to no day, so no day's band can
+       pay it. The task sheets now say so where it applies — the "Which
+       days" line reads *"Pick the days it happens"* — and hold Save
+       with the reason beside it rather than as an unexplained disabled
+       button. A commitment one-off needs no date: it is owed from the
+       moment it exists. `needsDays`, tested.

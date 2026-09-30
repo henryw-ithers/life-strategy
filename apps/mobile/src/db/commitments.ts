@@ -8,15 +8,16 @@
  * commitment from a life unit is its band, not its table.**
  */
 import { MAX_COMMITMENTS, type CommitmentDay } from "@glide/scoring";
-import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "./client";
+import { fractionsBefore, settledOf } from "./oneOffProgress";
 import {
   buildCommitmentDay,
   eligibleTaskIds,
   groupCommitments,
 } from "./commitmentPlan";
-import { lifeUnit, pool, poolMember, task, taskCompletion } from "./schema";
+import { lifeUnit, pool, poolMember, task } from "./schema";
 import { loadCommitmentBand } from "./settings";
 
 export interface CommitmentRow {
@@ -73,22 +74,10 @@ async function eligibleOn(date: string, unitIds: string[]): Promise<string[]> {
     .where(and(eq(task.active, true), inArray(task.unitId, unitIds)));
   if (rows.length === 0) return [];
 
+  // The checklist's own rule, from the one place it now lives: settled
+  // means finished, so a part-done assignment is still owed today.
   const oneOffIds = rows.filter((t) => t.oneOffSize != null).map((t) => t.id);
-  const settledBefore = new Set(
-    oneOffIds.length > 0
-      ? (
-          await db
-            .select({ taskId: taskCompletion.taskId })
-            .from(taskCompletion)
-            .where(
-              and(
-                inArray(taskCompletion.taskId, oneOffIds),
-                lt(taskCompletion.localDate, date),
-              ),
-            )
-        ).map((c) => c.taskId)
-      : [],
-  );
+  const settledBefore = settledOf(await fractionsBefore(oneOffIds, date));
 
   return eligibleTaskIds(rows, settledBefore, date);
 }

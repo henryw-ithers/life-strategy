@@ -21,6 +21,12 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import {
+  isCommitmentUnit,
+  membershipsFor,
+  toBandKeys,
+  type Membership,
+} from "./commitmentPlan";
+import {
   lifeArea,
   lifeUnit,
   rating,
@@ -102,9 +108,46 @@ export interface PlanArea {
   units: PlanUnit[];
 }
 
+/**
+ * A commitment as the Tasks screen lists it: its own name, its parts,
+ * and the tasks filed under either (ADR-0029).
+ *
+ * Kept **out of `areas`** on purpose. A commitment is a custom unit and
+ * was reaching the Tasks screen as one — an excluded life unit with no
+ * weight, offering to "put it back in my plan" and so make School one of
+ * the 18. Commitments are priced by their own band, not by a weight, and
+ * listing them beside the 18 invited exactly that confusion.
+ */
+export interface PlanCommitment {
+  id: string;
+  name: string;
+  parts: { id: string; name: string }[];
+  /** Every active task whose home is this commitment or one of its parts. */
+  tasks: (PlanTask & { homeUnitId: string; homeName: string })[];
+}
+
 export interface PlanData {
   hasSnapshot: boolean;
   areas: PlanArea[];
+  /** Active commitments, each with its tasks. Empty when there are none. */
+  commitments: PlanCommitment[];
+}
+
+/**
+ * Every commitment unit — commitments and their parts, archived or
+ * not. Being archived does not make School stop being a commitment, and
+ * the membership rule has to hold for a task being edited either way.
+ */
+async function commitmentUnitIdsIn(tx: Tx | typeof db): Promise<Set<string>> {
+  const rows = await tx
+    .select({
+      id: lifeUnit.id,
+      isCustom: lifeUnit.isCustom,
+      parentUnitId: lifeUnit.parentUnitId,
+      commitmentShare: lifeUnit.commitmentShare,
+    })
+    .from(lifeUnit);
+  return new Set(rows.filter(isCommitmentUnit).map((u) => u.id));
 }
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -188,14 +231,67 @@ export async function loadPlan(): Promise<PlanData> {
   for (const m of memberships) {
     byTask.set(m.taskId, [...(byTask.get(m.taskId) ?? []), m]);
   }
+  const commitmentIds = new Set(units.filter(isCommitmentUnit).map((u) => u.id));
+
+  /** One task as a list row, seen from the unit it is listed under. */
+  const rowFor = (t: (typeof tasks)[number], listedUnder: string, rank: number) => {
+    const mine = byTask.get(t.id) ?? [];
+    return {
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      timesPerWeek: t.timesPerWeek,
+      plannedWeekdays: t.plannedWeekdays,
+      partOfDay: t.partOfDay,
+      fortnightOffset: t.fortnightOffset,
+      oneOffSize: t.oneOffSize,
+      oneOffDate: t.oneOffDate,
+      oneOffDue: t.oneOffDue,
+      startMinute: t.startMinute,
+      endMinute: t.endMinute,
+      size: t.size,
+      allowsPartial: t.allowsPartial,
+      goalId: t.goalId,
+      pointValue: t.pointValue,
+      rankInUnit: rank,
+      unitIds: [
+        t.unitId,
+        ...mine.map((x) => x.unitId).filter((id) => id !== t.unitId),
+      ],
+      otherUnitNames: mine
+        .filter((x) => x.unitId !== listedUnder)
+        .map((x) => unitName.get(x.unitId) ?? x.unitId),
+    };
+  };
+
+  const commitments: PlanCommitment[] = units
+    .filter((u) => commitmentIds.has(u.id) && u.parentUnitId === null)
+    .map((c) => {
+      const parts = units.filter((u) => u.parentUnitId === c.id);
+      const homes = new Map([c, ...parts].map((u) => [u.id, u.name]));
+      return {
+        id: c.id,
+        name: c.name,
+        parts: parts.map((u) => ({ id: u.id, name: u.name })),
+        tasks: tasks
+          .filter((t) => homes.has(t.unitId))
+          .map((t) => ({
+            ...rowFor(t, t.unitId, t.rankInUnit),
+            homeUnitId: t.unitId,
+            homeName: homes.get(t.unitId) ?? "",
+          }))
+          .sort((a, b) => a.title.localeCompare(b.title)),
+      };
+    });
 
   return {
     hasSnapshot: weights.size > 0,
+    commitments,
     areas: areas.map((area) => ({
       id: area.id,
       name: area.name,
       units: units
-        .filter((u) => u.areaId === area.id)
+        .filter((u) => u.areaId === area.id && !commitmentIds.has(u.id))
         .map((u) => ({
           id: u.id,
           name: u.name,
@@ -203,40 +299,14 @@ export async function loadPlan(): Promise<PlanData> {
           includeInScoring: u.includeInScoring,
           motivationKind: u.motivationKind,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
-          // A task is listed under every unit it serves, ranked by that
-          // unit's own membership — not only its home unit.
+          // A task is listed under every unit it *scores* in, ranked by
+          // that unit's own membership — not only its home unit. A note
+          // membership earns nothing there and holds no rank, so listing
+          // a commitment task under Learning would show a row the unit
+          // does not pay for.
           tasks: memberships
-            .filter((m) => m.unitId === u.id)
-            .map((m) => {
-              const t = tasks.find((x) => x.id === m.taskId)!;
-              const mine = byTask.get(t.id) ?? [];
-              return {
-                id: t.id,
-                title: t.title,
-                description: t.description,
-                timesPerWeek: t.timesPerWeek,
-                plannedWeekdays: t.plannedWeekdays,
-                partOfDay: t.partOfDay,
-                fortnightOffset: t.fortnightOffset,
-                oneOffSize: t.oneOffSize,
-                oneOffDate: t.oneOffDate,
-                oneOffDue: t.oneOffDue,
-                startMinute: t.startMinute,
-                endMinute: t.endMinute,
-                size: t.size,
-                allowsPartial: t.allowsPartial,
-                goalId: t.goalId,
-                pointValue: t.pointValue,
-                rankInUnit: m.rankInUnit,
-                unitIds: [
-                  t.unitId,
-                  ...mine.map((x) => x.unitId).filter((id) => id !== t.unitId),
-                ],
-                otherUnitNames: mine
-                  .filter((x) => x.unitId !== u.id)
-                  .map((x) => unitName.get(x.unitId) ?? x.unitId),
-              };
-            })
+            .filter((m) => m.unitId === u.id && m.membership === "scoring")
+            .map((m) => rowFor(tasks.find((x) => x.id === m.taskId)!, u.id, m.rankInUnit))
             .sort((a, b) => a.rankInUnit - b.rankInUnit),
         })),
     })),
@@ -292,6 +362,11 @@ async function bandInputs(tx: Tx | typeof db) {
   const units = await tx
     .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
     .from(lifeUnit);
+  const commitmentUnitIds = await commitmentUnitIdsIn(tx);
+  // Scoring rows only. A `note` row earns nothing and holds no rank
+  // (ADR-0025 §5); priced as a slot it would pay a commitment task a
+  // second time from a life unit, which is the one way to inflate a day
+  // (ADR-0029 §3).
   const memberships = await tx
     .select({
       taskId: taskUnit.taskId,
@@ -300,7 +375,7 @@ async function bandInputs(tx: Tx | typeof db) {
     })
     .from(taskUnit)
     .innerJoin(task, eq(task.id, taskUnit.taskId))
-    .where(eq(task.active, true))
+    .where(and(eq(task.active, true), eq(taskUnit.membership, "scoring")))
     .orderBy(asc(taskUnit.rankInUnit));
   // One read of the per-task columns this pass needs. `unitId` is the
   // home unit, which decides whose rank lands back on `task`.
@@ -336,8 +411,17 @@ async function bandInputs(tx: Tx | typeof db) {
   // instability ADR-0027's amendment took out of the variable band,
   // reappearing over time instead of across units. They are priced
   // below instead, from the unit's own variable day rate.
+  //
+  // **Commitment one-offs are the exception.** An assignment is the
+  // whole point of a commitment, and the band pays by slot, not by
+  // cadence — so it enters the band like any other commitment task. Its
+  // unit has no weight, so it cannot disturb a life unit's share.
   const bandTasks: BandTask[] = memberships
-    .filter((m) => oneOffSizeByTask.get(m.taskId) == null)
+    .filter(
+      (m) =>
+        oneOffSizeByTask.get(m.taskId) == null ||
+        commitmentUnitIds.has(m.unitId),
+    )
     .map((m) => ({
       id: `${m.taskId}::${m.unitId}`,
       unitId: m.unitId,
@@ -348,6 +432,11 @@ async function bandInputs(tx: Tx | typeof db) {
     bandUnits,
     bandTasks,
     memberships,
+    // What `priceOneOffs` may price: life-unit memberships only. A
+    // commitment one-off is priced by the band or not at all; left in,
+    // it would be floored at one point from a unit with no budget and
+    // overwrite whatever the band had paid it.
+    lifeMemberships: memberships.filter((m) => !commitmentUnitIds.has(m.unitId)),
     oneOffSizeByTask,
     normalizedRank,
     homeUnitByTask,
@@ -432,10 +521,22 @@ function priceOneOffs(
 export async function taskPointsOn(
   day: CommitmentDay,
 ): Promise<Map<string, number>> {
-  const { bandUnits, bandTasks, memberships, oneOffSizeByTask } =
-    await bandInputs(db);
-  const points = bandPointValues(bandUnits, bandTasks, day);
-  priceOneOffs(points, bandUnits, bandTasks, memberships, oneOffSizeByTask);
+  const {
+    bandUnits,
+    bandTasks,
+    memberships,
+    lifeMemberships,
+    oneOffSizeByTask,
+    homeUnitByTask,
+  } = await bandInputs(db);
+  // The day is recorded against tasks; pricing is keyed by membership.
+  // Unkeyed, the band found no eligible task and paid nobody.
+  const points = bandPointValues(
+    bandUnits,
+    bandTasks,
+    toBandKeys(day, homeUnitByTask),
+  );
+  priceOneOffs(points, bandUnits, bandTasks, lifeMemberships, oneOffSizeByTask);
 
   const totals = new Map<string, number>();
   for (const m of memberships) {
@@ -450,12 +551,13 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     bandUnits,
     bandTasks,
     memberships,
+    lifeMemberships,
     oneOffSizeByTask,
     normalizedRank,
     homeUnitByTask,
   } = await bandInputs(tx);
   const points = bandPointValues(bandUnits, bandTasks);
-  priceOneOffs(points, bandUnits, bandTasks, memberships, oneOffSizeByTask);
+  priceOneOffs(points, bandUnits, bandTasks, lifeMemberships, oneOffSizeByTask);
 
   // Totals are summed here rather than re-read per task. This used to
   // call `refreshTaskTotal` in a second loop, which cost three more
@@ -510,12 +612,23 @@ async function attachUnits(
   taskId: string,
   unitIds: string[],
   rankByUnit?: Record<string, number>,
+  membershipOf: ReadonlyMap<string, Membership> = new Map(),
 ): Promise<void> {
   for (const unitId of unitIds) {
+    const membership = membershipOf.get(unitId) ?? "scoring";
+    if (membership === "note") {
+      // No rank, no points, no shuffling anybody else's order: a note
+      // takes no slot (ADR-0025 §5). Both columns are written 0 and
+      // ignored, as the schema's comment requires.
+      await tx
+        .insert(taskUnit)
+        .values({ taskId, unitId, rankInUnit: 0, pointValue: 0, membership });
+      continue;
+    }
     const siblings = await tx
       .select()
       .from(taskUnit)
-      .where(eq(taskUnit.unitId, unitId));
+      .where(and(eq(taskUnit.unitId, unitId), eq(taskUnit.membership, "scoring")));
     const rank = rankByUnit?.[unitId] ?? siblings.length + 1;
     for (const s of siblings) {
       if (s.rankInUnit >= rank) {
@@ -589,6 +702,14 @@ export async function addTask(
   if (!home) return null;
   const id = Crypto.randomUUID();
   await db.transaction(async (tx) => {
+    // Decided before anything is written, so a refused shape — a
+    // commitment as a second unit — leaves no half-made task behind.
+    const membershipOf = new Map(
+      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
+        m.unitId,
+        m.membership,
+      ]),
+    );
     const siblings = await tx
       .select()
       .from(taskUnit)
@@ -616,7 +737,7 @@ export async function addTask(
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
-    await attachUnits(tx, id, unitIds);
+    await attachUnits(tx, id, unitIds, undefined, membershipOf);
   });
   return id;
 }
@@ -629,10 +750,29 @@ export async function setTaskUnits(
   const home = unitIds[0];
   if (!home) return;
   await db.transaction(async (tx) => {
+    const desired = new Map(
+      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
+        m.unitId,
+        m.membership,
+      ]),
+    );
     const current = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
+    // A unit kept but changing kind — Learning going from a scoring
+    // slot to a note because the task moved under School — is removed
+    // and re-attached, so it gains or loses its rank properly rather
+    // than keeping one it no longer has a right to.
+    const changed = current
+      .filter((m) => desired.has(m.unitId) && desired.get(m.unitId) !== m.membership)
+      .map((m) => m.unitId);
     const currentIds = current.map((m) => m.unitId);
-    const removed = currentIds.filter((id) => !unitIds.includes(id));
-    const added = unitIds.filter((id) => !currentIds.includes(id));
+    const removed = [
+      ...currentIds.filter((id) => !unitIds.includes(id)),
+      ...changed,
+    ];
+    const added = [
+      ...unitIds.filter((id) => !currentIds.includes(id)),
+      ...changed,
+    ];
 
     for (const unitId of removed) {
       await tx
@@ -640,7 +780,7 @@ export async function setTaskUnits(
         .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
     }
     await tx.update(task).set({ unitId: home }).where(eq(task.id, taskId));
-    if (added.length) await attachUnits(tx, taskId, added);
+    if (added.length) await attachUnits(tx, taskId, added, undefined, desired);
     // Closes the rank gap in the units it left, and rescales the plan
     // if it left one of them with nothing.
     await recomputeAllUnitPoints(tx);

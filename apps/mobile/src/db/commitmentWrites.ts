@@ -169,14 +169,34 @@ export async function archiveCommitment(id: string): Promise<void> {
   });
 }
 
-/** Put an archived commitment back, with its sub-commitments. */
+/**
+ * Put an archived commitment back, with its sub-commitments **and the
+ * tasks finishing it paused**.
+ *
+ * It used to restore the units and leave every task inactive, while the
+ * screen told you "its tasks come back". Only the tasks archived *by
+ * finishing* return — found by the timestamp that pass stamped on the
+ * commitment and its tasks alike — so a task you had archived on its
+ * own before finishing the commitment stays archived, as you left it.
+ */
 export async function unarchiveCommitment(id: string): Promise<void> {
   const ids = await subtreeIds(id);
+  const [row] = await db
+    .select({ archivedAt: lifeUnit.archivedAt })
+    .from(lifeUnit)
+    .where(eq(lifeUnit.id, id));
+  const finishedAt = row?.archivedAt ?? null;
   await db.transaction(async (tx) => {
     await tx
       .update(lifeUnit)
       .set({ archivedAt: null })
       .where(inArray(lifeUnit.id, ids));
+    if (finishedAt !== null) {
+      await tx
+        .update(task)
+        .set({ active: true, archivedAt: null })
+        .where(and(inArray(task.unitId, ids), eq(task.archivedAt, finishedAt)));
+    }
     await recomputeAllUnitPoints(tx);
   });
 }

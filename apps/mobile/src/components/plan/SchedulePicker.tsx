@@ -75,6 +75,13 @@ interface SchedulePickerProps {
    *  by default (ADR-0030 §2). */
   detail: TaskDetail;
   onDetailChange: (next: TaskDetail) => void;
+  /**
+   * The task is recurring commitment work, so its days are required
+   * rather than optional (ADR-0033; `needsDays`). Changes what the
+   * "Which days" line says, so the requirement is stated where it
+   * applies instead of only as a disabled button further down.
+   */
+  daysRequired?: boolean;
   accent: string;
   theme: ThemeTokens;
 }
@@ -107,6 +114,7 @@ export function SchedulePicker({
   onFortnightOffsetChange,
   detail,
   onDetailChange,
+  daysRequired = false,
   accent,
   theme,
 }: SchedulePickerProps) {
@@ -176,8 +184,19 @@ export function SchedulePicker({
           {/* Says what "no chips" means, so flexible reads as a choice
               rather than as a field left blank, and says how to get
               back to the stepper once chips are lit. */}
-          <AppText variant="footnote" color={theme.muted}>
-            {pinned ? "Clear to pick a count instead" : "Any days"}
+          <AppText
+            variant="footnote"
+            // Ink, not muted, only while it is the thing standing
+            // between you and Save — the one place the sheet asks.
+            color={daysRequired && !pinned ? theme.ink : theme.muted}
+          >
+            {pinned
+              ? daysRequired
+                ? "Paid on these days"
+                : "Clear to pick a count instead"
+              : daysRequired
+                ? "Pick the days it happens"
+                : "Any days"}
           </AppText>
         </View>
         <WeekdayPicker

@@ -57,6 +57,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
+import { pickableUnits } from "../../components/plan/unitSelection";
 import {
   ANYTIME_LABEL,
   compareForDay,
@@ -648,9 +649,12 @@ export default function PlanDayScreen() {
         <AddTaskModal
           visible
           onClose={() => setAdding(false)}
-          units={plan.areas.flatMap((a) =>
-            a.units.map((u) => ({ id: u.id, name: u.name, areaId: a.id })),
-          )}
+          // The same list every sheet files into: commitments first,
+          // then the scored units. This used to offer every unit,
+          // excluded ones included, with nothing marking a commitment
+          // as one — so an assignment filed here took a scoring slot
+          // like any life task.
+          units={pickableUnits(plan)}
           areaColors={theme.areas}
           theme={theme}
           lockedOneOffDate={date}

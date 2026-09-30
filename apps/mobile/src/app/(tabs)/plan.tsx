@@ -42,6 +42,10 @@ import {
 import { CoverageBar } from "../../components/plan/CoverageBar";
 import type { OneOffState } from "../../components/plan/SchedulePicker";
 import {
+  COMMITMENT_AREA,
+  pickableUnits,
+} from "../../components/plan/unitSelection";
+import {
   NO_DETAIL,
   type TaskDetail,
 } from "../../components/plan/TaskDetailPicker";
@@ -92,7 +96,9 @@ const TASK_ROW_HEIGHT = 64;
 
 interface EditTarget {
   task: PlanTask;
-  unit: PlanUnit;
+  /** Where it is listed — a life unit, or a commitment or its part.
+   *  Only its id and hue are read. */
+  unit: { id: string; areaId: string };
 }
 
 export default function PlanScreen() {
@@ -119,7 +125,7 @@ export default function PlanScreen() {
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
-  const [adding, setAdding] = useState<{ homeUnit: PlanUnit | null } | null>(null);
+  const [adding, setAdding] = useState<{ homeUnit: { id: string } | null } | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
@@ -186,20 +192,9 @@ export default function PlanScreen() {
    * dead ends: an "Add task" button that opened a sheet with no chip
    * to file the result under.
    */
-  const allUnits: PickableUnit[] = useMemo(
-    () =>
-      (plan?.areas ?? []).flatMap((a) =>
-        a.units
-          .filter((u) => u.includeInScoring)
-          .map((u) => ({
-            id: u.id,
-            name: u.name,
-            areaId: u.areaId,
-            motivationKind: u.motivationKind,
-          })),
-      ),
-    [plan],
-  );
+  /** Commitments and their parts first, then the scored life units —
+   *  one list for every sheet that files a task (see `pickableUnits`). */
+  const allUnits: PickableUnit[] = useMemo(() => pickableUnits(plan), [plan]);
 
   const toggleUnit = (unitId: string) => {
     setOpenUnitId((current) => (current === unitId ? null : unitId));
@@ -645,6 +640,63 @@ export default function PlanScreen() {
                   );
                 })}
               </Group>
+              ))}
+
+              {/* Commitments, after the 18 rather than among them. They
+                  are not a share of your hundred — they are paid from
+                  their own band on the days they have work (ADR-0032) —
+                  and listing School as one more unit is what invited
+                  the "put it back in my plan" offer that would have
+                  made it one. Rows edit and swipe-delete exactly like
+                  every other task on this screen. */}
+              {(plan?.commitments ?? []).map((c) => (
+                <Group
+                  key={c.id}
+                  theme={theme}
+                  title={c.name}
+                  footnote={
+                    c.tasks.length === 0
+                      ? "Classes, shifts, assignments — anything scheduled that belongs to this."
+                      : "Worth a share of the day each one is scheduled on, so the number changes with the day."
+                  }
+                >
+                  {c.tasks.map((t) => (
+                    <View key={t.id} style={{ height: TASK_ROW_HEIGHT }}>
+                      <TaskRow
+                        context={t.homeUnitId === c.id ? null : t.homeName}
+                        title={t.title}
+                        timesPerWeek={t.timesPerWeek}
+                        pointValue={null}
+                        otherUnitNames={t.otherUnitNames}
+                        plannedWeekdays={t.plannedWeekdays}
+                        partOfDay={t.partOfDay}
+                        accent={theme.areas[COMMITMENT_AREA] ?? theme.accent}
+                        theme={theme}
+                        highlight={t.id === justAdded}
+                        onDelete={() => deleteTask(t)}
+                        onEdit={() =>
+                          setEditing({
+                            task: t,
+                            unit: { id: t.homeUnitId, areaId: COMMITMENT_AREA },
+                          })
+                        }
+                      />
+                    </View>
+                  ))}
+                  <Pressable
+                    onPress={() => setAdding({ homeUnit: { id: c.id } })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add a task to ${c.name}`}
+                    style={({ pressed }) => [
+                      styles.addRow,
+                      { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                    ]}
+                  >
+                    <AppText variant="label" color={theme.accent}>
+                      + Add task
+                    </AppText>
+                  </Pressable>
+                </Group>
               ))}
             </>
           )}
