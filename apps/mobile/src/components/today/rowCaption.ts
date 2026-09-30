@@ -25,6 +25,8 @@ export interface CaptionTask {
   progress: number;
   allowsPartial: boolean;
   oneOffSize: string | null;
+  /** Filed under a commitment or one of its parts. */
+  commitment: boolean;
 }
 
 /** "Half done" — what a running total reads as (§5, never a deficit). */
@@ -56,12 +58,19 @@ function ordinal(n: number): string {
  *   has part credit, why would the 3 of 5 this week note even exist?"*
  * - **A one-off.** It happens once. "1st of 1 this week" states the
  *   cadence it does not have.
+ * - **Commitment work.** It is scheduled, not counted — the lecture is
+ *   on Monday, Wednesday and Friday, and "2nd of 3 this week" only
+ *   restates the timetable. Henry, 2026-09-30: *"the weekly count isn't
+ *   really necessary for commitment tasks."*
  * - **A daily task**, whose count is every day and whose line goes to
  *   its run instead.
  */
 export function countsRuns(task: CaptionTask): boolean {
   return (
-    task.timesPerWeek !== 7 && !task.allowsPartial && task.oneOffSize == null
+    task.timesPerWeek !== 7 &&
+    !task.allowsPartial &&
+    task.oneOffSize == null &&
+    !task.commitment
   );
 }
 

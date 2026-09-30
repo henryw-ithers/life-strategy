@@ -16,6 +16,7 @@ const weekly = (over: Partial<CaptionTask> = {}): CaptionTask => ({
   progress: 0,
   allowsPartial: false,
   oneOffSize: null,
+  commitment: false,
   ...over,
 });
 
@@ -36,6 +37,14 @@ describe("the week's count", () => {
 
   it("is gone from a one-off, which has no week", () => {
     expect(rowCaption(weekly({ timesPerWeek: 1, goalCount: 1, doneCount: 0, oneOffSize: "big" }))).toBeNull();
+  });
+
+  it("is gone from commitment work, which is scheduled rather than counted", () => {
+    expect(rowCaption(weekly({ commitment: true, timesPerWeek: 3, goalCount: 3 }))).toBeNull();
+    // Progress still leads on a part-done commitment task.
+    expect(
+      rowCaption(weekly({ commitment: true, allowsPartial: true, progress: 0.5 })),
+    ).toBe("Half done");
   });
 
   it("never shows on a daily task", () => {

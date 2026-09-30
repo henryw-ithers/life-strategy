@@ -93,6 +93,11 @@ export const UNPLANNED_CAP = VARIABLE_BAND;
  *  work is arithmetically identical to v7, but the version moves
  *  regardless: the stamp records how a grade *could* have been
  *  derived, and two eras where the same plan can score differently are
- *  not comparable. Grades finalize; history is not rewritten. */
-export const FORMULA_VERSION = 8;
+ *  not comparable. Grades finalize; history is not rewritten.
+ *  v9 (2026-09-30): **commitment work off its schedule pays** (ADR-0032
+ *  §4, amended). Done on a day it was not scheduled — ahead of its day,
+ *  or in place of something else — it is priced at what it is worth on
+ *  its scheduled day and paid from the unplanned pool. Under v8 it paid
+ *  nothing, because a commitment has no weight among the 18. */
+export const FORMULA_VERSION = 9;
 export const DAILY_BUDGET = 100;

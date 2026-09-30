@@ -9,6 +9,8 @@
  */
 import { MAX_COMMITMENTS, type CommitmentDay, type CommitmentGroup } from "@glide/scoring";
 
+import { addDays } from "@glide/scoring";
+
 import { isDueOn } from "../components/plan/planning";
 
 /** The commitment fields these rules need. */
@@ -250,4 +252,48 @@ export function toBandKeys(
         }
       : {}),
   };
+}
+
+// ── Off-schedule work (ADR-0032 §4, amended 2026-09-30) ─────────────
+
+/** How far ahead a pinned task's next session is looked for: a
+ *  fortnightly task's next one is at most fourteen days out. */
+const SCHEDULE_HORIZON_DAYS = 14;
+
+/**
+ * The day a commitment task is scheduled for, seen from `date` — the
+ * day whose value it earns when it is done on `date` instead.
+ *
+ * Henry, 2026-09-30: off-schedule work is *"worth the same amount as it
+ * would on a scheduled day, because that would mean you're either super
+ * ahead on work or it's taking the place of some other thing that
+ * day."* So it is priced against a real scheduled day, sharing that
+ * day's band with that day's other work — not against today, where on
+ * a Sunday with no classes one assignment would take the entire band.
+ *
+ * - **A one-off planned for later**: its own planned day.
+ * - **A pinned task**: its next scheduled session after `date`.
+ * - **Anything else**: null. A one-off due today or undated is already
+ *   eligible, and an unpinned recurring task has no scheduled day to
+ *   borrow a value from — which is why commitment work must name its
+ *   days (`needsDays`).
+ */
+export function scheduledDateFor(
+  task: {
+    oneOffSize: string | null;
+    oneOffDate: string | null;
+    plannedWeekdays: string | null;
+    timesPerWeek: number;
+    fortnightOffset?: number;
+  },
+  date: string,
+): string | null {
+  if (task.oneOffSize != null) {
+    return task.oneOffDate != null && task.oneOffDate > date ? task.oneOffDate : null;
+  }
+  for (let i = 1; i <= SCHEDULE_HORIZON_DAYS; i++) {
+    const next = addDays(date, i);
+    if (isDueOn(task, next)) return next;
+  }
+  return null;
 }

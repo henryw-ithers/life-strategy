@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCommitmentUnit,
   membershipsFor,
+  scheduledDateFor,
   toBandKeys,
 } from "../commitmentPlan";
 
@@ -107,5 +108,52 @@ describe("toBandKeys", () => {
       "essay",
       "lab",
     ]);
+  });
+});
+
+describe("scheduledDateFor — the day off-schedule work is priced against", () => {
+  // 2026-09-28 is a Monday.
+  const recurring = (plannedWeekdays: string | null, timesPerWeek = 3) => ({
+    oneOffSize: null,
+    oneOffDate: null,
+    plannedWeekdays,
+    timesPerWeek,
+  });
+  const oneOff = (oneOffDate: string | null) => ({
+    oneOffSize: "big",
+    oneOffDate,
+    plannedWeekdays: null,
+    timesPerWeek: 1,
+  });
+
+  it("prices an assignment done early against its own planned day", () => {
+    expect(scheduledDateFor(oneOff("2026-10-02"), "2026-09-29")).toBe("2026-10-02");
+  });
+
+  it("gives nothing for a one-off already due, which is simply eligible", () => {
+    expect(scheduledDateFor(oneOff("2026-09-29"), "2026-09-29")).toBeNull();
+    expect(scheduledDateFor(oneOff(null), "2026-09-29")).toBeNull();
+  });
+
+  it("finds a pinned session's next scheduled day", () => {
+    // Mon/Wed/Fri, done on Saturday: next is Monday.
+    expect(scheduledDateFor(recurring("1,3,5"), "2026-10-03")).toBe("2026-10-05");
+    // Done on Tuesday: next is Wednesday.
+    expect(scheduledDateFor(recurring("1,3,5"), "2026-09-29")).toBe("2026-09-30");
+  });
+
+  it("looks past today, even when today is itself a scheduled day", () => {
+    expect(scheduledDateFor(recurring("1"), "2026-09-28")).toBe("2026-10-05");
+  });
+
+  it("reaches a fortnightly session in the other week", () => {
+    const fortnightly = { ...recurring("1", 0), fortnightOffset: 1 };
+    const next = scheduledDateFor(fortnightly, "2026-09-28");
+    expect(next).not.toBeNull();
+    expect(next! > "2026-09-28").toBe(true);
+  });
+
+  it("has nothing to borrow for an unpinned recurring task", () => {
+    expect(scheduledDateFor(recurring(null), "2026-09-29")).toBeNull();
   });
 });

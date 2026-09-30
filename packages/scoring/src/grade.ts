@@ -106,6 +106,18 @@ export interface DayTaskInput {
    * disagree with the points its own completion row recorded.
    */
   earnedToday?: number;
+  /**
+   * Done on a day it was not scheduled for — commitment work ahead of
+   * its day, or instead of something else (ADR-0032 §4, amended
+   * 2026-09-30).
+   *
+   * It is priced at what it is worth on its scheduled day, and it is
+   * paid from the **unplanned pool**, the same `UNPLANNED_CAP` headroom
+   * activities draw on: work you did not plan for today is what that
+   * pool is for. It never enters the routine, variable or commitment
+   * band, so it cannot push a day past what that day priced.
+   */
+  unplanned?: boolean;
 }
 
 /** What a completed task adds to a band: its partial pay, or its worth. */
@@ -260,6 +272,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       a +
       (isRoutine(t.timesPerWeek) &&
       !(onCommitmentDay && t.isCommitment) &&
+      !t.unplanned &&
       t.completedToday &&
       !t.extraToday
         ? earnedOf(t)
@@ -284,7 +297,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
         input.tasks.reduce(
           (a, t) =>
             a +
-            (t.isCommitment && t.completedToday && !t.extraToday
+            (t.isCommitment && !t.unplanned && t.completedToday && !t.extraToday
               ? earnedOf(t)
               : 0),
           0,
@@ -305,6 +318,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       a +
       (!isRoutine(t.timesPerWeek) &&
       !(onCommitmentDay && t.isCommitment) &&
+      !t.unplanned &&
       t.completedToday &&
       !t.extraToday
         ? earnedOf(t)
@@ -328,7 +342,12 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   );
   const ratingBonus =
     input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
-  const unplannedRaw = activityCredit + ratingBonus;
+  // Work done off its schedule, at its scheduled worth (ADR-0032 §4).
+  const offScheduleCredit = input.tasks.reduce(
+    (a, t) => a + (t.unplanned && t.completedToday ? earnedOf(t) : 0),
+    0,
+  );
+  const unplannedRaw = activityCredit + ratingBonus + offScheduleCredit;
   // Floored at zero. Without the floor this goes **negative** whenever
   // `variableEarned` exceeds its band, silently cancelling the
   // overspend instead of surfacing it — which is precisely how a

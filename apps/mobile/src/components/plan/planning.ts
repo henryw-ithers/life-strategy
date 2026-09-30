@@ -195,6 +195,8 @@ export interface DayOrderable {
   timesPerWeek: number;
   fortnightOffset?: number;
   dayOrder?: number | null;
+  /** A one-off's planned day, when it has one. */
+  oneOffDate?: string | null;
 }
 
 /**
@@ -208,11 +210,19 @@ export interface DayOrderable {
  *
  * Flexible tasks are never "elsewhere" — an unpinned task belongs to
  * whichever day you give it.
+ *
+ * **A one-off planned for a later day is elsewhere too** (2026-09-30).
+ * Commitment work can now be done ahead of its day and paid for it
+ * (ADR-0032 §4), so a Friday assignment has to be somewhere you can
+ * tick it on Tuesday — beside Friday's pinned lecture, not among
+ * Tuesday's own work. A one-off dated today or earlier is outstanding
+ * and belongs to today.
  */
 export function pinnedElsewhere(
   task: DayOrderable,
   localDate: string,
 ): boolean {
+  if (task.oneOffDate != null) return task.oneOffDate > localDate;
   return (
     parseWeekdays(task.plannedWeekdays).length > 0 && !isDueOn(task, localDate)
   );

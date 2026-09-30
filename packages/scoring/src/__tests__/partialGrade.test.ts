@@ -127,3 +127,70 @@ describe("a whole task's four quarters", () => {
     }
   });
 });
+
+describe("commitment work done off its schedule (ADR-0032 §4)", () => {
+  const offSchedule = (pointValue: number, over: Record<string, unknown> = {}) => ({
+    unitId: "school",
+    pointValue,
+    timesPerWeek: 1,
+    completedToday: true,
+    extraToday: false,
+    isCommitment: false,
+    unplanned: true,
+    ...over,
+  });
+
+  it("pays its scheduled-day worth from the unplanned pool", () => {
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [offSchedule(12)],
+    });
+    expect(score.earned).toBe(12);
+    expect(score.unplanned).toBe(12);
+  });
+
+  it("shares the pool's headroom with activities, rather than stacking past it", () => {
+    // 12 of assignment and 15 of activities is 27 of unplanned credit;
+    // the pool pays 20 and says what fell outside it.
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [offSchedule(12)],
+      activities: [[{ unitId: "friendship", pointsCredited: 15 }]],
+    });
+    expect(score.unplanned).toBe(VARIABLE_BAND);
+    expect(score.unplannedForgone).toBe(7);
+  });
+
+  it("never enters a planned band", () => {
+    // Flagged as routine cadence and as commitment work, it still pays
+    // only through the pool — so it cannot double-count.
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      commitmentBand: 40,
+      tasks: [offSchedule(10, { timesPerWeek: 7, isCommitment: true })],
+    });
+    expect(score.unplanned).toBe(10);
+    expect(score.earned).toBe(10);
+  });
+
+  it("pays a part-done off-schedule task what the fraction paid", () => {
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [offSchedule(12, { earnedToday: 6 })],
+    });
+    expect(score.unplanned).toBe(6);
+  });
+
+  it("pays nothing until it is done", () => {
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [offSchedule(12, { completedToday: false })],
+    });
+    expect(score.unplanned).toBe(0);
+  });
+});

@@ -130,6 +130,41 @@ ADR-0023 behaving normally rather than a schedule-violation penalty.
 plan-completion percentage, no streak, and an unfulfilled placement
 still lapses silently.
 
+> **Amended 2026-09-30: how much the unscheduled day pays.** This
+> section said the unplanned route pays and never said how much, and a
+> commitment has no weight among the 18 — so for a fortnight the
+> answer was nothing. Henry settled it:
+>
+> *"It should be worth the same amount as it would on a scheduled day,
+> because that would mean you're either super ahead on work or it's
+> taking the place of some other thing that day."*
+>
+> - **The value is the task's worth on its scheduled day** — a one-off's
+>   planned day, or a pinned task's next session — sharing that day's
+>   band with that day's other work. Not its worth *today*: on a Sunday
+>   with no classes the band would divide among one task, and a single
+>   assignment would take all 40.
+> - **It is paid from the unplanned pool**, as this section always said.
+>   That pool shares the variable band's headroom with activities, so
+>   it caps what one day can take from work you did not plan for it:
+>   a 12-point assignment on a day that also logged 15 points of
+>   activities is 27 of unplanned credit, the pool pays 20 of it, and
+>   `unplannedForgone` records the 7 that fell outside. **This is the one place the
+>   decision and the invariant pull against each other**, and the
+>   invariant held: "planned work is what pays" is an AGENTS.md
+>   invariant, and Henry's earlier call — *"it falls into the 20 bonus
+>   category"* — put this work on the unplanned side of it.
+> - **Commitment work is scheduled, not counted.** Henry: *"the weekly
+>   count isn't really necessary for commitment tasks."* It never
+>   graduates to "Done this week", never pays the extra-run rate for
+>   beating a count, and shows no "2nd of 3 this week".
+> - **It has to be tickable.** A one-off was only on the checklist from
+>   its planned day, so "super ahead" had nowhere to happen. Commitment
+>   one-offs planned within the week ahead now sit in "Planned for
+>   other days", beside the week's other pinned sessions.
+>
+> Formula version 9: under v8 this work paid nothing.
+
 ### 5. Formula version 8; history does not restate
 
 `FORMULA_VERSION` 7 → 8. Days graded under v7 keep their stored values
@@ -234,10 +269,8 @@ of it reaches a screen.
          commitment screen has "Add a task".
        A test in `packages/scoring` pins that commitment tasks riding in
        the same input move no life task's value, on either kind of day.
-7. [ ] **What off-day commitment work is worth.** §4 says the same
-       work done on an unscheduled day "pays from the ordinary
-       variable/unplanned route", and never says how much. A commitment
-       has no weight among the 18, so its tasks' stored value is 0 and
-       an assignment ticked on a Sunday currently pays nothing. Needs a
-       pricing decision — for instance, the value it would have on a
-       scheduled day, drawn from `UNPLANNED_CAP`.
+7. [x] **What off-day commitment work is worth** — decided and built
+       2026-09-30; see §4's amendment. `DayTaskInput.unplanned` routes
+       a completion into the unplanned pool; `scheduledDateFor` finds
+       the day it is priced against; `FORMULA_VERSION` 9. Tested and
+       mutation-tested.

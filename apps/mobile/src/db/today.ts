@@ -32,7 +32,7 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { loadCommitmentDay } from "./commitments";
-import { isCommitmentUnit } from "./commitmentPlan";
+import { isCommitmentUnit, scheduledDateFor } from "./commitmentPlan";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { autocountForTask, removeAutocountForTask } from "./goals";
 import {
@@ -102,6 +102,16 @@ export interface TodayTask {
   streak: number | null;
   /** Whether its owner turned part credit on (ADR-0014 §1). */
   allowsPartial: boolean;
+  /** Filed under a commitment or one of its parts (ADR-0029). */
+  commitment: boolean;
+  /**
+   * Commitment work that is not scheduled for this day. Worth its
+   * scheduled-day value, paid from the unplanned pool (ADR-0032 §4).
+   */
+  offSchedule: boolean;
+  /** A one-off's planned day, or null. Places a future one-off among
+   *  "Planned for other days". */
+  oneOffDate: string | null;
   /**
    * How much of it is done, 0–1. A one-off accumulates across days; a
    * recurring task's is today's own fraction, since its Tuesday is not
@@ -164,6 +174,37 @@ export interface DayData {
    * tasks, and anything may tag them.
    */
   communalUnits: { id: string; name: string; areaId: string }[];
+}
+
+/** How far ahead commitment one-offs reach onto today (see `loadDay`). */
+const AHEAD_DAYS = 7;
+
+/**
+ * What each off-schedule commitment task is worth on the day it is
+ * scheduled for (ADR-0032 §4, amended 2026-09-30).
+ *
+ * Each is priced against a real scheduled day, sharing that day's band
+ * with that day's other work — not against today, where on a free
+ * Sunday one assignment would take the whole band to itself. Tasks
+ * sharing a scheduled day are priced in one pass.
+ */
+async function scheduledDayValues(
+  tasks: readonly (Parameters<typeof scheduledDateFor>[0] & { id: string })[],
+  date: string,
+): Promise<Map<string, number>> {
+  const byDate = new Map<string, string[]>();
+  for (const t of tasks) {
+    const on = scheduledDateFor(t, date);
+    if (on !== null) byDate.set(on, [...(byDate.get(on) ?? []), t.id]);
+  }
+  const values = new Map<string, number>();
+  for (const [on, ids] of byDate) {
+    const day = await loadCommitmentDay(on);
+    if (day === null) continue;
+    const points = await taskPointsOn(day);
+    for (const id of ids) values.set(id, points.get(id) ?? 0);
+  }
+  return values;
 }
 
 /** Rollover is a fixed 3am until settings ship (`app_setting` ready). */
@@ -266,10 +307,24 @@ export async function loadDay(
    */
   const priorFractions = await fractionsBefore(oneOffIds, date);
   const settledBefore = settledOf(priorFractions);
+  /** Active commitments and their parts — a task homed in one is on
+   *  the day in its own right (see `tasks` below). */
+  const commitmentUnitIds = new Set(
+    units.filter(isCommitmentUnit).map((u) => u.id),
+  );
+  const aheadUntil = addDays(date, AHEAD_DAYS);
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
-    return t.oneOffDate == null || t.oneOffDate <= date;
+    if (t.oneOffDate == null || t.oneOffDate <= date) return true;
+    // **Commitment work in the week ahead is on the day too**, in
+    // "Planned for other days" (`pinnedElsewhere`). Doing it early is
+    // exactly the case ADR-0032 §4 now pays for — "you're super ahead
+    // on work" — and it can only be paid if it can be ticked. Bounded to
+    // a week, the same reach a pinned task's other days have there, so
+    // a term of assignments entered up front does not fill today.
+    // A life one-off still waits for its day, as it always has.
+    return commitmentUnitIds.has(t.unitId) && t.oneOffDate <= aheadUntil;
   });
   const memberships = allTasks.length
     ? await db
@@ -291,9 +346,6 @@ export async function loadDay(
    * see or tick. An archived commitment's units are filtered out above,
    * which is what pauses its tasks.
    */
-  const commitmentUnitIds = new Set(
-    units.filter(isCommitmentUnit).map((u) => u.id),
-  );
   const tasks = allTasks.filter(
     (t) => scoredTaskIds.has(t.id) || commitmentUnitIds.has(t.unitId),
   );
@@ -332,10 +384,28 @@ export async function loadDay(
    */
   const commitmentDay = await loadCommitmentDay(date);
   const pointsToday = commitmentDay ? await taskPointsOn(commitmentDay) : null;
-  const pointsFor = (t: { id: string; pointValue: number }) =>
-    pointsToday?.get(t.id) ?? t.pointValue;
   /** Which of today's rows the commitment band pays for (ADR-0032 §3). */
   const commitmentTaskIds = new Set(commitmentDay?.eligibleTaskIds ?? []);
+
+  /**
+   * Commitment work on the day but **not scheduled for it** — ahead of
+   * its day, or in place of something else — and what it is worth
+   * (ADR-0032 §4, amended 2026-09-30).
+   *
+   * Priced at its value on the day it *is* scheduled, and paid from the
+   * unplanned pool rather than any band. Under v8 these paid nothing: a
+   * commitment has no weight among the 18, so the stored value is 0.
+   */
+  const offSchedule = tasks.filter(
+    (t) => commitmentUnitIds.has(t.unitId) && !commitmentTaskIds.has(t.id),
+  );
+  const offScheduleValue = await scheduledDayValues(offSchedule, date);
+  const offScheduleIds = new Set(offSchedule.map((t) => t.id));
+
+  const pointsFor = (t: { id: string; pointValue: number }) =>
+    offScheduleIds.has(t.id)
+      ? (offScheduleValue.get(t.id) ?? 0)
+      : (pointsToday?.get(t.id) ?? t.pointValue);
 
   /**
    * How much of each task is already done, and how much today's own
@@ -456,7 +526,23 @@ export async function loadDay(
   }
 
   const todayTasks: TodayTask[] = tasks.map((t) => {
-    const s = statusById.get(t.id)!;
+    const status = statusById.get(t.id)!;
+    /**
+     * **Commitment work is scheduled, not counted** (Henry, 2026-09-30:
+     * "the weekly count isn't really necessary for commitment tasks").
+     * So it never graduates to "Done this week" and never pays the
+     * extra-run rate for beating a count it does not have: it is worth
+     * its scheduled value on its day and the same value, from the
+     * unplanned pool, on any other.
+     */
+    const s = commitmentUnitIds.has(t.unitId)
+      ? {
+          ...status,
+          band: status.band === "doneThisWeek" ? ("week" as const) : status.band,
+          extraToday: false,
+          pointsIfCompletedNow: pointsFor(t),
+        }
+      : status;
     return {
       id: t.id,
       title: t.title,
@@ -484,6 +570,9 @@ export async function loadDay(
       tagUnitIds: tagsByTask.get(t.id) ?? [],
       streak: streakByTask.get(t.id) ?? null,
       allowsPartial: t.allowsPartial,
+      commitment: commitmentUnitIds.has(t.unitId),
+      offSchedule: offScheduleIds.has(t.id),
+      oneOffDate: t.oneOffDate,
       progress: progressByTask.get(t.id) ?? 0,
       earnedToday: earnedByTask.get(t.id) ?? null,
       fractionToday: fractionToday.get(t.id) ?? null,
@@ -585,6 +674,7 @@ export async function loadDay(
             completedToday: t.completedToday,
             extraToday: t.extraToday,
             isCommitment: commitmentTaskIds.has(t.id),
+            unplanned: t.offSchedule,
             // Null on every whole completion, which is every row this
             // app wrote before part credit existed — so a day with no
             // fractions scores byte-for-byte what it scored before.

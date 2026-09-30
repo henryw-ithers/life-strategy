@@ -265,3 +265,21 @@ describe("compareForDay", () => {
     ]);
   });
 });
+
+describe("pinnedElsewhere — one-offs", () => {
+  const oneOff = (oneOffDate: string | null) => ({
+    plannedWeekdays: null,
+    timesPerWeek: 1,
+    oneOffDate,
+  });
+
+  it("puts a one-off planned for later with the other days' work", () => {
+    expect(pinnedElsewhere(oneOff("2026-10-02"), "2026-09-29")).toBe(true);
+  });
+
+  it("keeps a one-off due today, overdue, or undated on today", () => {
+    expect(pinnedElsewhere(oneOff("2026-09-29"), "2026-09-29")).toBe(false);
+    expect(pinnedElsewhere(oneOff("2026-09-20"), "2026-09-29")).toBe(false);
+    expect(pinnedElsewhere(oneOff(null), "2026-09-29")).toBe(false);
+  });
+});
