@@ -136,43 +136,82 @@ describe("commitment work done off its schedule (ADR-0032 §4)", () => {
     completedToday: true,
     extraToday: false,
     isCommitment: false,
-    unplanned: true,
+    offSchedule: true,
     ...over,
   });
+  const weekly = (pointValue: number) => ({
+    unitId: "exercise-fitness",
+    pointValue,
+    timesPerWeek: 3,
+    completedToday: true,
+    extraToday: false,
+  });
 
-  it("pays its scheduled-day worth from the unplanned pool", () => {
+  it("pays its scheduled-day worth in full", () => {
     const score = computeDayScore({
       kind: "normal",
       satisfactionRating: null,
       tasks: [offSchedule(12)],
     });
     expect(score.earned).toBe(12);
-    expect(score.unplanned).toBe(12);
   });
 
-  it("shares the pool's headroom with activities, rather than stacking past it", () => {
-    // 12 of assignment and 15 of activities is 27 of unplanned credit;
-    // the pool pays 20 and says what fell outside it.
+  it("is not unplanned credit — it never touches the pool", () => {
+    // Henry, 2026-09-30: "remove the cap." Beside 15 points of
+    // activities it no longer competes for the same 20.
     const score = computeDayScore({
       kind: "normal",
       satisfactionRating: null,
       tasks: [offSchedule(12)],
       activities: [[{ unitId: "friendship", pointsCredited: 15 }]],
     });
-    expect(score.unplanned).toBe(VARIABLE_BAND);
-    expect(score.unplannedForgone).toBe(7);
+    expect(score.unplanned).toBe(15);
+    expect(score.unplannedForgone).toBe(0);
+    expect(score.earned).toBe(27);
   });
 
-  it("never enters a planned band", () => {
-    // Flagged as routine cadence and as commitment work, it still pays
-    // only through the pool — so it cannot double-count.
+  it("is not clipped by a variable band that is already full", () => {
+    // Under v9 this paid nothing: the pool's headroom is what the
+    // variable band has left, and weekly work had used all 20.
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [weekly(20), offSchedule(12)],
+    });
+    expect(score.earned).toBe(32);
+  });
+
+  it("can take a day past 100, as extra runs can", () => {
+    const daily = { unitId: "hygiene", pointValue: 80, timesPerWeek: 7, completedToday: true, extraToday: false };
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [daily, weekly(20), offSchedule(12)],
+    });
+    expect(score.earned).toBe(112);
+  });
+
+  it("never enters a planned band, so it cannot be counted twice", () => {
+    // Flagged as routine cadence and as commitment work, it is still
+    // paid once, through its own route.
     const score = computeDayScore({
       kind: "normal",
       satisfactionRating: null,
       commitmentBand: 40,
       tasks: [offSchedule(10, { timesPerWeek: 7, isCommitment: true })],
     });
-    expect(score.unplanned).toBe(10);
+    expect(score.earned).toBe(10);
+  });
+
+  it("stays out of the routine band on an ordinary day", () => {
+    // A daily-cadence commitment task with no band in play: only the
+    // off-schedule route pays it. (The case above is also excluded by
+    // the commitment band, so it cannot tell whether this guard holds.)
+    const score = computeDayScore({
+      kind: "normal",
+      satisfactionRating: null,
+      tasks: [offSchedule(10, { timesPerWeek: 7 })],
+    });
     expect(score.earned).toBe(10);
   });
 
@@ -182,7 +221,7 @@ describe("commitment work done off its schedule (ADR-0032 §4)", () => {
       satisfactionRating: null,
       tasks: [offSchedule(12, { earnedToday: 6 })],
     });
-    expect(score.unplanned).toBe(6);
+    expect(score.earned).toBe(6);
   });
 
   it("pays nothing until it is done", () => {
@@ -191,6 +230,6 @@ describe("commitment work done off its schedule (ADR-0032 §4)", () => {
       satisfactionRating: null,
       tasks: [offSchedule(12, { completedToday: false })],
     });
-    expect(score.unplanned).toBe(0);
+    expect(score.earned).toBe(0);
   });
 });

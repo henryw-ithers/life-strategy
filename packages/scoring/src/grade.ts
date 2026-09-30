@@ -107,17 +107,17 @@ export interface DayTaskInput {
    */
   earnedToday?: number;
   /**
-   * Done on a day it was not scheduled for — commitment work ahead of
+   * Commitment work done on a day it was not scheduled for — ahead of
    * its day, or instead of something else (ADR-0032 §4, amended
    * 2026-09-30).
    *
-   * It is priced at what it is worth on its scheduled day, and it is
-   * paid from the **unplanned pool**, the same `UNPLANNED_CAP` headroom
-   * activities draw on: work you did not plan for today is what that
-   * pool is for. It never enters the routine, variable or commitment
-   * band, so it cannot push a day past what that day priced.
+   * Priced at what it is worth on its scheduled day, and paid **in
+   * full, outside every cap**: not from a band, and not from the
+   * `UNPLANNED_CAP` pool either. Henry: "remove the cap." It is still
+   * your own plan — its day is just another one — so it sits with
+   * extra runs as a route above 100 rather than with activities.
    */
-  unplanned?: boolean;
+  offSchedule?: boolean;
 }
 
 /** What a completed task adds to a band: its partial pay, or its worth. */
@@ -272,7 +272,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       a +
       (isRoutine(t.timesPerWeek) &&
       !(onCommitmentDay && t.isCommitment) &&
-      !t.unplanned &&
+      !t.offSchedule &&
       t.completedToday &&
       !t.extraToday
         ? earnedOf(t)
@@ -297,7 +297,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
         input.tasks.reduce(
           (a, t) =>
             a +
-            (t.isCommitment && !t.unplanned && t.completedToday && !t.extraToday
+            (t.isCommitment && !t.offSchedule && t.completedToday && !t.extraToday
               ? earnedOf(t)
               : 0),
           0,
@@ -318,7 +318,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
       a +
       (!isRoutine(t.timesPerWeek) &&
       !(onCommitmentDay && t.isCommitment) &&
-      !t.unplanned &&
+      !t.offSchedule &&
       t.completedToday &&
       !t.extraToday
         ? earnedOf(t)
@@ -342,12 +342,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   );
   const ratingBonus =
     input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
-  // Work done off its schedule, at its scheduled worth (ADR-0032 §4).
-  const offScheduleCredit = input.tasks.reduce(
-    (a, t) => a + (t.unplanned && t.completedToday ? earnedOf(t) : 0),
-    0,
-  );
-  const unplannedRaw = activityCredit + ratingBonus + offScheduleCredit;
+  const unplannedRaw = activityCredit + ratingBonus;
   // Floored at zero. Without the floor this goes **negative** whenever
   // `variableEarned` exceeds its band, silently cancelling the
   // overspend instead of surfacing it — which is precisely how a
@@ -359,11 +354,21 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     Math.min(unplannedRaw, variableBand - variableEarned),
   );
 
+  // Commitment work done off its schedule, at its scheduled-day worth
+  // and **outside every cap** (ADR-0032 §4, amended 2026-09-30). It sits
+  // beside extra runs, not in the unplanned pool: it is still the plan,
+  // done on another day.
+  const offScheduleCredit = input.tasks.reduce(
+    (a, t) => a + (t.offSchedule && t.completedToday ? earnedOf(t) : 0),
+    0,
+  );
+
   const earned =
     commitmentEarned +
     routineEarned +
     variableEarned +
     unplanned +
+    offScheduleCredit +
     (input.extraRunCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded

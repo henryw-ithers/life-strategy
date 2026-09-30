@@ -98,6 +98,9 @@ export const UNPLANNED_CAP = VARIABLE_BAND;
  *  §4, amended). Done on a day it was not scheduled — ahead of its day,
  *  or in place of something else — it is priced at what it is worth on
  *  its scheduled day and paid from the unplanned pool. Under v8 it paid
- *  nothing, because a commitment has no weight among the 18. */
-export const FORMULA_VERSION = 9;
+ *  nothing, because a commitment has no weight among the 18.
+ *  v10 (2026-09-30): **the same work, uncapped.** Henry: "remove the
+ *  cap." It no longer draws on the unplanned pool's headroom; it is
+ *  paid in full beside extra runs, as the plan done on another day. */
+export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;

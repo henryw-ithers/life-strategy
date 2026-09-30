@@ -111,12 +111,12 @@ second one. What separates it is its **band**, not its table
   achievements feed monthly/yearly summaries only.
 - **Planned work is what pays** (ADR-0023). At most `UNPLANNED_CAP`
   points of a day may come from anything the user didn't plan —
-  activity credit, the special-day rating bonus, and commitment work
-  done on a day it wasn't scheduled for (ADR-0032 §4) share that one
-  pool. Extra runs of planned tasks sit outside it, deliberately: the
-  only uncapped route above 100 is doing more of your own plan. Do not
-  add a new credit source without deciding which side of that line it
-  falls on.
+  activity credit and the special-day rating bonus share that one
+  pool. Two routes sit outside it, deliberately, and both are your own
+  plan: extra runs of planned tasks, and commitment work done on a day
+  it wasn't scheduled for, paid its scheduled-day worth (ADR-0032 §4).
+  Those are the only uncapped routes above 100. Do not add a new
+  credit source without deciding which side of that line it falls on.
 - Daily grades are **private by default**. Never add leaderboards,
   score comparisons, or competitive rankings — these are excluded by
   design, not omitted by accident.
@@ -154,9 +154,8 @@ second one. What separates it is its **band**, not its table
   not two: the commitment band (user-set, 10–60, capped flat at 60)
   then 80/20 on what remains. Every other day is unchanged
   (ADR-0032). Commitment work is **scheduled, not counted**: it pays
-  its scheduled-day value on its day, the same value from the
-  unplanned pool on any other, and never an extra-run rate. Formula
-  v9.
+  its scheduled-day value on its day, the same value uncapped on any
+  other, and never an extra-run rate. Formula v10.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
 - **All cryptography is Apple's, and adding any bundled crypto library

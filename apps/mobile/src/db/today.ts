@@ -106,7 +106,7 @@ export interface TodayTask {
   commitment: boolean;
   /**
    * Commitment work that is not scheduled for this day. Worth its
-   * scheduled-day value, paid from the unplanned pool (ADR-0032 §4).
+   * scheduled-day value, paid in full outside every cap (ADR-0032 §4).
    */
   offSchedule: boolean;
   /** A one-off's planned day, or null. Places a future one-off among
@@ -392,9 +392,10 @@ export async function loadDay(
    * its day, or in place of something else — and what it is worth
    * (ADR-0032 §4, amended 2026-09-30).
    *
-   * Priced at its value on the day it *is* scheduled, and paid from the
-   * unplanned pool rather than any band. Under v8 these paid nothing: a
-   * commitment has no weight among the 18, so the stored value is 0.
+   * Priced at its value on the day it *is* scheduled, and paid in full
+   * outside every cap — beside extra runs, not in the unplanned pool.
+   * Under v8 these paid nothing: a commitment has no weight among the
+   * 18, so the stored value is 0.
    */
   const offSchedule = tasks.filter(
     (t) => commitmentUnitIds.has(t.unitId) && !commitmentTaskIds.has(t.id),
@@ -532,8 +533,8 @@ export async function loadDay(
      * "the weekly count isn't really necessary for commitment tasks").
      * So it never graduates to "Done this week" and never pays the
      * extra-run rate for beating a count it does not have: it is worth
-     * its scheduled value on its day and the same value, from the
-     * unplanned pool, on any other.
+     * its scheduled value on its day and the same value, uncapped, on
+     * any other.
      */
     const s = commitmentUnitIds.has(t.unitId)
       ? {
@@ -674,7 +675,7 @@ export async function loadDay(
             completedToday: t.completedToday,
             extraToday: t.extraToday,
             isCommitment: commitmentTaskIds.has(t.id),
-            unplanned: t.offSchedule,
+            offSchedule: t.offSchedule,
             // Null on every whole completion, which is every row this
             // app wrote before part credit existed — so a day with no
             // fractions scores byte-for-byte what it scored before.

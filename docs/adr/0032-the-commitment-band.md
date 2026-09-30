@@ -144,16 +144,15 @@ still lapses silently.
 >   band with that day's other work. Not its worth *today*: on a Sunday
 >   with no classes the band would divide among one task, and a single
 >   assignment would take all 40.
-> - **It is paid from the unplanned pool**, as this section always said.
->   That pool shares the variable band's headroom with activities, so
->   it caps what one day can take from work you did not plan for it:
->   a 12-point assignment on a day that also logged 15 points of
->   activities is 27 of unplanned credit, the pool pays 20 of it, and
->   `unplannedForgone` records the 7 that fell outside. **This is the one place the
->   decision and the invariant pull against each other**, and the
->   invariant held: "planned work is what pays" is an AGENTS.md
->   invariant, and Henry's earlier call — *"it falls into the 20 bonus
->   category"* — put this work on the unplanned side of it.
+> - **It is paid in full, outside every cap.** It was first built into
+>   the unplanned pool, as this section originally said. That pool
+>   shares the variable band's headroom with activities, so an
+>   assignment done early on a day whose weekly work had already filled
+>   the band paid nothing, and one beside 15 points of activities lost
+>   part of its worth. Henry, the same day: *"remove the cap."* It now
+>   sits beside extra runs rather than beside activities — on the
+>   planned side of ADR-0023's line, because it *is* the plan, done on
+>   another day. It is one of the two routes above 100.
 > - **Commitment work is scheduled, not counted.** Henry: *"the weekly
 >   count isn't really necessary for commitment tasks."* It never
 >   graduates to "Done this week", never pays the extra-run rate for
@@ -163,7 +162,8 @@ still lapses silently.
 >   one-offs planned within the week ahead now sit in "Planned for
 >   other days", beside the week's other pinned sessions.
 >
-> Formula version 9: under v8 this work paid nothing.
+> Formula version 9 paid it from the pool; version 10 pays it
+> uncapped. Under v8 it paid nothing.
 
 ### 5. Formula version 8; history does not restate
 
@@ -270,7 +270,14 @@ of it reaches a screen.
        A test in `packages/scoring` pins that commitment tasks riding in
        the same input move no life task's value, on either kind of day.
 7. [x] **What off-day commitment work is worth** — decided and built
-       2026-09-30; see §4's amendment. `DayTaskInput.unplanned` routes
-       a completion into the unplanned pool; `scheduledDateFor` finds
-       the day it is priced against; `FORMULA_VERSION` 9. Tested and
+       2026-09-30; see §4's amendment. `DayTaskInput.offSchedule` pays
+       a completion outside every cap; `scheduledDateFor` finds the day
+       it is priced against; `FORMULA_VERSION` 10. Tested and
        mutation-tested.
+8. [ ] **Repeated off-schedule sessions.** Uncapped, a *recurring*
+       commitment task pays its full scheduled value on every day it is
+       ticked off-schedule, as well as on its own days — a Mon/Wed/Fri
+       study session ticked every day of the week pays seven times. A
+       one-off cannot do this; it is completed once. Open: whether an
+       off-schedule session should stand in for its next scheduled
+       one, pay at the extra-run rate, or be left as it is.
