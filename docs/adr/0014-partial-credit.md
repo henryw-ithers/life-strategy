@@ -204,10 +204,20 @@ too generous, or unnecessary.
        toggle it off. Building this surfaced the three defects
        amended into §§2–3; each has a test, and the `earnedToday`
        path is mutation-tested.
-4. [ ] Decide what a partial day means for `computeStreak`. Still
-       open, and now reachable: `deriveChecklist` counts a 25%
-       completion as a completion for the week's count, which is a
-       choice nothing has argued for yet.
+4. [x] **Decided 2026-09-30: a part-done day counts.** Henry:
+       *"progress isn't linear and some days showing up is what
+       counts."* A 25% completion extends a daily task's run and counts
+       toward a week's count, which is what the code already did by
+       reading every completion row; the streak query now says so, so
+       nobody filters it to whole completions later.
+       **And a part-credit task shows no weekly count at all.** Henry:
+       *"for a task that has part credit, why would the 3 of 5 this
+       week note even exist?"* It measures the wrong thing — a quarter
+       on Monday and a quarter on Tuesday read as "2nd of 3", true of
+       the rows and false of the work. Its line is its progress, or its
+       run if it is daily, or nothing. One-offs lost the count for the
+       same reason: "1st of 1 this week" states a cadence they do not
+       have. `rowCaption`, tested.
 5. [~] The sheet and the row count up — "Half done", "Takes you to
        75%" — and no copy names a remainder. Worth one more read on
        device against §5.

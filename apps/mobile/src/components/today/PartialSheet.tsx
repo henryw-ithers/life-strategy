@@ -32,6 +32,7 @@ import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { SheetFrame } from "../ui/SheetFrame";
+import { progressLabel } from "./rowCaption";
 
 /** "a quarter", "half" — the increment, in words. */
 const INCREMENT_LABEL: Record<number, string> = {
@@ -39,15 +40,6 @@ const INCREMENT_LABEL: Record<number, string> = {
   0.5: "Half of it",
   0.75: "Three quarters of it",
 };
-
-/** "Half done" — what a running total reads as (§5, never a deficit). */
-export function progressLabel(progress: number): string | null {
-  if (progress <= 0) return null;
-  if (progress >= 1) return "Done";
-  if (progress < 0.375) return "A quarter done";
-  if (progress < 0.625) return "Half done";
-  return "Three quarters done";
-}
 
 interface PartialSheetProps {
   visible: boolean;
