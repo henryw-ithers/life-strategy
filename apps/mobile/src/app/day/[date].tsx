@@ -38,7 +38,11 @@
  * after today, and offering the gesture would invite exactly the "get
  * ahead" mechanic the grade is built to ignore.
  */
-import { addDays, type Window as GridWindow } from "@glide/scoring";
+import {
+  addDays,
+  planLoadHours,
+  type Window as GridWindow,
+} from "@glide/scoring";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -62,6 +66,7 @@ import {
   type PartOfDay,
 } from "../../components/plan/planning";
 import { DayGrid, windowKey } from "../../components/today/DayGrid";
+import { formatLength } from "../../components/today/dayGridLayout";
 import { WindowSheet } from "../../components/today/WindowSheet";
 import { loadPools, type PoolOnDay } from "../../db/commitments";
 import {
@@ -103,6 +108,16 @@ const HEADER_HEIGHT = 44;
 /** The four slots, in the order a day runs. Anytime last: it is where
  *  things live when you have not decided, so it reads as the remainder. */
 const SLOTS: readonly (PartOfDay | "anytime")[] = [...PART_OF_DAY_ORDER, "anytime"];
+
+/** "2 hours 15 minutes" — `formatLength` read aloud, since VoiceOver
+ *  says "2h" as "2 h". */
+function spokenLength(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hours = h === 0 ? "" : `${h} ${h === 1 ? "hour" : "hours"}`;
+  const mins = m === 0 ? "" : `${m} minutes`;
+  return [hours, mins].filter(Boolean).join(" ");
+}
 
 /** Same two words as Home's, because it is the same choice. */
 const LAYOUTS = [
@@ -204,6 +219,31 @@ export default function PlanDayScreen() {
     () => all.filter((t) => !pinnedElsewhere(t, date)),
     [all, date],
   );
+  /**
+   * About how much sized work the day holds (ADR-0026 §3), in minutes,
+   * or null when nothing on it has a size.
+   *
+   * **Shown, never warned about.** No threshold, no colour, no
+   * comparison against the free time the grid draws — "this is more
+   * than your windows hold" is a verdict on the plan, and the version of
+   * this that advises rather than informs was already rejected. It is
+   * the same muted caption at two hours as at ten.
+   *
+   * Pools count at their planned count, not their member count, and
+   * unsized work counts as nothing rather than as a guess. Rounded to a
+   * quarter hour, because the sizes are rough and a figure like
+   * "2h 20m" would claim a precision they do not have.
+   *
+   * Absent rather than "0m" when nothing is sized: unsized is a
+   * first-class state (ADR-0026 §1), and a zero would read as a prompt
+   * to go and size things, which nothing is allowed to be (ADR-0030 §2).
+   */
+  const loadMinutes = useMemo(() => {
+    const hours = planLoadHours(tasks, pools);
+    if (hours <= 0) return null;
+    return Math.max(15, Math.round((hours * 60) / 15) * 15);
+  }, [tasks, pools]);
+
   /** Whether the hours are worth offering — see Home's own note. */
   const showsGrid =
     dayLayout === "grid" ||
@@ -367,19 +407,38 @@ export default function PlanDayScreen() {
             {/* Only once there is an hour to draw, and always once you
                 are in the grid — a view you can enter and not leave is
                 a trap. */}
-            {showsGrid ? (
-              <View style={styles.layoutToggle}>
-                <Segmented
-                  segments={LAYOUTS}
-                  value={dayLayout}
-                  onChange={(next) => {
-                    setDayLayoutState(next);
-                    void setDayLayout(next);
-                  }}
-                  accent={theme.accent}
-                  theme={theme}
-                  label="How to show the day"
-                />
+            {showsGrid || loadMinutes !== null ? (
+              <View style={styles.topRow}>
+                {showsGrid ? (
+                  <View style={styles.layoutToggle}>
+                    <Segmented
+                      segments={LAYOUTS}
+                      value={dayLayout}
+                      onChange={(next) => {
+                        setDayLayoutState(next);
+                        void setDayLayout(next);
+                      }}
+                      accent={theme.accent}
+                      theme={theme}
+                      label="How to show the day"
+                    />
+                  </View>
+                ) : null}
+                {/* A readout, not a control: plain muted text with
+                    nothing about it that invites a tap. "Of sized work"
+                    names its own scope, so a day with unsized tasks is
+                    not misreported as lighter than it is. */}
+                {loadMinutes !== null ? (
+                  <AppText
+                    variant="caption"
+                    color={theme.muted}
+                    tabular
+                    style={styles.load}
+                    accessibilityLabel={`About ${spokenLength(loadMinutes)} of work, counting tasks with a size`}
+                  >
+                    About {formatLength(loadMinutes)} of sized work
+                  </AppText>
+                ) : null}
               </View>
             ) : null}
 
@@ -662,6 +721,16 @@ const styles = StyleSheet.create({
   empty: { marginTop: space.xxl, gap: space.sm },
   /** Its own row above the lead line, since this screen's header is a
    *  full row of navigation already. */
-  layoutToggle: { maxWidth: 180, marginBottom: space.sm },
+  /** The toggle and the load share one row; either may be absent. */
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: space.md,
+    marginBottom: space.sm,
+  },
+  layoutToggle: { flex: 1, maxWidth: 180, minWidth: 140 },
+  load: { flexShrink: 1, textAlign: "right", marginLeft: "auto" },
   emptyText: { maxWidth: 340 },
 });

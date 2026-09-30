@@ -214,3 +214,46 @@ export function fitsInWindow(
 export function dayLoadHours(sizes: readonly (TaskSize | null)[]): number {
   return sizes.reduce((a, s) => a + (s === null ? 0 : SIZE_HOURS[s]), 0);
 }
+
+/**
+ * A day's load in hours, with pools counted as what you plan to do
+ * rather than everything you might.
+ *
+ * `dayLoadHours` over every row on the day would count a three-option
+ * pool three times, when its whole point is that you mean to get
+ * through `plannedCount` of them (ADR-0033 §3). So a pool contributes
+ * `plannedCount × the mean size of its sized members`, and its members
+ * are left out of the flat sum. The mean rather than the largest or
+ * smallest: this is "about", and neither end has a better claim.
+ *
+ * Same rules as `dayLoadHours`, and for the same reasons: unsized work
+ * counts as nothing rather than as a guess, and the result is a **bare
+ * number** — no threshold, no band, nothing a caller could colour red
+ * (ADR-0026 §3). A pool member that is not on the day's list is
+ * ignored, since a pool cannot add load for work the day does not hold.
+ */
+export function planLoadHours(
+  tasks: readonly { id: string; size: TaskSize | null }[],
+  pools: readonly { taskIds: readonly string[]; plannedCount: number }[],
+): number {
+  const sizeById = new Map(tasks.map((t) => [t.id, t.size]));
+  const pooled = new Set<string>();
+  let hours = 0;
+
+  for (const pool of pools) {
+    const members = pool.taskIds.filter((id) => sizeById.has(id));
+    for (const id of members) pooled.add(id);
+    const sized = members
+      .map((id) => sizeById.get(id))
+      .filter((s): s is TaskSize => s != null);
+    if (sized.length === 0) continue;
+    const mean = sized.reduce((a, s) => a + SIZE_HOURS[s], 0) / sized.length;
+    const planned = Math.max(1, Math.min(pool.plannedCount, members.length));
+    hours += planned * mean;
+  }
+
+  return (
+    hours +
+    dayLoadHours(tasks.filter((t) => !pooled.has(t.id)).map((t) => t.size))
+  );
+}

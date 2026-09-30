@@ -133,10 +133,23 @@ real plan, which is a formula-version conversation.
 2. [x] Window capacity in `packages/scoring/src/windows.ts` —
        `windowCapacity`, `fitsInWindow`, `SIZE_HOURS`. A rough fit,
        never minutes, pure and tested.
-3. [~] `dayLoadHours` computes it and deliberately returns a **bare
+3. [x] `dayLoadHours` computes it and deliberately returns a **bare
        number** — no threshold, no band, nothing a caller could colour
-       red. A test asserts that shape. **The indicator itself is still
-       unbuilt**, and §3 is the thing to re-read before building it:
-       shown, never warned about.
+       red. A test asserts that shape. The indicator shipped on the
+       planner (`app/day/[date].tsx`, 2026-09-30) as one muted caption —
+       *"About 2h 15m of sized work"* — sharing the row with the
+       List / Hours toggle. `planLoadHours` counts a pool at its planned
+       count rather than its member count (three options you mean to do
+       one of are one task's load, not three), with the same bare-number
+       test.
+       Deliberately **not** on Home: the daily surface stays
+       checklist-simple, and load is a planning question. Deliberately
+       **not** compared against the free time the grid draws: "more
+       than your windows hold" is a verdict on the plan, which is the
+       advising version §3 rules out. Absent rather than "0m" when
+       nothing is sized, since a zero would read as a prompt to size
+       things (ADR-0030 §2). Rounded to a quarter hour, because the
+       sizes are rough and a figure like "2h 20m" would claim a
+       precision they do not have.
 4. [ ] Amend ADR-0024 §6 with a pointer here, noting the trigger that
        actually fired.

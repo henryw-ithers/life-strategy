@@ -4,6 +4,7 @@ import {
   formatMinutes,
   gridExtent,
   dayLoadHours,
+  planLoadHours,
   fitsInWindow,
   windowCapacity,
   windowsFor,
@@ -172,5 +173,71 @@ describe("capacity and load — ADR-0026", () => {
     expect(typeof dayLoadHours(["big", "big", "big", "big", "big"])).toBe(
       "number",
     );
+  });
+});
+
+describe("planLoadHours", () => {
+  const t = (id: string, size: "quick" | "normal" | "big" | null) => ({ id, size });
+
+  it("is dayLoadHours when there are no pools", () => {
+    const tasks = [t("a", "big"), t("b", "normal"), t("c", "quick"), t("d", null)];
+    expect(planLoadHours(tasks, [])).toBe(dayLoadHours(tasks.map((x) => x.size)));
+  });
+
+  it("counts a pool at its planned count, not its member count", () => {
+    // Three big options you mean to do one of are an hour, not three.
+    const tasks = [t("a", "big"), t("b", "big"), t("c", "big")];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b", "c"], plannedCount: 1 }]),
+    ).toBe(1);
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b", "c"], plannedCount: 2 }]),
+    ).toBe(2);
+  });
+
+  it("uses the mean of the sized members", () => {
+    // big (1h) and quick (0.25h) average 0.625h.
+    const tasks = [t("a", "big"), t("b", "quick")];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b"], plannedCount: 1 }]),
+    ).toBe(0.625);
+  });
+
+  it("ignores unsized members in the mean rather than counting them as zero", () => {
+    const tasks = [t("a", "big"), t("b", null)];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b"], plannedCount: 1 }]),
+    ).toBe(1);
+  });
+
+  it("adds nothing for a pool with no sized members", () => {
+    const tasks = [t("a", null), t("b", null), t("c", "normal")];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b"], plannedCount: 2 }]),
+    ).toBe(0.5);
+  });
+
+  it("does not count a pooled task twice", () => {
+    // Pooled members leave the flat sum; only the pool counts them.
+    const tasks = [t("a", "big"), t("b", "big"), t("c", "normal")];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "b"], plannedCount: 1 }]),
+    ).toBe(1.5);
+  });
+
+  it("never plans more slots than the pool has members on the day", () => {
+    const tasks = [t("a", "normal")];
+    expect(
+      planLoadHours(tasks, [{ taskIds: ["a", "gone"], plannedCount: 3 }]),
+    ).toBe(0.5);
+  });
+
+  it("returns a bare number, with no threshold state to colour", () => {
+    expect(
+      typeof planLoadHours(
+        [t("a", "big"), t("b", "big")],
+        [{ taskIds: ["a", "b"], plannedCount: 2 }],
+      ),
+    ).toBe("number");
   });
 });
