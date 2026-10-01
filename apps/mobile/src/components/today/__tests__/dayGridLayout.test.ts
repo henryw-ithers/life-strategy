@@ -12,6 +12,7 @@ import {
   MIN_BLOCK_PX,
   formatLength,
   formatSpan,
+  carryPools,
   clipWindows,
   gridBounds,
   gridHeight,
@@ -276,5 +277,56 @@ describe("formatting", () => {
 
   it("never writes a negative length", () => {
     expect(formatLength(-30)).toBe("0m");
+  });
+});
+
+describe("carryPools — unfinished options move on (ADR-0033 §2)", () => {
+  const morning = { start: 8 * 60, end: 12 * 60, key: "m" };
+  const afternoon = { start: 12 * 60, end: 17 * 60, key: "a" };
+  const evening = { start: 17 * 60, end: 23 * 60, key: "e" };
+  const pools: Record<string, string[]> = { m: ["essay", "reading"], a: ["lab"], e: [] };
+  const done = new Set(["reading"]);
+  const carry = (now: number | null) =>
+    carryPools([morning, afternoon, evening], (w) => pools[w.key] ?? [], (id) => !done.has(id), now);
+
+  it("moves a closed window's unfinished options to the one open now", () => {
+    const [m, a] = carry(13 * 60);
+    expect(m!.own).toEqual(["reading"]);
+    expect(a!.own).toEqual(["lab"]);
+    expect(a!.carried).toEqual(["essay"]);
+  });
+
+  it("keeps finished options where they were finished", () => {
+    expect(carry(13 * 60)[0]!.own).toContain("reading");
+  });
+
+  it("gathers everything unfinished into the evening once both earlier windows close", () => {
+    const [, a, e] = carry(18 * 60);
+    expect(a!.own).toEqual([]);
+    expect(e!.carried.sort()).toEqual(["essay", "lab"]);
+  });
+
+  it("holds everything in the last window once the day's windows are all over", () => {
+    // 1am, before the rollover: still today, every window closed.
+    const out = carry(24 * 60 + 60);
+    expect(out[2]!.carried.sort()).toEqual(["essay", "lab"]);
+  });
+
+  it("moves nothing before a window has ended", () => {
+    expect(carry(9 * 60).every((x) => x.carried.length === 0)).toBe(true);
+  });
+
+  it("moves nothing on a day that is not today", () => {
+    expect(carry(null).every((x) => x.carried.length === 0)).toBe(true);
+  });
+
+  it("never lists an option twice in one window", () => {
+    const same = carryPools(
+      [morning, afternoon],
+      (w) => (w.key === "m" ? ["essay"] : ["essay"]),
+      () => true,
+      13 * 60,
+    );
+    expect([...same[1]!.own, ...same[1]!.carried]).toEqual(["essay"]);
   });
 });

@@ -17,6 +17,9 @@ import {
   isPinnedOn,
   parseWeekdays,
   PART_OF_DAY_ORDER,
+  carriedPart,
+  isPast,
+  partNow,
   pinnedElsewhere,
   planRank,
   sortForDisplay,
@@ -281,5 +284,41 @@ describe("pinnedElsewhere — one-offs", () => {
     expect(pinnedElsewhere(oneOff("2026-09-29"), "2026-09-29")).toBe(false);
     expect(pinnedElsewhere(oneOff("2026-09-20"), "2026-09-29")).toBe(false);
     expect(pinnedElsewhere(oneOff(null), "2026-09-29")).toBe(false);
+  });
+});
+
+describe("carry-forward (ADR-0033 §2)", () => {
+  it("knows which part of the day it is", () => {
+    expect(partNow(9 * 60)).toBe("morning");
+    expect(partNow(12 * 60)).toBe("afternoon");
+    expect(partNow(16 * 60 + 59)).toBe("afternoon");
+    expect(partNow(17 * 60)).toBe("evening");
+  });
+
+  it("treats after midnight, before the 3am rollover, as still the evening", () => {
+    expect(partNow(60)).toBe("evening");
+    expect(partNow(3 * 60)).toBe("morning");
+  });
+
+  it("moves unfinished work out of a window that has ended", () => {
+    expect(carriedPart("morning", "afternoon")).toBe("afternoon");
+    expect(carriedPart("morning", "evening")).toBe("evening");
+    expect(carriedPart("afternoon", "evening")).toBe("evening");
+  });
+
+  it("leaves work in the current or a later window where it is", () => {
+    expect(carriedPart("afternoon", "afternoon")).toBe("afternoon");
+    expect(carriedPart("evening", "morning")).toBe("evening");
+  });
+
+  it("never moves Anytime, and never moves anything on another day", () => {
+    expect(carriedPart(null, "evening")).toBeNull();
+    expect(carriedPart("morning", null)).toBe("morning");
+  });
+
+  it("knows which windows are over", () => {
+    expect(isPast("morning", "afternoon")).toBe(true);
+    expect(isPast("afternoon", "afternoon")).toBe(false);
+    expect(isPast("morning", null)).toBe(false);
   });
 });

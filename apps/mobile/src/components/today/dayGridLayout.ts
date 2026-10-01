@@ -219,3 +219,40 @@ export function formatLength(minutes: number): string {
   if (rest === 0) return `${h}h`;
   return `${h}h ${rest}m`;
 }
+
+/**
+ * A day's windows with their pool options, **carried forward** once a
+ * window has ended (ADR-0033 §2).
+ *
+ * The unfinished options of every window that has closed move to the
+ * first window still open — or, once every window has closed, to the
+ * last one, since there is nowhere later in the day to put them. Options
+ * already done stay where they were done. Display only: the pools
+ * themselves are not rewritten, so nothing records the miss.
+ *
+ * `nowMinute` is null on any day but today. It may run past 1440 after
+ * midnight and before the rollover, when it is still today's evening.
+ */
+export function carryPools<W extends { start: number; end: number }>(
+  windows: readonly W[],
+  ownOf: (w: W) => readonly string[],
+  isOpen: (taskId: string) => boolean,
+  nowMinute: number | null,
+): { window: W; own: string[]; carried: string[] }[] {
+  const out = windows.map((w) => ({ window: w, own: [...ownOf(w)], carried: [] as string[] }));
+  if (nowMinute === null || out.length === 0) return out;
+
+  const target =
+    out.find((x) => x.window.end > nowMinute) ?? out[out.length - 1]!;
+  for (const x of out) {
+    if (x === target || x.window.end > nowMinute) continue;
+    const moving = x.own.filter(isOpen);
+    x.own = x.own.filter((id) => !isOpen(id));
+    for (const id of moving) {
+      if (!target.own.includes(id) && !target.carried.includes(id)) {
+        target.carried.push(id);
+      }
+    }
+  }
+  return out;
+}

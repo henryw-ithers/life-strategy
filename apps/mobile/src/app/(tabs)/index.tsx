@@ -9,6 +9,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   addDays,
   isEditable,
+  ROLLOVER_HOUR,
   specialDayBonus,
   weekStart,
   type PeriodGrade,
@@ -60,7 +61,10 @@ import { WeekStrip } from "../../components/today/WeekStrip";
 import {
   ANYTIME_LABEL,
   compareForDay,
+  carriedPart,
   emptyPeriodNote,
+  isPast,
+  partNow,
   PART_OF_DAY_LABEL,
   PART_OF_DAY_ORDER,
   pinnedElsewhere,
@@ -128,6 +132,17 @@ import { radius, space } from "../../theme/tokens";
  *  Fits a title plus its factual caption with the row's own padding. */
 const CHECKLIST_ROW_HEIGHT = 56;
 
+/**
+ * Minutes into today. Past midnight and before the 3am rollover it is
+ * still today, so the count runs on past 1440 rather than wrapping to
+ * a morning that has not started.
+ */
+function minuteOfToday(): number {
+  const now = new Date();
+  const minute = now.getHours() * 60 + now.getMinutes();
+  return now.getHours() < ROLLOVER_HOUR ? minute + 24 * 60 : minute;
+}
+
 /** Two words, because the difference is the whole point. */
 const LAYOUTS = [
   { value: "checklist" as const, label: "List" },
@@ -194,6 +209,8 @@ export default function TodayScreen() {
     chosen: string[];
     plannedCount: number;
     poolId: string | null;
+    /** Unfinished options from windows that have ended (ADR-0033 §2). */
+    carried: string[];
   } | null>(null);
   /** A cross-slot drop awaiting its scope answer. */
   const [dropped, setDropped] = useState<{
@@ -319,6 +336,23 @@ export default function TodayScreen() {
   const byPlan = (a: TodayTask, b: TodayTask) =>
     compareForDay(a, b, day?.date ?? "");
 
+  /**
+   * Which part of the day it is, on today only — the window unfinished
+   * work carries forward into (ADR-0033 §2). Null on any other day.
+   */
+  const nowPart =
+    day && day.date === day.today ? partNow(minuteOfToday()) : null;
+
+  /**
+   * Where a row sits on the checklist: its own part of day, or — once
+   * that window has ended — the one open now. A task with a clock time
+   * stays put: a 9am lecture is not afternoon work because nobody ticked
+   * it, and its time is a fact about the day rather than a window to
+   * fill.
+   */
+  const shownPart = (t: TodayTask): PartOfDay | null =>
+    t.startMinute !== null ? t.partOfDay : carriedPart(t.partOfDay, nowPart);
+
   /** Done today, or done ahead on an earlier day (ADR-0032 §4). */
   function isDone(t: TodayTask): boolean {
     return t.completedToday || t.doneAheadOn !== null;
@@ -336,14 +370,17 @@ export default function TodayScreen() {
   /** `emptyNote` null means the section hides when it empties — the
    *  rule for everything that is not one of the three periods. */
   const partSection = (part: PartOfDay | null) => {
-    const tasks = todayTasks.filter((t) => t.partOfDay === part).sort(byPlan);
+    const tasks = todayTasks.filter((t) => shownPart(t) === part).sort(byPlan);
     return {
       key: (part ?? "anytime") as SectionKey,
       label: part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL,
       tasks,
       pts: tasks.reduce((a, t) => a + t.pointValue, 0),
+      // A window that has ended is shown only while it still holds
+      // something — a timed task, which does not carry. Empty, it would
+      // be a drop target in the past and a "Free" that is not.
       emptyNote:
-        part === null
+        part === null || isPast(part, nowPart)
           ? null
           : emptyPeriodNote(
               allTasks.some((t) => t.partOfDay === part && t.completedToday),
@@ -463,14 +500,17 @@ export default function TodayScreen() {
       toSectionKey === "anytime" ? null : (toSectionKey as PartOfDay);
 
     // The order of that slot after the drop, for persistence.
+    // Against where rows are *shown*, not where they were planned: a
+    // morning task carried into the afternoon and reordered there is a
+    // reorder, not a move that needs its scope asked.
     const others = openTasks
-      .filter((t) => t.id !== rowId && (t.partOfDay ?? "anytime") === toSectionKey)
+      .filter((t) => t.id !== rowId && (shownPart(t) ?? "anytime") === toSectionKey)
       .sort(byPlan)
       .map((t) => t.id);
     const ordered = [...others];
     ordered.splice(Math.min(toIndex, ordered.length), 0, rowId);
 
-    if (moved.partOfDay === toPart) {
+    if (shownPart(moved) === toPart) {
       void reorderDayTasks(ordered).then(() => reload(day.date));
       return;
     }
@@ -813,16 +853,12 @@ export default function TodayScreen() {
                     // A line for where you are, and only on the day you
                     // are actually in. On any other day it would point
                     // at an hour that has nothing to do with it.
-                    nowMinute={
-                      day.date === day.today
-                        ? new Date().getHours() * 60 + new Date().getMinutes()
-                        : null
-                    }
+                    nowMinute={day.date === day.today ? minuteOfToday() : null}
                     onPress={(t) => void onToggle(t)}
                     pooledByWindow={pooledByWindow}
                     onPlanWindow={
                       day.editable
-                        ? (w) => {
+                        ? (w, _own, carried) => {
                             const existing = pools.find(
                               (p) => windowKey(p) === windowKey(w),
                             );
@@ -831,6 +867,7 @@ export default function TodayScreen() {
                               chosen: existing?.taskIds ?? [],
                               plannedCount: existing?.plannedCount ?? 1,
                               poolId: existing?.id ?? null,
+                              carried,
                             });
                           }
                         : undefined
@@ -1179,7 +1216,10 @@ export default function TodayScreen() {
               // Only open work: a window is a plan for what you have
               // not done yet, and offering something already ticked
               // would be offering to plan the past.
-              candidates={todayTasks}
+              candidates={todayTasks.filter(
+                (t) => !planning.carried.includes(t.id),
+              )}
+              carried={allTasks.filter((t) => planning.carried.includes(t.id))}
               chosen={planning.chosen}
               plannedCount={planning.plannedCount}
               hueFor={hueFor}

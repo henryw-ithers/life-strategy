@@ -1,6 +1,6 @@
 # ADR-0033: Windows and pools
 
-> **Status:** Proposed\
+> **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11\
 > **Deciders:** Henry
 
@@ -217,3 +217,28 @@ mental quiet planning is for.
        with the reason beside it rather than as an unexplained disabled
        button. A commitment one-off needs no date: it is owed from the
        moment it exists. `needsDays`, tested.
+7. [x] **Carry-forward within the day** (2026-10-01). §2 decided that
+       unfinished work appears in the next window; across days it
+       already did — an unfinished one-off stays on the list — but
+       within a day nothing moved. Henry: *"make sure unfinished work
+       carries forward to the next window always."*
+       - **The checklist:** once a part of the day has ended, its
+         unfinished tasks sit under the part open now (`carriedPart`).
+         An ended part shows only while it still holds something, so a
+         past morning is neither a drop target nor a "Free" that is
+         not. Reordering a carried row is a reorder, not a move that
+         asks its scope. Before the 3am rollover it is still evening.
+       - **The hour grid:** an ended window's unfinished pool options
+         move to the window open now, or to the last window once the
+         day's windows are all over (`carryPools`). An ended window is
+         drawn faint, says only what was done in it, and takes no tap;
+         the open window's sheet lists what was carried in, under
+         *"Also here from earlier today"*.
+       - **Display only, as §2 requires.** Nothing is written, so a
+         task keeps its own part of day for tomorrow and nothing records
+         that a window went by. No label on the row says where it came
+         from, for the same reason.
+       - **Clock-timed tasks do not carry.** A 9am lecture is not
+         afternoon work because nobody ticked it: a time is a fact about
+         the day, not a window to fill.
+       Both rules pure and tested.

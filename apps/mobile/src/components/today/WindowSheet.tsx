@@ -41,6 +41,13 @@ interface WindowSheetProps {
   candidates: TodayTask[];
   /** Currently chosen, in order. */
   chosen: string[];
+  /**
+   * Unfinished options carried in from windows that have ended
+   * (ADR-0033 §2). Shown, not chosen: they belong to the window they
+   * were planned for, and appear here because this is now where they
+   * can be done.
+   */
+  carried?: TodayTask[];
   plannedCount: number;
   hueFor: (task: TodayTask) => string;
   theme: ThemeTokens;
@@ -58,6 +65,7 @@ export function WindowSheet({
   window,
   candidates,
   chosen,
+  carried = [],
   plannedCount,
   hueFor,
   theme,
@@ -104,6 +112,23 @@ export function WindowSheet({
             {formatLength(window.end - window.start)} free. Pick what might
             go here; any of them counts.
           </AppText>
+
+          {carried.length > 0 ? (
+            // Stated as where the work is now, never as what was missed.
+            <View style={[styles.carried, { backgroundColor: theme.surface }]}>
+              <AppText variant="caption" color={theme.muted}>
+                Also here from earlier today
+              </AppText>
+              {carried.map((t) => (
+                <View key={t.id} style={styles.carriedRow}>
+                  <View style={[styles.pip, { backgroundColor: hueFor(t) }]} />
+                  <AppText color={theme.ink} numberOfLines={1} style={styles.grow}>
+                    {t.title}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           <View style={styles.list}>
             {candidates.length === 0 ? (
@@ -245,6 +270,14 @@ const styles = StyleSheet.create({
   },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   list: { gap: space.sm, marginTop: space.xs },
+  carried: {
+    gap: space.xs,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    marginTop: space.xs,
+  },
+  carriedRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 32 },
   option: {
     flexDirection: "row",
     alignItems: "center",
