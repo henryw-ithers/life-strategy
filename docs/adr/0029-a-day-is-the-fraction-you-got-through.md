@@ -268,7 +268,10 @@ genuinely confusing in use, in which case the lever is presentation
 5. [ ] `docs/design/calendar-and-day-planning.md` and
        `docs/design/copy-guide.md` describe pins as presentation-only.
        Both need a pass against §3.
-6. [ ] Decide what happens to a week bunched into one day, if it turns
+6. [x] Decide what happens to a week bunched into one day, if it turns
        out to happen. The candidate is to keep grading days with
        nothing due, at full marks — but that pays for silence, so it
-       needs its own thinking rather than a default.
+       needs its own thinking rather than a default. **Decided
+       2026-10-01 by [ADR-0037](0037-rest-days.md):** a day with
+       nothing due and a plan behind it is a rest day, automatically —
+       70, then activities and early work on top.

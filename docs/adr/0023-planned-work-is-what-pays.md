@@ -160,6 +160,13 @@ asked*:
 | Special | How did the plan go, and how was the day? | Tasks + rating bonus |
 | Day off | Not asked. | None; excluded |
 
+> **Amended 2026-10-01 by [ADR-0037](0037-rest-days.md).** A day with
+> nothing due — and a plan behind it — is now a **rest day**,
+> automatically: 70, with activities filling the last 30 rather than
+> `UNPLANNED_CAP`. It is not a fourth kind and is never chosen; the
+> table above is unchanged, and a day off on such a day stays a day
+> off.
+
 ### 5. Activity credit is denominated in the unit's daily share
 
     pointsCredited = round(SIZE_RATE[size] × unitDailyShare)

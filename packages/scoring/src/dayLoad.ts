@@ -150,6 +150,24 @@ export function isPinnedElsewhere(task: LoadTask, date: string): boolean {
 }
 
 /**
+ * What an **average** day of this plan expects: every recurring task's
+ * weekly demand (a fortnightly task's half-run included), over seven.
+ *
+ * Only a rest day reads this (ADR-0037 §3). A rest day expects nothing,
+ * so the day's own load cannot price work done on it — `90 × w ÷ 0` —
+ * and early work is priced against the day it would ordinarily have
+ * been instead. One-offs are left out, as `taskWeights` leaves them out
+ * of the recurring allocation: an errand on the list must not move what
+ * everything else is worth.
+ */
+export function averageDayExpected(tasks: readonly LoadTask[]): number {
+  const weekly = tasks
+    .filter((t) => !t.oneOff)
+    .reduce((a, t) => a + t.weight * (t.timesPerWeek === 0 ? 0.5 : t.timesPerWeek), 0);
+  return weekly / 7;
+}
+
+/**
  * The day's expected and completed load.
  *
  * `completions` must cover at least the fortnight containing `date`, so

@@ -2,6 +2,8 @@ export {
   WEIGHT_SPREAD,
   EXTRA_RUN_RATE,
   UNPLANNED_CAP,
+  REST_DAY_BASE,
+  REST_DAY_UNPLANNED,
   FORMULA_VERSION,
   DAILY_BUDGET,
 } from "./constants";
@@ -32,6 +34,7 @@ export {
 } from "./bands";
 export type { LoadTask, LoadCompletion, DayLoad } from "./dayLoad";
 export {
+  averageDayExpected,
   computeDayLoad,
   daysLeftInWeek,
   isAnchoredOn,
@@ -130,6 +133,8 @@ export {
   periodDays,
   aggregateGrade,
   extraRunPoints,
+  isRestDay,
+  restDayRunPoints,
   specialDayBonus,
   storedDayScore,
 } from "./grade";

@@ -31,7 +31,7 @@ status to *Accepted*.
 | [0026](0026-task-size-and-day-load.md) | Task size and day load | Accepted |
 | [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029; extended by 0032 |
 | [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
-| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted; extended by 0032 |
+| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted; extended by 0032, 0037 |
 | [0030](0030-goals-have-conditions.md) | Goals have conditions | Accepted |
 | [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
 | [0032](0032-the-commitment-band.md) | The commitment band | Accepted; rebuilt on 0029 (formula v10) |
@@ -39,6 +39,7 @@ status to *Accepted*.
 | [0034](0034-schedule-mode.md) | Schedule mode | **Withdrawn** |
 | [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted |
 | [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted |
+| [0037](0037-rest-days.md) | Rest days | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002

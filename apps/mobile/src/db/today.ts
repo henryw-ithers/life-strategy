@@ -7,6 +7,7 @@
 import {
   addDays,
   commitmentBandOn,
+  averageDayExpected,
   commitmentPointValues,
   computeDayScore,
   computeStreak,
@@ -17,7 +18,9 @@ import {
   FORMULA_VERSION,
   fortnightStart,
   isEditable,
+  EXTRA_RUN_RATE,
   isFinalized,
+  isRestDay,
   lifeShare,
   localDateOf,
   monthStart,
@@ -26,6 +29,8 @@ import {
   partialPoints,
   PLANNED_BAND,
   progressOf,
+  REST_DAY_UNPLANNED,
+  restDayRunPoints,
   storedDayScore,
   UNPLANNED_BAND,
   weekStart,
@@ -175,6 +180,12 @@ export interface DayData {
   satisfactionRating: number | null;
   score: DayScore;
   hasSnapshot: boolean;
+  /**
+   * Today is a rest day (ADR-0037): nothing of your own life due, no
+   * commitment work scheduled, a plan behind it. Automatic; scored from
+   * 70.
+   */
+  restDay: boolean;
   hasTasks: boolean;
   /** Anchored to today: every-day tasks and anything pinned here. */
   due: TodayTask[];
@@ -274,15 +285,58 @@ const SIZE_RATE: Record<ActivitySize, number> = {
  * a unit's weight — not its tasks — and an excluded unit (weight 0)
  * still credits nothing, unchanged.
  */
-async function unitVariableShares(): Promise<Map<string, number>> {
+async function unitVariableShares(
+  /** The pool activities draw from: `UNPLANNED_BAND`, or
+   *  `REST_DAY_UNPLANNED` on a rest day (ADR-0037 §2). */
+  pool: number = UNPLANNED_BAND,
+): Promise<Map<string, number>> {
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
   const weights = await latestWeights();
   const shares = new Map<string, number>();
   for (const u of units) {
     if (!u.includeInScoring) continue;
-    shares.set(u.id, (UNPLANNED_BAND / 100) * (weights.get(u.id) ?? 0));
+    shares.set(u.id, (pool / 100) * (weights.get(u.id) ?? 0));
   }
   return shares;
+}
+
+/**
+ * Re-price a day's activities for the pool they now draw from.
+ *
+ * **A rest day's activities draw from 30, not 10, at three times the
+ * rate** (ADR-0037 §2). At the ordinary rate a big activity in a
+ * weight-8 unit earns one point, so a 30-point allowance would take
+ * thirty activities to fill and the number would be decorative. The
+ * rate follows the pool, so the same afternoon is worth the same share
+ * of whichever pool it lands in.
+ *
+ * Whether a day is a rest day can change after something is logged —
+ * a task added that is due today ends it — so credit is re-priced here,
+ * on every edit to the day, rather than fixed at log time. Returns
+ * whether anything moved.
+ */
+async function recreditActivities(date: string, restDay: boolean): Promise<boolean> {
+  const rows = await db.select().from(activity).where(eq(activity.localDate, date));
+  if (rows.length === 0) return false;
+  const tags = await db
+    .select()
+    .from(activityTag)
+    .where(inArray(activityTag.activityId, rows.map((a) => a.id)));
+  const shares = await unitVariableShares(restDay ? REST_DAY_UNPLANNED : UNPLANNED_BAND);
+  let moved = false;
+  for (const tag of tags) {
+    const size = rows.find((a) => a.id === tag.activityId)?.size;
+    const credit = Math.round((size ? SIZE_RATE[size] : 0) * (shares.get(tag.unitId) ?? 0));
+    if (credit === tag.pointsCredited) continue;
+    moved = true;
+    await db
+      .update(activityTag)
+      .set({ pointsCredited: credit })
+      .where(
+        and(eq(activityTag.activityId, tag.activityId), eq(activityTag.unitId, tag.unitId)),
+      );
+  }
+  return moved;
 }
 
 /** Renormalized over units still in scoring — see `db/tasks.ts`. Both
@@ -372,6 +426,11 @@ export async function loadDay(
     units.filter(isCommitmentUnit).map((u) => u.id),
   );
   const aheadUntil = addDays(date, AHEAD_DAYS);
+  const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
+  const kind: DayKind = dayRow?.kind ?? "normal";
+  /** Life one-offs planned for a later day. Shown only on a rest day,
+   *  and never in the load: they are not today's work. */
+  const aheadLifeIds = new Set<string>();
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
@@ -382,8 +441,13 @@ export async function loadDay(
     // on work" — and it can only be paid if it can be ticked. Bounded to
     // a week, the same reach a pinned task's other days have there, so
     // a term of assignments entered up front does not fill today.
-    // A life one-off still waits for its day, as it always has.
-    return commitmentUnitIds.has(t.unitId) && t.oneOffDate <= aheadUntil;
+    // A life one-off waits for its day — except on a rest day, when
+    // doing it early is the point (ADR-0037 §3). Whether today is one
+    // is only known once the load is, so it is read here and hidden
+    // below on any other day.
+    if (t.oneOffDate > aheadUntil) return false;
+    if (!commitmentUnitIds.has(t.unitId)) aheadLifeIds.add(t.id);
+    return true;
   });
   const memberships = allTasks.length
     ? await db
@@ -553,8 +617,11 @@ export async function loadDay(
     oneOff: t.oneOffSize != null,
   });
   const lifeTaskIds = new Set(
-    tasks.filter((t) => !commitmentUnitIds.has(t.unitId)).map((t) => t.id),
+    tasks
+      .filter((t) => !commitmentUnitIds.has(t.unitId) && !aheadLifeIds.has(t.id))
+      .map((t) => t.id),
   );
+  const aheadLifeTasks = tasks.filter((t) => aheadLifeIds.has(t.id));
   const loadTasks = tasks.filter((t) => lifeTaskIds.has(t.id)).map(toLoadTask);
   // A part-done run counts its fraction of the weight (ADR-0014).
   const loadCompletions = completions.map((c) => ({
@@ -567,11 +634,29 @@ export async function loadDay(
   const statuses = [
     ...deriveChecklist(loadTasks, lifeCompletions, date, share),
     ...deriveChecklist(
-      commitmentTasks.map(toLoadTask),
+      [...commitmentTasks, ...aheadLifeTasks].map(toLoadTask),
       loadCompletions.filter((c) => !lifeTaskIds.has(c.taskId)),
       date,
     ),
   ];
+
+  /**
+   * A rest day (ADR-0037): automatic on any day that asks nothing, with
+   * a plan behind it — never chosen and never offered. A day off stays
+   * a day off. Early work on it is priced against an average day of the
+   * plan, since the day's own load is empty.
+   */
+  const averageExpected = averageDayExpected(loadTasks);
+  const restDay =
+    kind !== "rest" &&
+    isRestDay(load, commitmentBandOn(commitmentDay), averageExpected);
+  /** Life one-offs done ahead today, as weight, at most what each owed. */
+  const aheadWeight = aheadLifeTasks.reduce((a, t) => {
+    const f = fractionToday.get(t.id);
+    if (f === undefined) return a;
+    const owed = Math.max(0, 1 - progressOf(priorFractions.get(t.id) ?? []));
+    return a + t.pointValue * Math.min(f, owed);
+  }, 0);
 
   /** The band's spend today, and the off-schedule work beside it. */
   const commitmentEarned = commitmentTasks
@@ -681,9 +766,22 @@ export async function loadDay(
      */
     const value = commitmentUnitIds.has(t.unitId)
       ? commitmentValue(t.id)
-      : load.expected > 0
-        ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
-        : 0;
+      : restDay
+        ? Math.round(restDayRunPoints(t.pointValue, averageExpected))
+        : load.expected > 0
+          ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
+          : 0;
+    // On a rest day a life task's run is early work at the average
+    // day's rate, or an extra run at the extra-run rate (ADR-0037 §3).
+    const sRest =
+      restDay && !commitmentUnitIds.has(t.unitId)
+        ? {
+            ...s,
+            pointsIfCompletedNow: s.extraToday
+              ? Math.round(EXTRA_RUN_RATE * restDayRunPoints(t.pointValue, averageExpected))
+              : value,
+          }
+        : s;
     return {
       id: t.id,
       title: t.title,
@@ -702,12 +800,12 @@ export async function loadDay(
         : t.partOfDay,
       placedToday: placements.has(t.id),
       dayOrder: t.dayOrder,
-      band: s.band,
-      completedToday: s.completedToday,
-      doneCount: s.doneCount,
-      goalCount: s.goalCount,
-      extraToday: s.extraToday,
-      pointsIfCompletedNow: s.pointsIfCompletedNow,
+      band: sRest.band,
+      completedToday: sRest.completedToday,
+      doneCount: sRest.doneCount,
+      goalCount: sRest.goalCount,
+      extraToday: sRest.extraToday,
+      pointsIfCompletedNow: sRest.pointsIfCompletedNow,
       tagUnitIds: tagsByTask.get(t.id) ?? [],
       streak: streakByTask.get(t.id) ?? null,
       allowsPartial: t.allowsPartial,
@@ -724,9 +822,6 @@ export async function loadDay(
       size: t.size,
     };
   });
-
-  const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
-  const kind: DayKind = dayRow?.kind ?? "normal";
 
 
   const journal = await db
@@ -805,7 +900,10 @@ export async function loadDay(
           commitment: { band: commitmentBandOn(commitmentDay), earned: commitmentEarned },
           offScheduleCredit,
           activities: activityCredits,
+          restDay: { averageExpected, aheadWeight },
         });
+
+  const shown = todayTasks.filter((t) => restDay || !aheadLifeIds.has(t.id));
 
   return {
     date,
@@ -817,10 +915,12 @@ export async function loadDay(
     satisfactionRating: dayRow?.satisfactionRating ?? null,
     score,
     hasSnapshot: weights.size > 0,
+    restDay,
     hasTasks: tasks.length > 0,
-    due: todayTasks.filter((t) => t.band === "due"),
-    week: todayTasks.filter((t) => t.band === "week"),
-    doneThisWeek: todayTasks.filter((t) => t.band === "doneThisWeek"),
+    // Life one-offs planned for later are only on a rest day's list.
+    due: shown.filter((t) => t.band === "due"),
+    week: shown.filter((t) => t.band === "week"),
+    doneThisWeek: shown.filter((t) => t.band === "doneThisWeek"),
     activities,
     journal: journal.map((j) => ({ id: j.id, body: j.body })),
     photos: photos.map((p) => ({ id: p.id, uri: p.uri, caption: p.caption })),
@@ -1308,7 +1408,10 @@ async function cacheDayScore(date: string): Promise<void> {
   // `recompute`: this only ever runs straight after the user changed
   // something about this day, and that edit must land even on a day
   // that has settled.
-  const day = await loadDay(date, { recompute: true });
+  let day = await loadDay(date, { recompute: true });
+  if (await recreditActivities(date, day.restDay)) {
+    day = await loadDay(date, { recompute: true });
+  }
   const plan: PlanSnapshotTask[] = [...day.due, ...day.week, ...day.doneThisWeek].map(
     (t) => ({
       taskId: t.id,

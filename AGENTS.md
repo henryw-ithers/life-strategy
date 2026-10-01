@@ -143,6 +143,13 @@ second one. What separates it is its **band**, not its table
   it wasn't scheduled for, paid its scheduled-day worth (ADR-0032 §4).
   Those are the only uncapped routes above 100. Do not add a new
   credit source without deciding which side of that line it falls on.
+- **A day with nothing due is a rest day, automatically** (ADR-0037):
+  no life work due, no commitment work scheduled, and a plan behind it
+  (`isRestDay`). It scores **70**, activities fill the last 30 at three
+  times the usual rate, and early work — runs owed later this week,
+  life one-offs planned within the week, commitment work done ahead,
+  extra runs — is paid on top, uncapped. It is never offered or chosen
+  and is not a day kind; a day off on such a day stays ungraded.
 - Daily grades are **private by default**. Never add leaderboards,
   score comparisons, or competitive rankings — these are excluded by
   design, not omitted by accident.

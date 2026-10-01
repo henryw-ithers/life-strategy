@@ -66,6 +66,20 @@ export const EXTRA_RUN_RATE = 0.5;
 export const UNPLANNED_CAP = UNPLANNED_BAND;
 
 /**
+ * A rest day's floor (ADR-0037): what calling one on a day with nothing
+ * due is worth before anything is done. Henry, 2026-10-01: *"call a
+ * rest day which gives an automatic 70%."*
+ */
+export const REST_DAY_BASE = 70;
+
+/**
+ * What activities may add on a rest day — the rest of the way to 100.
+ * Wider than `UNPLANNED_CAP` because a rest day has no planned band for
+ * activities to sit beside; the day is the activities (ADR-0037 §2).
+ */
+export const REST_DAY_UNPLANNED = 30;
+
+/**
  * `MISSED_DAY_CREDIT` **retired 2026-08-13.** An elapsed day with no
  * stored row was filled at 0.5 of the standard denominator so skipped
  * days could not vanish from it. Two problems ended it:
@@ -153,6 +167,9 @@ export const UNPLANNED_CAP = UNPLANNED_BAND;
  *    early recurring session stands in for its next scheduled one, and
  *    that session leaves its own day (ADR-0032 §4).
  *  - Part credit reaches the day: a part-done run counts its fraction
- *    of its weight (ADR-0014). */
+ *    of its weight (ADR-0014).
+ *  - A day with nothing due and a plan behind it is a rest day: 70,
+ *    activities up to 30, early work on top (ADR-0037). Before, it was
+ *    ungraded. */
 export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;

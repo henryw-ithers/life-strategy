@@ -761,6 +761,16 @@ export default function TodayScreen() {
               </AppText>
             ) : null}
 
+            {/* A rest day (ADR-0037): automatic on a day that asks
+                nothing, never offered or chosen. Said once, plainly,
+                as what the day is — not as a reward or a warning. */}
+            {day.restDay ? (
+              <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
+                Nothing's due — a rest day. It starts at 70; activities
+                add up to 30, and anything you do early counts on top.
+              </AppText>
+            ) : null}
+
             {/* ── The day's record: ahead of tasks on past days, where
                 the log leads; below them on today, where doing leads. ── */}
             {!isToday ? (
