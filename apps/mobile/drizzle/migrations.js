@@ -15,8 +15,8 @@ import m0010 from './0010_famous_scarecrow.sql';
 import m0011 from './0011_careless_bloodstorm.sql';
 import m0012 from './0012_perfect_havok.sql';
 import m0013 from './0013_nifty_scrambler.sql';
-import m0014 from './0014_cold_bromley.sql';
-import m0015 from './0015_bizarre_wallow.sql';
+import m0014 from './0014_spotty_dagger.sql';
+import m0015 from './0015_thin_shinko_yamashiro.sql';
 
   export default {
     journal,

@@ -24,7 +24,6 @@ import {
   taskCompletionTag,
   unitWeight,
 } from "./schema";
-import { getGapCoefficientOverride } from "./settings";
 import { currentLocalDate, recacheAllDayScores } from "./today";
 import { loadPlan, recomputeAllUnitPoints } from "./tasks";
 
@@ -235,17 +234,13 @@ async function trailingEffort(
 export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string> {
   const snapshotId = Crypto.randomUUID();
   const takenAt = new Date().toISOString();
-  const gapCoefficientOverride = await getGapCoefficientOverride();
-
+  // Satisfaction is stored on every `rating` row and read by the
+  // portfolio graph, `unitProfile` and calibration — it just does not
+  // derive a weight any more (ADR-0028 §1), so it is not passed here.
   const weights = deriveWeights(
     entries
       .filter((e) => e.includeInScoring)
-      .map((e) => ({
-        unitId: e.unitId,
-        importance: e.importance,
-        satisfaction: e.satisfaction,
-      })),
-    gapCoefficientOverride ?? undefined,
+      .map((e) => ({ unitId: e.unitId, importance: e.importance })),
   );
 
   /**

@@ -252,7 +252,7 @@ export default function TodayScreen() {
     useCallback(() => {
       void reload(selected ?? currentLocalDate(), viewMonth).then((d) => {
         allDoneBefore.current =
-          d.daily.length > 0 && d.daily.every((t) => t.completedToday);
+          d.due.length > 0 && d.due.every((t) => t.completedToday);
       });
     }, [reload, selected, viewMonth]),
   );
@@ -295,7 +295,7 @@ export default function TodayScreen() {
       `${task.title} ${isDone(task) ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
     );
     const allDone =
-      next.daily.length > 0 && next.daily.every((t) => t.completedToday);
+      next.due.length > 0 && next.due.every((t) => t.completedToday);
     if (allDone && !allDoneBefore.current) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -325,7 +325,7 @@ export default function TodayScreen() {
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
 
   // Presentation-level re-sort: anything done today lives in Completed.
-  const allTasks = day ? [...day.daily, ...day.week, ...day.doneThisWeek] : [];
+  const allTasks = day ? [...day.due, ...day.week, ...day.doneThisWeek] : [];
 
   /**
    * Ordering and the other-days split both live in `planning.ts`, so
@@ -359,7 +359,7 @@ export default function TodayScreen() {
   }
 
   const openTasks = day
-    ? [...day.daily, ...day.week].filter((t) => !isDone(t))
+    ? [...day.due, ...day.week].filter((t) => !isDone(t))
     : [];
 
   const isElsewhere = (t: TodayTask): boolean =>

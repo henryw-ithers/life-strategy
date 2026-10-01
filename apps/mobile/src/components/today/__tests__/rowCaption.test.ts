@@ -55,7 +55,7 @@ describe("the week's count", () => {
   });
 
   it("never shows on a daily task", () => {
-    expect(rowCaption(weekly({ timesPerWeek: 7, band: "daily" }))).toBeNull();
+    expect(rowCaption(weekly({ timesPerWeek: 7, band: "due" }))).toBeNull();
   });
 });
 
@@ -80,7 +80,7 @@ describe("progress", () => {
 
 describe("a daily task's run", () => {
   const daily = (streak: number | null, over: Partial<CaptionTask> = {}) =>
-    weekly({ timesPerWeek: 7, band: "daily", streak, ...over });
+    weekly({ timesPerWeek: 7, band: "due", streak, ...over });
 
   it("shows from a week up, and not before", () => {
     expect(rowCaption(daily(6))).toBeNull();

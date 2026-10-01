@@ -51,6 +51,7 @@ export async function loadGraphSnapshots(): Promise<GraphSnapshot[]> {
 
   return snaps.map((s) => ({
     id: s.id,
+    month: monthKey(s.takenAt),
     label:
       (monthCounts.get(monthKey(s.takenAt)) ?? 1) > 1
         ? dayLabel(s.takenAt)

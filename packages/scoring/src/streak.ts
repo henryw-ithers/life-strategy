@@ -129,18 +129,64 @@ export function computeStreak(input: StreakInput): Streak {
 }
 
 /**
- * Which habit rungs the run has passed (ADR-0015 §5's prompt, applied
- * to day counts). Reads `longest`, not `current`: a rung you reached
- * is reached, and hitting 30 then missing a day should not take it
- * back before you have even been asked about it.
+ * Which habit rungs the run has passed, in days.
+ *
+ * **Computed, not stored** (ADR-0030 §5). This used to read
+ * `milestone` rows that `setGoalMetric` seeded from `HABIT_LADDER` at
+ * the moment a goal became a habit — which meant the app wrote three
+ * rows to record a constant it already had, and a habit goal's only
+ * structure lived in a table it shared with a completely different
+ * concept. The ladder is a research number and the streak is the
+ * measurement; between them there is nothing left to persist.
+ *
+ * Reads `longest`, not `current`: a rung you reached is reached, and
+ * hitting 30 then missing a day should not take it back.
  */
-export function habitMilestonesReached(
-  streak: Streak,
-  thresholds: readonly { id: string; targetValue: number | null }[],
-): string[] {
-  return thresholds
-    .filter((m) => m.targetValue !== null && streak.longest >= m.targetValue)
-    .map((m) => m.id);
+export function habitRungsReached(streak: Streak): number[] {
+  return HABIT_LADDER.filter((days) => streak.longest >= days);
+}
+
+/**
+ * The date a run **first** reached `days`, or null if it never has.
+ *
+ * A rung is an achievement, and an achievement belongs in the month it
+ * happened. The old ladder asked the user when — a rung was often
+ * noticed late, and filing "I passed 30 days" in the wrong month puts a
+ * false entry in the log of a life (ADR-0015 §5). Nothing has to ask
+ * any more: the completion dates *are* the evidence, so the day is
+ * derived rather than remembered.
+ *
+ * Walks the same contiguity rule `longestRun` does — a declared day off
+ * bridges a run, anything else ends it — and returns the first date at
+ * which any run stood at `days` days long.
+ */
+export function rungReachedOn(input: StreakInput, days: number): string | null {
+  if (days <= 0) return null;
+  const doneSet = new Set(input.done);
+  const offSet = new Set(input.daysOff ?? []);
+  const sorted = [...doneSet].sort();
+
+  let run = 0;
+  let previous: string | null = null;
+  for (const day of sorted) {
+    if (previous === null) {
+      run = 1;
+    } else {
+      let cursor = addDays(previous, 1);
+      let contiguous = true;
+      while (cursor < day) {
+        if (!offSet.has(cursor) && !doneSet.has(cursor)) {
+          contiguous = false;
+          break;
+        }
+        cursor = addDays(cursor, 1);
+      }
+      run = contiguous ? run + 1 : 1;
+    }
+    if (run >= days) return day;
+    previous = day;
+  }
+  return null;
 }
 
 /** The ladder every habit goal in the content library uses. 66 is

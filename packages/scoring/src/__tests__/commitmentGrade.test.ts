@@ -1,222 +1,230 @@
 /**
- * Spending the commitment band (ADR-0032).
+ * Spending the commitment band (ADR-0032, formula v10).
  *
- * `bandPointValues` *prices* a day; `computeDayScore` *spends* it. The
- * two have to agree, and the first version of this pair did not: the
- * band priced a day at 60 and the grade paid 20, because a commitment
- * task is non-daily and was being squashed into the variable cap.
+ * `commitmentPointValues` *prices* a commitment day; `computeDayScore`
+ * *spends* it, beside ADR-0029's planned fraction and the unplanned
+ * band. On a commitment day the band is that share of the whole day and
+ * everything else is scaled into what it leaves, so the two halves have
+ * to agree on one total of 100.
  */
 import { describe, expect, it } from "vitest";
 
-import { VARIABLE_BAND } from "../bands";
-import { computeDayScore } from "../grade";
+import { PLANNED_BAND, UNPLANNED_BAND } from "../bands";
+import { computeDayLoad, type LoadTask } from "../dayLoad";
+import { computeDayScore, deriveChecklist, type DayScoreInput } from "../grade";
 
-const commitment = (pointValue: number, completedToday = true) => ({
-  unitId: "comp2521",
-  pointValue,
-  timesPerWeek: 3,
-  completedToday,
-  extraToday: false,
-  isCommitment: true,
-});
+const date = "2026-07-17"; // Friday; the week opens Sunday 07-12
 
-const dailyHabit = (pointValue: number, completedToday = true) => ({
-  unitId: "hygiene",
-  pointValue,
+const habit = (taskId: string, weight = 10): LoadTask => ({
+  taskId,
+  weight,
   timesPerWeek: 7,
-  completedToday,
-  extraToday: false,
+  pinnedWeekdays: [],
 });
 
-const weeklyLifeTask = (pointValue: number, completedToday = true) => ({
-  unitId: "exercise-fitness",
-  pointValue,
-  timesPerWeek: 3,
-  completedToday,
-  extraToday: false,
-});
+const loadOf = (tasks: LoadTask[], doneIds: string[]) =>
+  computeDayLoad(
+    tasks,
+    doneIds.map((taskId) => ({ taskId, localDate: date })),
+    date,
+  );
 
-describe("the regression this was written for", () => {
-  it("pays the band rather than capping it at the variable band", () => {
-    const tasks = [commitment(20), commitment(20), commitment(20)];
+const score = (over: Partial<DayScoreInput> & Pick<DayScoreInput, "load">) =>
+  computeDayScore({ kind: "normal", ...over });
 
-    // Without the band, all three are ordinary non-daily work and the
-    // 20-point variable cap eats them: priced 60, paid 20.
-    expect(
-      computeDayScore({ kind: "normal", satisfactionRating: null, tasks }).earned,
-    ).toBe(VARIABLE_BAND);
-
-    // With it, they are spent from their own band.
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 60,
-      }).earned,
-    ).toBe(60);
-  });
-});
+const NOTHING = loadOf([], []);
 
 describe("an ordinary day is untouched", () => {
-  const tasks = [dailyHabit(7), weeklyLifeTask(5)];
+  const load = loadOf([habit("a"), habit("b")], ["a"]);
 
-  it("scores identically with no band and with a null band", () => {
-    const plain = computeDayScore({
-      kind: "normal",
-      satisfactionRating: null,
-      tasks,
-    });
-    const nulled = computeDayScore({
-      kind: "normal",
-      satisfactionRating: null,
-      tasks,
-      commitmentBand: null,
-    });
-    expect(nulled).toEqual(plain);
+  it("scores identically with no band and with a zero band", () => {
+    const plain = score({ load });
+    expect(score({ load, commitment: { band: 0, earned: 0 } })).toEqual(plain);
   });
 
-  it("treats a zero band as no band", () => {
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 0,
-      }).earned,
-    ).toBe(computeDayScore({ kind: "normal", satisfactionRating: null, tasks }).earned);
+  it("is still main's v9 day: 90 × the fraction done", () => {
+    expect(score({ load }).earned).toBe(PLANNED_BAND / 2);
+  });
+
+  it("stays ungraded when nothing of either kind is due", () => {
+    expect(score({ load: NOTHING }).base).toBeNull();
+    expect(score({ load: NOTHING, commitment: { band: 0, earned: 0 } }).base).toBeNull();
   });
 });
 
-describe("the life bands scale into what the band leaves", () => {
-  it("shrinks the variable cap on a commitment day", () => {
-    // Two weekly life tasks worth 15 each. Off a commitment day the
-    // variable band pays 20 of that; at a band of 60 it holds only 8.
-    const tasks = [weeklyLifeTask(15), { ...weeklyLifeTask(15), unitId: "hobbies" }];
-    expect(
-      computeDayScore({ kind: "normal", satisfactionRating: null, tasks }).earned,
-    ).toBe(20);
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 60,
-      }).earned,
-    ).toBe(8);
+describe("the band is that share of the whole day — ADR-0032 §1", () => {
+  const tasks = [habit("a"), habit("b")];
+
+  it("pays the band in full when today's commitment work is done", () => {
+    expect(score({ load: loadOf(tasks, []), commitment: { band: 40, earned: 40 } }).earned)
+      .toBe(40);
   });
 
-  it("shrinks the unplanned pool too, so a day cannot exceed itself", () => {
-    // Activities draw on whatever the variable band has left. At a band
-    // of 60 that is 8, not 20 — otherwise a commitment day could pay
-    // out more than it priced.
+  it("pays only what was actually completed", () => {
+    expect(score({ load: loadOf(tasks, []), commitment: { band: 60, earned: 20 } }).earned)
+      .toBe(20);
+  });
+
+  it("scales the planned band into what the band leaves", () => {
+    // All life work done at a band of 40: 90 × 0.6 = 54.
+    expect(score({ load: loadOf(tasks, ["a", "b"]), commitment: { band: 40, earned: 0 } }).earned)
+      .toBe(54);
+  });
+
+  it("adds up to 100 when everything planned is done, at every band", () => {
+    for (const band of [10, 25, 40, 55, 60]) {
+      const s = score({
+        load: loadOf(tasks, ["a", "b"]),
+        commitment: { band, earned: band },
+        activities: [[{ unitId: "friendship", pointsCredited: 50 }]],
+      });
+      expect(s.earned).toBe(100);
+      expect(s.possible).toBe(100);
+    }
+  });
+
+  it("finishes a planned day at the band plus 90 of what it leaves", () => {
+    // 40 + 90 × 0.6 = 94; the unplanned band holds the last 6. Only the
+    // unplanned share shrinks, never the band (Henry: the 10–60 is how
+    // much of the total comes from commitments).
+    const s = score({ load: loadOf(tasks, ["a", "b"]), commitment: { band: 40, earned: 40 } });
+    expect(s.earned).toBe(40 + PLANNED_BAND * 0.6);
+  });
+
+  it("never pays more than the band, even if values disagree", () => {
+    // Pool members are each worth a slot, so doing more of a pool than
+    // planned can price above the band. The cap is the ceiling the
+    // planned count promised (ADR-0033 §3).
+    expect(score({ load: loadOf(tasks, []), commitment: { band: 40, earned: 100 } }).earned)
+      .toBe(40);
+  });
+});
+
+describe("a commitment day with nothing of your own life due", () => {
+  it("is graded rather than ungraded", () => {
+    expect(score({ load: NOTHING, commitment: { band: 40, earned: 0 } }).base).toBe(0);
+  });
+
+  it("gives the band the planned share, so a finished day lands at 94", () => {
+    // A share exists only where it can be earned (ADR-0032 §1): with no
+    // life work due, the 90 × 0.6 the planned band would hold would be
+    // stranded, capping the day at 40 plus the unplanned scraps.
+    expect(score({ load: NOTHING, commitment: { band: 40, earned: 40 } }).earned).toBe(94);
+    expect(score({ load: NOTHING, commitment: { band: 40, earned: 20 } }).earned).toBe(47);
+  });
+});
+
+describe("the unplanned band scales too", () => {
+  it("holds 10 × the life share on a commitment day", () => {
     const activities = [[{ unitId: "friendship", pointsCredited: 20 }]];
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks: [dailyHabit(3)],
-        activities,
-        commitmentBand: 60,
-      }).unplanned,
-    ).toBe(8);
+    const load = loadOf([habit("a")], []);
+    expect(score({ load, activities }).unplanned).toBe(UNPLANNED_BAND);
+    expect(score({ load, activities, commitment: { band: 60, earned: 0 } }).unplanned)
+      .toBeCloseTo(4);
   });
-});
 
-describe("the unplanned pool never goes negative", () => {
-  it("floors at zero rather than cancelling an overspend", () => {
-    // Found by mutation testing. Without the floor, a `variableEarned`
-    // that exceeded its band produced a **negative** unplanned credit
-    // that quietly cancelled the overspend — so a mis-scaled cap gave a
-    // correct-looking total built from a 20-point overspend and a −12
-    // credit. A wrong number is recoverable; a right number for the
-    // wrong reason is not.
-    const score = computeDayScore({
-      kind: "normal",
-      satisfactionRating: null,
-      tasks: [weeklyLifeTask(15), { ...weeklyLifeTask(15), unitId: "hobbies" }],
-      commitmentBand: 60,
+  it("scales a special day's rating bonus with it", () => {
+    const load = loadOf([habit("a")], []);
+    const s = computeDayScore({
+      kind: "special",
+      satisfactionRating: 10,
+      load,
+      commitment: { band: 50, earned: 0 },
     });
-    expect(score.unplanned).toBeGreaterThanOrEqual(0);
-    expect(score.unplannedForgone).toBeGreaterThanOrEqual(0);
+    expect(s.unplanned).toBeCloseTo(5);
+  });
+
+  it("scales a bonus that sits under the cap, not only the cap", () => {
+    // Rating 4 claims 4 of the 10; at a band of 50 that is 2, under the
+    // scaled cap of 5 — so only scaling the bonus itself gets here.
+    const s = computeDayScore({
+      kind: "special",
+      satisfactionRating: 4,
+      load: loadOf([habit("a")], []),
+      commitment: { band: 50, earned: 0 },
+    });
+    expect(s.unplanned).toBeCloseTo(2);
   });
 
   it("is never negative at any band, with or without activities", () => {
-    for (const band of [null, 10, 25, 40, 60]) {
+    for (const band of [0, 10, 25, 40, 60]) {
       for (const activities of [undefined, [[{ unitId: "f", pointsCredited: 30 }]]]) {
-        const score = computeDayScore({
-          kind: "normal",
-          satisfactionRating: null,
-          tasks: [dailyHabit(7), weeklyLifeTask(25)],
-          commitmentBand: band,
+        const s = score({
+          load: loadOf([habit("a"), habit("b")], ["a"]),
+          commitment: { band, earned: band },
           activities,
         });
-        expect(score.unplanned).toBeGreaterThanOrEqual(0);
-        expect(score.earned).toBeLessThanOrEqual(100);
+        expect(s.unplanned).toBeGreaterThanOrEqual(0);
+        expect(s.unplannedForgone).toBeGreaterThanOrEqual(0);
+        expect(s.earned).toBeLessThanOrEqual(100);
       }
     }
   });
 });
 
-describe("the band's own cap", () => {
-  it("never pays more than the band, even if values disagree", () => {
-    // bandPointValues divides exactly `band` points across the day's
-    // eligible work, so this should not arise — the cap is here so a
-    // disagreement between pricing and spending fails safe rather than
-    // inflating a day.
-    const tasks = [commitment(50), commitment(50)];
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 40,
-      }).earned,
-    ).toBe(40);
-  });
-
-  it("pays only what was actually completed", () => {
-    const tasks = [commitment(20), commitment(20, false), commitment(20, false)];
-    expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 60,
-      }).earned,
-    ).toBe(20);
+describe("extra runs scale with the life share", () => {
+  it("pays an extra run less on a commitment day than an ordinary one", () => {
+    const tasks: LoadTask[] = [{ taskId: "x", weight: 10, timesPerWeek: 1, pinnedWeekdays: [] }, habit("a")];
+    const rows = [
+      { taskId: "x", localDate: "2026-07-13" },
+      { taskId: "x", localDate: date },
+      { taskId: "a", localDate: date },
+    ];
+    const load = computeDayLoad(tasks, rows, date);
+    const plain = score({ load }).earned;
+    const banded = score({ load, commitment: { band: 50, earned: 50 } }).earned;
+    // Plain: 90 + extra. Banded: 50 + 45 + extra / 2.
+    expect(plain - PLANNED_BAND).toBeGreaterThan(banded - 95);
+    expect(banded - 95).toBeGreaterThan(0);
   });
 });
 
-describe("a full commitment day adds up", () => {
-  it("band plus scaled routine, within 100", () => {
-    const tasks = [
-      commitment(20),
-      commitment(20),
-      commitment(20),
-      dailyHabit(3),
-    ];
-    const score = computeDayScore({
-      kind: "normal",
-      satisfactionRating: null,
-      tasks,
-      commitmentBand: 60,
-    });
-    expect(score.earned).toBe(63);
-    expect(score.possible).toBe(100);
-    expect(score.earned).toBeLessThanOrEqual(100);
+describe("the checklist prices life work in the life share", () => {
+  it("shows each run's points scaled by the share", () => {
+    const tasks = [habit("a"), habit("b")];
+    const [plain] = deriveChecklist(tasks, [], date);
+    const [scaled] = deriveChecklist(tasks, [], date, 0.6);
+    expect(plain!.pointsIfCompletedNow).toBe(45);
+    expect(scaled!.pointsIfCompletedNow).toBe(27);
+  });
+});
+
+describe("commitment work done off its schedule (ADR-0032 §4)", () => {
+  const load = loadOf([habit("a")], ["a"]);
+
+  it("pays its scheduled-day worth in full", () => {
+    expect(score({ load: loadOf([habit("a")], []), offScheduleCredit: 12 }).earned).toBe(12);
   });
 
-  it("clamps an out-of-range band rather than honouring it", () => {
-    const tasks = [commitment(80)];
-    // 80 is above the permitted ceiling and is clamped to 60.
+  it("is not unplanned credit — it never touches the pool", () => {
+    // Henry, 2026-09-30: "remove the cap."
+    const s = score({
+      load: loadOf([habit("a")], []),
+      offScheduleCredit: 12,
+      activities: [[{ unitId: "friendship", pointsCredited: 8 }]],
+    });
+    expect(s.unplanned).toBe(8);
+    expect(s.unplannedForgone).toBe(0);
+    expect(s.earned).toBe(20);
+  });
+
+  it("can take a day past 100, as extra runs can", () => {
+    const s = score({
+      load,
+      offScheduleCredit: 12,
+      activities: [[{ unitId: "friendship", pointsCredited: 10 }]],
+    });
+    expect(s.earned).toBe(112);
+  });
+
+  it("is not scaled by a commitment band — it is paid at its own worth", () => {
     expect(
-      computeDayScore({
-        kind: "normal",
-        satisfactionRating: null,
-        tasks,
-        commitmentBand: 80,
-      }).earned,
-    ).toBe(60);
+      score({ load: loadOf([habit("a")], []), commitment: { band: 40, earned: 0 }, offScheduleCredit: 10 })
+        .earned,
+    ).toBe(10);
+  });
+
+  it("is never negative", () => {
+    expect(score({ load: loadOf([habit("a")], []), offScheduleCredit: -5 }).earned).toBe(0);
   });
 });

@@ -1,5 +1,5 @@
 /**
- * The unit picker's rules, commitments included (ADR-0029 §3).
+ * The unit picker's rules, commitments included (ADR-0035 §3).
  */
 import { describe, expect, it } from "vitest";
 

@@ -5,7 +5,7 @@
  * and a second sheet would be a second set of metrics to keep in step.
  * What changes is the copy and whether a share is asked for — a
  * sub-commitment has none, since sub-commitments price nothing
- * (ADR-0029 §1) and a control that stored an inert number would be
+ * (ADR-0035 §1) and a control that stored an inert number would be
  * worse than no control.
  *
  * **The share is a weight, not a percentage**, and the sheet says so by

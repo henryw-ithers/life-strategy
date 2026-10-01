@@ -280,13 +280,19 @@ export function isoWeekday(localDate: string): Weekday {
 }
 
 /**
- * Shown wherever a task is being filed under a communal unit — the add
- * dialog, the edit sheet, and the unit's own panel on the Tasks screen
- * (ADR-0027 §4). Not a gate: the unit takes the task exactly like any
- * other. One line, shown once per surface, never a confirmation step.
+ * Shown where a task is being **filed** under a communal unit — the add
+ * dialog and the edit sheet (ADR-0027 §4). Not a gate: the unit takes
+ * the task exactly like any other. One line, never a confirmation step.
+ *
+ * **Halved 2026-08-26, and dropped from the Tasks screen's unit panel.**
+ * Two sentences and thirty words was a paragraph on a control, and on a
+ * panel opened to look at a list it was the app explaining itself to
+ * someone who had not asked. Both facts survive the cut: it scores
+ * normally, and tagging exists. The reasoning behind them is
+ * ADR-0025's, and an ADR is where reasoning belongs.
  */
 export const COMMUNAL_TASK_NOTE =
-  "Tasks here score like anywhere else. What matters most in a relationship often isn't a checklist item — press and hold a completion to also count it here, any time.";
+  "Scores like anywhere else — and you can press and hold any completion to also count it here.";
 
 // ── Carry-forward (ADR-0033 §2) ─────────────────────────────────────
 

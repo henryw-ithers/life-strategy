@@ -39,20 +39,33 @@ describe("unitProfile", () => {
   });
 
   it("calls a low-weight unit light however wide its gap", () => {
-    // ADR-0003's bands cap this unit at one task. Offering a
-    // gap-closing plan would spend attention the diagnostic said to
-    // spend elsewhere.
-    expect(unitProfile({ weight: 2, importance: 9, satisfaction: 2 })).toBe(
+    // The bands cap this unit at one task. Offering a gap-closing plan
+    // would spend attention the diagnostic said to spend elsewhere.
+    // The thresholds moved with ADR-0028 §2's flattening; the rule did
+    // not.
+    expect(unitProfile({ weight: 1, importance: 9, satisfaction: 2 })).toBe(
       "light",
     );
-    expect(unitProfile({ weight: 4, importance: 9, satisfaction: 2 })).toBe(
+    expect(unitProfile({ weight: 3, importance: 9, satisfaction: 2 })).toBe(
       "light",
     );
   });
 
   it("stops being light as soon as the band allows a second task", () => {
-    expect(unitProfile({ weight: 5, importance: 9, satisfaction: 2 })).toBe(
+    expect(unitProfile({ weight: 4, importance: 9, satisfaction: 2 })).toBe(
       "gap-closing",
     );
+  });
+
+  /**
+   * ADR-0028 §1 leaves satisfaction with exactly one job, and this is
+   * it: it no longer derives a single point, and it still decides
+   * whether a unit needs closing a gap or holding a line.
+   */
+  it("still reads satisfaction, which is now all satisfaction does", () => {
+    const at = (satisfaction: number) =>
+      unitProfile({ weight: 7, importance: 9, satisfaction });
+    expect(at(2)).toBe("gap-closing");
+    expect(at(9)).toBe("maintenance");
   });
 });

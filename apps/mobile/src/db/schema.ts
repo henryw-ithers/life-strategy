@@ -63,7 +63,7 @@ export const lifeUnit = sqliteTable("life_unit", {
     .notNull()
     .default("instrumental"),
   /**
-   * The commitment this unit sits inside (ADR-0029 §1). Null for all 18
+   * The commitment this unit sits inside (ADR-0035 §1). Null for all 18
    * life units and for a commitment itself; set on a **sub-commitment**
    * — School → COMP2521.
    *
@@ -210,6 +210,22 @@ export const goal = sqliteTable("goal", {
   ...timestamps,
 });
 
+/**
+ * **Retired 2026-08-26 (ADR-0030 §5). Nothing writes this table.**
+ *
+ * It held ADR-0007 §3's ordered ladder: rungs with one `current` at a
+ * time, promoted as each was completed. A goal's authored child is a
+ * `goal_condition` now — parallel, never completing — and a habit's
+ * 7 · 30 · 66 rungs, the one ladder worth keeping, turned out to be a
+ * constant the app was writing three rows to record; they are
+ * `HABIT_LADDER` measured against the streak instead.
+ *
+ * **The table stays and is not dropped.** The schema is forward-only
+ * (ADR-0002), rows a user already earned are theirs, the achievements
+ * those rungs generated still point here by `milestone_id`, and
+ * `deleteGoal` still clears rows belonging to a goal being removed.
+ * Nothing creates, completes, edits or reads one into the UI.
+ */
 export const milestone = sqliteTable("milestone", {
   id: text("id").primaryKey(),
   goalId: text("goal_id")
@@ -232,6 +248,46 @@ export const milestone = sqliteTable("milestone", {
    * achievement's `achieved_at`, so look-back views agree.
    */
   completedOn: text("completed_on"),
+  ...timestamps,
+});
+
+/**
+ * A **condition** on a goal (ADR-0030 §1): something that has to be
+ * true for the goal to happen.
+ *
+ * Adapted from the Harada Method's 9×9 chart, where one ambition is
+ * surrounded by eight *conditions* and each condition by its own
+ * actions. The app takes the shape and drops the fixed arity: a goal
+ * may carry any number of conditions and a condition any number of
+ * tasks, because eight empty boxes is a completeness surface and this
+ * app does not have those (ADR-0030 §3).
+ *
+ * **A condition is not a milestone**, and the difference is the whole
+ * reason it is a new table rather than a rename. A milestone is a rung
+ * on one axis — ordered, one current at a time, completed and left
+ * behind. A condition runs in *parallel* with every other condition on
+ * its goal, for the goal's whole life, and never completes. Ohtani's
+ * eight conditions all stayed live for four years.
+ *
+ * **It has no status and no metric**, deliberately. Progress on a
+ * condition is the tasks under it getting done, which the day already
+ * measures. Giving it a completion state would invent a second thing
+ * to finish and a second thing to fall behind on.
+ *
+ * **It never touches scoring.** A task's weight still comes from its
+ * unit and its rank there (`taskWeights`); this is an authoring and
+ * grouping layer, exactly as `life_unit.area_id` is for units
+ * (ADR-0021). `packages/scoring` does not import it and must not.
+ */
+export const goalCondition = sqliteTable("goal_condition", {
+  id: text("id").primaryKey(),
+  goalId: text("goal_id")
+    .notNull()
+    .references(() => goal.id),
+  title: text("title").notNull(),
+  /** Display order within the goal. Not a sequence — conditions are
+   *  parallel; this is just the order the user arranged them in. */
+  sortOrder: integer("sort_order").notNull(),
   ...timestamps,
 });
 
@@ -270,6 +326,23 @@ export const task = sqliteTable("task", {
     .references(() => lifeUnit.id),
   /** Nullable: habit tasks attach directly to their unit (ADR-0002 §1). */
   goalId: text("goal_id").references(() => goal.id),
+  /**
+   * Which of the goal's conditions this task serves (ADR-0030 §1).
+   *
+   * Nullable and additive: null means the task hangs off its unit or
+   * its goal directly, which is exactly how every task worked before
+   * conditions existed and how most will keep working. Only meaningful
+   * alongside `goal_id`.
+   *
+   * **The task's unit need not be the goal's unit** (ADR-0030 §2). A
+   * career goal may carry a "sleep enough" condition whose task lives
+   * in Sleep & recovery and is paid out of *that* unit's weight — which
+   * is the point of conditions and the reason the chart they come from
+   * spans body, mind and character rather than one domain. `task_unit`
+   * already decouples who pays from who authored (ADR-0019); this
+   * column only records where it was written.
+   */
+  conditionId: text("condition_id").references(() => goalCondition.id),
   title: text("title").notNull(),
   /**
    * What the task actually involves. Never scored.
@@ -339,17 +412,16 @@ export const task = sqliteTable("task", {
    * Non-null marks this task as a **one-off**: done once, then archived.
    *
    * It doubles as the discriminator because a one-off always has a size
-   * — that is how it is priced, at `SIZE_RATE × the unit's variable day
-   * rate`, the same arithmetic a logged activity uses. Null means an
-   * ordinary recurring task and `times_per_week` governs instead.
+   * — that is how it is priced, at `SIZE_RATE × its unit's weight`, the
+   * same three ratios a logged activity uses. Null means an ordinary
+   * recurring task and `times_per_week` governs instead.
    *
-   * One-offs are deliberately kept **out of `bandPointValues`**. Letting
-   * one into the recurring allocation would make every other non-daily
-   * task in its unit drop in value while the errand existed and jump
-   * back when it was ticked — the same instability ADR-0027's amendment
-   * removed from the variable band, reintroduced across time. The 20
-   * point cap in `computeDayScore` is what keeps generous one-off
-   * pricing from inflating a day.
+   * One-offs are deliberately kept **out of `taskWeights`**. Letting one
+   * into the recurring allocation would make every other task in its
+   * unit drop in weight while the errand existed and jump back when it
+   * was ticked — the same instability ADR-0027's amendment removed from
+   * the variable band, reintroduced across time. A one-off joins the
+   * day's flexible pool like any other unpinned work (ADR-0029 §1).
    */
   oneOffSize: text("one_off_size", { enum: ["quick", "normal", "big"] }),
   /** The day it was planned for. Null is "no particular day". It never
@@ -362,7 +434,7 @@ export const task = sqliteTable("task", {
   oneOffDue: text("one_off_due"),
   /**
    * Start and end as **integer minutes from local midnight**, 0–1439,
-   * or null for a task with no clock time (ADR-0030).
+   * or null for a task with no clock time (ADR-0036).
    *
    * Any task may carry one and **nothing requires one** — part-of-day
    * stays the default and no flow prompts for a time. Those defaults
@@ -574,14 +646,14 @@ export const pool = sqliteTable("pool", {
   localDate: text("local_date").notNull(),
   /**
    * Which window on that day, as the commitment whose block it follows
-   * — the cue form (ADR-0030 §3), which survives a timetable change
+   * — the cue form (ADR-0036 §3), which survives a timetable change
    * where a clock time would silently become wrong. Null means a
    * part-of-day window on a day with no commitments.
    */
   afterTaskId: text("after_task_id").references((): AnySQLiteColumn => task.id),
   /** Which part of the day, when no commitment bounds the window. */
   partOfDay: text("part_of_day", { enum: ["morning", "afternoon", "evening"] }),
-  /** 1..members. Clamped on write and again in `bandPointValues`. */
+  /** 1..members. Clamped on write and again in `commitmentPointValues`. */
   plannedCount: integer("planned_count").notNull().default(1),
   ...timestamps,
 });

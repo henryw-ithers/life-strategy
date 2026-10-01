@@ -14,8 +14,13 @@
  * The ceiling is the app having a mild opinion and the copy says so
  * plainly instead of letting the control just stop. A limit that
  * refuses without explaining reads as a bug.
+ *
+ * Since formula v10 a task's points are a property of the day (ADR-0029
+ * §4), so the sheet shows what the *bands* become rather than what one
+ * sample habit is worth: the band is that share of the day, and the
+ * planned and unplanned bands are scaled into the rest.
  */
-import { ROUTINE_BAND, VARIABLE_BAND } from "@glide/scoring";
+import { PLANNED_BAND, UNPLANNED_BAND } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
@@ -31,13 +36,9 @@ const MIN = 10;
 const MAX = 60;
 const STEP = 5;
 
-/** A weight-9 unit's daily task, which is a typical habit. */
-const SAMPLE_WEIGHT = 9;
-
-/** What an ordinary daily habit is worth at a given band. */
-function habitPoints(band: number | null): number {
-  const scale = band === null ? 1 : (100 - band) / 100;
-  return Math.round((ROUTINE_BAND / 100) * SAMPLE_WEIGHT * scale);
+/** A band's size on a day the commitment band has taken `band` of. */
+function scaled(size: number, band: number): number {
+  return Math.round((size * (100 - band)) / 100);
 }
 
 interface BandSheetProps {
@@ -67,7 +68,6 @@ export function BandSheet({
   };
 
   const life = 100 - value;
-  const variable = Math.round((VARIABLE_BAND * life) / 100);
 
   return (
     <Modal
@@ -146,14 +146,15 @@ export function BandSheet({
               theme={theme}
             />
             <Row
-              label="A daily habit is worth"
-              value={`${habitPoints(value)} pts`}
-              detail={`${habitPoints(null)} pts on a free day`}
+              label="Your own plan pays"
+              value={`${scaled(PLANNED_BAND, value)} pts`}
+              detail={`${PLANNED_BAND} pts on a free day`}
               theme={theme}
             />
             <Row
-              label="Weekly work shares"
-              value={`${variable} pts`}
+              label="Activities can add"
+              value={`${scaled(UNPLANNED_BAND, value)} pts`}
+              detail={`${UNPLANNED_BAND} pts on a free day`}
               theme={theme}
               last
             />

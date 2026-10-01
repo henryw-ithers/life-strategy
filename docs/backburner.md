@@ -713,7 +713,7 @@ without adding a version boundary to history.
 ## Timetable import
 
 *Parked 2026-08-21, by Henry's call, while
-[ADR-0029](adr/0029-commitments-are-custom-units.md) was being drafted.*
+[ADR-0035](adr/0035-commitments-are-custom-units.md) was being drafted.*
 
 **The idea:** stop making people type a timetable in. Henry's first
 framing was "a local AI that is pre-trained on reading university
@@ -728,7 +728,7 @@ is wrong. Three things, in the order they should happen:
   model, and runs in Expo Go. `fixed_commitment` is already the
   expanded form an importer produces — an `RRULE` with `EXDATE`s maps
   onto `weeks` plus one-off `specific_date` rows.
-- **The seam is already paid for** (ADR-0029 §7): `source` and
+- **The seam is already paid for** (ADR-0035 §7): `source` and
   `external_id` are two inert nullable columns, and every commitment is
   written through one `createCommitment()`. An importer is a second
   caller of one function, not a second write path.

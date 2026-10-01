@@ -54,7 +54,7 @@ export const AREA_INFO: Record<string, AreaInfo> = {
     ]
   },
   "home-environment": {
-    "name": "Wellness",
+    "name": "Environment",
     "description": "The conditions you live in, and the upkeep that keeps them liveable.",
     "covers": [
       "Living space: the state of where you live.",

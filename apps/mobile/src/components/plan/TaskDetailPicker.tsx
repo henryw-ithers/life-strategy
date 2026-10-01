@@ -2,7 +2,7 @@
  * The three things the app never asks for: a clock time, a size, and
  * whether the task pays part credit.
  *
- * **Collapsed until you open it, and it never opens itself.** ADR-0030
+ * **Collapsed until you open it, and it never opens itself.** ADR-0036
  * §2 makes the defaults load-bearing — `anytime`, part-of-day, no time,
  * no size — because they are now the only place the product's opinion
  * about granularity lives (PRODUCT.md principle 6). A block that

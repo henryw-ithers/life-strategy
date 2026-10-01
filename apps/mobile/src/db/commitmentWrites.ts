@@ -1,6 +1,6 @@
 /**
  * Creating, editing, archiving and deleting commitments and pools
- * (ADR-0029, ADR-0033).
+ * (ADR-0035, ADR-0033).
  *
  * Everything here is reversible and nothing here is silent. The two
  * rules the schema cannot express — **two levels only**, and **at most
@@ -41,7 +41,7 @@ export interface CreateCommitmentInput {
 /**
  * Create a commitment.
  *
- * Refuses a fourth (ADR-0029 §1). The cap is the app having an opinion,
+ * Refuses a fourth (ADR-0035 §1). The cap is the app having an opinion,
  * and a narrow one: sub-commitments are uncapped, so a semester of any
  * size still fits.
  */
@@ -54,7 +54,7 @@ export async function createCommitment(
     .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)));
   if (!canAddCommitment(existing)) {
     throw new Error(
-      `At most three commitments (ADR-0029 §1); archive one to add another.`,
+      `At most three commitments (ADR-0035 §1); archive one to add another.`,
     );
   }
 
@@ -80,7 +80,7 @@ export async function createCommitment(
  * Create a sub-commitment inside a commitment.
  *
  * Refuses a third level: a sub-commitment may not itself be a parent
- * (ADR-0029 §1). The schema cannot express that, so it is checked here.
+ * (ADR-0035 §1). The schema cannot express that, so it is checked here.
  */
 export async function createSubCommitment(
   parentId: string,
@@ -93,7 +93,7 @@ export async function createSubCommitment(
   if (!parent) throw new Error(`No such commitment: ${parentId}`);
   if (parent.parentUnitId !== null) {
     throw new Error(
-      `Commitments are two levels only (ADR-0029 §1): ` +
+      `Commitments are two levels only (ADR-0035 §1): ` +
         `"${parent.name}" is already a sub-commitment.`,
     );
   }
@@ -134,7 +134,7 @@ export async function updateCommitment(
   if (input.name !== undefined) patch.name = input.name.trim();
   // A share on a sub-commitment would be a stored number that does
   // nothing, which is worse than ignoring the argument: sub-commitments
-  // price nothing (ADR-0029 §1).
+  // price nothing (ADR-0035 §1).
   if (input.share !== undefined && row.parentUnitId === null) {
     patch.commitmentShare = input.share;
   }
@@ -143,7 +143,7 @@ export async function updateCommitment(
 }
 
 /**
- * Archive a commitment — the ordinary end (ADR-0029 §1).
+ * Archive a commitment — the ordinary end (ADR-0035 §1).
  *
  * The weight returns to the pool, past snapshots keep the unit, and the
  * log still shows the semester happened. Sub-commitments go with it,
@@ -283,7 +283,7 @@ export interface CreatePoolInput {
   localDate: string;
   taskIds: string[];
   plannedCount?: number;
-  /** The block this window follows — the cue (ADR-0030 §3). */
+  /** The block this window follows — the cue (ADR-0036 §3). */
   afterTaskId?: string | null;
   partOfDay?: "morning" | "afternoon" | "evening" | null;
 }

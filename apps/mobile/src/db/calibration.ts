@@ -8,7 +8,6 @@
 import {
   addDays,
   computeDivergence,
-  GAP_COEFFICIENT,
   meetsColdStartGate,
   weekStart,
   type ContentmentSample,
@@ -20,20 +19,9 @@ import * as Crypto from "expo-crypto";
 import { db } from "./client";
 import { loadWeekGrade } from "./grades";
 import { calibrationSuggestion, contentmentCheckin, dayGrade } from "./schema";
-import { getGapCoefficientOverride, setGapCoefficientOverride } from "./settings";
 import { currentLocalDate } from "./today";
 
 const ROLLING_WINDOW_WEEKS = 12;
-/** Below this, don't bother proposing a change (ADR-0008 §5: only
- *  meaningful divergence is worth a suggestion). */
-const SUGGESTION_THRESHOLD = 10;
-const SUGGESTION_STEP = 0.1;
-const GAP_COEFFICIENT_MIN = 0;
-const GAP_COEFFICIENT_MAX = 1;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 async function getCheckinScore(week: string): Promise<number | null> {
   const [row] = await db
@@ -145,13 +133,30 @@ export interface CalibrationState {
 }
 
 /**
- * Loads the current calibration picture, proposing a fresh
- * `gapCoefficient` suggestion when the gate has passed, the divergence
- * is meaningful, and nothing of that type is already pending — never
- * more than one open suggestion of the same kind at a time.
+ * Loads the current calibration picture: the cold-start gate, and the
+ * divergence between weekly grades and weekly check-ins once it passes.
+ *
+ * **It proposes nothing, as of formula v8 (ADR-0028 §4).** ADR-0008's
+ * one automatic suggestion moved `GAP_COEFFICIENT` — the strength of
+ * the satisfaction-gap boost — up or down when grades ran persistently
+ * higher or lower than the weeks felt. ADR-0028 §1 removed that term
+ * from the formula, so the lever it pulled no longer exists, and a
+ * suggestion that writes a setting nothing reads is worse than none.
+ *
+ * The measurement is the part worth keeping and it is untouched: the
+ * gate, the mean divergence, and the rank agreement are all still
+ * computed and still shown. What the app cannot currently do is offer
+ * to *act* on them. The obvious candidate lever is the 80/20 band
+ * split itself — but moving that is a formula change with an ADR's
+ * worth of consequences, not a slider, so §4 leaves it open rather
+ * than repointing the automation at it.
+ *
+ * Existing rows are left alone. Suggestions already stored stay
+ * readable in the history list, and `resolveSuggestion` still records
+ * a decision on them; it simply no longer applies a `gapCoefficient`.
  */
 export async function loadCalibrationState(): Promise<CalibrationState> {
-  const [samples, grades, existing] = await Promise.all([
+  const [samples, grades, suggestions] = await Promise.all([
     loadContentmentSamples(),
     loadRecentWeeklyGrades(ROLLING_WINDOW_WEEKS),
     db.select().from(calibrationSuggestion).orderBy(desc(calibrationSuggestion.createdAt)),
@@ -160,51 +165,15 @@ export async function loadCalibrationState(): Promise<CalibrationState> {
   const gate = meetsColdStartGate(samples);
   const divergence = gate ? computeDivergence(grades, samples) : null;
 
-  const hasPendingGapSuggestion = existing.some((s) => {
-    if (s.status !== "proposed") return false;
-    try {
-      return (JSON.parse(s.proposedChange) as { type: string }).type === "gapCoefficient";
-    } catch {
-      return false;
-    }
-  });
-
-  if (
-    divergence &&
-    Math.abs(divergence.meanDivergence) > SUGGESTION_THRESHOLD &&
-    !hasPendingGapSuggestion
-  ) {
-    const currentG = (await getGapCoefficientOverride()) ?? GAP_COEFFICIENT;
-    const proposedG = clamp(
-      currentG + (divergence.direction === "higher" ? -SUGGESTION_STEP : SUGGESTION_STEP),
-      GAP_COEFFICIENT_MIN,
-      GAP_COEFFICIENT_MAX,
-    );
-    const insightText =
-      divergence.direction === "higher"
-        ? "Your grades have been running higher than your weeks felt."
-        : "Your grades have been running lower than your weeks felt.";
-    await db.insert(calibrationSuggestion).values({
-      id: Crypto.randomUUID(),
-      insightText,
-      proposedChange: JSON.stringify({ type: "gapCoefficient", value: proposedG }),
-      status: "proposed",
-    });
-  }
-
-  const suggestions = await db
-    .select()
-    .from(calibrationSuggestion)
-    .orderBy(desc(calibrationSuggestion.createdAt));
-
   return { gate, divergence, suggestions };
 }
 
 /**
- * Resolves a suggestion. Accepting applies its change only now, on
- * this explicit action (ADR-0008 §1: "every change applies only on an
- * explicit yes") — dismissing just records the decision; dismissed
- * suggestions are never regenerated or re-surfaced automatically.
+ * Records the user's answer to a suggestion. ADR-0008 §1's rule — "every
+ * change applies only on an explicit yes" — is unchanged and now
+ * vacuous: nothing generates suggestions since ADR-0028 §4, and the
+ * leftover rows have no change left to apply. Dismissed suggestions are
+ * never regenerated or re-surfaced automatically.
  */
 export async function resolveSuggestion(
   id: string,
@@ -221,14 +190,9 @@ export async function resolveSuggestion(
     .set({ status, resolvedAt: new Date().toISOString() })
     .where(eq(calibrationSuggestion.id, id));
 
-  if (status === "accepted") {
-    try {
-      const change = JSON.parse(row.proposedChange) as { type: string; value: number };
-      if (change.type === "gapCoefficient") {
-        await setGapCoefficientOverride(change.value);
-      }
-    } catch {
-      // Malformed proposed_change — nothing to apply.
-    }
-  }
+  // Nothing to apply. Every suggestion the app has ever written is a
+  // `gapCoefficient` one, and formula v8 retired that constant
+  // (ADR-0028 §1) — accepting a leftover row records the user's answer
+  // and changes no arithmetic. When calibration gets a lever again,
+  // this is where applying it goes.
 }

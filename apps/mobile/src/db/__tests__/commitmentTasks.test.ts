@@ -1,11 +1,11 @@
 /**
- * Where a commitment task lives and how it is keyed (ADR-0029 §3,
+ * Where a commitment task lives and how it is keyed (ADR-0035 §3,
  * ADR-0032).
  *
  * These are the rules the write seam in `tasks.ts` enforces; that
  * module imports the database and cannot be tested here.
  */
-import { bandPointValues, type BandTask, type CommitmentDay } from "@glide/scoring";
+import { commitmentPointValues, type CommitmentDay } from "@glide/scoring";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,7 +15,6 @@ import {
   membershipsFor,
   scheduledDateFor,
   sessionFor,
-  toBandKeys,
 } from "../commitmentPlan";
 
 describe("isCommitmentUnit", () => {
@@ -72,45 +71,22 @@ describe("membershipsFor", () => {
   });
 });
 
-describe("toBandKeys", () => {
-  const day: CommitmentDay = {
-    band: 40,
-    commitments: [{ commitmentId: "school", share: 1, unitIds: ["school", "comp2521"] }],
-    eligibleTaskIds: ["essay", "lab"],
-    pools: [{ taskIds: ["essay", "lab"], plannedCount: 1 }],
-  };
-  const homes = new Map([
-    ["essay", "comp2521"],
-    ["lab", "school"],
-  ]);
-
-  it("rewrites eligible tasks and pool members onto membership keys", () => {
-    const keyed = toBandKeys(day, homes);
-    expect(keyed.eligibleTaskIds).toEqual(["essay::comp2521", "lab::school"]);
-    expect(keyed.pools?.[0]?.taskIds).toEqual(["essay::comp2521", "lab::school"]);
-    expect(keyed.band).toBe(40);
-  });
-
-  it("is what lets the band actually pay in the app", () => {
-    // The regression: the app prices `taskId::unitId`, eligibility is
-    // recorded by task. Unkeyed, the band found no eligible task and
-    // paid nobody; keyed, it pays its whole 40.
-    const tasks: BandTask[] = [
-      { id: "essay::comp2521", unitId: "comp2521", timesPerWeek: 1, rankInUnit: 1 },
-      { id: "lab::school", unitId: "school", timesPerWeek: 1, rankInUnit: 1 },
-    ];
-    const noPools = { ...day, pools: [] };
-    const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
-
-    expect(sum(bandPointValues([], tasks, noPools))).toBe(0);
-    expect(sum(bandPointValues([], tasks, toBandKeys(noPools, homes)))).toBe(40);
-  });
-
-  it("leaves a task with no known home as it was, rather than inventing a key", () => {
-    expect(toBandKeys({ ...day, pools: undefined }, new Map()).eligibleTaskIds).toEqual([
-      "essay",
-      "lab",
+describe("the band pays by task id", () => {
+  it("prices the app's own eligible ids directly", () => {
+    // The regression the old `toBandKeys` fixed: the band once priced
+    // memberships (`taskId::unitId`) while eligibility was recorded by
+    // task, so it paid nobody. Since v10 it prices tasks, keyed as the
+    // app records them, and pays its whole 40.
+    const day: CommitmentDay = {
+      band: 40,
+      commitments: [{ commitmentId: "school", share: 1, unitIds: ["school", "comp2521"] }],
+      eligibleTaskIds: ["essay", "lab"],
+    };
+    const v = commitmentPointValues(day, [
+      { id: "essay", unitId: "comp2521" },
+      { id: "lab", unitId: "school" },
     ]);
+    expect([...v.values()].reduce((a, b) => a + b, 0)).toBe(40);
   });
 });
 

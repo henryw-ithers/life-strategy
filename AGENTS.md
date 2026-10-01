@@ -81,7 +81,7 @@ Use these terms consistently in code, docs, and UI copy:
 | **Goal** | A specific, measurable, temporary objective within an SLU |
 | **Milestone** | A checkpoint inside a larger goal |
 | **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight |
-| **Commitment** | A custom `life_unit` (`is_custom`) holding tasks and **sub-commitments** — School, Work, Basketball Club. At most three. Scored from its **own band**, not the 18 units' pool (ADR-0029, ADR-0032) |
+| **Commitment** | A custom `life_unit` (`is_custom`) holding tasks and **sub-commitments** — School, Work, Basketball Club. At most three. Scored from its **own band**, not the 18 units' pool (ADR-0035, ADR-0032) |
 | **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing** — the band divides across eligible *tasks* |
 | **Window** | A stretch of the day work is placed into: the gaps between commitments where there are any, morning/afternoon/evening where there are not. Gaps under 30 min are *buffer*, not free time. Unfinished work **carries forward** to the window open now — a display rule, never a write; clock-timed tasks stay put (ADR-0033) |
 | **Pool** | Up to three equal-priced candidate tasks in a window, any of which satisfies it. Carries a *planned count* that sets the day's ceiling (ADR-0033) |
@@ -98,21 +98,47 @@ Use these terms consistently in code, docs, and UI copy:
 A **commitment** is an `is_custom` SLU with children
 (`parent_unit_id`), so it lives in the same hierarchy rather than a
 second one. What separates it is its **band**, not its table
-(ADR-0029).
+(ADR-0035).
 
 ## Product invariants — do not violate
 
 - Active SLU weights always sum to exactly **100**.
-- Weight derivation is **importance first, satisfaction-gap boost
-  second** (see ADR-0003).
+- Weight derivation reads **priority rank and nothing else**
+  (ADR-0028 §1, formula v8). ADR-0003 §1's satisfaction-gap boost is
+  withdrawn and `GAP_COEFFICIENT` retired. Satisfaction is still
+  diagnosed, stored, plotted, and read by `unitProfile` — it is the
+  measure of whether the plan is working, never an input to it. The
+  rank score is flattened to `WEIGHT_SPREAD` (2) before normalizing, so
+  no unit in the portfolio is too small to hold a task worth having.
 - Every derived value is user-overridable, and every override still
   displays the recommended value beside it.
 - Daily grades measure consistency, never one-time achievements;
   achievements feed monthly/yearly summaries only.
+- **A day is the fraction of itself you got through** (ADR-0029,
+  formula v9). The day's denominator is the weight of the work actually
+  **due** that day: every-day tasks and anything pinned to today count
+  in full, and flexible work — anything with no weekday pin — is pooled
+  and divided evenly over the days the week has left. Do what the day
+  asked and the planned band pays 90 of the 100; the other 10 is the
+  unplanned pool. Cadence decides how often something is due, never
+  what it is worth, and how many tasks a unit holds never changes what
+  that unit is worth.
+- **A task's point value is a property of the day, not the task.**
+  `task.point_value` stores a *weight* (a share of the 100); points are
+  `90 × weight ÷ that day's expected load`, computed per day. Do not
+  reintroduce a fixed stored point value.
+- **Obligations are weekly** (ADR-0029 §3). The grade reads
+  `planned_weekdays` — ADR-0024 §2 is withdrawn — but nothing anywhere
+  compares a completion's date to the day it was pinned to. Doing
+  Friday's run on Tuesday is still a perfect week; a missed pinned day
+  lapses silently and never returns as a debt; no adherence rate,
+  streak, or plan-completion percentage is computed, stored, or
+  derivable. Adding one would be the schedule-violation mechanic
+  ADR-0024 §2 existed to prevent.
 - **Planned work is what pays** (ADR-0023). At most `UNPLANNED_CAP`
   points of a day may come from anything the user didn't plan —
   activity credit and the special-day rating bonus share that one
-  pool. Two routes sit outside it, deliberately, and both are your own
+  pool (scaled with the life share on a commitment day). Two routes sit outside it, deliberately, and both are your own
   plan: extra runs of planned tasks, and commitment work done on a day
   it wasn't scheduled for, paid its scheduled-day worth (ADR-0032 §4).
   Those are the only uncapped routes above 100. Do not add a new
@@ -139,26 +165,30 @@ second one. What separates it is its **band**, not its table
   user re-rank, re-weight, or reorder *areas* into a stored value; that
   has been built once and it destroyed data.
 - **Clock times are permitted on any task, and required on none**
-  (ADR-0030, superseding ADR-0024 §1). `anytime` and part-of-day remain
+  (ADR-0036, superseding ADR-0024 §1). `anytime` and part-of-day remain
   the **defaults**, and that is now the only place the product's
   opinion about granularity lives — do not let a flow default to a
   time, and do not make one a required field.
 - **A commitment task never takes a scoring slot in a life unit.** It
   may tag one, and that `task_unit` row must be `membership = 'note'`
-  (ADR-0029 §3). A `scoring` row would double-pay across two bands,
+  (ADR-0035 §3). A `scoring` row would double-pay across two bands,
   which is the one route to inflating a day.
 - **There is no mark, grade, result or absence record anywhere in the
-  commitment model** (ADR-0029 §§2–4), so `attended ÷ scheduled` is not
+  commitment model** (ADR-0035 §§2–4), so `attended ÷ scheduled` is not
   merely forbidden, it is uncomputable. Keep it that way.
-- **On a day with scheduled commitment work the day is three bands**,
-  not two: the commitment band (user-set, 10–60, capped flat at 60)
-  then 80/20 on what remains. Every other day is unchanged
-  (ADR-0032). Commitment work is **scheduled, not counted**: it pays
-  its scheduled-day value on its day, the same value uncapped on any
-  other, and never an extra-run rate. **An early session is the next
-  session done early** — it takes that session's value, and that
-  session is then done on its own day — so each session pays once.
-  Formula v11.
+- **On a day with scheduled commitment work, the commitment band is
+  that share of the whole day** (user-set, 10–60, capped flat at 60),
+  paid as the share of today's commitment work done, and ADR-0029's
+  whole day — planned 90, unplanned 10, extra runs — is scaled into
+  what it leaves. If no life work is due that day, the band takes the
+  planned share too. Every other day is ADR-0029's day exactly
+  (ADR-0032 as amended 2026-10-01). Commitment tasks have **no weight**
+  and are never in the day's load. Commitment work is **scheduled, not
+  counted**: it pays its scheduled-day value on its day, the same
+  value uncapped on any other, and never an extra-run rate. **An early
+  session is the next session done early** — it takes that session's
+  value, and that session is then done on its own day — so each
+  session pays once. Formula v10.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
 - **All cryptography is Apple's, and adding any bundled crypto library

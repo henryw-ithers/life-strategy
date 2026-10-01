@@ -3,7 +3,7 @@
  * kept free of React Native so they can be tested (ADR-0013).
  *
  * The picker used to be one rule: tap to add, tap to remove, first pick
- * is the home. Commitments add two more, and both come from ADR-0029 §3:
+ * is the home. Commitments add two more, and both come from ADR-0035 §3:
  *
  * - **A commitment can only be the home.** The band pays a commitment's
  *   own work, found by where it is listed; a life task that merely
@@ -26,7 +26,7 @@ export interface PickableUnit {
   /** ADR-0027 §4: still editorial, no longer structural. A communal
    *  unit takes tasks like any other; picking one just shows a line. */
   motivationKind?: "instrumental" | "communal";
-  /** A commitment or one of its parts (ADR-0029). */
+  /** A commitment or one of its parts (ADR-0035). */
   commitment?: boolean;
 }
 

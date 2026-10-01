@@ -8,8 +8,8 @@
 > The decisions live in
 > [ADR-0033](../adr/0033-windows-and-pools.md) (windows, pools,
 > carry-forward, what the grid draws),
-> [ADR-0029](../adr/0029-commitments-are-custom-units.md) (the model)
-> and [ADR-0030](../adr/0030-granularity-is-the-users.md) (times).
+> [ADR-0035](../adr/0035-commitments-are-custom-units.md) (the model)
+> and [ADR-0036](../adr/0036-granularity-is-the-users.md) (times).
 > Read those first; this is the surface detail, in the shape
 > [calendar-and-day-planning.md](calendar-and-day-planning.md) set.
 
@@ -91,14 +91,14 @@ they must not be confused.
 ## Where tasks go
 
 Into windows. A task may carry an explicit clock time if its owner set
-one (ADR-0030), sit in a window without one, or sit in a part of day —
+one (ADR-0036), sit in a window without one, or sit in a part of day —
 and all three render in the same structure, because a part of day *is*
 a window on an uncommitted day.
 
 A placement may still be **cued** rather than timed — storing which
 commitment it follows, so "after the 11am lecture" survives that
 lecture moving to 2pm. No longer the required mechanism, still the
-better one where it applies (ADR-0030 §3).
+better one where it applies (ADR-0036 §3).
 
 An unplaced task sits in its part-of-day window, ordered by
 `compareForDay`. Tasks pinned to other days get their own group below,
@@ -117,7 +117,7 @@ it, and the reasoning is in
 
 1. **Commitments.** `life_unit.parent_unit_id`, the create/edit/archive
    path, `is_custom` finally written. **Fix `reset.ts` first** — it is
-   three tables behind (ADR-0029 action item 2).
+   three tables behind (ADR-0035 action item 2).
 2. **The band.** Third band in `packages/scoring`, formula v8, behind
    tests. **Run a real plan through it before any UI** — nearly every
    number in these notes is hand-computed.
@@ -140,7 +140,7 @@ it, and the reasoning is in
   in real use.
 - **Auto-placement.** Same call, and the direct route to the taskmaster
   PRODUCT.md names as an anti-reference.
-- **Commitment reminders.** ADR-0030 §4 — a course name on the lock
+- **Commitment reminders.** ADR-0036 §4 — a course name on the lock
   screen is what ADR-0010 §3 exists to prevent.
 - **Timetable import.** Backburnered; see
   [backburner.md](../backburner.md).
@@ -151,11 +151,11 @@ Kept because the reasoning is instructive:
 
 - **A schedule mode** gating the whole thing. Dissolved once
   commitments became ordinary custom units — there was nothing
-  school-shaped left to hide. ADR-0028, withdrawn.
+  school-shaped left to hide. ADR-0034, withdrawn.
 - **`fixed_commitment` as its own table**, with `term`, `course` and
   `assessment` behind it. Collapsed into `life_unit` plus two columns.
 - **Cue-based placement as the required mechanism**, on the argument
   that only externally-set things may carry times. Reversed by
-  ADR-0030: any task may, and part-of-day is merely the default.
+  ADR-0036: any task may, and part-of-day is merely the default.
 - **A fixed 07:00–22:00 grid window.** Replaced by the day's own span —
   a number the app had no business picking.

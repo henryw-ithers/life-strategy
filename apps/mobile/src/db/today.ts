@@ -6,24 +6,31 @@
  */
 import {
   addDays,
+  commitmentBandOn,
+  commitmentPointValues,
   computeDayScore,
   computeStreak,
+  computeDayLoad,
   deriveChecklist,
+  type LoadTask,
   editWindowStart,
   FORMULA_VERSION,
   fortnightStart,
   isEditable,
   isFinalized,
+  lifeShare,
   localDateOf,
   monthStart,
   nextMonthStart,
   normalizeFraction,
   partialPoints,
+  PLANNED_BAND,
   progressOf,
   storedDayScore,
-  VARIABLE_BAND,
+  UNPLANNED_BAND,
   weekStart,
   type ActivityCredit,
+  type CommitmentDay,
   type DayScore,
   type TaskBand,
 } from "@glide/scoring";
@@ -43,11 +50,7 @@ import { completionDatesAround } from "./sessionCoverage";
 import { isDueOn } from "../components/plan/planning";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { autocountForTask, removeAutocountForTask } from "./goals";
-import {
-  latestWeights as latestIncludedWeights,
-  taskPointsOn,
-  type Tx,
-} from "./tasks";
+import { latestWeights as latestIncludedWeights, type Tx } from "./tasks";
 import {
   activity,
   activityTag,
@@ -110,7 +113,7 @@ export interface TodayTask {
   streak: number | null;
   /** Whether its owner turned part credit on (ADR-0014 §1). */
   allowsPartial: boolean;
-  /** Filed under a commitment or one of its parts (ADR-0029). */
+  /** Filed under a commitment or one of its parts (ADR-0035). */
   commitment: boolean;
   /**
    * Commitment work that is not scheduled for this day. Worth its
@@ -145,7 +148,7 @@ export interface TodayTask {
    * holds one completion and picking again replaces it.
    */
   fractionToday: number | null;
-  /** Minutes from local midnight, or null (ADR-0030 §1). */
+  /** Minutes from local midnight, or null (ADR-0036 §1). */
   startMinute: number | null;
   endMinute: number | null;
   /** Effort size, or null for unsized (ADR-0026 §1). */
@@ -173,7 +176,8 @@ export interface DayData {
   score: DayScore;
   hasSnapshot: boolean;
   hasTasks: boolean;
-  daily: TodayTask[];
+  /** Anchored to today: every-day tasks and anything pinned here. */
+  due: TodayTask[];
   week: TodayTask[];
   doneThisWeek: TodayTask[];
   activities: TodayActivity[];
@@ -212,7 +216,7 @@ const AHEAD_DAYS = 7;
  * one pass.
  */
 async function scheduledDayValues(
-  tasks: readonly (Parameters<typeof scheduledDateFor>[0] & { id: string })[],
+  tasks: readonly (Parameters<typeof scheduledDateFor>[0] & { id: string; unitId: string })[],
   date: string,
   sessionDates: ReadonlyMap<string, string[]>,
 ): Promise<Map<string, number>> {
@@ -228,10 +232,22 @@ async function scheduledDayValues(
   for (const [on, ids] of byDate) {
     const day = await loadCommitmentDay(on, { includeCovered: true });
     if (day === null) continue;
-    const points = await taskPointsOn(day);
+    const points = commitmentPointValues(day, await commitmentTasksOf(day));
     for (const id of ids) values.set(id, points.get(id) ?? 0);
   }
   return values;
+}
+
+/** The `{ id, unitId }` of a commitment day's eligible tasks — all
+ *  `commitmentPointValues` needs to divide the band among them. */
+async function commitmentTasksOf(
+  day: CommitmentDay,
+): Promise<{ id: string; unitId: string }[]> {
+  if (day.eligibleTaskIds.length === 0) return [];
+  return db
+    .select({ id: task.id, unitId: task.unitId })
+    .from(task)
+    .where(inArray(task.id, [...day.eligibleTaskIds]));
 }
 
 /** Rollover is a fixed 3am until settings ship (`app_setting` ready). */
@@ -246,17 +262,17 @@ const SIZE_RATE: Record<ActivitySize, number> = {
 };
 
 /**
- * A unit's notional day-rate for a logged activity (ADR-0027 §3):
- * `VARIABLE_BAND`'s own 20% of the unit's weight, the same proportion
- * the routine band takes at 80%. A "big" activity (rate 1) is worth as
- * much as a hypothetical lone weekly task in that unit would be; a
- * "quick" one a quarter of that.
+ * A unit's notional day-rate for a logged activity (ADR-0023 §1, as
+ * resized by ADR-0029 §2): `UNPLANNED_BAND`'s own 10% of the unit's
+ * weight. A "big" activity (rate 1) draws a tenth of that unit's
+ * standing; a "quick" one a quarter of that. The band it draws from is
+ * 10 rather than 20 now, because planned work stopped sharing it.
  *
- * Under formula v6 this summed `dayShare` over a unit's actual tasks,
- * so an activity in a unit with no weekly commitment credited nothing.
- * The two bands no longer amortize against task frequency, so this
- * needs only a unit's weight — not its tasks — and an excluded unit
- * (weight 0) still credits nothing, unchanged.
+ * Before formula v7 this was derived from a unit's actual tasks, so an
+ * activity in a unit with no weekly commitment credited nothing.
+ * Nothing amortizes against task frequency any more, so this needs only
+ * a unit's weight — not its tasks — and an excluded unit (weight 0)
+ * still credits nothing, unchanged.
  */
 async function unitVariableShares(): Promise<Map<string, number>> {
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
@@ -264,7 +280,7 @@ async function unitVariableShares(): Promise<Map<string, number>> {
   const shares = new Map<string, number>();
   for (const u of units) {
     if (!u.includeInScoring) continue;
-    shares.set(u.id, (VARIABLE_BAND / 100) * (weights.get(u.id) ?? 0));
+    shares.set(u.id, (UNPLANNED_BAND / 100) * (weights.get(u.id) ?? 0));
   }
   return shares;
 }
@@ -286,6 +302,22 @@ async function latestWeights(): Promise<Map<string, number>> {
  *   its kind and leave its cached score in place, so the day would
  *   keep counting.
  */
+/**
+ * `"1,3,5"` → `[1, 3, 5]`, the ISO weekdays a task is pinned to.
+ * Empty means flexible — due some day this week, not this one.
+ *
+ * Parsed here rather than in `@glide/scoring` because the
+ * comma-separated string is a storage format, not a scoring concept;
+ * the engine takes numbers.
+ */
+function parsePinnedWeekdays(raw: string | null): number[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 7);
+}
+
 export async function loadDay(
   date: string,
   { recompute = false }: { recompute?: boolean } = {},
@@ -396,21 +428,21 @@ export async function loadDay(
     : [];
 
   /**
-   * What tasks are worth **today** (ADR-0032).
+   * What commitment work is worth **today** (ADR-0032, formula v10).
    *
-   * The commitment band makes a day's split date-dependent, so on a
-   * day with eligible commitment work `task.point_value` is not the
-   * answer: the band is carved off the top and the 18 life units are
-   * scaled into what remains. Those values are computed here rather
-   * than stored, because there is no one number that is true on both a
-   * scheduled day and a free one.
-   *
-   * On every other day this is `null` and the stored column is read
-   * exactly as before — which is what keeps a day with no commitments
-   * byte-for-byte what it is today.
+   * On a day with eligible commitment work the band is that share of
+   * the whole day, divided among today's commitment tasks
+   * (`commitmentPointValues`); the life share — planned, unplanned and
+   * extra runs alike — is scaled into what it leaves (`lifeShare`). On
+   * every other day there is no band and the day is main's two-band
+   * day exactly.
    */
   const commitmentDay = await loadCommitmentDay(date);
-  const pointsToday = commitmentDay ? await taskPointsOn(commitmentDay) : null;
+  const share = lifeShare(commitmentDay);
+  const commitmentTasks = tasks.filter((t) => commitmentUnitIds.has(t.unitId));
+  const bandValues = commitmentDay
+    ? commitmentPointValues(commitmentDay, commitmentTasks)
+    : new Map<string, number>();
   /** Which of today's rows the commitment band pays for (ADR-0032 §3). */
   const commitmentTaskIds = new Set(commitmentDay?.eligibleTaskIds ?? []);
 
@@ -421,7 +453,6 @@ export async function loadDay(
    * it pays nothing today, and it reads as finished rather than as one
    * more thing to tick.
    */
-  const commitmentTasks = tasks.filter((t) => commitmentUnitIds.has(t.unitId));
   const recurringCommitment = commitmentTasks.filter((t) => t.oneOffSize == null);
   const sessionDates = await completionDatesAround(
     recurringCommitment.map((t) => t.id),
@@ -439,9 +470,7 @@ export async function loadDay(
    * (ADR-0032 §4, amended 2026-09-30).
    *
    * Priced at the session it stands in for, and paid in full outside
-   * every cap — beside extra runs, not in the unplanned pool. Under v8
-   * these paid nothing: a commitment has no weight among the 18, so the
-   * stored value is 0.
+   * every band — beside extra runs, not in the unplanned pool.
    *
    * Decided by the schedule, not by whether a band happens to be set:
    * a one-off planned for later, or a recurring task on one of its
@@ -457,12 +486,13 @@ export async function loadDay(
   const offScheduleValue = await scheduledDayValues(offSchedule, date, sessionDates);
   const offScheduleIds = new Set(offSchedule.map((t) => t.id));
 
-  const pointsFor = (t: { id: string; pointValue: number }) =>
-    doneAhead.has(t.id)
+  /** A commitment task's worth today, in points of the whole day. */
+  const commitmentValue = (id: string) =>
+    doneAhead.has(id)
       ? 0
-      : offScheduleIds.has(t.id)
-        ? (offScheduleValue.get(t.id) ?? 0)
-        : (pointsToday?.get(t.id) ?? t.pointValue);
+      : offScheduleIds.has(id)
+        ? (offScheduleValue.get(id) ?? 0)
+        : (bandValues.get(id) ?? 0);
 
   /**
    * How much of each task is already done, and how much today's own
@@ -478,15 +508,9 @@ export async function loadDay(
   const oneOffIdSet = new Set(oneOffIds);
   const progressByTask = new Map<string, number>();
   const fractionToday = new Map<string, number>();
-  /** What today's completion actually paid, for the bands to credit. */
-  const earnedByTask = new Map<string, number>();
   for (const t of tasks) {
-    const mine = completions.filter((c) => c.taskId === t.id);
-    const todays = mine.find((c) => c.localDate === date);
-    if (todays) {
-      fractionToday.set(t.id, todays.fraction);
-      if (todays.fraction < 1) earnedByTask.set(t.id, todays.pointsEarned);
-    }
+    const todays = completions.find((c) => c.taskId === t.id && c.localDate === date);
+    if (todays) fractionToday.set(t.id, todays.fraction);
     progressByTask.set(
       t.id,
       oneOffIdSet.has(t.id)
@@ -497,16 +521,65 @@ export async function loadDay(
         : progressOf(todays ? [todays.fraction] : []),
     );
   }
+  /**
+   * What today's completion of a task pays at `value`: the whole value,
+   * or — for a part — the rounded running total minus what earlier
+   * parts already paid (ADR-0014 §3). Live, so it follows the band.
+   */
+  const paidToday = (id: string, value: number): number => {
+    const f = fractionToday.get(id);
+    if (f === undefined) return 0;
+    const prior = oneOffIdSet.has(id) ? (priorFractions.get(id) ?? []) : [];
+    return f === 1 && prior.length === 0 ? value : partialPoints(value, prior, f);
+  };
 
-  const statuses = deriveChecklist(
-    tasks.map((t) => ({
-      taskId: t.id,
-      unitId: t.unitId,
-      pointValue: pointsFor(t),
-      timesPerWeek: t.timesPerWeek,
-    })),
-    completions.map((c) => ({ taskId: c.taskId, localDate: c.localDate })),
-    date,
+  /**
+   * What the scoring engine needs to know about each life task
+   * (ADR-0029 §1): one run's weight, how often it is owed, and which
+   * weekdays it is pinned to. `point_value` is a weight since formula
+   * v9 — a share of the portfolio's 100 — not a number of points.
+   *
+   * **Commitment tasks are not in the load.** They are priced by the
+   * band, and a weight here as well would pay them twice (ADR-0035 §3).
+   * They still get a status — band, counts — from the same derivation,
+   * at no weight.
+   */
+  const toLoadTask = (t: (typeof tasks)[number]): LoadTask => ({
+    taskId: t.id,
+    weight: commitmentUnitIds.has(t.unitId) ? 0 : t.pointValue,
+    timesPerWeek: t.timesPerWeek,
+    pinnedWeekdays: parsePinnedWeekdays(t.plannedWeekdays),
+    fortnightOffset: t.fortnightOffset,
+    oneOff: t.oneOffSize != null,
+  });
+  const lifeTaskIds = new Set(
+    tasks.filter((t) => !commitmentUnitIds.has(t.unitId)).map((t) => t.id),
+  );
+  const loadTasks = tasks.filter((t) => lifeTaskIds.has(t.id)).map(toLoadTask);
+  // A part-done run counts its fraction of the weight (ADR-0014).
+  const loadCompletions = completions.map((c) => ({
+    taskId: c.taskId,
+    localDate: c.localDate,
+    fraction: c.fraction,
+  }));
+  const lifeCompletions = loadCompletions.filter((c) => lifeTaskIds.has(c.taskId));
+  const load = computeDayLoad(loadTasks, lifeCompletions, date);
+  const statuses = [
+    ...deriveChecklist(loadTasks, lifeCompletions, date, share),
+    ...deriveChecklist(
+      commitmentTasks.map(toLoadTask),
+      loadCompletions.filter((c) => !lifeTaskIds.has(c.taskId)),
+      date,
+    ),
+  ];
+
+  /** The band's spend today, and the off-schedule work beside it. */
+  const commitmentEarned = commitmentTasks
+    .filter((t) => commitmentTaskIds.has(t.id) && !offScheduleIds.has(t.id))
+    .reduce((a, t) => a + paidToday(t.id, commitmentValue(t.id)), 0);
+  const offScheduleCredit = offSchedule.reduce(
+    (a, t) => a + paidToday(t.id, commitmentValue(t.id)),
+    0,
   );
   const statusById = new Map(statuses.map((s) => [s.taskId, s]));
 
@@ -597,15 +670,26 @@ export async function loadDay(
           ...status,
           band: status.band === "doneThisWeek" ? ("week" as const) : status.band,
           extraToday: false,
-          pointsIfCompletedNow: pointsFor(t),
+          pointsIfCompletedNow: commitmentValue(t.id),
         }
       : status;
+    /**
+     * A run's worth **today**, in points (ADR-0029 §4: "the checklist
+     * shows the live number"). A life task's is its weight against the
+     * day's load, in the life share; a commitment task's is its band
+     * value. `point_value` itself is a weight and is never shown.
+     */
+    const value = commitmentUnitIds.has(t.unitId)
+      ? commitmentValue(t.id)
+      : load.expected > 0
+        ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
+        : 0;
     return {
       id: t.id,
       title: t.title,
       unitId: t.unitId,
       areaId: unitById.get(t.unitId)?.areaId ?? "",
-      pointValue: pointsFor(t),
+      pointValue: value,
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,
       fortnightOffset: t.fortnightOffset,
@@ -632,7 +716,8 @@ export async function loadDay(
       doneAheadOn: doneAhead.get(t.id) ?? null,
       oneOffDate: t.oneOffDate,
       progress: progressByTask.get(t.id) ?? 0,
-      earnedToday: earnedByTask.get(t.id) ?? null,
+      earnedToday:
+        (fractionToday.get(t.id) ?? 1) < 1 ? paidToday(t.id, value) : null,
       fractionToday: fractionToday.get(t.id) ?? null,
       startMinute: t.startMinute,
       endMinute: t.endMinute,
@@ -696,17 +781,11 @@ export async function loadDay(
       .map((t) => ({ unitId: t.unitId, pointsCredited: t.pointsCredited })),
   );
 
-  const completedTodayExtra = todayTasks.filter(
-    (t) => t.completedToday && t.extraToday,
-  );
-  const extraRunCredit = completions
-    .filter(
-      (c) =>
-        c.localDate === date &&
-        completedTodayExtra.some((t) => t.id === c.taskId),
-    )
-    .reduce((sum, c) => sum + c.pointsEarned, 0);
-
+  // Extra-run credit is no longer summed from stored `points_earned`:
+  // `computeDayLoad` already separates today's within-goal weight from
+  // the weight done beyond it, and prices both against the same day
+  // (ADR-0029 §1). The stored number remains the log's record of what a
+  // completion was worth on the day it happened.
   // A settled day reads its grade back; only a live one is computed.
   // Grades finalize (ADR-0002), so a past day's number must not move
   // when a diagnostic changes the weights under it — and must not be
@@ -720,25 +799,11 @@ export async function loadDay(
       : computeDayScore({
           kind,
           satisfactionRating: dayRow?.satisfactionRating ?? null,
-          // The band is spent separately from the variable one. Without
-          // these two fields a commitment task is treated as ordinary
-          // non-daily work and squashed into the 20-point variable cap:
-          // the band prices at 60 and the grade pays 20 (ADR-0032 §1).
-          commitmentBand: commitmentDay?.band ?? null,
-          tasks: todayTasks.map((t) => ({
-            unitId: t.unitId,
-            pointValue: t.pointValue,
-            timesPerWeek: t.timesPerWeek,
-            completedToday: t.completedToday,
-            extraToday: t.extraToday,
-            isCommitment: commitmentTaskIds.has(t.id),
-            offSchedule: t.offSchedule,
-            // Null on every whole completion, which is every row this
-            // app wrote before part credit existed — so a day with no
-            // fractions scores byte-for-byte what it scored before.
-            ...(t.earnedToday !== null ? { earnedToday: t.earnedToday } : {}),
-          })),
-          extraRunCredit,
+          load,
+          // The band is that share of the whole day; everything else is
+          // scaled into what it leaves (ADR-0032, formula v10).
+          commitment: { band: commitmentBandOn(commitmentDay), earned: commitmentEarned },
+          offScheduleCredit,
           activities: activityCredits,
         });
 
@@ -753,7 +818,7 @@ export async function loadDay(
     score,
     hasSnapshot: weights.size > 0,
     hasTasks: tasks.length > 0,
-    daily: todayTasks.filter((t) => t.band === "daily"),
+    due: todayTasks.filter((t) => t.band === "due"),
     week: todayTasks.filter((t) => t.band === "week"),
     doneThisWeek: todayTasks.filter((t) => t.band === "doneThisWeek"),
     activities,
@@ -969,7 +1034,7 @@ async function writeCompletion(
   fraction: number,
 ): Promise<void> {
   const day = await loadDay(date);
-  const status = [...day.daily, ...day.week, ...day.doneThisWeek].find(
+  const status = [...day.due, ...day.week, ...day.doneThisWeek].find(
     (t) => t.id === taskId,
   );
   if (!status) return;
@@ -1244,7 +1309,7 @@ async function cacheDayScore(date: string): Promise<void> {
   // something about this day, and that edit must land even on a day
   // that has settled.
   const day = await loadDay(date, { recompute: true });
-  const plan: PlanSnapshotTask[] = [...day.daily, ...day.week, ...day.doneThisWeek].map(
+  const plan: PlanSnapshotTask[] = [...day.due, ...day.week, ...day.doneThisWeek].map(
     (t) => ({
       taskId: t.id,
       unitId: t.unitId,

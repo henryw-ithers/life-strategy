@@ -9,9 +9,46 @@
 > third band to the two it established and makes the day's split
 > date-dependent for the first time.
 
+> **Amended 2026-10-01: rebuilt on ADR-0029 when the branch met main
+> — formula v10.** This ADR was written against ADR-0027's 80/20 day,
+> and while it was being built main replaced that day with
+> [ADR-0029](0029-a-day-is-the-fraction-you-got-through.md)'s: planned
+> work is 90 × the fraction of the day's due weight done, unplanned is
+> 10, and a task's points are a property of the day. The band's
+> *decision* survives unchanged, and Henry restated it for the merge:
+> *"the commitment band and the main band are separate, the 10–60
+> tells you how much of the total score comes from the commitment
+> band."* So, on a day with scheduled commitment work:
+>
+> - the band **B** is B points of the 100, paid as B × the share of
+>   today's commitment work done (§3's division is unchanged —
+>   `commitmentPointValues`, now pricing commitment tasks only);
+> - ADR-0029's whole day is scaled into **100 − B**: planned
+>   `90 × (100 − B)/100 × fraction`, unplanned capped at
+>   `10 × (100 − B)/100`, extra runs scaled the same way;
+> - commitment tasks are **not** in the day's load — they have no
+>   weight (`taskWeights` gives their units none), so they cannot be
+>   paid twice;
+> - **if no life work is due that day, the band takes the planned
+>   share too** (B + 90 × (100 − B)/100), by §1's own rule that a share
+>   exists only where it can be earned. Without it, a day of nothing
+>   but lectures would cap at B plus the unplanned scraps;
+> - §4 as amended holds as written: off-schedule commitment work pays
+>   its scheduled-day worth, uncapped, outside every band, and an early
+>   session stands in for the next.
+>
+> A finished commitment day lands at B + 90 × (100 − B)/100 — 94 at a
+> band of 40 — with the scaled unplanned band holding the rest, where
+> an ordinary finished day lands at 90. The 80/20 arithmetic in §§1–2
+> and the worked numbers below (a weight-9 habit at 7 or 3 points) are
+> the record of the decision as made and are not current. The
+> branch's v8–v11 are one version on main: **v10**. The commitments
+> ADR this one builds on was numbered 0029 when this was written; it
+> is now [ADR-0035](0035-commitments-are-custom-units.md).
+
 ## Context
 
-[ADR-0029](0029-commitments-are-custom-units.md) gives a commitment its
+[ADR-0035](0035-commitments-are-custom-units.md) gives a commitment its
 own `life_unit`, which stops a semester's tasks competing for one
 unit's share. It is not enough on its own. Measured: splitting school
 into five units took its total from 8 points to 15 and removed every
@@ -81,7 +118,7 @@ the arithmetic:
 
 At 80, all 18 life units share 20 points and their daily habits sit on
 the **one-point floor** — the same floor that produced the zero-point
-finding in ADR-0029, with no resolution left to tell sleep from
+finding in ADR-0035, with no resolution left to tell sleep from
 exercise from nutrition. A flat 60 keeps the worst case at ~3 and means
 **life always keeps at least 40%**.
 
@@ -102,7 +139,7 @@ deletes the rest of a life from a scheduled day.
   across sessions alone, or a Friday holding one tutorial would pay the
   whole share for one hour in a room.
 - **Sub-commitments take no cut.** They group tasks and price nothing
-  (ADR-0029 §1).
+  (ADR-0035 §1).
 
 A light day paying more per task is **not** a bug. It is
 `taskPointValues(unitWeight, taskCount)` — a unit's whole weight goes

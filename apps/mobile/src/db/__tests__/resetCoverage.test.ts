@@ -131,7 +131,7 @@ describe("children are deleted before their parents", () => {
 
 describe("the self-referencing table is handled in the loop", () => {
   it("clears sub-commitments before the bulk life_unit delete", () => {
-    // `life_unit.parent_unit_id` (ADR-0029) means one DELETE can trip
+    // `life_unit.parent_unit_id` (ADR-0035) means one DELETE can trip
     // the constraint mid-statement with foreign keys on. List order
     // cannot express "before itself", so the loop does it.
     expect(read("reset.ts")).toContain(

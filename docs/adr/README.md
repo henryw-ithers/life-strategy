@@ -26,50 +26,86 @@ status to *Accepted*.
 | [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
-| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Amended by 0026, 0030, 0032 |
+| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | §2 withdrawn by 0029; amended by 0026, 0036, 0032 |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
 | [0026](0026-task-size-and-day-load.md) | Task size and day load | Accepted |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Extended by 0032 |
-| [0028](0028-schedule-mode.md) | Schedule mode | **Withdrawn** |
-| [0029](0029-commitments-are-custom-units.md) | Commitments are custom units | Accepted |
-| [0030](0030-granularity-is-the-users.md) | Granularity is the user's | Accepted |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029; extended by 0032 |
+| [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
+| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted; extended by 0032 |
+| [0030](0030-goals-have-conditions.md) | Goals have conditions | Accepted |
 | [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
-| [0032](0032-the-commitment-band.md) | The commitment band | Accepted |
+| [0032](0032-the-commitment-band.md) | The commitment band | Accepted; rebuilt on 0029 (formula v10) |
 | [0033](0033-windows-and-pools.md) | Windows and pools | Accepted |
+| [0034](0034-schedule-mode.md) | Schedule mode | **Withdrawn** |
+| [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted |
+| [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
 carries the accumulated schema amendments from 0003–0009.
 
-**0027 is the scoring rewrite** (formula v7). It withdraws ADR-0003
-§5's uncovered-weight reallocation and amends ADR-0025 §§1–5, so read
-it before touching anything that prices a task or grades a day. It
-takes 0026's number out of order because the 112-point day would not
-wait for the load meter.
+**0027, 0028 and 0029 are the scoring rewrite** (formulas v7, v8 and
+v9), and they have to be read as a sequence. **0029 is the one in
+force**; read it first and read the other two for why.
 
-**0014, 0026 and 0029–0033 are the commitments work**, drafted
+- **0027** fixed a day that could score 112, with two bands allocated
+  separately and a constant denominator of 100. It also made a plan's
+  coverage decide its ceiling.
+- **0028** withdrew that ceiling — every daily task done pays 80 at any
+  coverage — removed satisfaction from weight derivation, and flattened
+  the spread between units to 2:1. **§§1–2 are still in force**; §3 is
+  not.
+- **0029** replaced the line between the bands. It ran between *daily*
+  and *weekly*, which made a genuinely weekly commitment worth a
+  fraction of a daily one; it now runs between *planned* and
+  *unplanned*, at 90 / 10, and a day is scored on the fraction of its
+  actually-due work that got done. It is the first of the three to say
+  what a day *is* rather than how its points are divided, and the only
+  one that withdraws ADR-0024 §2 so the grade can see a weekday pin.
+
+Between them they amend ADR-0003 §§1/5/6, ADR-0008 §1, ADR-0022 §1,
+ADR-0023 §1, ADR-0024 §2 and ADR-0025 §§1–5. Read 0029 before touching
+anything that prices a task or grades a day. 0027 takes 0026's number
+out of order because the 112-point day would not wait for the load
+meter.
+
+**Four formulas in nine days is more churn than this engine should
+take.** v7 landed on the 18th; v8 and v9 both landed on the 26th, out
+of one conversation. 0029's Consequences commits to the obvious
+correction: **the next change to this engine waits for a fortnight of
+use.** No window in the calibration experiment (ADR-0008) currently
+spans a single formula.
+
+**0014, 0026 and 0031–0036 are the commitments work**, drafted
 together across one long session on 2026-09-08..11, built over the
-following three weeks, and **accepted 2026-10-01**. Several carry
+following three weeks, and **accepted 2026-10-01**. It was built on a
+branch beside the scoring rewrite above and met it the same day: its
+own three ADRs numbered 0028–0030 collided with main's and were
+renumbered **0034, 0035 and 0036** (schedule mode, commitments are
+custom units, granularity is the user's) — a file rename and nothing
+else; the bodies are as accepted. Its formulas, numbered v8–v11 on the
+branch, became one: **formula v10**, the commitment band on v9's day. Several carry
 dated amendments from that building — the code showed where the
 decision as written was incomplete or wrong — so read each through to
 its action items. Read them in this order:
 
-1. **[0029](0029-commitments-are-custom-units.md)** — a commitment is a
+1. **[0035](0035-commitments-are-custom-units.md)** — a commitment is a
    custom `life_unit` in two levels, not a goal and not a parallel
    model. It also carries the measured finding that forced the whole
    design: thirteen non-daily tasks in a weight-12 unit price at
    `1,1,1,1,1,1,1,1,0,0,0,0,0` — **five worth literally zero** — which
    is the edge ADR-0027 named and parked.
-2. **[0032](0032-the-commitment-band.md)** — a third band on days with
-   scheduled commitment work, and the first date-dependent split in
-   the app's history. **Formula v8**, and **v11** after §4's
-   amendments: off-schedule commitment work pays its scheduled-day
-   worth, uncapped, and an early session stands in for the next one.
-   Read ADR-0027 first.
+2. **[0032](0032-the-commitment-band.md)** — on days with scheduled
+   commitment work, the band (10–60) is that share of the whole day
+   and ADR-0029's 90/10 is scaled into the rest. The first
+   date-dependent split in the app's history. **Formula v10** (v8–v11
+   in its own text, which predates the merge): off-schedule commitment
+   work pays its scheduled-day worth, uncapped, and an early session
+   stands in for the next one. Read ADR-0029 first.
 3. **[0033](0033-windows-and-pools.md)** — the day divides into
    windows, work carries forward, and a window may hold a pool of up to
    three equal-priced options.
-4. **[0030](0030-granularity-is-the-users.md)** — **the reopening
+4. **[0036](0036-granularity-is-the-users.md)** — **the reopening
    ADR-0024 §1 demands.** Any task may carry a clock time; part-of-day
    stays the default, and that default is now load-bearing.
 5. **[0026](0026-task-size-and-day-load.md)** and
@@ -78,7 +114,7 @@ its action items. Read them in this order:
    them. Each records that, and why it proceeded anyway. **A third
    would be a signal.**
 
-**[0028](0028-schedule-mode.md) and [0031](0031-the-semester-score.md)
+**[0034](0034-schedule-mode.md) and [0031](0031-the-semester-score.md)
 are withdrawn**, never accepted — the first because generalising
 commitments left nothing school-shaped to hide behind a mode, the
 second because a term-length score needed a term and terms did not

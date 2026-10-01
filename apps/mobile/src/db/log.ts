@@ -40,7 +40,7 @@ export interface LogEntry {
   notes: string[];
   /** File URIs; the screen resolves and handles missing files. */
   photos: { id: string; uri: string; caption: string | null }[];
-  /** Titles of goals and milestones reached that day. */
+  /** Titles of goals and habit rungs reached that day. */
   achievements: string[];
   /** A day the user marked worth keeping (`day_grade.flagged`). */
   flagged: boolean;
@@ -57,6 +57,20 @@ export interface LogMonth {
   /** Counts for the month's summary line, so the screen does not
    *  recount what this already walked. */
   totals: { notes: number; photos: number; achievements: number };
+  /**
+   * The month's own grade, so every month in the log can carry its
+   * review (2026-08-26).
+   *
+   * `gradedDays` is every elapsed day of the month since grading began,
+   * including ones the app was never opened on — those score zero and
+   * pull the average down, which is `periodDays`' deliberate rule.
+   * Whatever renders this has to say so; the number reads as an average
+   * of good days otherwise.
+   */
+  grade: PeriodGrade;
+  /** Days this month that actually put something in the log — always
+   *  ≤ `grade.gradedDays`, and a different question. */
+  daysRecorded: number;
 }
 
 /**
@@ -137,15 +151,34 @@ export async function loadLog(): Promise<LogMonth[]> {
     months.set(key, [...(months.get(key) ?? []), entry]);
   }
 
-  return [...months.entries()].map(([month, entries]) => ({
-    month,
-    entries,
-    totals: {
-      notes: entries.reduce((a, e) => a + e.notes.length, 0),
-      photos: entries.reduce((a, e) => a + e.photos.length, 0),
-      achievements: entries.reduce((a, e) => a + e.achievements.length, 0),
-    },
-  }));
+  // A month you scored but wrote nothing in still gets its section, so
+  // its review is reachable. Without this the log skipped straight over
+  // a whole month of lived days because none of them held a note — and
+  // the review is the one thing that month definitely has.
+  for (const g of graded) {
+    const key = g.localDate.slice(0, 7);
+    if (!months.has(key)) months.set(key, []);
+  }
+
+  const keys = [...months.keys()].sort((a, b) => b.localeCompare(a));
+  const grades = await Promise.all(
+    keys.map((month) => loadMonthGrade(`${month}-01`)),
+  );
+
+  return keys.map((month, i) => {
+    const entries = months.get(month) ?? [];
+    return {
+      month,
+      entries,
+      totals: {
+        notes: entries.reduce((a, e) => a + e.notes.length, 0),
+        photos: entries.reduce((a, e) => a + e.photos.length, 0),
+        achievements: entries.reduce((a, e) => a + e.achievements.length, 0),
+      },
+      grade: grades[i]!,
+      daysRecorded: entries.length,
+    };
+  });
 }
 
 /**
@@ -167,25 +200,21 @@ export async function loadLog(): Promise<LogMonth[]> {
  * function was written, tested and then referenced by nothing, which is
  * how the monthly half of the product stayed invisible.
  */
-export interface MonthCheckpoint {
-  /** `YYYY-MM`. */
-  month: string;
-  grade: PeriodGrade;
-  totals: { notes: number; photos: number; achievements: number };
-  /** Days in this month that put something in the log. */
-  daysRecorded: number;
-}
+export type MonthCheckpoint = LogMonth;
 
+/**
+ * The month you are standing in, for the review on Portfolio.
+ *
+ * One line now: `loadLog` computes every month's grade and totals in a
+ * single pass (2026-08-26), so this picks the current one out rather
+ * than running the same queries again. A month with nothing recorded
+ * still comes back — it has a grade, which is the whole point of the
+ * review.
+ */
 export async function loadMonthCheckpoint(
   date: string,
-): Promise<MonthCheckpoint> {
+): Promise<MonthCheckpoint | null> {
   const month = monthStart(date).slice(0, 7);
-  const [grade, months] = await Promise.all([loadMonthGrade(date), loadLog()]);
-  const held = months.find((m) => m.month === month);
-  return {
-    month,
-    grade,
-    totals: held?.totals ?? { notes: 0, photos: 0, achievements: 0 },
-    daysRecorded: held?.entries.length ?? 0,
-  };
+  const months = await loadLog();
+  return months.find((m) => m.month === month) ?? null;
 }

@@ -102,7 +102,7 @@ export function UnitPicker({
         ) : homeIsCommitment && value.length > 1 ? (
           // Says what the other chips do, because it is not what they
           // do on a life task: they record where this touches your life
-          // and earn nothing there (ADR-0029 §3).
+          // and earn nothing there (ADR-0035 §3).
           <AppText variant="footnote" color={theme.muted} style={styles.hint}>
             Paid from {nameOf(units, value[0])} · also noted in{" "}
             {value.slice(1).map((id) => nameOf(units, id)).join(", ")}

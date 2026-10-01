@@ -1,6 +1,6 @@
 /**
  * The decisions behind a day's commitment band, as pure functions
- * (ADR-0032, ADR-0029).
+ * (ADR-0032, ADR-0035).
  *
  * Split out from `commitments.ts` so they can be tested: that module
  * imports `./client`, which is React Native, and the app's vitest
@@ -37,7 +37,7 @@ export interface EligibilityRow {
  * A **commitment** is custom, unparented and carries a share. A custom
  * unit *with* a parent is a sub-commitment, and never appears here in
  * its own right — it only contributes its id to its parent's group,
- * because sub-commitments price nothing (ADR-0029 §1).
+ * because sub-commitments price nothing (ADR-0035 §1).
  */
 export function groupCommitments(
   units: readonly CommitmentUnitRow[],
@@ -108,7 +108,7 @@ export function buildCommitmentDay(
   };
 }
 
-// ── Write-seam rules (ADR-0029 §1, ADR-0033 §3) ─────────────────────
+// ── Write-seam rules (ADR-0035 §1, ADR-0033 §3) ─────────────────────
 //
 // The schema can express neither of these, so they live here and every
 // write goes through them.
@@ -169,7 +169,7 @@ export function assertPoolSize(input: PoolValidationInput): void {
   if (problem !== null) throw new Error(problem);
 }
 
-// ── Commitment tasks (ADR-0029 §3) ─────────────────────────────────
+// ── Commitment tasks (ADR-0035 §3) ─────────────────────────────────
 
 /**
  * Whether a unit is a commitment or one of its parts.
@@ -193,7 +193,7 @@ export type Membership = "scoring" | "note";
  * The membership each chosen unit takes, home unit first.
  *
  * **A commitment task never takes a scoring slot in a life unit**
- * (ADR-0029 §3). It may tag one — School work that is also Learning —
+ * (ADR-0035 §3). It may tag one — School work that is also Learning —
  * but that row is a `note`: it feeds effort and the log and earns
  * nothing. A `scoring` row would pay the same completion from two
  * bands, which is the one route to inflating a day.
@@ -220,38 +220,6 @@ export function membershipsFor(
     unitId,
     membership: i > 0 && homeIsCommitment ? "note" : "scoring",
   }));
-}
-
-/**
- * A `CommitmentDay` rewritten onto the keys the app prices by.
- *
- * `bandPointValues` matches a day's eligible tasks and pool members
- * against the ids it is given. The app prices **memberships**, keyed
- * `taskId::unitId`, while eligibility and pools are recorded against
- * tasks — so without this the two sets never met, and the band paid
- * nothing to anyone. A commitment task's band slot is its home-unit
- * membership, since that is the only scoring row it has.
- */
-export function toBandKeys(
-  day: CommitmentDay,
-  homeUnitByTask: ReadonlyMap<string, string>,
-): CommitmentDay {
-  const key = (taskId: string) => {
-    const home = homeUnitByTask.get(taskId);
-    return home === undefined ? taskId : `${taskId}::${home}`;
-  };
-  return {
-    ...day,
-    eligibleTaskIds: day.eligibleTaskIds.map(key),
-    ...(day.pools
-      ? {
-          pools: day.pools.map((p) => ({
-            ...p,
-            taskIds: p.taskIds.map(key),
-          })),
-        }
-      : {}),
-  };
 }
 
 // ── Off-schedule work (ADR-0032 §4, amended 2026-09-30) ─────────────

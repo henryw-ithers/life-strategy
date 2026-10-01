@@ -12,7 +12,7 @@
 /**
  * `habit` is deliberately unlike the other two: it has **no target**,
  * because a habit is meant to be permanent and so never completes
- * (decided 2026-08-16). Its rungs are day counts in its milestones,
+ * (decided 2026-08-16). Its rungs are `HABIT_LADDER` day counts,
  * and its state comes from `computeStreak` rather than from progress
  * entries. `metricState` refuses it for that reason — see the note
  * there.
@@ -140,24 +140,11 @@ export function barFraction(state: MetricState): number | null {
 }
 
 /**
- * Milestone rungs on a metric goal (ADR-0015 §5). Returns the rungs
- * whose threshold the reading has passed, so the caller can *prompt* to
- * advance — never advance silently, per §3 and §5.
+ * `milestonesReached` **retired 2026-08-26** (ADR-0030 §5). A metric
+ * goal has one finish line — its `target_value` — and the intermediate
+ * rungs that this prompted the user to advance through are gone with
+ * the `milestone` table. `metricState` still reports the reading and
+ * the fraction; reaching the target still *invites* completion rather
+ * than performing it (ADR-0015 §3), which was always the important
+ * half.
  */
-export function milestonesReached(
-  def: MetricDefinition,
-  state: MetricState,
-  thresholds: readonly { id: string; targetValue: number | null }[],
-): string[] {
-  if (state.current === null) return [];
-  const current = state.current;
-  return thresholds
-    .filter((m) => {
-      if (m.targetValue === null) return false;
-      if (def.kind === "cumulative") return current >= m.targetValue;
-      return state.direction === "down"
-        ? current <= m.targetValue
-        : current >= m.targetValue;
-    })
-    .map((m) => m.id);
-}

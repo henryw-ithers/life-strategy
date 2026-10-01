@@ -176,11 +176,6 @@ export function SuggestionsSheet({
                   {g.description}
                 </AppText>
               ) : null}
-              {g.milestones.length > 0 ? (
-                <AppText variant="footnote" color={theme.muted}>
-                  {g.milestones.length} milestones
-                </AppText>
-              ) : null}
             </Pressable>
           ))}
 

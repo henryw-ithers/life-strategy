@@ -20,6 +20,15 @@ version 1.
 
 ### 1. Weight formula (v1)
 
+> **Superseded by [ADR-0028](0028-priority-is-the-only-input.md) §§1–2
+> (2026-08-26, formula v8).** The satisfaction-gap term below is
+> **withdrawn** and `GAP_COEFFICIENT` retired: weight now derives from
+> priority rank alone. The rank score is also flattened to a
+> `WEIGHT_SPREAD` of 2 before normalizing, so an 18-unit portfolio runs
+> about 7 points to 4 rather than 10 to 1. Satisfaction is still
+> diagnosed, stored, plotted and read by `unitProfile` — it just does
+> not derive a weight. The section stands as the record of v1.
+
 For each unit included in scoring:
 
     raw(u) = I(u) + g × max(0, I(u) − S(u))        with g = 0.5
@@ -73,6 +82,15 @@ what users see and earn.
   diagnostic (ADR-0002 decision 4).
 
 ### 5. Task point values: Beli-style ranking
+
+> **Amended twice.** [ADR-0027](0027-coverage-decides-the-ceiling.md)
+> §2 withdrew this section's uncovered-weight reallocation;
+> [ADR-0028](0028-priority-is-the-only-input.md) §3 withdrew *that* and
+> brought redistribution back as a property of each **band** rather than
+> of the portfolio — the routine 80 is split across the units holding a
+> daily task, the variable 20 across those holding non-daily work. Rank
+> shares and the one-point floor below are unchanged, and now apply
+> inside a unit's band budget.
 
 Within a unit, tasks are **ranked, not priced**. Point values derive
 from rank; the user never types a number (but may override one —
@@ -185,12 +203,18 @@ invariant applies).
 
 ### 6. Task-count guidance (recommendations, not enforcement)
 
-| Unit weight | Recommended tasks |
-|-------------|-------------------|
-| ≥ 10 | 2–3 (mix of daily and weekly) |
-| 5–9 | 1–2 |
-| 3–4 | 1 (daily or weekly) |
-| < 3 | one weekly task, or consider excluding the unit |
+> **Rescaled by [ADR-0028](0028-priority-is-the-only-input.md) §2
+> (2026-08-26)** for the flattened spread. The bands are the same four
+> bands and the rule is unchanged; only the thresholds move, so they
+> pick out the same parts of a portfolio they always did. The table
+> below is the pre-v8 scale.
+
+| Unit weight | Recommended tasks | Since v8 |
+|-------------|-------------------|----------|
+| ≥ 10 | 2–3 (mix of daily and weekly) | ≥ 7 |
+| 5–9 | 1–2 | 4–6 |
+| 3–4 | 1 (daily or weekly) | 2–3 |
+| < 3 | one weekly task, or consider excluding the unit | < 2 |
 
 ## Worked example
 

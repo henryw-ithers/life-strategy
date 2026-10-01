@@ -19,7 +19,7 @@
 /** The row fields the caption reads. */
 export interface CaptionTask {
   timesPerWeek: number;
-  band: "daily" | "week" | "doneThisWeek";
+  band: "due" | "week" | "doneThisWeek";
   completedToday: boolean;
   doneCount: number;
   goalCount: number;

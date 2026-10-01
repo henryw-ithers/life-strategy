@@ -9,7 +9,7 @@
 > A term-length score needed a **term**, and the term was the most
 > irreducibly academic thing in the whole design. Once commitments
 > generalised to cover a club, a job or a team
-> ([ADR-0029](0029-commitments-are-custom-units.md)), a semester-shaped
+> ([ADR-0035](0035-commitments-are-custom-units.md)), a semester-shaped
 > horizon stopped fitting the model: a basketball club does not have
 > one, and inventing a term for it to be scored against would have been
 > the academic module reasserting itself through the back door.
@@ -25,7 +25,7 @@
 > proposed again:
 >
 > - **The refusals in §5** — no marks, no absence record, no attendance
->   percentage, no comparison — were right, and ADR-0029 §§2–3 carry
+>   percentage, no comparison — were right, and ADR-0035 §§2–3 carry
 >   them forward as properties of the model rather than of a score.
 > - **The elapsed-denominator idea** in §2 (count only weeks that have
 >   finished; never count the current one) is a good answer to "what
@@ -45,7 +45,7 @@
 
 ## Context
 
-ADR-0029 §4 keeps academic work out of the daily grade by construction:
+ADR-0035 §4 keeps academic work out of the daily grade by construction:
 a course reaches a day only as an ordinary one-off task the user
 planned. That is the right answer for the *day* and it leaves the
 *term* unmeasured — and a semester is the unit a student's life
@@ -73,7 +73,7 @@ Constraints already in force:
 - **No adherence statistic** (ADR-0024 §2).
 - **History never silently restates** (ADR-0002).
 - **A mode is presentation and grammar, never arithmetic**
-  (ADR-0028 §3).
+  (ADR-0034 §3).
 
 ## Open questions
 
@@ -213,7 +213,7 @@ name.
   copy and sets this band's shares; it is never a stand-in for a
   result. Test: the module exports no symbol containing `mark`,
   `grade` or `result`.
-- **No absence record, so no shortfall to notice.** ADR-0029 §3 keeps
+- **No absence record, so no shortfall to notice.** ADR-0035 §3 keeps
   the model structurally incapable of seeing a missed lecture. That is
   stronger than the copy rule ADR-0008 would otherwise require.
 - **No attendance percentage and no adherence statistic** — ADR-0024

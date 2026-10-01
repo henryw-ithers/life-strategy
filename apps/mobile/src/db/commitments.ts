@@ -1,6 +1,6 @@
 /**
  * Commitments, and what one day's commitment work looks like
- * (ADR-0029, ADR-0032).
+ * (ADR-0035, ADR-0032).
  *
  * A commitment is a `life_unit` with `is_custom` set, holding tasks
  * and sub-commitments (`parent_unit_id`). It is scored from its own
@@ -103,7 +103,7 @@ async function eligibleOn(
 }
 
 /**
- * What `bandPointValues` needs to price `date`, or **`null` for an
+ * What `commitmentPointValues` needs to price `date`, or **`null` for an
  * ordinary two-band day**.
  *
  * Null in three cases, and the distinction matters: no band set, no
@@ -181,7 +181,7 @@ async function poolsOn(
 
 export interface PoolOnDay {
   id: string;
-  /** The block this window follows — the cue (ADR-0030 §3). */
+  /** The block this window follows — the cue (ADR-0036 §3). */
   afterTaskId: string | null;
   partOfDay: "morning" | "afternoon" | "evening" | null;
   /** How many of them you mean to get through (ADR-0033 §3). */

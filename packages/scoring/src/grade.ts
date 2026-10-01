@@ -1,33 +1,34 @@
-import { isRoutine, normalizeBand, VARIABLE_BAND } from "./bands";
+import { PLANNED_BAND, UNPLANNED_BAND } from "./bands";
 import { DAILY_BUDGET, EXTRA_RUN_RATE } from "./constants";
+import {
+  computeDayLoad,
+  isAnchoredOn,
+  type DayLoad,
+  type LoadCompletion,
+  type LoadTask,
+  runsBefore,
+} from "./dayLoad";
 import { addDays, fortnightStart, weekStart } from "./days";
 
 /**
  * Daily checklist derivation and day-grade computation (ADR-0004 §4 as
- * amended by the checklist build, ADR-0009 §3). Pure functions over
- * plain data; the app's db layer feeds them rows.
+ * amended by ADR-0029). Pure functions over plain data; the app's db
+ * layer feeds them rows.
  */
 
-export interface ChecklistTask {
-  taskId: string;
-  unitId: string;
-  pointValue: number;
-  /** 1–7 (7 = daily); 0 = once per fortnight. */
-  timesPerWeek: number;
-}
-
-export interface CompletionRow {
-  taskId: string;
-  localDate: string;
-}
+export type ChecklistTask = LoadTask;
+export type CompletionRow = LoadCompletion;
+export type { DayLoad, LoadTask, LoadCompletion };
 
 /**
- * daily: a 7×/week commitment — the day's denominator.
- * week: frequency task with runs remaining (or run today).
- * doneThisWeek: goal met on previous days; still tappable for an
- * extra run at reduced credit.
+ * - **due** — anchored to today: an every-day task, or one pinned here.
+ * - **week** — owed this week but not anchored to today. Flexible work,
+ *   or a run pinned to another day; both stay tappable and both still
+ *   count in full when you do them (ADR-0029 §3).
+ * - **doneThisWeek** — goal met on previous days; still tappable for an
+ *   extra run at reduced credit.
  */
-export type TaskBand = "daily" | "week" | "doneThisWeek";
+export type TaskBand = "due" | "week" | "doneThisWeek";
 
 export interface TaskDayStatus {
   taskId: string;
@@ -35,17 +36,39 @@ export interface TaskDayStatus {
   completedToday: boolean;
   /** Completions this week (fortnight for 0-frequency), incl. today. */
   doneCount: number;
-  /** timesPerWeek, or 1 for fortnightly tasks. */
+  /** timesPerWeek, or 1 for fortnightly tasks and one-offs. */
   goalCount: number;
   /** True when today's (or the next) completion exceeds the goal. */
   extraToday: boolean;
-  /** What a completion now would earn: full value, or the extra rate. */
+  /**
+   * What a completion now would earn **on this day**, in points.
+   *
+   * Day-relative since ADR-0029 §1: a task's worth is
+   * `PLANNED_BAND × its weight ÷ the day's expected load`, so the same
+   * task pays more on a light day than on a heavy one. That is not a
+   * quirk to hide — it is the model saying what it means, which is that
+   * a day is scored on the fraction of itself you got through.
+   */
   pointsIfCompletedNow: number;
 }
 
-/** Credit for a run beyond the weekly goal (bonus pool, ADR-0009 cap). */
-export function extraRunPoints(pointValue: number): number {
-  return Math.round(pointValue * EXTRA_RUN_RATE);
+/** The counting window a task's weekly goal is measured over. */
+function windowFor(task: ChecklistTask, date: string): string {
+  return task.timesPerWeek === 0 && !task.oneOff
+    ? fortnightStart(date)
+    : weekStart(date);
+}
+
+/** Points one run is worth on a day of the given expected load. */
+function runPoints(weight: number, expected: number): number {
+  if (expected <= 0) return 0;
+  return (PLANNED_BAND * weight) / expected;
+}
+
+/** Credit for a run beyond the weekly goal — ADR-0023 §2's exemption:
+ *  the plan done harder, not spontaneity. */
+export function extraRunPoints(weight: number, expected: number): number {
+  return Math.round(EXTRA_RUN_RATE * runPoints(weight, expected));
 }
 
 /**
@@ -55,23 +78,33 @@ export function extraRunPoints(pointValue: number): number {
  * One completion per task per day is assumed (enforced at write time).
  */
 export function deriveChecklist(
-  tasks: ChecklistTask[],
-  completions: CompletionRow[],
+  tasks: readonly ChecklistTask[],
+  completions: readonly CompletionRow[],
   date: string,
+  /** The life share of the day (`lifeShare`); 1 on an ordinary day. */
+  scale = 1,
 ): TaskDayStatus[] {
-  const ws = weekStart(date);
-  const fs = fortnightStart(date);
+  const load = computeDayLoad(tasks, completions, date);
   return tasks.map((t) => {
-    const windowStart = t.timesPerWeek === 0 ? fs : ws;
+    const window = windowFor(t, date);
     const inWindow = completions.filter(
-      (c) => c.taskId === t.taskId && c.localDate >= windowStart && c.localDate <= date,
+      (c) =>
+        c.taskId === t.taskId && c.localDate >= window && c.localDate <= date,
     );
     const completedToday = inWindow.some((c) => c.localDate === date);
-    const doneBeforeToday = inWindow.length - (completedToday ? 1 : 0);
-    const goalCount = t.timesPerWeek === 0 ? 1 : t.timesPerWeek;
+    // The same count the load uses, so a part-done one-off is still owed
+    // here rather than banded as finished.
+    const doneBeforeToday = runsBefore(
+      t,
+      inWindow.filter((c) => c.localDate !== date),
+    );
+    const goalCount = t.oneOff ? 1 : t.timesPerWeek === 0 ? 1 : t.timesPerWeek;
     const extraToday = doneBeforeToday >= goalCount;
-    const band: TaskBand =
-      t.timesPerWeek === 7 ? "daily" : extraToday ? "doneThisWeek" : "week";
+    const band: TaskBand = extraToday
+      ? "doneThisWeek"
+      : isAnchoredOn(t, date)
+        ? "due"
+        : "week";
     return {
       taskId: t.taskId,
       band,
@@ -79,50 +112,11 @@ export function deriveChecklist(
       doneCount: inWindow.length,
       goalCount,
       extraToday,
-      pointsIfCompletedNow: extraToday ? extraRunPoints(t.pointValue) : t.pointValue,
+      pointsIfCompletedNow: extraToday
+        ? Math.round(scale * EXTRA_RUN_RATE * runPoints(t.weight, load.expected))
+        : Math.round(scale * runPoints(t.weight, load.expected)),
     };
   });
-}
-
-export interface DayTaskInput {
-  /** Priced from the commitment band rather than the variable one
-   *  (ADR-0032). Ignored when `commitmentBand` is null. */
-  isCommitment?: boolean;
-  unitId: string;
-  pointValue: number;
-  /** 1–7 (7 = daily); 0 = once per fortnight. */
-  timesPerWeek: number;
-  completedToday: boolean;
-  /** Today's completion was beyond the weekly goal (extra run). */
-  extraToday?: boolean;
-  /**
-   * What today's completion actually paid, when that is less than the
-   * task is worth — a partial completion (ADR-0014 §3).
-   *
-   * Omitted means a whole one, which is what every completion written
-   * before `task_completion.fraction` existed was, and what one tap
-   * still means. Without it a band would credit the full value of a
-   * task somebody did a quarter of, and the day's number would
-   * disagree with the points its own completion row recorded.
-   */
-  earnedToday?: number;
-  /**
-   * Commitment work done on a day it was not scheduled for — ahead of
-   * its day, or instead of something else (ADR-0032 §4, amended
-   * 2026-09-30).
-   *
-   * Priced at what it is worth on its scheduled day, and paid **in
-   * full, outside every cap**: not from a band, and not from the
-   * `UNPLANNED_CAP` pool either. Henry: "remove the cap." It is still
-   * your own plan — its day is just another one — so it sits with
-   * extra runs as a route above 100 rather than with activities.
-   */
-  offSchedule?: boolean;
-}
-
-/** What a completed task adds to a band: its partial pay, or its worth. */
-function earnedOf(t: DayTaskInput): number {
-  return t.earnedToday ?? t.pointValue;
 }
 
 /** One credited activity's tags, in log order. */
@@ -132,27 +126,29 @@ export interface DayScoreInput {
   /** `rest` is stored; the UI calls it "Day off" (ADR-0023 §4). */
   kind: "normal" | "rest" | "special";
   /** Special days only: scales the rating bonus drawn from the
-   *  unplanned pool (ADR-0023 §3). No longer the whole grade. */
+   *  unplanned band (ADR-0023 §3). No longer the whole grade. */
   satisfactionRating?: number | null;
-  /** Every active task, whatever its cadence. */
-  tasks: DayTaskInput[];
-  /**
-   * The commitment band's size on this date, or `null` on an ordinary
-   * two-band day (ADR-0032 §1).
-   *
-   * When set, tasks flagged `isCommitment` are spent from **this** band
-   * rather than from the variable one, and the routine and variable
-   * bands are scaled into what remains. Without it a commitment task
-   * would be counted as ordinary non-daily work and squashed into the
-   * 20-point variable cap — the band would price at 60 and the grade
-   * would pay 20.
-   */
-  commitmentBand?: number | null;
-  /** Sum of extra-run pointsEarned completed on this day. Outside the
-   *  cap (ADR-0023 §2) — this is the plan done harder. */
-  extraRunCredit?: number;
+  /** What the day asked for and what got done (`computeDayLoad`). */
+  load: DayLoad;
   /** Credited activities, chronological (ADR-0009 §3). */
   activities?: ActivityCredit[];
+  /**
+   * The commitment band today (ADR-0032), or omitted on an ordinary
+   * day.
+   *
+   * `band` is the share of the whole day it takes — `commitmentBandOn`,
+   * so 0 on a day with no commitment work scheduled — and `earned` is
+   * the points of it today's completions paid (`commitmentPointValues`
+   * for each eligible task done, at its fraction). The planned and
+   * unplanned bands are scaled into `100 − band`.
+   */
+  commitment?: { band: number; earned: number };
+  /**
+   * Commitment work done on a day it was not scheduled for, at its
+   * scheduled-day worth (ADR-0032 §4). Paid **in full, outside every
+   * band** — the plan done on another day — beside extra runs.
+   */
+  offScheduleCredit?: number;
 }
 
 /** Points earned out of points possible, plus the rendered grade.
@@ -164,19 +160,17 @@ export interface Grade {
 }
 
 export interface DayScore extends Grade {
-  /** Always 100 on a graded day (ADR-0027 §1): the whole of the
-   *  diagnostic's budget, including weight nothing can earn. */
+  /** Always 100 on a graded day (ADR-0027 §1). */
   possible: number;
-  /** All points earned this day: within-goal completions at full
-   *  value, extra runs at their reduced credit, and the capped
-   *  unplanned pool. */
+  /** All points earned this day: the planned band's fraction, the
+   *  capped unplanned band, and extra runs on top. */
   earned: number;
-  /** Grade, or null when there is nothing to grade (days off; an
-   *  empty plan). Above 100 only via extra runs of your own plan
+  /** Grade, or null when there is nothing to grade (a day off; a day
+   *  with nothing due). Above 100 only via extra runs of your own plan
    *  (ADR-0023 §2); the two bands themselves cap at 100. */
   base: number | null;
-  /** What the unplanned pool actually paid, after the cap. Surfaced so
-   *  the day can show "84 +25" rather than silently swallowing credit
+  /** What the unplanned band actually paid, after the cap. Surfaced so
+   *  the day can show "84 +6" rather than silently swallowing credit
    *  the user logged (ADR-0023 §1). */
   unplanned: number;
   /** Credit that was logged but fell outside the cap. Zero on almost
@@ -192,7 +186,7 @@ export interface DayScore extends Grade {
  * number is a historical fact, not a function of whatever the weights
  * and formula happen to be today. Recomputing it would silently
  * restate the past every time a diagnostic moved the weights — and,
- * after ADR-0023's `FORMULA_VERSION` 5, would restate it under a
+ * after ADR-0029's `FORMULA_VERSION` 9, would restate it under a
  * formula that day was never scored by.
  *
  * `unplanned` is not stored and reads back as 0. Only the day's grade
@@ -212,39 +206,44 @@ export function storedDayScore(row: {
   };
 }
 
-/** Rating → its draw on the variable band (ADR-0023 §3, ADR-0027 §3).
- *  A 10-rated special day claims the whole band, a 6-rated one 60% of
- *  it — and only ever from the room the day's planned work left. */
+/** Rating → its draw on the unplanned band (ADR-0023 §3). A 10-rated
+ *  special day claims the whole band, a 6-rated one 60% of it — and
+ *  only ever from the room the day's planned work left. */
 export function specialDayBonus(rating: number | null | undefined): number {
   if (rating === null || rating === undefined) return 0;
-  return Math.round((rating / 10) * VARIABLE_BAND);
+  return Math.round((rating / 10) * UNPLANNED_BAND);
 }
 
-
 /**
- * The day's number (ADR-0027 §1, formula v7): a constant denominator of
- * 100 and two bands allocated separately.
+ * The day's number (ADR-0029 §2, formula v9): a constant denominator of
+ * 100, and two bands.
  *
- * **Routine (80).** Daily tasks pay their stored `pointValue`, which
- * `bandPointValues` derived from 80% of their own unit's weight. A unit
- * with no daily task forfeits its share and nobody else receives it
- * (ADR-0027 §2) — that is what makes a plan's coverage decide its
- * ceiling.
+ * **Planned (90).** The fraction of the day's expected load that got
+ * done, times 90. `dayLoad.ts` decides what "expected" means; all that
+ * happens here is the multiplication and the cap at 1. Do what the day
+ * asked and the band pays in full — Henry's target, *"if you did every
+ * task you planned for the week you should have around a 90 average"*,
+ * arrived at by construction rather than by tuning.
  *
- * **Variable (20).** Everything that is not a daily task shares one
- * pool: non-daily completions are credited **first**, then activity
- * credit and a special day's rating fill whatever room is left. That
- * ordering is ADR-0023's "planned work is what pays" preserved inside a
- * single pool — a logged coffee can never displace a task you planned.
+ * **Unplanned (10).** Activities and a special day's rating bonus,
+ * capped. Planned work no longer competes for this pool, because
+ * planned work now has a band of its own whatever its cadence — which
+ * is what ADR-0023 §1 meant by `UNPLANNED_CAP` before ADR-0027 §3
+ * widened it to cover weekly tasks.
  *
  * **Extra runs stay outside both bands** (ADR-0023 §2, unchanged):
- * doing more of your own plan is the one route above 100.
+ * doing more of your own plan is the one route above 100. They are
+ * priced from the same day-relative rate as everything else, at
+ * `EXTRA_RUN_RATE`.
  *
- * What went away, and why: formula v6 made the denominator the weekly
- * commitment spread over seven days (`dayShare`) while a completion
- * still paid its full value, so a completion was worth `7 ÷ f` times its
- * own share and a day of finished work could read **112**. Nothing is
- * amortized here, so nothing can pay more than its band holds.
+ * **A day with nothing due is not graded at all** (`base: null`, the
+ * same shape as a day off). That happens when the week's flexible work
+ * is already finished and no task is anchored to today — you owe the
+ * day nothing, so there is nothing to score. It does mean a week's work
+ * bunched into one day leaves the rest of the week ungraded; ADR-0029's
+ * Consequences accepts that, on the grounds that a daily task cannot be
+ * bunched and a plan made entirely of flexible work is the shape
+ * ADR-0003 §6 already advises against.
  */
 export function computeDayScore(input: DayScoreInput): DayScore {
   // "Day off" in the UI; `rest` on disk (ADR-0023 §4).
@@ -252,124 +251,52 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     return { possible: 0, earned: 0, base: null, unplanned: 0, unplannedForgone: 0 };
   }
 
-  // The denominator is the whole 100 whenever there is a plan at all,
-  // including the weight of units holding nothing — which is the point.
-  // An empty plan is not a zero day, it is a day with nothing to grade,
-  // and the app shows its own empty state for that.
-  const possible = input.tasks.length > 0 ? DAILY_BUDGET : 0;
+  const { expected, earned: earnedWeight, extra } = input.load;
+  const band = Math.max(0, input.commitment?.band ?? 0);
 
-  // Whether the commitment band applies today, decided once. A band of
-  // null is an ordinary two-band day and every branch below collapses
-  // to exactly the v7 arithmetic.
-  const onCommitmentDay =
-    input.commitmentBand != null && input.commitmentBand > 0;
-  const lifeScale = onCommitmentDay
-    ? (100 - normalizeBand(input.commitmentBand ?? 0)) / 100
-    : 1;
+  // Nothing due of either kind: not graded, as on an ordinary day.
+  if (expected <= 0 && band <= 0) {
+    return { possible: 0, earned: 0, base: null, unplanned: 0, unplannedForgone: 0 };
+  }
 
-  const routineEarned = input.tasks.reduce(
-    (a, t) =>
-      a +
-      (isRoutine(t.timesPerWeek) &&
-      !(onCommitmentDay && t.isCommitment) &&
-      !t.offSchedule &&
-      t.completedToday &&
-      !t.extraToday
-        ? earnedOf(t)
-        : 0),
-    0,
-  );
+  // The life share of the day (ADR-0032): all of it on an ordinary day,
+  // `100 − band` on a commitment day. Planned work, unplanned credit and
+  // extra runs are all scaled into it, so a commitment day still totals
+  // 100 and the band is exactly the share it says it is.
+  const life = (100 - band) / 100;
 
-  // ── The commitment band (ADR-0032) ──
-  // Spent separately, and *before* the variable band is measured,
-  // because a commitment task is non-daily and would otherwise be
-  // counted as ordinary variable work and capped at 20 — the band
-  // would price at 60 and the grade would pay 20.
-  //
-  // The band's own cap is itself: `bandPointValues` already divides
-  // exactly `band` points across the day's eligible commitment work, so
-  // completing all of it earns the band once. The cap here catches
-  // anything the two could disagree about rather than doing the
-  // dividing a second time.
-  const band = onCommitmentDay ? normalizeBand(input.commitmentBand ?? 0) : 0;
-  const commitmentEarned = onCommitmentDay
-    ? Math.min(
-        input.tasks.reduce(
-          (a, t) =>
-            a +
-            (t.isCommitment && !t.offSchedule && t.completedToday && !t.extraToday
-              ? earnedOf(t)
-              : 0),
-          0,
-        ),
-        band,
-      )
-    : 0;
+  // **A share exists only where it can be earned** (ADR-0032 §1). A
+  // commitment day with nothing of your own life due would otherwise
+  // strand the planned share, capping the day at the band plus the
+  // unplanned scraps; instead the band takes it, so finishing that day's
+  // commitment work lands where finishing any day's plan does.
+  const lifePlanned = expected > 0 ? PLANNED_BAND * life : 0;
+  const commitmentShare = band > 0 ? band + (expected > 0 ? 0 : PLANNED_BAND * life) : 0;
+  const commitmentEarned =
+    band > 0
+      ? Math.min(commitmentShare, ((input.commitment?.earned ?? 0) * commitmentShare) / band)
+      : 0;
 
-  // What the life bands hold today. On a commitment day they are scaled
-  // into what the band leaves, exactly as `bandPointValues` scales the
-  // values that fill them — the two must agree or a day could pay more
-  // than it priced.
-  const variableBand = Math.round(VARIABLE_BAND * lifeScale);
+  const planned =
+    expected > 0 ? lifePlanned * Math.min(1, earnedWeight / expected) : 0;
+  const extraCredit =
+    expected > 0 ? life * EXTRA_RUN_RATE * runPoints(extra, expected) : 0;
 
-  // Planned non-daily work has first claim on the variable band.
-  const plannedVariable = input.tasks.reduce(
-    (a, t) =>
-      a +
-      (!isRoutine(t.timesPerWeek) &&
-      !(onCommitmentDay && t.isCommitment) &&
-      !t.offSchedule &&
-      t.completedToday &&
-      !t.extraToday
-        ? earnedOf(t)
-        : 0),
-    0,
-  );
-  const variableEarned = Math.min(plannedVariable, variableBand);
-
-  // Then the unplanned pool, in the order it was earned: activities as
-  // logged, then the special day's rating, which goes last because it is
-  // the one credit not tied to a moment in the day.
-  //
-  // **Fill-first is deliberately NOT here** — see ADR-0025 §12's
-  // 2026-08-16 note. Letting unplanned credit reach a unit's unearned
-  // planned share scored a day with no tasks completed and two
-  // activities logged at 100, the exact failure ADR-0023 was written
-  // from.
   const activityCredit = (input.activities ?? []).reduce(
     (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
     0,
   );
   const ratingBonus =
-    input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
+    input.kind === "special" ? specialDayBonus(input.satisfactionRating) * life : 0;
   const unplannedRaw = activityCredit + ratingBonus;
-  // Floored at zero. Without the floor this goes **negative** whenever
-  // `variableEarned` exceeds its band, silently cancelling the
-  // overspend instead of surfacing it — which is precisely how a
-  // mis-scaled cap would hide. Found by mutation testing 2026-09-14:
-  // breaking the scale produced a correct-looking total built from a
-  // 20-point overspend and a −12 credit.
-  const unplanned = Math.max(
-    0,
-    Math.min(unplannedRaw, variableBand - variableEarned),
-  );
-
-  // Commitment work done off its schedule, at its scheduled-day worth
-  // and **outside every cap** (ADR-0032 §4, amended 2026-09-30). It sits
-  // beside extra runs, not in the unplanned pool: it is still the plan,
-  // done on another day.
-  const offScheduleCredit = input.tasks.reduce(
-    (a, t) => a + (t.offSchedule && t.completedToday ? earnedOf(t) : 0),
-    0,
-  );
+  const unplanned = Math.min(unplannedRaw, UNPLANNED_BAND * life);
 
   const earned =
     commitmentEarned +
-    routineEarned +
-    variableEarned +
+    planned +
     unplanned +
-    offScheduleCredit +
-    (input.extraRunCredit ?? 0);
+    extraCredit +
+    Math.max(0, input.offScheduleCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded
   // pair, so the day screen and the calendar can never read one point
@@ -377,7 +304,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   return {
     ...storedDayScore({
       earned: Math.round(earned),
-      possible: Math.round(possible),
+      possible: DAILY_BUDGET,
     }),
     unplanned,
     unplannedForgone: unplannedRaw - unplanned,

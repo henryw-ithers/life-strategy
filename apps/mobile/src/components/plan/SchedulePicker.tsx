@@ -72,7 +72,7 @@ interface SchedulePickerProps {
   /** Omit and the switch-weeks control never shows. */
   onFortnightOffsetChange?: (offset: 0 | 1) => void;
   /** A clock time, a size, and part credit — all optional, all closed
-   *  by default (ADR-0030 §2). */
+   *  by default (ADR-0036 §2). */
   detail: TaskDetail;
   onDetailChange: (next: TaskDetail) => void;
   /**
@@ -245,7 +245,7 @@ export function SchedulePicker({
 
       {/* Last, and closed. Part of day above it is the default and the
           answer most tasks will ever need; this is the step toward
-          precision that is offered and never required (ADR-0030 §2).
+          precision that is offered and never required (ADR-0036 §2).
           A one-off is not asked its size twice — it answered above. */}
       <TaskDetailPicker
         value={detail}

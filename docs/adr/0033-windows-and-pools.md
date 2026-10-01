@@ -27,7 +27,7 @@ Constraints already in force:
   and **read-mostly with respect to planning** (ADR-0024 §4).
 - **A placement is an intention that lapses silently** (ADR-0024 §2).
 - **Granularity is the user's** (PRODUCT.md principle 6,
-  [ADR-0030](0030-granularity-is-the-users.md)).
+  [ADR-0036](0036-granularity-is-the-users.md)).
 - **The app never shames**, and loss-aversion mechanics are a named
   anti-reference (PRODUCT.md).
 

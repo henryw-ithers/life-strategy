@@ -1,49 +1,52 @@
 /**
- * How much of your hundred is actually reachable, as one bar.
+ * How much of your hundred has a daily habit in it, as one bar.
  *
  * **This is what the Tasks screen is for, drawn instead of described.**
- * ADR-0027 §2 makes coverage decide the ceiling: the routine band pays
- * `0.8 × w` per unit, and a unit with no daily task leaves its share
- * unearnable — nobody else receives it. So the most consequential fact
- * about a plan is *which parts of your life have a daily habit in
- * them*, and until now a person could only discover it by expanding
- * eighteen units and doing arithmetic. The number that answers it,
- * `dayCeiling`, had been written, tested, and called by nothing.
+ * Eighteen units is more than anyone holds in their head, and the most
+ * consequential fact about a plan is *which parts of your life have a
+ * daily habit in them* — a thing a person could otherwise only discover
+ * by expanding every unit and doing arithmetic.
+ *
+ * **It stopped being arithmetic on 2026-08-26** (ADR-0028 §3). Under
+ * ADR-0027 §2 an uncovered unit forfeited its `0.8 × w`, so this bar
+ * carried `dayCeiling` — the literal maximum the day could pay — and a
+ * half-covered plan was capped near half the points. That is withdrawn:
+ * each band is now spent in full by the units holding its work, so the
+ * ceiling is 100 for any plan with a daily task in it and the number
+ * would be a constant.
+ *
+ * The bar stays anyway, because the advice it gives was always the good
+ * part. It now reads as what it is: coverage, not a cap. A mostly-empty
+ * bar means a plan that touches a corner of your life, which is worth
+ * seeing and is nobody's business to penalise.
  *
  * Each filled segment is one area at its covered weight, in that area's
  * own hue — the same six colours the checklist, the portfolio bubbles
  * and every chip use, so the bar is legible without a legend. The
- * hairline remainder is weight you ranked and cannot currently earn.
+ * hairline remainder is weight you ranked and have no daily habit in.
  *
- * **Coverage means a *daily* task, not any task.** A unit whose only
- * work is weekly earns from the variable band and still leaves its
- * routine share on the table, which is exactly the distinction the bar
- * has to make visible; a version that counted any task would say a plan
- * was complete when it was not.
+ * **Coverage means any task** since ADR-0029 §2. It used to mean a
+ * *daily* task, because that was the only kind the routine band would
+ * pay; cadence no longer decides what a band pays, so a unit with a
+ * weekly commitment in it is a unit you are working on.
  *
  * No caption explains it. A mostly-filled bar reads as "most of my life
  * is covered" on sight, and the number to its right is the same
  * right-column grammar the area and unit rows below already use.
  *
- * **On a day with commitment work, the band leads the bar.** The number
- * says what *today* can reach, and on a scheduled day the commitment
- * band is carved off the top and the life units share what is left
- * (ADR-0032). Drawing the 18 units at full width beside a number that
- * had already scaled them would make the bar and its own number
- * disagree. So the band is drawn first, at its size and in the
- * commitments' hue, and every area after it is scaled into the
- * remainder — the same arithmetic `dayCeiling` does, drawn. The band is
- * always fully filled because it is always fully earnable: it divides
- * only among commitments with work today, so none of it is stranded.
- *
- * Whether the band applies comes from `commitmentBandOn`, the same
- * helper the pricing uses. On a free day it is zero and the bar is
- * exactly what it was.
+ * **On a day with commitment work, the band leads the bar** (ADR-0032).
+ * The band is that share of the whole day and the life units share
+ * what is left, so drawing the 18 units at full width would overstate
+ * them. The band is drawn first, at its size and in the commitments'
+ * hue, and every area after it is scaled into the remainder. It is
+ * always filled: it divides only among commitments with work today, so
+ * none of it is stranded. Whether it applies comes from
+ * `commitmentBandOn`, the same helper the grade uses; on a free day it
+ * is zero and the bar is exactly main's.
  */
 import {
   commitmentBandOn,
-  dayCeiling,
-  isRoutine,
+  unitCoverage,
   type CommitmentDay,
 } from "@glide/scoring";
 import { StyleSheet, View } from "react-native";
@@ -66,7 +69,7 @@ export function CoverageBar({
   theme,
 }: {
   areas: PlanArea[];
-  /** Today's commitment day, or null for an ordinary two-band day. */
+  /** Today's commitment day, or null for an ordinary day. */
   day: CommitmentDay | null;
   theme: ThemeTokens;
 }) {
@@ -76,28 +79,17 @@ export function CoverageBar({
   const scored = units.filter((u) => u.includeInScoring && u.weight !== null);
   if (scored.length === 0) return null;
 
-  /** A unit counts as covered when it holds at least one daily task. */
-  const isCovered = (u: (typeof scored)[number]) =>
-    u.tasks.some((t) => isRoutine(t.timesPerWeek));
+  /** A unit counts as covered when it holds any task at all. Cadence
+   *  stopped deciding what a band pays (ADR-0029 §2), so a weekly
+   *  commitment is a part of your life you are working on. */
+  const isCovered = (u: (typeof scored)[number]) => u.tasks.length > 0;
 
-  const ceiling = dayCeiling(
+  const { covered: coveredWeight, total } = unitCoverage(
     scored.map((u) => ({ unitId: u.id, weight: u.weight ?? 0 })),
     units.flatMap((u) =>
-      u.tasks.map((t) => ({
-        id: t.id,
-        unitId: u.id,
-        timesPerWeek: t.timesPerWeek,
-        rankInUnit: t.rankInUnit,
-      })),
+      u.tasks.map(() => ({ unitId: u.id })),
     ),
-    day ?? undefined,
   );
-
-  const band = commitmentBandOn(day);
-  /** What the band leaves the life units, as a multiplier. */
-  const scale = (100 - band) / 100;
-
-  const total = scored.reduce((sum, u) => sum + (u.weight ?? 0), 0);
   const covered = areas
     .map((area) => ({
       id: area.id,
@@ -108,14 +100,19 @@ export function CoverageBar({
     .filter((a) => a.weight >= MIN_VISIBLE_WEIGHT);
   const uncovered = Math.max(0, total - covered.reduce((s, a) => s + a.weight, 0));
 
+  const band = commitmentBandOn(day);
+  /** What the band leaves the life units, as a multiplier. */
+  const scale = (100 - band) / 100;
+  const shown = band + Math.round(coveredWeight * scale);
+
   return (
     <View
       style={styles.root}
       accessible
       accessibilityLabel={
         band > 0
-          ? `Today has commitment work, so ${band} of today's points are your commitments. ${total - uncovered} of ${total} points of the rest are covered by a daily task. Today can reach ${ceiling}.`
-          : `${total - uncovered} of ${total} points covered by a daily task. Today can reach ${ceiling}.`
+          ? `Today has commitment work, so ${band} of today's points are your commitments. ${coveredWeight} of ${total} points of the rest have something planned in them.`
+          : `${coveredWeight} of ${total} points have something planned in them.`
       }
     >
       <View style={styles.track}>
@@ -123,10 +120,7 @@ export function CoverageBar({
           <View
             style={[
               styles.fill,
-              {
-                flex: band,
-                backgroundColor: theme.areas[COMMITMENT_AREA] ?? theme.accent,
-              },
+              { flex: band, backgroundColor: theme.areas[COMMITMENT_AREA] ?? theme.accent },
             ]}
           />
         ) : null}
@@ -135,24 +129,18 @@ export function CoverageBar({
             key={area.id}
             style={[
               styles.fill,
-              {
-                flex: area.weight * scale,
-                backgroundColor: theme.areas[area.id] ?? theme.muted,
-              },
+              { flex: area.weight * scale, backgroundColor: theme.areas[area.id] ?? theme.muted },
             ]}
           />
         ))}
         {uncovered > 0 ? (
           <View
-            style={[
-              styles.fill,
-              { flex: uncovered * scale, backgroundColor: theme.hairline },
-            ]}
+            style={[styles.fill, { flex: uncovered * scale, backgroundColor: theme.hairline }]}
           />
         ) : null}
       </View>
       <AppText variant="label" color={theme.ink} tabular>
-        {ceiling}
+        {shown}
       </AppText>
     </View>
   );

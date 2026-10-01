@@ -148,7 +148,7 @@ real plan, which is a formula-version conversation.
        than your windows hold" is a verdict on the plan, which is the
        advising version §3 rules out. Absent rather than "0m" when
        nothing is sized, since a zero would read as a prompt to size
-       things (ADR-0030 §2). Rounded to a quarter hour, because the
+       things (ADR-0036 §2). Rounded to a quarter hour, because the
        sizes are rough and a figure like "2h 20m" would claim a
        precision they do not have.
 4. [x] ADR-0024 §6 points here (2026-10-01), naming the trigger that

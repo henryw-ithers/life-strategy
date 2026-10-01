@@ -1,13 +1,45 @@
-import { VARIABLE_BAND } from "./bands";
+import { UNPLANNED_BAND } from "./bands";
 
 /**
 
- * Named tunables. GAP_COEFFICIENT and EXTRA_RUN_RATE are the levers
- * contentment calibration (ADR-0008) may propose changing; any change
- * to the derivation math bumps FORMULA_VERSION (ADR-0002/0003).
+ * Named tunables. `WEIGHT_SPREAD` and `EXTRA_RUN_RATE` are the levers a
+ * retune may argue for moving; any change to the derivation math bumps
+ * FORMULA_VERSION (ADR-0002/0003).
  * (BONUS_CAP retired in v3 — credit is additive, no separate pool.)
+ * (GAP_COEFFICIENT retired in v8 — satisfaction no longer derives
+ * weight at all; see ADR-0028 §1.)
  */
-export const GAP_COEFFICIENT = 0.5;
+
+/**
+ * How much more the highest-priority unit is worth than the lowest
+ * (ADR-0028 §2).
+ *
+ * The weight of a unit is now a function of its priority rank and
+ * nothing else, and this is the only dial on that function: rank 1
+ * gets `WEIGHT_SPREAD` raw points, the last rank gets 1, everything in
+ * between is linear, and the whole set is normalized to
+ * `DAILY_BUDGET`. At 18 units and a spread of 2 that is roughly 7.4
+ * points at the top and 3.7 at the bottom.
+ *
+ * **Why it exists.** Before v8 the spread was 10:1 — implicitly, as a
+ * consequence of `rankToScore` mapping ranks onto 10…1 and weight
+ * being proportional to that. The bottom third of an 18-unit portfolio
+ * came out at one, two and three points, and a unit worth two points
+ * cannot hold a task worth having — one task, moving the day by two.
+ * The ranking said "these matter less"; the arithmetic said "these do
+ * not matter." (`recommendedTaskRange`'s thresholds moved with the
+ * scale; see ADR-0028 §2.)
+ *
+ * Every unit in the portfolio is one the user said belongs in their
+ * life — the ones that do not are excluded outright, which is a
+ * different statement with its own control (ADR-0027 §2). So priority
+ * should order the units, not delete the tail of them.
+ *
+ * Set to 1 for a perfectly flat portfolio; set to 10 to reproduce the
+ * pre-v8 shape exactly.
+ */
+export const WEIGHT_SPREAD = 2;
+
 /** Credit rate for task runs beyond the weekly goal (ADR-0004 §4).
  *  Deliberately *outside* `UNPLANNED_CAP` (ADR-0023 §2): a fourth run
  *  of a 3×/week task is the plan done harder, not spontaneity. */
@@ -17,16 +49,21 @@ export const EXTRA_RUN_RATE = 0.5;
  * The most a day can earn from work it didn't plan (ADR-0023 §1).
  *
  * One shared pool: activity credit and the special-day rating bonus
- * draw from the same 25, so a memorable day can't stack a full rating
+ * draw from the same 10, so a memorable day can't stack a full rating
  * bonus on top of a full day of logged activities. Extra runs are
  * exempt — see `EXTRA_RUN_RATE`.
  *
+ * **25 → 20 → 10.** ADR-0027 §3 made it the variable band, so it
+ * covered planned weekly work as well as spontaneity. ADR-0029 §2 gives
+ * planned work a band of its own at every cadence, so this goes back to
+ * meaning only what ADR-0023 named it for — and shrinks, because the
+ * planned band grew to 90.
+ *
  * Replaces ADR-0009's `BONUS_CAP`, which formula v3 retired and whose
  * absence let vacation days score above 100 with the checklist
- * untouched. Named, because ADR-0008's calibration may argue for
- * moving it.
+ * untouched.
  */
-export const UNPLANNED_CAP = VARIABLE_BAND;
+export const UNPLANNED_CAP = UNPLANNED_BAND;
 
 /**
  * `MISSED_DAY_CREDIT` **retired 2026-08-13.** An elapsed day with no
@@ -67,45 +104,55 @@ export const UNPLANNED_CAP = VARIABLE_BAND;
  *  activity credit is denominated in a unit's daily share rather than
  *  its portfolio weight. A stored `earned` from v4 and one from v5 are
  *  not comparable. History is not rewritten — grades finalize.
- *  v6 (2026-08-16): **communal units earn by being tagged**
- *  (ADR-0025 §3). The three Relationships units hold no tasks, so they
- *  are *covered by definition* rather than donating their weight to
- *  units that do, and a single tag anywhere in the day earns that
- *  share in full. Not proportional: relationships are not
- *  dose-dependent, and a proportional rule would cap a solo day
- *  structurally — the shame surface AGENTS.md forbids, arriving
- *  through arithmetic instead of copy.
- *  Two things were expected in this version and are **not** in it.
- *  *Fill-first activity credit* (ADR-0025 §12) was built and pulled:
- *  it scored a day with no tasks completed and two activities logged
- *  at 100, which is the failure ADR-0023 exists to prevent, and it
- *  contradicts AGENTS.md's cap invariant outright. *The
- *  daily-denominator retune* was never decided — docs/backburner.md
- *  lists four directions and none was chosen — so there was nothing to
- *  build. Both are open questions, not omissions.
- *  v8 (2026-09-11): **the commitment band** (ADR-0032). A day holding
- *  eligible commitment work splits three ways — the band, then 80/20
- *  on what remains — and the 18 life units are scaled into that
- *  remainder. This is the first time a day's split depends on the
- *  *date*, so a task's value is no longer one stored number true on
- *  every day; `loadDay` computes it for the date when a band applies
- *  and reads the stored column otherwise. A day with no commitment
- *  work is arithmetically identical to v7, but the version moves
- *  regardless: the stamp records how a grade *could* have been
- *  derived, and two eras where the same plan can score differently are
- *  not comparable. Grades finalize; history is not rewritten.
- *  v9 (2026-09-30): **commitment work off its schedule pays** (ADR-0032
- *  §4, amended). Done on a day it was not scheduled — ahead of its day,
- *  or in place of something else — it is priced at what it is worth on
- *  its scheduled day and paid from the unplanned pool. Under v8 it paid
- *  nothing, because a commitment has no weight among the 18.
- *  v10 (2026-09-30): **the same work, uncapped.** Henry: "remove the
- *  cap." It no longer draws on the unplanned pool's headroom; it is
- *  paid in full beside extra runs, as the plan done on another day.
- *  v11 (2026-10-01): **an early session stands in for the next one.**
- *  A recurring commitment session ticked off its schedule is its next
- *  scheduled session done early: it is priced at that session's value,
- *  and that session leaves its own day's band. Under v10 it paid again
- *  on every day it was ticked. */
-export const FORMULA_VERSION = 11;
+ *  v6 (2026-08-16): communal units earned by being tagged
+ *  (ADR-0025 §3). Withdrawn by ADR-0027 §4: they hold tasks and score
+ *  like any other unit.
+ *  v7 (2026-08-18): two bands, allocated separately (ADR-0027). The
+ *  routine band is 80 and pays only daily tasks; the variable band is
+ *  20 and holds everything else; the weight of a unit with no daily
+ *  task was forfeited rather than redistributed, so a plan's coverage
+ *  set its ceiling.
+ *  v8 (2026-08-26): **priority is the only input, and completing your
+ *  plan is what is scored** (ADR-0028). Three changes, all to
+ *  derivation:
+ *  - Satisfaction leaves the weight formula. `raw = importance`; the
+ *    gap term and `GAP_COEFFICIENT` are gone. Satisfaction is still
+ *    diagnosed, stored, plotted and used to profile a unit — it is a
+ *    measure of whether the plan is working, not an input to it.
+ *  - Weights are flattened to `WEIGHT_SPREAD` (see above). The bottom
+ *    of an 18-unit portfolio moves from ~1 point to ~3.7.
+ *  - ADR-0027 §2's forfeit is withdrawn. Both bands are split across
+ *    the units that hold work of that kind, so doing every daily task
+ *    pays exactly 80 whatever the plan's coverage.
+ *  A stored `earned` from v7 and one from v8 are not comparable, and
+ *  history is not rewritten — grades finalize (ADR-0002). */
+/*  v9 (2026-08-26): **a day is scored on the fraction of itself you
+ *  got through** (ADR-0029). Cadence stops being a scoring concept: the
+ *  80/20 routine/variable split becomes a 90/10 planned/unplanned one,
+ *  and the day's denominator is the weight of the work actually due
+ *  that day — every-day tasks and anything pinned to today in full,
+ *  plus an even share of the flexible pool. Task point values become
+ *  day-relative rather than stored. Weekday pins reach the grade for
+ *  the first time, withdrawing ADR-0024 §2, though nothing compares a
+ *  completion's date to the day it was pinned to: obligations are
+ *  weekly, so doing Friday's run on Tuesday is still a perfect week.
+ *  A v8 `earned` and a v9 one are not comparable; grades finalize.
+ *  v10 (2026-10-01): **the commitment band, on v9's day** (ADR-0032 as
+ *  amended; built on a branch as its own v8–v11 and renumbered when it
+ *  met v9, since none of those stamps reached a device).
+ *  - On a day with scheduled commitment work, the band — the user's
+ *    10–60 — is that share of the whole day, carved off first and paid
+ *    as the share of today's commitment work done. v9's 90 planned and
+ *    10 unplanned are scaled into what is left. Every other day is v9
+ *    exactly.
+ *  - A day whose only due work is commitment work gives the band the
+ *    planned share too, rather than stranding it: the band exists only
+ *    where it can be earned (ADR-0032 §1), and so does the life share.
+ *  - Commitment work done on a day it was not scheduled is priced at
+ *    its scheduled-day value and paid in full, outside every band; an
+ *    early recurring session stands in for its next scheduled one, and
+ *    that session leaves its own day (ADR-0032 §4).
+ *  - Part credit reaches the day: a part-done run counts its fraction
+ *    of its weight (ADR-0014). */
+export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;

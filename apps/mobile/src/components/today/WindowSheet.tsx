@@ -108,7 +108,7 @@ export function WindowSheet({
           <AppText variant="caption" color={theme.muted}>
             {/* The cue, where there is one — "after the lecture" survives
                 the lecture moving, where a clock time silently would
-                not (ADR-0030 §3). */}
+                not (ADR-0036 §3). */}
             {formatLength(window.end - window.start)} free. Pick what might
             go here; any of them counts.
           </AppText>

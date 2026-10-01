@@ -8,13 +8,11 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
-  VARIABLE_BAND,
-  bandPointValues,
+  taskWeights,
   DAILY_BUDGET,
   largestRemainder,
   type BandTask,
   type BandUnit,
-  type CommitmentDay,
 } from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -23,7 +21,6 @@ import { db } from "./client";
 import {
   isCommitmentUnit,
   membershipsFor,
-  toBandKeys,
   type Membership,
 } from "./commitmentPlan";
 import {
@@ -67,7 +64,7 @@ export interface PlanTask {
   /** Its deadline, or null. */
   oneOffDue: string | null;
   /** Minutes from local midnight, or null for no clock time
-   *  (ADR-0030 §1). Presentation and fit only; never scored. */
+   *  (ADR-0036 §1). Presentation and fit only; never scored. */
   startMinute: number | null;
   endMinute: number | null;
   /** Effort size, or null for unsized (ADR-0026 §1). Does not reprice
@@ -110,7 +107,7 @@ export interface PlanArea {
 
 /**
  * A commitment as the Tasks screen lists it: its own name, its parts,
- * and the tasks filed under either (ADR-0029).
+ * and the tasks filed under either (ADR-0035).
  *
  * Kept **out of `areas`** on purpose. A commitment is a custom unit and
  * was reaching the Tasks screen as one — an excluded life unit with no
@@ -314,32 +311,40 @@ export async function loadPlan(): Promise<PlanData> {
 }
 
 /**
- * Re-derive every task's point value across the whole plan at once
- * (ADR-0027 §1). Runs whenever weights move (a new diagnostic, a
- * manual re-rank) **and whenever any task is added, archived, restored,
- * re-ranked, or re-homed** — the variable band is one pool shared by
- * every non-daily task in the portfolio, so adding a weekly task in one
- * unit can move what a weekly task in another unit is worth.
+ * Re-derive every task's **weight** across the whole plan at once
+ * (ADR-0029 §1). Runs whenever weights move (a new diagnostic, a manual
+ * re-rank) and whenever any task is added, archived, restored,
+ * re-ranked, or re-homed — a unit divides its weight across the tasks
+ * it holds, so adding one changes what its siblings are worth.
+ *
+ * **`point_value` stores a weight now, not points.** A task's worth in
+ * points is a property of the day it is done on — `PLANNED_BAND × its
+ * weight ÷ that day's expected load` — because a day is graded on the
+ * fraction of itself you got through. The column keeps its name (the
+ * schema is forward-only, ADR-0002) and keeps summing to 100 across the
+ * portfolio, which is what the Tasks screen's right column shows.
  *
  * Each membership (`task_unit` row) is priced separately and keyed by
  * `taskId::unitId`, since a task serving two units takes a rank and
  * earns a share in each (ADR-0019). Ranks are normalized to 1..n first
  * — closing the gap a delete or a unit change leaves — because
- * `bandPointValues` reads rank order, not the stored numbers.
+ * `taskWeights` reads rank order, not the stored numbers.
  *
- * **No reallocation** (ADR-0027 §2): a unit's weight is 0 the moment it
- * is excluded, never scaled up because some other unit has nothing to
- * spend its own weight on. A unit with no tasks simply prices nothing.
+ * **Cadence does not appear here at all** (ADR-0029 §2). A daily task
+ * and a weekly one in the same unit are priced by rank alone; how often
+ * each is *due* is the day loader's business. An **excluded** unit is
+ * weight 0 and prices nothing — a statement about scope, not cadence.
  *
  * `loadPlan` and `loadDay` both read the stored `task.point_value`, so
  * anything that skips this leaves the checklist scoring against a plan
  * that no longer exists.
  */
 /**
- * What share of its unit's variable budget each size claims. The same
- * three ratios logged activities use, so the sizes mean the same thing
- * wherever they appear — but applied to the unit's real budget rather
- * than the flat notional rate, which is what makes them distinguishable.
+ * What share of its unit's weight a one-off run claims. The same three
+ * ratios logged activities use, so the sizes mean the same thing
+ * wherever they appear: a *big* errand is worth about what a week of
+ * planned work in that unit is worth, and a *quick* one a quarter of
+ * that.
  */
 const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
   quick: 0.25,
@@ -347,26 +352,16 @@ const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
   big: 1,
 };
 
-/**
- * Everything `bandPointValues` needs, read once.
- *
- * Shared by `recomputeAllUnitPoints`, which stores date-independent
- * values, and by `taskPointsOn`, which prices a **particular date**
- * once a commitment band is in play (ADR-0032). Both must build their
- * inputs the same way or a commitment day would price the 18 life
- * units differently from every other day for reasons unrelated to the
- * band.
- */
-async function bandInputs(tx: Tx | typeof db) {
-  const weights = await latestWeights(tx as Tx);
+export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
+  const weights = await latestWeights(tx);
   const units = await tx
     .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
     .from(lifeUnit);
   const commitmentUnitIds = await commitmentUnitIdsIn(tx);
   // Scoring rows only. A `note` row earns nothing and holds no rank
-  // (ADR-0025 §5); priced as a slot it would pay a commitment task a
+  // (ADR-0025 §5); weighted as a slot it would pay a commitment task a
   // second time from a life unit, which is the one way to inflate a day
-  // (ADR-0029 §3).
+  // (ADR-0035 §3).
   const memberships = await tx
     .select({
       taskId: taskUnit.taskId,
@@ -387,12 +382,11 @@ async function bandInputs(tx: Tx | typeof db) {
       oneOffSize: task.oneOffSize,
     })
     .from(task);
-  const timesPerWeekByTask = new Map(taskRows.map((t) => [t.id, t.timesPerWeek]));
   const oneOffSizeByTask = new Map(taskRows.map((t) => [t.id, t.oneOffSize]));
   const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
 
   // Normalize each unit's ranks to 1..n before pricing, so a gap left
-  // by an archive or a unit change never reaches `bandPointValues`.
+  // by an archive or a unit change never reaches `taskWeights`.
   const normalizedRank = new Map<string, number>();
   for (const unitId of new Set(memberships.map((m) => m.unitId))) {
     memberships
@@ -401,9 +395,14 @@ async function bandInputs(tx: Tx | typeof db) {
       .forEach((m, i) => normalizedRank.set(`${m.taskId}::${m.unitId}`, i + 1));
   }
 
+  // A commitment has no weight among the 18 (ADR-0035): its work is
+  // priced by the commitment band, per day, and stores a weight of 0.
   const bandUnits: BandUnit[] = units.map((u) => ({
     unitId: u.id,
-    weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
+    weight:
+      u.includeInScoring && !commitmentUnitIds.has(u.id)
+        ? (weights.get(u.id) ?? 0)
+        : 0,
   }));
   // One-offs never enter the recurring allocation. If they did, every
   // other non-daily task in their unit would lose value while an errand
@@ -411,153 +410,37 @@ async function bandInputs(tx: Tx | typeof db) {
   // instability ADR-0027's amendment took out of the variable band,
   // reappearing over time instead of across units. They are priced
   // below instead, from the unit's own variable day rate.
-  //
-  // **Commitment one-offs are the exception.** An assignment is the
-  // whole point of a commitment, and the band pays by slot, not by
-  // cadence — so it enters the band like any other commitment task. Its
-  // unit has no weight, so it cannot disturb a life unit's share.
   const bandTasks: BandTask[] = memberships
-    .filter(
-      (m) =>
-        oneOffSizeByTask.get(m.taskId) == null ||
-        commitmentUnitIds.has(m.unitId),
-    )
+    .filter((m) => oneOffSizeByTask.get(m.taskId) == null)
     .map((m) => ({
       id: `${m.taskId}::${m.unitId}`,
       unitId: m.unitId,
-      timesPerWeek: timesPerWeekByTask.get(m.taskId) ?? 7,
       rankInUnit: normalizedRank.get(`${m.taskId}::${m.unitId}`) ?? m.rankInUnit,
     }));
-  return {
-    bandUnits,
-    bandTasks,
-    memberships,
-    // What `priceOneOffs` may price: life-unit memberships only. A
-    // commitment one-off is priced by the band or not at all; left in,
-    // it would be floored at one point from a unit with no budget and
-    // overwrite whatever the band had paid it.
-    lifeMemberships: memberships.filter((m) => !commitmentUnitIds.has(m.unitId)),
-    oneOffSizeByTask,
-    normalizedRank,
-    homeUnitByTask,
-  };
-}
+  const points = taskWeights(bandUnits, bandTasks);
 
-/**
- * A one-off's worth: its size against **its unit's own variable
- * budget** — so a big errand in a part of your life is worth about
- * what a week of planned work there is worth, and a quick one a
- * quarter of that.
- *
- * The first attempt priced these at the flat activity rate
- * (`20/100 × weight`), which came out at 1, 1 and 2 points for the
- * three sizes in a weight-10 unit while a weekly task in the same
- * unit was worth 20. Two of the three sizes were indistinguishable,
- * which would have made the size control decorative.
- *
- * **The budget is worked out over units holding any non-daily item,
- * one-offs included** — otherwise an errand in a unit with no weekly
- * work would divide by a budget of zero and price at the floor. That
- * means the variable band's *notional* total can exceed 20 while
- * one-offs are outstanding. It cannot exceed it in practice:
- * `computeDayScore` caps what the band pays at `VARIABLE_BAND`, and
- * the day's denominator is a constant 100 either way (ADR-0027 §1).
- *
- * Crucially this is computed **outside `bandPointValues`**, so a
- * one-off appearing or being ticked off never moves a recurring
- * task's value. That is the property this whole design exists to
- * protect.
- *
- * A floor of one point, for ADR-0003 §5's reason: a zero-point row
- * cannot move the number, so it is not a task.
- */
-function priceOneOffs(
-  points: Map<string, number>,
-  bandUnits: BandUnit[],
-  bandTasks: BandTask[],
-  memberships: readonly { taskId: string; unitId: string }[],
-  oneOffSizeByTask: Map<string, "quick" | "normal" | "big" | null>,
-): void {
-  const oneOffMemberships = memberships.filter(
-    (m) => oneOffSizeByTask.get(m.taskId) != null,
-  );
-  if (oneOffMemberships.length > 0) {
-    const holdsNonDaily = new Set<string>([
-      ...bandTasks.map((t) => t.unitId),
-      ...oneOffMemberships.map((m) => m.unitId),
-    ]);
-    const spread = bandUnits
-      .filter((u) => holdsNonDaily.has(u.unitId) && u.weight > 0)
-      .reduce((sum, u) => sum + u.weight, 0);
-
-    for (const m of oneOffMemberships) {
-      const size = oneOffSizeByTask.get(m.taskId);
-      if (size == null) continue;
-      const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
-      const budget = spread > 0 ? (VARIABLE_BAND * weight) / spread : 0;
-      points.set(
-        `${m.taskId}::${m.unitId}`,
-        Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * budget)),
-      );
-    }
-  }
-}
-
-/**
- * What every task is worth **on one particular date**, once a
- * commitment band is in play (ADR-0032).
- *
- * The band makes a day's split date-dependent — the first time
- * anything in this app has been — so `task.point_value` can no longer
- * be one stored number that is true every day. On a day with eligible
- * commitment work the values are computed here at read time; on every
- * other day `loadDay` keeps reading the stored column, which is why
- * this returns `null` for those days rather than a map that happens to
- * match.
- *
- * Returns totals per task, summed across memberships the way
- * `task.point_value` is.
- */
-export async function taskPointsOn(
-  day: CommitmentDay,
-): Promise<Map<string, number>> {
-  const {
-    bandUnits,
-    bandTasks,
-    memberships,
-    lifeMemberships,
-    oneOffSizeByTask,
-    homeUnitByTask,
-  } = await bandInputs(db);
-  // The day is recorded against tasks; pricing is keyed by membership.
-  // Unkeyed, the band found no eligible task and paid nobody.
-  const points = bandPointValues(
-    bandUnits,
-    bandTasks,
-    toBandKeys(day, homeUnitByTask),
-  );
-  priceOneOffs(points, bandUnits, bandTasks, lifeMemberships, oneOffSizeByTask);
-
-  const totals = new Map<string, number>();
+  /**
+   * A one-off's weight: its size against **its unit's own weight**, so
+   * a big errand carries about what a week of planned work in that part
+   * of your life carries, and a quick one a quarter of it.
+   *
+   * Computed **outside `taskWeights`**, so a one-off appearing or being
+   * ticked off never moves a recurring task's weight. That is the
+   * property this whole design exists to protect: an errand on the list
+   * must not quietly devalue the habits beside it.
+   *
+   * A floor of one, for ADR-0003 §5's reason — a zero-weight row cannot
+   * move the number, so it is not a task.
+   */
   for (const m of memberships) {
-    const value = points.get(`${m.taskId}::${m.unitId}`) ?? 0;
-    totals.set(m.taskId, (totals.get(m.taskId) ?? 0) + value);
+    const size = oneOffSizeByTask.get(m.taskId);
+    if (size == null) continue;
+    const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
+    points.set(
+      `${m.taskId}::${m.unitId}`,
+      weight > 0 ? Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * weight)) : 0,
+    );
   }
-  return totals;
-}
-
-export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
-  const {
-    bandUnits,
-    bandTasks,
-    memberships,
-    lifeMemberships,
-    oneOffSizeByTask,
-    normalizedRank,
-    homeUnitByTask,
-  } = await bandInputs(tx);
-  const points = bandPointValues(bandUnits, bandTasks);
-  priceOneOffs(points, bandUnits, bandTasks, lifeMemberships, oneOffSizeByTask);
 
   // Totals are summed here rather than re-read per task. This used to
   // call `refreshTaskTotal` in a second loop, which cost three more
@@ -666,7 +549,7 @@ async function attachUnits(
  * there is no home unit to file it under.
  */
 /**
- * The optional refinements, all null-by-default (ADR-0030 §2).
+ * The optional refinements, all null-by-default (ADR-0036 §2).
  *
  * A caller that omits this creates exactly the task the app made before
  * these columns existed, which is the point: the light defaults are
@@ -696,6 +579,10 @@ export async function addTask(
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
   goalId: string | null = null,
   oneOff: OneOff | null = null,
+  /** Which of the goal's conditions this task was written under
+   *  (ADR-0030 §1). Grouping only — it never affects what the task is
+   *  worth, which still comes from its units and its rank there. */
+  conditionId: string | null = null,
   detail: TaskDetail | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
@@ -726,6 +613,7 @@ export async function addTask(
       plannedWeekdays: oneOff ? null : plannedWeekdays,
       partOfDay,
       goalId,
+      conditionId: goalId ? conditionId : null,
       oneOffSize: oneOff?.size ?? null,
       oneOffDate: oneOff?.date ?? null,
       oneOffDue: oneOff?.due ?? null,
@@ -1055,7 +943,7 @@ export async function setTaskFortnightOffset(
 }
 
 /**
- * Give a task a clock time, or take one away (ADR-0030 §1).
+ * Give a task a clock time, or take one away (ADR-0036 §1).
  *
  * **Any task may carry one and nothing requires one.** Pass `null` to
  * clear it and the task goes back to part-of-day, which is the default

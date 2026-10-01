@@ -45,7 +45,7 @@ export interface Window {
   end: number;
   /**
    * The block this window follows, when one does. That is the **cue**
-   * (ADR-0030 §3) — "after the 11am lecture" survives the lecture
+   * (ADR-0036 §3) — "after the 11am lecture" survives the lecture
    * moving to 2pm, where a clock time would silently become wrong.
    */
   afterTaskId: string | null;

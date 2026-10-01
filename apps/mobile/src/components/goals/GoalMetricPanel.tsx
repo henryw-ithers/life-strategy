@@ -13,13 +13,12 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import {
   barFraction,
-  habitMilestonesReached,
+  habitRungsReached,
   metricState,
-  milestonesReached,
   type MetricKind,
   type Streak,
 } from "@glide/scoring";
-import type { GoalMilestone, GoalProgressEntry } from "../../db/goals";
+import type { GoalProgressEntry } from "../../db/goals";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -50,8 +49,6 @@ interface GoalMetricPanelProps {
   streak: Streak | null;
   targetDate: string | null;
   entries: GoalProgressEntry[];
-  /** For the rung prompt (ADR-0015 §5). */
-  milestones: GoalMilestone[];
   editable: boolean;
   accent: string;
   theme: ThemeTokens;
@@ -61,9 +58,6 @@ interface GoalMetricPanelProps {
   /** Reaching a target *invites* completion; it never performs it
    *  (ADR-0015 §3). Routes into ADR-0007 §2's three-path exit. */
   onComplete: () => void;
-  /** Advance a rung the readings have passed. Also a prompt, never
-   *  automatic. */
-  onAdvanceMilestone: (milestoneId: string) => void;
 }
 
 export function GoalMetricPanel({
@@ -73,7 +67,6 @@ export function GoalMetricPanel({
   streak,
   targetDate,
   entries,
-  milestones,
   editable,
   accent,
   theme,
@@ -81,7 +74,6 @@ export function GoalMetricPanel({
   onDelete,
   onEdit,
   onComplete,
-  onAdvanceMilestone,
 }: GoalMetricPanelProps) {
   const [draft, setDraft] = useState("");
   const isHabit = kind === "habit";
@@ -93,23 +85,17 @@ export function GoalMetricPanel({
   const width = state ? barFraction(state) : null;
   const label = unit ?? "";
 
-  // The rung reached but not yet ticked. Only the *current* one:
-  // advancing is sequential (ADR-0007 §3), so offering a later rung
-  // would skip the ones between.
-  const current = milestones.find((m) => m.status === "current");
-  const rung =
-    current && current.targetValue !== null
-      ? [{ id: current.id, targetValue: current.targetValue }]
-      : [];
-  const passed =
-    rung.length === 0
-      ? false
-      : isHabit
-        ? habitMilestonesReached(streak ?? { current: 0, longest: 0 }, rung)
-            .length > 0
-        : def && state
-          ? milestonesReached(def, state, rung).length > 0
-          : false;
+  /**
+   * The highest habit rung the run has passed (ADR-0030 §5).
+   *
+   * A statement, not an invitation. Rungs used to be stored rows the
+   * user ticked off one at a time; they are `HABIT_LADDER` measured
+   * against the streak now, and the achievement is written the moment
+   * the run earns it, so there is nothing left to confirm. Metric goals
+   * have no intermediate rungs at all any more — one target, and
+   * reaching it still only *invites* completion (ADR-0015 §3).
+   */
+  const topRung = isHabit && streak ? habitRungsReached(streak).at(-1) ?? null : null;
 
   // A habit is at its best right now. Celebration may condition on a
   // positive event (ADR-0008); the inverse — showing a long-gone best
@@ -220,20 +206,14 @@ export function GoalMetricPanel({
         </AppText>
       ) : null}
 
-      {passed && current && editable ? (
-        <View style={styles.invite}>
-          <AppText variant="caption" color={theme.muted}>
-            {isHabit
-              ? `You've passed ${current.title} days.`
-              : `Your readings have passed “${current.title}”.`}
-          </AppText>
-          <Button
-            label="Mark it done"
-            variant="quiet"
-            onPress={() => onAdvanceMilestone(current.id)}
-            theme={theme}
-          />
-        </View>
+      {/* Celebration may condition on a positive event (ADR-0008), and
+          a rung passed is one. Nothing marks its absence. */}
+      {topRung !== null ? (
+        <AppText variant="caption" color={accent}>
+          {topRung === 66
+            ? "Past 66 days — the point most habits stop needing deciding."
+            : `Past ${days(topRung)}.`}
+        </AppText>
       ) : null}
 
       {targetDate ? (

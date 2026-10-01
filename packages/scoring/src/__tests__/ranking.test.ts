@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { WEIGHT_SPREAD } from "../constants";
 import {
   combineHierarchicalRank,
   rankToScore,
@@ -92,18 +93,11 @@ describe("combineHierarchicalRank", () => {
 });
 
 describe("weightsForPriorityOrder", () => {
-  const satisfaction = new Map([
-    ["a", 5],
-    ["b", 5],
-    ["c", 5],
-    ["d", 5],
-  ]);
   const allScored = new Set(["a", "b", "c", "d"]);
 
   it("weights sum to the daily budget", () => {
     const w = weightsForPriorityOrder({
       order: ["a", "b", "c", "d"],
-      satisfaction,
       scored: allScored,
     });
     expect(w.reduce((s, x) => s + x.weight, 0)).toBe(100);
@@ -112,7 +106,6 @@ describe("weightsForPriorityOrder", () => {
   it("ranks higher priority above lower", () => {
     const w = weightsForPriorityOrder({
       order: ["a", "b", "c", "d"],
-      satisfaction,
       scored: allScored,
     });
     const by = new Map(w.map((x) => [x.unitId, x.weight]));
@@ -124,12 +117,10 @@ describe("weightsForPriorityOrder", () => {
   it("reversing the order reverses the weights", () => {
     const forward = weightsForPriorityOrder({
       order: ["a", "b", "c", "d"],
-      satisfaction,
       scored: allScored,
     });
     const back = weightsForPriorityOrder({
       order: ["d", "c", "b", "a"],
-      satisfaction,
       scored: allScored,
     });
     const f = new Map(forward.map((x) => [x.unitId, x.weight]));
@@ -145,12 +136,10 @@ describe("weightsForPriorityOrder", () => {
   it("keeps unscored units in the rank denominator", () => {
     const withUnscored = weightsForPriorityOrder({
       order: ["a", "b", "c", "d"],
-      satisfaction,
       scored: new Set(["a", "b"]),
     });
     const asIfDropped = weightsForPriorityOrder({
       order: ["a", "b"],
-      satisfaction,
       scored: new Set(["a", "b"]),
     });
     expect(withUnscored.map((w) => w.unitId)).toEqual(["a", "b"]);
@@ -165,28 +154,35 @@ describe("weightsForPriorityOrder", () => {
 
   it("returns nothing for an empty order", () => {
     expect(
-      weightsForPriorityOrder({ order: [], satisfaction, scored: allScored }),
+      weightsForPriorityOrder({ order: [], scored: allScored }),
     ).toEqual([]);
   });
 
-  /* ADR-0003's gap boost, isolated: same unit, same rank, only its
-   * satisfaction differs. Lagging behind your own priority earns more
-   * of the budget; being content there earns less. */
-  it("boosts a unit whose satisfaction lags behind its priority", () => {
-    const at = (b: number) =>
-      new Map(
-        weightsForPriorityOrder({
-          order: ["a", "b", "c", "d"],
-          satisfaction: new Map([
-            ["a", 5],
-            ["b", b],
-            ["c", 5],
-            ["d", 5],
-          ]),
-          scored: allScored,
-        }).map((x) => [x.unitId, x.weight]),
-      );
+  /* ADR-0028 §1: there is no second axis left to isolate. Priority
+   * order is the entire input, so the same order is the same weights,
+   * every time, for everyone. */
+  it("is a pure function of the order", () => {
+    const once = weightsForPriorityOrder({
+      order: ["a", "b", "c", "d"],
+      scored: allScored,
+    });
+    const again = weightsForPriorityOrder({
+      order: ["a", "b", "c", "d"],
+      scored: allScored,
+    });
+    expect(again).toEqual(once);
+  });
 
-    expect(at(1).get("b")!).toBeGreaterThan(at(10).get("b")!);
+  /* ADR-0028 §2: the flattening rides along here, because this is the
+   * path a manual re-rank takes and it has to land on the same numbers
+   * the diagnostic would give. */
+  it("spreads the four units gently rather than 10:1", () => {
+    const w = weightsForPriorityOrder({
+      order: ["a", "b", "c", "d"],
+      scored: allScored,
+    });
+    const top = w[0]!.exact;
+    const bottom = w[3]!.exact;
+    expect(top / bottom).toBeCloseTo(WEIGHT_SPREAD, 10);
   });
 });

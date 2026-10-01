@@ -1,4 +1,4 @@
-# ADR-0029: Commitments are custom units
+# ADR-0035: Commitments are custom units
 
 > **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11 (rewritten; first drafted 2026-09-08)\
@@ -8,7 +8,7 @@
 > *parallel academic module* — `term`, `course`, `assessment`,
 > `fixed_commitment`, `study_session`, `term_result`, a second
 > hierarchy beside `SLA → SLU → Goal → Task`, and a mode switch
-> ([ADR-0028](0028-schedule-mode.md), now withdrawn) to hide it from
+> ([ADR-0034](0034-schedule-mode.md), now withdrawn) to hide it from
 > anyone not at university. Henry generalised it twice: *"make it more
 > general so it can apply to things outside of school as well,"* then
 > *"commitments basically behave like an SLU with its own weighting."*

@@ -11,7 +11,7 @@
  * Minutes are integer minutes from local midnight throughout, matching
  * the columns and the window math. Nothing here reads or writes a
  * task's part of day: `PART_OF_DAY_BOUNDS` decides where a lane label
- * sits and is never written back (ADR-0030 §2's defaults are the whole
+ * sits and is never written back (ADR-0036 §2's defaults are the whole
  * of the app's opinion, and a grid that wrote times to tasks would
  * take that decision away silently).
  */

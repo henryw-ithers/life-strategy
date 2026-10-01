@@ -98,21 +98,18 @@ export async function clearFeedbackDraft(): Promise<void> {
   await setSetting(KEY_FEEDBACK_DRAFT, "");
 }
 
-const KEY_CALIBRATION_GAP_COEFFICIENT = "calibration.gapCoefficient";
-
-/** `null` = no override; `deriveWeights` falls back to the built-in
- *  `GAP_COEFFICIENT` constant (ADR-0008: a calibration lever, applied
- *  only on explicit user acceptance of a suggestion). */
-export async function getGapCoefficientOverride(): Promise<number | null> {
-  const value = await getSetting(KEY_CALIBRATION_GAP_COEFFICIENT);
-  if (value === null) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export async function setGapCoefficientOverride(value: number): Promise<void> {
-  await setSetting(KEY_CALIBRATION_GAP_COEFFICIENT, String(value));
-}
+/**
+ * `calibration.gapCoefficient` **retired 2026-08-26 (ADR-0028 §1).**
+ *
+ * It held ADR-0008's one calibration override: a user-accepted
+ * adjustment to the strength of the satisfaction-gap boost in
+ * `deriveWeights`. Formula v8 removed that term, so the setting has
+ * nothing left to override and both accessors are gone.
+ *
+ * The stored row, if a user ever accepted a suggestion, is deliberately
+ * **not deleted**. Nothing reads it, it costs one row, and the settings
+ * table is the app's own record of what it was once asked to do.
+ */
 
 const KEY_COMMITMENT_BAND = "commitment.band";
 
@@ -125,7 +122,7 @@ const KEY_COMMITMENT_BAND = "commitment.band";
  *
  * `null` means the user has not set one, which is not the same as
  * zero: with no band set, `loadDay` passes no `CommitmentDay` and every
- * day is the ordinary two-band day it is today. That is what keeps the
+ * day is the ordinary two-band day (planned 90, unplanned 10). That is what keeps the
  * feature invisible until it is used.
  *
  * > **Known limitation.** `app_setting` is device-scoped by intent —

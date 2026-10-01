@@ -1,5 +1,5 @@
 /**
- * The two rules the schema cannot express (ADR-0029 §1, ADR-0033 §3).
+ * The two rules the schema cannot express (ADR-0035 §1, ADR-0033 §3).
  *
  * Both are enforced at the write seam in `commitmentWrites.ts`, which
  * imports `./client` and so cannot be tested directly. The rules

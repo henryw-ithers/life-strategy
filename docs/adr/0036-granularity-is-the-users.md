@@ -1,4 +1,4 @@
-# ADR-0030: Granularity is the user's
+# ADR-0036: Granularity is the user's
 
 > **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11 (rewritten; first drafted 2026-09-08)\

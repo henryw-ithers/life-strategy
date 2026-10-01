@@ -5,15 +5,16 @@
  * into them, community area replaced by Home & environment, giving
  * moved into Mental wellbeing, spirituality kept with an inclusive
  * framing, leisure rebuilt around making vs. taking in; 2026-07-27
- * revision: Home & environment reframed as Wellness — the maintenance
+ * revision: Home & environment reframed as Wellness, then renamed back
+ * to Environment on 2026-08-26 — the maintenance
  * area, low-effort/high-return upkeep where most other areas are
  * about growth — keeping living space and nature and gaining hygiene,
  * which partially revives Strack's dissolved personal-care dimension).
  *
  * Ids are stable slugs (ADR-0002): units that continue a life
  * dimension KEEP their id across revisions (renames/re-homes are
- * labels), so rating history stays connected — which is why Wellness
- * still carries the `home-environment` id and its amber hue. Retired
+ * labels), so rating history stays connected — which is why the area
+ * carries the `home-environment` id and its amber hue throughout. Retired
  * units are archived by the sync, never deleted. Unit descriptions
  * and guidelines live in src/content/units.ts, keyed by these ids.
  */
@@ -88,9 +89,10 @@ export const DEFAULT_TAXONOMY: SeedArea[] = [
     ],
   },
   {
-    // Id predates the 2026-07-27 rename; keep it (see header note).
+    // The id was always right; only the label wandered. Kept through
+    // both renames (see header note).
     id: "home-environment",
-    name: "Wellness",
+    name: "Environment",
     units: [
       { id: "living-space", name: "Living space" },
       // Id predates the 2026-07-27 rename; keep it (see header note).

@@ -204,7 +204,7 @@ export default function PlanDayScreen() {
 
   /** Everything that would show up on this day, still open. */
   const all: TodayTask[] = useMemo(
-    () => (day ? [...day.daily, ...day.week] : []),
+    () => (day ? [...day.due, ...day.week] : []),
     [day],
   );
 
@@ -238,7 +238,7 @@ export default function PlanDayScreen() {
    *
    * Absent rather than "0m" when nothing is sized: unsized is a
    * first-class state (ADR-0026 §1), and a zero would read as a prompt
-   * to go and size things, which nothing is allowed to be (ADR-0030 §2).
+   * to go and size things, which nothing is allowed to be (ADR-0036 §2).
    */
   const loadMinutes = useMemo(() => {
     const hours = planLoadHours(tasks, pools);
@@ -681,6 +681,7 @@ export default function PlanDayScreen() {
               part,
               null,
               oneOff,
+              null,
               detail,
             );
             await load();

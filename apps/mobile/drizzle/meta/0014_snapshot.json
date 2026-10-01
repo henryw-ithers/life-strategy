@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5d5095a4-f4fd-4d4e-8caa-2e4a9dabe999",
+  "id": "9c1c0bc8-c4d1-4403-948d-dfe0ff0ea845",
   "prevId": "acd497ba-e5f3-4da9-9643-bdd29708e6c9",
   "tables": {
     "achievement": {
@@ -635,6 +635,72 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "goal_condition": {
+      "name": "goal_condition",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "goal_condition_goal_id_goal_id_fk": {
+          "name": "goal_condition_goal_id_goal_id_fk",
+          "tableFrom": "goal_condition",
+          "tableTo": "goal",
+          "columnsFrom": [
+            "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "goal_progress": {
       "name": "goal_progress",
       "columns": {
@@ -868,20 +934,6 @@
           "autoincrement": false,
           "default": "'instrumental'"
         },
-        "parent_unit_id": {
-          "name": "parent_unit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "commitment_share": {
-          "name": "commitment_share",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "archived_at": {
           "name": "archived_at",
           "type": "text",
@@ -912,19 +964,6 @@
           "tableTo": "life_area",
           "columnsFrom": [
             "area_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "life_unit_parent_unit_id_life_unit_id_fk": {
-          "name": "life_unit_parent_unit_id_life_unit_id_fk",
-          "tableFrom": "life_unit",
-          "tableTo": "life_unit",
-          "columnsFrom": [
-            "parent_unit_id"
           ],
           "columnsTo": [
             "id"
@@ -1320,6 +1359,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "condition_id": {
+          "name": "condition_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "title": {
           "name": "title",
           "type": "text",
@@ -1457,6 +1503,19 @@
           "tableTo": "goal",
           "columnsFrom": [
             "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "task_condition_id_goal_condition_id_fk": {
+          "name": "task_condition_id_goal_condition_id_fk",
+          "tableFrom": "task",
+          "tableTo": "goal_condition",
+          "columnsFrom": [
+            "condition_id"
           ],
           "columnsTo": [
             "id"

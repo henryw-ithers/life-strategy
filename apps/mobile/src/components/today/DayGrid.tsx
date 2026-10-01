@@ -14,7 +14,7 @@
  * names as an anti-reference.
  *
  * **Untimed work is not hidden.** A task with no clock time is the
- * default and not a lesser state (ADR-0030 §1), so it sits below the
+ * default and not a lesser state (ADR-0036 §1), so it sits below the
  * grid as a row of chips rather than being dropped from the view or
  * quietly given a time. A day where nothing is timed draws the ruler
  * and puts everything there, which reads as an open day rather than a

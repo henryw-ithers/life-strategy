@@ -20,6 +20,8 @@ CREATE TABLE `pool_member` (
 	FOREIGN KEY (`task_id`) REFERENCES `task`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+ALTER TABLE `life_unit` ADD `parent_unit_id` text REFERENCES life_unit(id);--> statement-breakpoint
+ALTER TABLE `life_unit` ADD `commitment_share` real;--> statement-breakpoint
 ALTER TABLE `task` ADD `start_minute` integer;--> statement-breakpoint
 ALTER TABLE `task` ADD `end_minute` integer;--> statement-breakpoint
 ALTER TABLE `task` ADD `size` text;--> statement-breakpoint

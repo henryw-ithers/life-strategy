@@ -1,4 +1,4 @@
-# ADR-0028: Schedule mode
+# ADR-0034: Schedule mode
 
 > **Status:** **Withdrawn 2026-09-11, never accepted**\
 > **Date:** 2026-09-08 (proposed) · withdrawn 2026-09-11\
@@ -13,7 +13,7 @@
 >
 > The module was then generalised twice, and now commitments are
 > ordinary custom `life_unit` rows scored from their own band
-> ([ADR-0029](0029-commitments-are-custom-units.md),
+> ([ADR-0035](0035-commitments-are-custom-units.md),
 > [ADR-0032](0032-the-commitment-band.md)). **Nothing is
 > school-shaped any more**, so there is nothing to hide: a person with
 > no commitments simply has none, and every surface this ADR gated is
@@ -46,7 +46,7 @@
 
 ## Context
 
-ADR-0029 adds courses, timetables and assessments; ADR-0030 gives
+ADR-0035 adds courses, timetables and assessments; ADR-0036 gives
 fixed commitments clock times; ADR-0031 adds a second 100-point scale.
 None of that belongs to a person who is not at university, and
 PRODUCT.md is unambiguous about what happens when a planning app grows
@@ -136,13 +136,13 @@ to the object it is right about.
 Adding a sixth thing to this list requires reopening this ADR.
 
 1. **Home's day surface** gains the *Day* layout option (the hour grid,
-   ADR-0030). Off, only the checklist exists — there is no timetable to
+   ADR-0036). Off, only the checklist exists — there is no timetable to
    draw, and an hour grid with nothing in it is an empty ruler.
 2. **The Goals tab** gains its `Goals · Courses` segment. Off, the
    segment control does not render at all; Goals is unchanged.
 3. **The `study/` routes** exist and are linked. Off, nothing links to
    them.
-4. **Task placement gains slots** (ADR-0030 §4) — a task may be placed
+4. **Task placement gains slots** (ADR-0036 §4) — a task may be placed
    into a free interval, cued to the commitment it follows. Off,
    placement is weekday and part of day, exactly as ADR-0024 §1 has it.
 5. **The semester score** (ADR-0031) appears, once a term holds a
@@ -169,7 +169,7 @@ Two consequences fall out of it:
   rather than a pile of unplaced rows.
 - **The daily grade never learns about courses.** Academic work reaches
   a day only as an ordinary one-off task the user put in their own plan
-  (ADR-0029 §4). ADR-0023's planned/unplanned line is undisturbed, and
+  (ADR-0035 §4). ADR-0023's planned/unplanned line is undisturbed, and
   ADR-0027's ceiling does not move.
 
 ### 4. Turning it off hides; it never deletes

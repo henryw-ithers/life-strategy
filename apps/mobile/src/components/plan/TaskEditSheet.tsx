@@ -72,7 +72,7 @@ export interface EditableTask {
   oneOffSize: OneOffSize | null;
   oneOffDate: string | null;
   oneOffDue: string | null;
-  /** All optional, all unset by default (ADR-0030 §2, ADR-0026 §1). */
+  /** All optional, all unset by default (ADR-0036 §2, ADR-0026 §1). */
   startMinute: number | null;
   endMinute: number | null;
   size: OneOffSize | null;

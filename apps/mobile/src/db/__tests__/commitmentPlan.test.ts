@@ -40,7 +40,7 @@ const oneOff = (
 const MONDAY = "2026-09-14";
 const TUESDAY = "2026-09-15";
 
-describe("groupCommitments — ADR-0029 §1", () => {
+describe("groupCommitments — ADR-0035 §1", () => {
   it("folds sub-commitments into their parent", () => {
     const groups = groupCommitments([
       unit("school", null, 50),

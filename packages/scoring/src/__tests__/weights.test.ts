@@ -1,6 +1,12 @@
+/**
+ * ADR-0028 §§1–2: weight is a function of priority rank and nothing
+ * else, flattened so the bottom of the portfolio still holds points
+ * worth spending.
+ */
 import { describe, expect, it } from "vitest";
-import { DAILY_BUDGET } from "../constants";
-import { deriveWeights, spendableWeights } from "../weights";
+import { DAILY_BUDGET, WEIGHT_SPREAD } from "../constants";
+import { rankToScore } from "../ranking";
+import { deriveWeights } from "../weights";
 import type { UnitRating } from "../types";
 
 /** Deterministic PRNG so property-style tests reproduce exactly. */
@@ -20,16 +26,13 @@ function randomPortfolio(rand: () => number, unitCount: number): UnitRating[] {
   }));
 }
 
-describe("deriveWeights — ADR-0003 worked example", () => {
-  it("produces 53 / 33 / 14", () => {
-    const weights = deriveWeights([
-      { unitId: "physical-health", importance: 9, satisfaction: 4 },
-      { unitId: "friendship", importance: 7, satisfaction: 7 },
-      { unitId: "online-entertainment", importance: 3, satisfaction: 6 },
-    ]);
-    expect(weights.map((w) => w.weight)).toEqual([53, 33, 14]);
-  });
-});
+/** The real shape: 18 units ranked 1..18, as the diagnostic produces. */
+function rankedPortfolio(unitCount = 18): UnitRating[] {
+  return Array.from({ length: unitCount }, (_, i) => ({
+    unitId: `unit-${i + 1}`,
+    importance: rankToScore(i + 1, unitCount),
+  }));
+}
 
 describe("deriveWeights — invariants", () => {
   it("weights always sum to exactly DAILY_BUDGET", () => {
@@ -42,55 +45,30 @@ describe("deriveWeights — invariants", () => {
     }
   });
 
-  it("raw score is monotone in importance (satisfaction fixed)", () => {
+  it("raw score is monotone in importance", () => {
     for (let importance = 2; importance <= 10; importance++) {
       const [lower, higher] = deriveWeights([
-        { unitId: "lo", importance: importance - 1, satisfaction: 5 },
-        { unitId: "hi", importance, satisfaction: 5 },
+        { unitId: "lo", importance: importance - 1 },
+        { unitId: "hi", importance },
       ]);
       expect(higher!.raw).toBeGreaterThan(lower!.raw);
     }
   });
 
-  it("surplus satisfaction neither boosts nor penalizes (S > I ≡ S = I)", () => {
-    const surplus = deriveWeights([
-      { unitId: "a", importance: 4, satisfaction: 9 },
-      { unitId: "b", importance: 8, satisfaction: 8 },
-    ]);
-    const level = deriveWeights([
-      { unitId: "a", importance: 4, satisfaction: 4 },
-      { unitId: "b", importance: 8, satisfaction: 8 },
-    ]);
-    expect(surplus.map((w) => w.weight)).toEqual(level.map((w) => w.weight));
-  });
-
-  it("the satisfaction gap boosts weight", () => {
-    const [gapped, satisfied] = deriveWeights([
-      { unitId: "gapped", importance: 8, satisfaction: 3 },
-      { unitId: "satisfied", importance: 8, satisfaction: 8 },
-    ]);
-    expect(gapped!.weight).toBeGreaterThan(satisfied!.weight);
-  });
-
-  it("rejects out-of-range ratings", () => {
+  it("rejects out-of-range importance", () => {
+    expect(() => deriveWeights([{ unitId: "a", importance: 0 }])).toThrow();
+    expect(() => deriveWeights([{ unitId: "a", importance: 11 }])).toThrow();
     expect(() =>
-      deriveWeights([{ unitId: "a", importance: 0, satisfaction: 5 }]),
-    ).toThrow();
-    expect(() =>
-      deriveWeights([{ unitId: "a", importance: 5, satisfaction: 11 }]),
-    ).toThrow();
-    expect(() =>
-      deriveWeights([{ unitId: "a", importance: Number.NaN, satisfaction: 5 }]),
+      deriveWeights([{ unitId: "a", importance: Number.NaN }]),
     ).toThrow();
   });
 
-  it("accepts continuous, non-integer ratings (rank-derived scores)", () => {
+  it("accepts continuous, non-integer importance (rank-derived scores)", () => {
     const weights = deriveWeights([
-      { unitId: "a", importance: 8.5, satisfaction: 3.2 },
-      { unitId: "b", importance: 5.5, satisfaction: 5.5 },
+      { unitId: "a", importance: 8.5 },
+      { unitId: "b", importance: 5.5 },
     ]);
-    const sum = weights.reduce((a, w) => a + w.weight, 0);
-    expect(sum).toBe(DAILY_BUDGET);
+    expect(weights.reduce((a, w) => a + w.weight, 0)).toBe(DAILY_BUDGET);
     expect(weights[0]!.weight).toBeGreaterThan(weights[1]!.weight);
   });
 
@@ -99,91 +77,83 @@ describe("deriveWeights — invariants", () => {
   });
 });
 
-describe("spendableWeights — ADR-0003 §5 amendment", () => {
-  const cover = (
-    entries: [string, number, boolean][],
-  ): { unitId: string; weight: number; covered: boolean }[] =>
-    entries.map(([unitId, weight, covered]) => ({ unitId, weight, covered }));
+describe("deriveWeights — satisfaction does not derive weight (§1)", () => {
+  /**
+   * The whole of ADR-0028 §1 in one assertion. Before formula v8 these
+   * two portfolios produced different numbers, because
+   * `raw = importance + g × max(0, importance − satisfaction)` read the
+   * second column. Now nothing does.
+   */
+  it("is identical whatever satisfaction says", () => {
+    const importances = [9, 7, 3];
+    const at = (satisfactions: number[]) =>
+      deriveWeights(
+        importances.map((importance, i) => ({
+          unitId: `u${i}`,
+          importance,
+          satisfaction: satisfactions[i]!,
+        })),
+      ).map((w) => w.weight);
 
-  it("changes nothing when every unit has tasks", () => {
-    const units = cover([
-      ["a", 50, true],
-      ["b", 30, true],
-      ["c", 20, true],
-    ]);
-    const spendable = spendableWeights(units);
-    expect([...spendable.values()]).toEqual([50, 30, 20]);
+    expect(at([1, 1, 1])).toEqual(at([10, 10, 10]));
+    expect(at([4, 7, 6])).toEqual(at([10, 1, 5]));
   });
 
-  it("shares an uncovered unit's weight across the covered ones", () => {
-    const units = cover([
-      ["a", 12, true],
-      ["b", 8, true],
-      ["c", 5, true],
-      ["uncovered", 75, false],
-    ]);
-    const spendable = spendableWeights(units);
-    // 25 points of coverage scale ×4 to fill the day.
-    expect(spendable.get("a")).toBe(48);
-    expect(spendable.get("b")).toBe(32);
-    expect(spendable.get("c")).toBe(20);
-    expect(spendable.get("uncovered")).toBe(0);
+  it("does not need satisfaction at all", () => {
+    expect(deriveWeights([{ unitId: "a", importance: 9 }])[0]!.weight).toBe(
+      DAILY_BUDGET,
+    );
   });
 
-  it("always spends exactly the daily budget when anything is covered", () => {
-    const rand = lcg(99);
-    for (let trial = 0; trial < 200; trial++) {
-      const derived = deriveWeights(randomPortfolio(rand, 18));
-      const units = derived.map((w) => ({
-        unitId: w.unitId,
-        weight: w.weight,
-        covered: rand() > 0.5,
-      }));
-      const spendable = spendableWeights(units);
-      const total = [...spendable.values()].reduce((a, b) => a + b, 0);
-      const anyCovered = units.some((u) => u.covered && u.weight > 0);
-      expect(total).toBe(anyCovered ? DAILY_BUDGET : 0);
+  it("does not validate a satisfaction it never reads", () => {
+    // Before v8 this threw. Nothing downstream of here can be affected
+    // by the value, so rejecting it would be theatre.
+    expect(() =>
+      deriveWeights([{ unitId: "a", importance: 5, satisfaction: 99 }]),
+    ).not.toThrow();
+  });
+});
+
+describe("deriveWeights — the spread is flattened (§2)", () => {
+  it("makes the top unit WEIGHT_SPREAD times the bottom one", () => {
+    const weights = deriveWeights(rankedPortfolio());
+    const top = weights[0]!.exact;
+    const bottom = weights[weights.length - 1]!.exact;
+    expect(top / bottom).toBeCloseTo(WEIGHT_SPREAD, 10);
+  });
+
+  it("worked example: 18 units come out 7 at the top and 4 at the bottom", () => {
+    // Pre-v8 the same portfolio ran 10 down to 1, and the bottom third
+    // of someone's life was worth one, two and three points — less than
+    // a single task in it could usefully carry.
+    const weights = deriveWeights(rankedPortfolio());
+    expect(weights[0]!.weight).toBe(7);
+    expect(weights[17]!.weight).toBe(4);
+    expect(weights.reduce((a, w) => a + w.weight, 0)).toBe(DAILY_BUDGET);
+  });
+
+  it("leaves no unit too small to hold a task worth having", () => {
+    // `recommendedTaskRange` gives a 3-point unit one task; anything
+    // under that is a row that cannot move the number.
+    for (const w of deriveWeights(rankedPortfolio())) {
+      expect(w.weight).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it("preserves the diagnostic's order among covered units", () => {
-    const units = cover([
-      ["big", 20, true],
-      ["small", 4, true],
-      ["gone", 76, false],
-    ]);
-    const spendable = spendableWeights(units);
-    expect(spendable.get("big")!).toBeGreaterThan(spendable.get("small")!);
+  it("keeps the diagnostic's order exactly", () => {
+    const weights = deriveWeights(rankedPortfolio());
+    for (let i = 1; i < weights.length; i++) {
+      expect(weights[i]!.weight).toBeLessThanOrEqual(weights[i - 1]!.weight);
+    }
+    expect(weights[0]!.weight).toBeGreaterThan(weights[17]!.weight);
   });
 
-  it("gives a lone covered unit the whole budget", () => {
-    const spendable = spendableWeights(
-      cover([
-        ["only", 3, true],
-        ["rest", 97, false],
-      ]),
-    );
-    expect(spendable.get("only")).toBe(DAILY_BUDGET);
-  });
-
-  it("spends nothing when no unit has a task", () => {
-    const spendable = spendableWeights(
-      cover([
-        ["a", 60, false],
-        ["b", 40, false],
-      ]),
-    );
-    expect([...spendable.values()]).toEqual([0, 0]);
-  });
-
-  it("never scales a unit that is out of scoring", () => {
-    const spendable = spendableWeights(
-      cover([
-        ["scored", 100, true],
-        ["excluded", 0, true],
-      ]),
-    );
-    expect(spendable.get("excluded")).toBe(0);
-    expect(spendable.get("scored")).toBe(DAILY_BUDGET);
+  it("never spreads further than WEIGHT_SPREAD, at any portfolio size", () => {
+    for (const size of [2, 5, 12, 18, 30]) {
+      const exacts = deriveWeights(rankedPortfolio(size)).map((w) => w.exact);
+      const top = Math.max(...exacts);
+      const bottom = Math.min(...exacts);
+      expect(top / bottom).toBeLessThanOrEqual(WEIGHT_SPREAD + 1e-9);
+    }
   });
 });

@@ -9,15 +9,20 @@
 > are measured against the scoring engine and which are hand-computed
 > arithmetic.** It is kept for that; the ADRs are the decisions.
 >
+> **Every number below is in ADR-0027's 80/20 arithmetic**, which main
+> replaced with ADR-0029's 90/10 fraction day while this was being
+> built. The band itself survived the merge (2026-10-01) as that share
+> of the whole day; ADR-0032's dated amendment has the current shape.
+>
 > | Decision | ADR |
 > |---|---|
-> | Commitments are custom units | [0029](../adr/0029-commitments-are-custom-units.md) |
-> | The commitment band (formula v8) | [0032](../adr/0032-the-commitment-band.md) |
+> | Commitments are custom units | [0035](../adr/0035-commitments-are-custom-units.md) |
+> | The commitment band (formula v10) | [0032](../adr/0032-the-commitment-band.md) |
 > | Windows and pools | [0033](../adr/0033-windows-and-pools.md) |
-> | Any task may carry a time | [0030](../adr/0030-granularity-is-the-users.md) |
+> | Any task may carry a time | [0036](../adr/0036-granularity-is-the-users.md) |
 > | Task size and day load | [0026](../adr/0026-task-size-and-day-load.md) |
 > | Partial credit | [0014](../adr/0014-partial-credit.md) |
-> | Schedule mode · the semester score | [0028](../adr/0028-schedule-mode.md) · [0031](../adr/0031-the-semester-score.md) — **both withdrawn** |
+> | Schedule mode · the semester score | [0034](../adr/0034-schedule-mode.md) · [0031](../adr/0031-the-semester-score.md) — **both withdrawn** |
 >
 > Where this note and an ADR disagree, **the ADR wins.**
 
@@ -272,7 +277,7 @@ not** — and the user decides how precise to be.
 
 ### 3b. Any task may carry an explicit time, if the user wants one
 
-> **This supersedes rather than amends ADR-0030 §1 and ADR-0024 §1.**
+> **This supersedes rather than amends ADR-0036 §1 and ADR-0024 §1.**
 > Both were built on the principle that *only things somebody else set
 > carry a clock time*, with a closed list of three columns and
 > self-scheduled work kept rough. Henry's call on 2026-09-11 — *"they
@@ -293,7 +298,7 @@ What it does not cost: **nothing in the scoring engine touches a
 time.** Bands key off frequency and unit. A timed task sorts into
 whichever window contains its time; an untimed one sits in its
 part-of-day window; both coexist in one structure. Cue-based placement
-(ADR-0030 §4) survives as a *nicety* — a placement cued to a lecture
+(ADR-0036 §4) survives as a *nicety* — a placement cued to a lecture
 still follows that lecture when the timetable moves — rather than as
 the required mechanism.
 
@@ -505,7 +510,7 @@ premise**, not that the gate is inconvenient. Before windows, "I worked
 on it and did not finish" was *invisible* — no object represented the
 two hours. A window makes it a visible, recurring event, and binary
 completion against a window is wrong in a way it was not obviously
-wrong against a day. Same shape of argument ADR-0030 used against
+wrong against a day. Same shape of argument ADR-0036 used against
 ADR-0024: the premise moved, so the ADR's own logic licenses
 revisiting.
 
@@ -598,9 +603,9 @@ diagnostic: it is not being built, so the diagnostic stands.
 
 ### 5. Clock times, narrowly
 
-~~Unchanged from ADR-0030, which survives this rework.~~
+~~Unchanged from ADR-0036, which survives this rework.~~
 **Superseded 2026-09-11 — see §3b.** Any task may carry an explicit
-time; part-of-day stays the default. ADR-0030 needs rewriting rather
+time; part-of-day stays the default. ADR-0036 needs rewriting rather
 than amending: its §1 (*only things somebody else set*) and §2 (the
 closed list of three columns) were the whole argument, and both are
 gone.
@@ -619,7 +624,7 @@ Each of these is an accepted ADR. None should be absorbed quietly.
 |---|---|---|
 | **ADR-0024 §2** — plans never touch the grade; an unplanned day scores identically | A session pays from the commitment band on its day and from the 20 pool otherwise | **Henry's call, taken knowingly:** you lose Thursday's points because you did not do Thursday's work, and gain Sunday's from the bonus pool because unplanned work is what that pool is for. Needs an argued amendment |
 | **ADR-0024 §1** — flexible is a first-class value and the default | Commitment sessions must be scheduled | Structurally necessary: the band exists only on scheduled days, so an unscheduled session could never be earned at all |
-| **ADR-0024 §1 / ADR-0030 §§1–2** — no clock time on a self-scheduled task; a closed list of three columns | Any task may carry an explicit time (§3b) | **Superseded, not amended.** Henry, 2026-09-11. ADR-0030 needs rewriting; part-of-day stays the default, so the research finding survives for anyone who does not reach for a time |
+| **ADR-0024 §1 / ADR-0036 §§1–2** — no clock time on a self-scheduled task; a closed list of three columns | Any task may carry an explicit time (§3b) | **Superseded, not amended.** Henry, 2026-09-11. ADR-0036 needs rewriting; part-of-day stays the default, so the research finding survives for anyone who does not reach for a time |
 | **ADR-0027** — the day is two bands, denominator a constant 100 | A third band, and a day-dependent split | Formula **v8**. Past days stay on v7 (ADR-0002) |
 | **AGENTS.md** — importance first, satisfaction-gap boost second | The pie sets weights without `deriveWeights` | Only if the pie replaces derivation rather than overriding it (§4) |
 | **ADR-0003 §6** — recommended task counts | Henry: *"we should shape around the user's tasks, not the other way around."* | §6 is load-bearing: `bands.ts` and `tasks.ts` both cite it as the reason a task may be worth zero. Removing the advice obliges fixing the allocation |
@@ -635,11 +640,11 @@ Settled items live in their sections. What is genuinely left:
 2. **Write ADR-0014 (partial credit)**, recording that its calibration
    gate has not fired and why the premise changed anyway (§3f).
 
-3. **Rewrite the ADR set** — withdraw 0028 and 0031, rewrite 0029 as
-   commitment-units, rewrite 0030 (superseded by §3b), add the
+3. **Rewrite the ADR set** — withdraw 0034 and 0031, rewrite 0035 as
+   commitment-units, rewrite 0036 (superseded by §3b), add the
    third-band ADR. See [What this changes](#what-this-changes).
 
-4. **Correct the stale dates.** ADR-0028..0031 are stamped 2026-08-21,
+4. **Correct the stale dates.** ADR-0034..0031 are stamped 2026-08-21,
    inferred from the repo's recent ADRs rather than checked.
 
 5. **Build the third band in `packages/scoring`.** Every figure in this
@@ -709,18 +714,18 @@ Calendar for students," and it is the one worth building toward.
 
 ## What this changes
 
-On this branch, against ADR-0028..0031 as committed:
+On this branch, against ADR-0034..0031 as committed:
 
-- **ADR-0028 (Schedule mode) — withdraw.** The mode existed because the
+- **ADR-0034 (Schedule mode) — withdraw.** The mode existed because the
   academic module was a foreign body needing to be hidden. With
   commitments as ordinary custom units, there is nothing school-shaped
   to hide: a person with no commitments simply has none. What survives
   is a plain List/Day layout preference.
-- **ADR-0029 (parallel model) — rewrite** as the commitment-unit
+- **ADR-0035 (parallel model) — rewrite** as the commitment-unit
   decision. `term`, `course`, `assessment`, `fixed_commitment`,
   `study_session` all go; the model is columns on `life_unit` and
   `task`.
-- **ADR-0030 (clock times) — keep**, with §2's containment argument
+- **ADR-0036 (clock times) — keep**, with §2's containment argument
   revised as above.
 - **ADR-0031 (semester score) — withdraw.** A term-length score needed a
   term, and the term was the most academic thing in the design. Per-goal

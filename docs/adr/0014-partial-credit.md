@@ -29,7 +29,7 @@ window makes it a visible, recurring event — and binary completion
 against a *window* is wrong in a way it was not obviously wrong against
 a *day*.
 
-That is the same shape of argument ADR-0030 used against ADR-0024 §1:
+That is the same shape of argument ADR-0036 used against ADR-0024 §1:
 the premise the original decision rested on moved, so the decision's
 own logic licenses revisiting it.
 

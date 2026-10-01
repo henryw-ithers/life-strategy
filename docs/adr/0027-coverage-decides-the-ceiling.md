@@ -105,6 +105,17 @@ Constraints already in force:
 
 ### 1. The day has two bands: the routine is 80, everything else is 20
 
+> **Superseded by [ADR-0029](0029-a-day-is-the-fraction-you-got-through.md)
+> §§1–2 (2026-08-26).** The two-band structure and the constant
+> denominator of 100 survive; the line between the bands does not. It
+> ran between *daily* and *weekly*, which made a genuinely weekly
+> commitment worth a fraction of a daily one and left a full week of
+> someone's own plan averaging about 83 — the failure this section's
+> own Consequences predicted ("if this ADR proves wrong, it is this
+> paragraph that was wrong"). The line now runs between *planned* and
+> *unplanned*, at 90 / 10, and a day is scored on the fraction of its
+> actually-due work that got done.
+
 The day's denominator is **always 100**. It divides into:
 
 - **The routine band — 80 points.** A unit of weight `w` contributes
@@ -210,6 +221,17 @@ day you could not do it.
 
 ### 2. The weight of a unit you hold no tasks in is not redistributed
 
+> **Withdrawn by [ADR-0028](0028-priority-is-the-only-input.md) §3
+> (2026-08-26), eight days later.** This section invited its own
+> refutation — *"it is the sentence to disagree with if this ADR is
+> wrong"* — and a week of use produced it: every daily task completed,
+> at 80% coverage, read **64**. Each band is now spent in full by the
+> units holding work of its kind, so doing every daily task pays 80 at
+> any coverage. What survives is §1's line: the routine band pays only
+> daily tasks, so no redistribution buys 80 for a plan of weekly work.
+> `include_in_scoring` remains the scope valve; it is no longer the
+> answer to a low ceiling.
+
 ADR-0003 §5's reallocation is **withdrawn**. A unit's weight stays its
 own: if nothing under it can earn those points, nobody earns them, and
 the day is scored out of the user's whole life rather than out of
@@ -254,6 +276,12 @@ so the portfolio history stays a record of what was diagnosed rather
 than of what was later set aside.
 
 ### 3. `UNPLANNED_CAP` becomes the variable band
+
+> **Reversed by [ADR-0029](0029-a-day-is-the-fraction-you-got-through.md)
+> §2.** Planned work has a band of its own at every cadence now, so it
+> no longer competes for this pool and the constant goes back to
+> meaning only what ADR-0023 §1 named it for — and shrinks from 20 to
+> **10**, because the planned band grew to 90.
 
 The constant moves from 25 to **20** and now covers planned non-daily
 work as well as unplanned work. **Planned work has first claim within

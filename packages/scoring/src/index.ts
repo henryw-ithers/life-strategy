@@ -1,5 +1,5 @@
 export {
-  GAP_COEFFICIENT,
+  WEIGHT_SPREAD,
   EXTRA_RUN_RATE,
   UNPLANNED_CAP,
   FORMULA_VERSION,
@@ -7,8 +7,7 @@ export {
 } from "./constants";
 export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
-export type { UnitCoverage } from "./weights";
-export { deriveWeights, spendableWeights } from "./weights";
+export { deriveWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
 export type {
   BandTask,
@@ -18,18 +17,27 @@ export type {
   Pool,
 } from "./bands";
 export {
-  bandPointValues,
   commitmentBandOn,
-  dayCeiling,
-  isRoutine,
+  commitmentPointValues,
+  lifeShare,
   normalizeBand,
+  taskWeights,
+  unitCoverage,
   COMMITMENT_BAND_MAX,
   COMMITMENT_BAND_MIN,
   COMMITMENT_BAND_STEP,
   MAX_COMMITMENTS,
-  ROUTINE_BAND,
-  VARIABLE_BAND,
+  PLANNED_BAND,
+  UNPLANNED_BAND,
 } from "./bands";
+export type { LoadTask, LoadCompletion, DayLoad } from "./dayLoad";
+export {
+  computeDayLoad,
+  daysLeftInWeek,
+  isAnchoredOn,
+  isoWeekday,
+  isPinnedElsewhere,
+} from "./dayLoad";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
 export type {
@@ -38,11 +46,16 @@ export type {
   MetricDefinition,
   MetricState,
 } from "./metrics";
-export { barFraction, metricState, milestonesReached } from "./metrics";
+export { barFraction, metricState } from "./metrics";
 export type { Streak, StreakInput } from "./streak";
-export { computeStreak, habitMilestonesReached, HABIT_LADDER } from "./streak";
-export type { GoalStatus, GoalAction, MilestoneStatus } from "./goals";
-export { nextGoalStatus, advanceMilestone } from "./goals";
+export {
+  computeStreak,
+  habitRungsReached,
+  rungReachedOn,
+  HABIT_LADDER,
+} from "./streak";
+export type { GoalStatus, GoalAction } from "./goals";
+export { nextGoalStatus } from "./goals";
 export type {
   AreaRank,
   UnitRank,
@@ -103,7 +116,6 @@ export type {
   CompletionRow,
   TaskBand,
   TaskDayStatus,
-  DayTaskInput,
   ActivityCredit,
   DayScoreInput,
   DayScore,

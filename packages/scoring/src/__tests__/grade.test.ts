@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { PLANNED_BAND, UNPLANNED_BAND } from "../bands";
 import { UNPLANNED_CAP } from "../constants";
+import { computeDayLoad, isoWeekday, type LoadTask } from "../dayLoad";
 import {
   aggregateGrade,
   computeDayScore,
@@ -11,195 +13,229 @@ import {
   storedDayScore,
 } from "../grade";
 
-const date = "2026-07-17"; // Friday; week starts 07-13
+const date = "2026-07-17"; // Friday; the week opens Sunday 07-12
+
+const t = (
+  taskId: string,
+  timesPerWeek: number,
+  weight = 10,
+  pinnedWeekdays: number[] = [],
+): LoadTask => ({ taskId, weight, timesPerWeek, pinnedWeekdays });
+
+const done = (taskId: string, localDate: string) => ({ taskId, localDate });
+
+const scoreOf = (
+  tasks: LoadTask[],
+  completions: { taskId: string; localDate: string }[],
+) =>
+  computeDayScore({
+    kind: "normal",
+    load: computeDayLoad(tasks, completions, date),
+  });
 
 describe("deriveChecklist", () => {
-  const run = { taskId: "run", unitId: "exercise", pointValue: 10, timesPerWeek: 3 };
-  const read = { taskId: "read", unitId: "growth", pointValue: 4, timesPerWeek: 7 };
-  const deepClean = { taskId: "clean", unitId: "home", pointValue: 6, timesPerWeek: 0 };
-
-  it("bands daily tasks as daily regardless of completion", () => {
-    const [status] = deriveChecklist([read], [{ taskId: "read", localDate: date }], date);
-    expect(status?.band).toBe("daily");
-    expect(status?.completedToday).toBe(true);
+  it("bands an every-day task as due, whatever its pins", () => {
+    const [status] = deriveChecklist([t("a", 7)], [], date);
+    expect(status!.band).toBe("due");
+    expect(status!.goalCount).toBe(7);
   });
 
-  it("keeps a weekly task in its band all day, even when today's run meets the goal", () => {
-    const completions = [
-      { taskId: "run", localDate: "2026-07-13" },
-      { taskId: "run", localDate: "2026-07-15" },
-      { taskId: "run", localDate: date }, // third of three, today
-    ];
-    const [status] = deriveChecklist([run], completions, date);
-    expect(status?.band).toBe("week"); // no jump while you watch
-    expect(status?.doneCount).toBe(3);
-    expect(status?.extraToday).toBe(false);
-    expect(status?.pointsIfCompletedNow).toBe(10);
-  });
-
-  it("moves a task done on previous days to doneThisWeek, at extra-run credit", () => {
-    const completions = [
-      { taskId: "run", localDate: "2026-07-13" },
-      { taskId: "run", localDate: "2026-07-14" },
-      { taskId: "run", localDate: "2026-07-15" },
-    ];
-    const [status] = deriveChecklist([run], completions, date);
-    expect(status?.band).toBe("doneThisWeek");
-    expect(status?.extraToday).toBe(true);
-    expect(status?.pointsIfCompletedNow).toBe(extraRunPoints(10));
-  });
-
-  it("ignores last week's completions", () => {
-    // `date` is Fri 2026-07-17, whose week opens Sun 2026-07-12; the
-    // Saturday before that is the last day of the prior week.
-    const [status] = deriveChecklist(
-      [run],
-      [{ taskId: "run", localDate: "2026-07-11" }], // Saturday, prior week
+  it("bands a task pinned to today as due, one pinned elsewhere as week", () => {
+    // 2026-07-17 is a Friday: ISO weekday 5.
+    const [here, elsewhere] = deriveChecklist(
+      [t("here", 1, 10, [5]), t("elsewhere", 1, 10, [1])],
+      [],
       date,
     );
-    expect(status?.doneCount).toBe(0);
-    expect(status?.band).toBe("week");
+    expect(here!.band).toBe("due");
+    expect(elsewhere!.band).toBe("week");
   });
 
-  it("counts the Sunday that opens this week", () => {
-    // The boundary case the Sunday-first amendment turns on: this
-    // Sunday belongs to the current week, not the one before it.
+  it("bands flexible work as week — due some day, not this one", () => {
+    const [status] = deriveChecklist([t("flex", 2)], [], date);
+    expect(status!.band).toBe("week");
+  });
+
+  it("moves a task to doneThisWeek once earlier days met its goal", () => {
     const [status] = deriveChecklist(
-      [run],
-      [{ taskId: "run", localDate: "2026-07-12" }],
+      [t("a", 2)],
+      [done("a", "2026-07-13"), done("a", "2026-07-14")],
       date,
     );
-    expect(status?.doneCount).toBe(1);
+    expect(status!.band).toBe("doneThisWeek");
+    expect(status!.extraToday).toBe(true);
   });
 
-  it("counts fortnightly tasks over the whole fortnight", () => {
-    // 2026-07-13 opens a week; whichever week the fortnight opens on,
-    // a completion 0–13 days after the fortnight start is inside it.
-    const [fresh] = deriveChecklist([deepClean], [], date);
-    expect(fresh?.goalCount).toBe(1);
-    expect(fresh?.band).toBe("week");
+  it("does not reband on today's own completion", () => {
+    // The denominator and the rows both have to hold still while the
+    // user works through the list.
+    const [status] = deriveChecklist([t("a", 7)], [done("a", date)], date);
+    expect(status!.band).toBe("due");
+    expect(status!.completedToday).toBe(true);
+    expect(status!.extraToday).toBe(false);
+  });
+
+  it("prices a run against the day's own expected load", () => {
+    // One every-day task carrying the whole day is worth the whole band.
+    const [alone] = deriveChecklist([t("a", 7)], [], date);
+    expect(alone!.pointsIfCompletedNow).toBe(PLANNED_BAND);
+
+    // A second every-day task of equal weight, and each is worth half.
+    const [first, second] = deriveChecklist([t("a", 7), t("b", 7)], [], date);
+    expect(first!.pointsIfCompletedNow).toBe(PLANNED_BAND / 2);
+    expect(second!.pointsIfCompletedNow).toBe(PLANNED_BAND / 2);
+  });
+
+  it("prices an extra run at half the ordinary rate", () => {
+    expect(extraRunPoints(10, 10)).toBe(Math.round(PLANNED_BAND / 2));
   });
 });
 
-describe("computeDayScore (two bands, ADR-0027 §1, formula v7)", () => {
-  // A plan sized like a real one: point values are what
-  // `bandPointValues` would have produced, so these are the numbers the
-  // app actually stores. Routine tasks come out of 80% of their unit's
-  // weight; the two non-daily tasks share the 20-point variable band.
-  const tasks = [
-    { unitId: "growth", pointValue: 32, timesPerWeek: 7, completedToday: false },
-    { unitId: "health", pointValue: 24, timesPerWeek: 7, completedToday: false },
-    { unitId: "home", pointValue: 13, timesPerWeek: 3, completedToday: false },
-    { unitId: "friends", pointValue: 7, timesPerWeek: 0, completedToday: false },
-  ];
-  const withDone = (done: string[]) =>
-    tasks.map((t) => ({ ...t, completedToday: done.includes(t.unitId) }));
-
-  it("grades against a constant 100, not against the plan's own size", () => {
-    // The whole diagnostic budget, including weight nothing can earn —
-    // ADR-0027 §2. A plan is scored against your life, not against
-    // itself.
-    const s = computeDayScore({ kind: "normal", tasks });
-    expect(s.possible).toBe(100);
-    expect(s.earned).toBe(0);
-    expect(s.base).toBe(0);
-  });
-
-  it("pays a daily task its stored value", () => {
-    const s = computeDayScore({ kind: "normal", tasks: withDone(["growth"]) });
-    expect(s.earned).toBe(32);
-    expect(s.base).toBe(32);
-  });
-
-  it("cannot exceed 100 from the two bands however much is done", () => {
-    // The 112 this formula was written to kill. Every task in the plan
-    // completed, and the number is still a number a day can hold.
-    const s = computeDayScore({
-      kind: "normal",
-      tasks: withDone(["growth", "health", "home", "friends"]),
-    });
-    expect(s.earned).toBe(76);
-    expect(s.base).toBeLessThanOrEqual(100);
-  });
-
-  it("caps the variable band at 20 however many weekly tasks land at once", () => {
-    const heavy = [
-      { unitId: "a", pointValue: 9, timesPerWeek: 1, completedToday: true },
-      { unitId: "b", pointValue: 8, timesPerWeek: 2, completedToday: true },
-      { unitId: "c", pointValue: 7, timesPerWeek: 0, completedToday: true },
-    ];
-    expect(computeDayScore({ kind: "normal", tasks: heavy }).earned).toBe(20);
-  });
-
-  it("gives planned work first claim on the band, and the rest to activities", () => {
-    // ADR-0023's ordering inside one pool: 13 of the band is spoken
-    // for, so 7 is all an activity can reach however much it logged.
-    const s = computeDayScore({
-      kind: "normal",
-      tasks: withDone(["home"]),
-      activities: [[{ unitId: "growth", pointsCredited: 15 }]],
-    });
-    expect(s.earned).toBe(20);
-    expect(s.unplanned).toBe(7);
-    expect(s.unplannedForgone).toBe(8);
-  });
-
-  it("lets an activity have the whole band on a day with no planned work left", () => {
-    const s = computeDayScore({
-      kind: "normal",
+describe("computeDayScore (ADR-0029 §2, formula v9)", () => {
+  it("pays the planned band in full for a day fully done", () => {
+    const tasks = [t("a", 7), t("b", 7), t("c", 7)];
+    const score = scoreOf(
       tasks,
-      activities: [[{ unitId: "growth", pointsCredited: 25 }]],
-    });
-    expect(s.unplanned).toBe(20);
-    expect(s.unplannedForgone).toBe(5);
+      tasks.map((x) => done(x.taskId, date)),
+    );
+    expect(score.earned).toBe(PLANNED_BAND);
+    expect(score.possible).toBe(100);
+    expect(score.base).toBe(PLANNED_BAND);
   });
 
-  it("keeps extra runs outside both bands — the plan done harder is uncapped", () => {
-    // ADR-0023 §2, unchanged by this ADR: doing more of your own plan
-    // is the one route above 100.
-    const s = computeDayScore({
+  it("pays the fraction of the day that got done", () => {
+    const tasks = [t("a", 7), t("b", 7), t("c", 7), t("d", 7)];
+    const score = scoreOf(tasks, [done("a", date), done("b", date)]);
+    expect(score.earned).toBe(Math.round(PLANNED_BAND / 2));
+  });
+
+  it("weights the fraction, so missing a heavy task costs more", () => {
+    const tasks = [t("heavy", 7, 30), t("light", 7, 10)];
+    const heavyOnly = scoreOf(tasks, [done("heavy", date)]);
+    const lightOnly = scoreOf(tasks, [done("light", date)]);
+    expect(heavyOnly.earned).toBeGreaterThan(lightOnly.earned);
+    expect(heavyOnly.earned).toBe(Math.round(PLANNED_BAND * 0.75));
+  });
+
+  it("does not care how many tasks a unit's work is split across", () => {
+    // Henry, 2026-08-26. One task carrying 30, or three carrying 10
+    // each: doing all of it is doing all of it.
+    const one = scoreOf([t("a", 7, 30)], [done("a", date)]);
+    const three = scoreOf(
+      [t("a", 7, 10), t("b", 7, 10), t("c", 7, 10)],
+      [done("a", date), done("b", date), done("c", date)],
+    );
+    expect(three.earned).toBe(one.earned);
+  });
+
+  it("is not graded at all when nothing is due", () => {
+    const score = scoreOf([t("a", 1)], [done("a", "2026-07-13")]);
+    expect(score.base).toBeNull();
+    expect(score.possible).toBe(0);
+  });
+
+  it("a day off is never graded", () => {
+    const score = computeDayScore({
+      kind: "rest",
+      load: computeDayLoad([t("a", 7)], [], date),
+    });
+    expect(score.base).toBeNull();
+    expect(score.possible).toBe(0);
+  });
+
+  it("caps the unplanned band and reports what it forwent", () => {
+    const score = computeDayScore({
       kind: "normal",
-      tasks: withDone(["growth", "health"]),
-      extraRunCredit: 30,
-      activities: [[{ unitId: "growth", pointsCredited: 25 }]],
+      load: computeDayLoad([t("a", 7)], [done("a", date)], date),
+      activities: [[{ unitId: "u", pointsCredited: 40 }]],
     });
-    expect(s.earned).toBe(56 + 30 + 20);
-    expect(s.base).toBeGreaterThan(100);
+    expect(score.unplanned).toBe(UNPLANNED_BAND);
+    expect(score.unplannedForgone).toBe(30);
+    expect(score.earned).toBe(PLANNED_BAND + UNPLANNED_BAND);
+    expect(score.base).toBe(100);
   });
 
-  it("grades a special day on its tasks plus a rating drawn from the band", () => {
-    const s = computeDayScore({
-      kind: "special",
-      satisfactionRating: 8,
-      tasks: withDone(["growth"]),
-    });
-    // 32 from the plan + round(8/10 × 20) = 16 from the rating.
-    expect(s.earned).toBe(48);
-    expect(s.unplanned).toBe(16);
+  it("keeps UNPLANNED_CAP and the unplanned band the same number", () => {
+    expect(UNPLANNED_CAP).toBe(UNPLANNED_BAND);
   });
 
-  it("earns a special day nothing but its rating when nothing was done", () => {
-    const s = computeDayScore({ kind: "special", satisfactionRating: 10, tasks });
-    expect(s.earned).toBe(20);
-    expect(s.base).toBe(20);
+  it("lets extra runs, and only extra runs, pass the planned band", () => {
+    const tasks = [t("a", 7, 10), t("b", 1, 10)];
+    const score = scoreOf(tasks, [
+      done("a", date),
+      // "b" already met its weekly goal, so today's run is an extra.
+      done("b", "2026-07-13"),
+      done("b", date),
+    ]);
+    expect(score.earned).toBeGreaterThan(PLANNED_BAND);
   });
 
-  it("scales specialDayBonus across the variable band", () => {
-    expect(specialDayBonus(10)).toBe(20);
-    expect(specialDayBonus(5)).toBe(10);
+  it("pays a special day's rating from the unplanned band", () => {
+    expect(specialDayBonus(10)).toBe(UNPLANNED_BAND);
+    expect(specialDayBonus(5)).toBe(UNPLANNED_BAND / 2);
     expect(specialDayBonus(null)).toBe(0);
   });
 
-  it("grades a day off as nothing to grade, not as zero", () => {
-    const s = computeDayScore({ kind: "rest", tasks: withDone(["growth"]) });
-    expect(s.possible).toBe(0);
-    expect(s.base).toBeNull();
+  it("reads a finalized day back rather than recomputing it", () => {
+    expect(storedDayScore({ earned: 64, possible: 100 }).base).toBe(64);
+    expect(storedDayScore({ earned: 0, possible: 0 }).base).toBeNull();
+  });
+});
+
+/**
+ * The target this formula was built to hit. Henry, 2026-08-26: *"if you
+ * did every task you planned for the week you should have around a 90
+ * average."*
+ */
+describe("a full week of your own plan averages 90", () => {
+  const week = [
+    "2026-07-12",
+    "2026-07-13",
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18",
+  ];
+
+  const runWeek = (tasks: LoadTask[], plan: (day: string) => string[]) => {
+    const completions: { taskId: string; localDate: string }[] = [];
+    const scores: number[] = [];
+    for (const day of week) {
+      for (const id of plan(day)) completions.push(done(id, day));
+      const score = computeDayScore({
+        kind: "normal",
+        load: computeDayLoad(tasks, completions, day),
+      });
+      if (score.base !== null) scores.push(score.base);
+    }
+    return scores.reduce((a, b) => a + b, 0) / scores.length;
+  };
+
+  it("three every-day tasks, done every day", () => {
+    const tasks = [t("a", 7), t("b", 7), t("c", 7)];
+    expect(runWeek(tasks, () => ["a", "b", "c"])).toBe(90);
   });
 
-  it("has nothing to grade when the plan is empty", () => {
-    const s = computeDayScore({ kind: "normal", tasks: [] });
-    expect(s.possible).toBe(0);
-    expect(s.base).toBeNull();
+  it("three every-day tasks plus a 3x/week pinned to Mon/Wed/Fri", () => {
+    // The shape an amortized denominator read as 74: on the four days
+    // the gym is not due, it is not expected either.
+    const tasks = [t("a", 7), t("b", 7), t("c", 7), t("gym", 3, 10, [1, 3, 5])];
+    const average = runWeek(tasks, (day) =>
+      [1, 3, 5].includes(isoWeekday(day))
+        ? ["a", "b", "c", "gym"]
+        : ["a", "b", "c"],
+    );
+    expect(average).toBe(90);
+  });
+
+  it("seven flexible weekly tasks, one a day", () => {
+    // Henry's own example: "if you have seven one-time anytime-during-
+    // the-week tasks you're expected to do one of those a day."
+    const ids = ["1", "2", "3", "4", "5", "6", "7"];
+    const tasks = ids.map((id) => t(id, 1));
+    let next = 0;
+    expect(runWeek(tasks, () => [ids[next++]!])).toBe(90);
   });
 });
 

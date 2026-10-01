@@ -5,7 +5,7 @@
 > **Deciders:** Henry
 
 > **Note added 2026-09-11.** A *commitment*
-> ([ADR-0029](0029-commitments-are-custom-units.md)) is deliberately
+> ([ADR-0035](0035-commitments-are-custom-units.md)) is deliberately
 > **not** a goal. An intermediate draft made it a goal kind; a thing
 > that carries weight and holds tasks is unit-shaped, and goals do not
 > carry weight. Ordinary goals still live inside a commitment — "get
@@ -20,6 +20,15 @@ monthly review (ADR-0002/0005) is their natural venue; "gentle by
 design" (vision.md) requires that abandoning and revising be
 first-class outcomes, not failures. Goals end; the units they serve
 don't — so the lifecycle must answer what a goal leaves behind.
+
+> **§3's milestones are retired**
+> ([ADR-0030](0030-goals-have-conditions.md) §5, 2026-08-26). A goal's
+> authored child is a **condition** — a parallel prerequisite that never
+> completes — rather than an ordered rung, and nothing in the app
+> creates, completes, edits or displays a milestone any more. The
+> `milestone` table stays in the schema and stops being written
+> (ADR-0002 is forward-only, and rows a user earned are theirs).
+> §§1–2's state machine is untouched.
 
 ## Decisions
 

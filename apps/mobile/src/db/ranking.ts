@@ -25,7 +25,7 @@ import { weightsForPriorityOrder } from "@glide/scoring";
 
 import { db } from "./client";
 import { lifeArea, lifeUnit, rating, snapshot, unitWeight } from "./schema";
-import { getGapCoefficientOverride, getSetting, setSetting } from "./settings";
+import { getSetting, setSetting } from "./settings";
 import { recomputeAllUnitPoints } from "./tasks";
 import { recacheAllDayScores } from "./today";
 
@@ -56,7 +56,6 @@ export interface RankingBoard {
    *  the rank denominator has to match. */
   order: string[];
   byId: Map<string, RankedUnit>;
-  gapCoefficient: number | undefined;
   /** True when the live weights came from a manual re-rank. */
   reordered: boolean;
 }
@@ -69,12 +68,11 @@ export async function loadRankingBoard(): Promise<RankingBoard | null> {
     .limit(1);
   if (!latest) return null;
 
-  const [ratings, weights, units, areas, gap, savedRaw] = await Promise.all([
+  const [ratings, weights, units, areas, savedRaw] = await Promise.all([
     db.select().from(rating).where(eq(rating.snapshotId, latest.id)),
     db.select().from(unitWeight).where(eq(unitWeight.snapshotId, latest.id)),
     db.select().from(lifeUnit),
     db.select().from(lifeArea),
-    getGapCoefficientOverride(),
     getSetting(ORDER_KEY),
   ]);
 
@@ -124,7 +122,6 @@ export async function loadRankingBoard(): Promise<RankingBoard | null> {
     snapshotId: latest.id,
     order,
     byId,
-    gapCoefficient: gap ?? undefined,
     reordered,
   };
 }
@@ -179,20 +176,13 @@ export function weightsForOrder(
   board: RankingBoard,
   order: readonly string[],
 ): Map<string, number> {
-  const satisfaction = new Map<string, number>();
   const scored = new Set<string>();
   for (const [unitId, u] of board.byId) {
-    satisfaction.set(unitId, u.satisfaction);
     if (u.includeInScoring) scored.add(unitId);
   }
 
   return new Map(
-    weightsForPriorityOrder({
-      order,
-      satisfaction,
-      scored,
-      gapCoefficient: board.gapCoefficient,
-    }).map((w) => [w.unitId, w.weight]),
+    weightsForPriorityOrder({ order, scored }).map((w) => [w.unitId, w.weight]),
   );
 }
 

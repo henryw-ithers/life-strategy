@@ -58,6 +58,8 @@ const TABLES_IN_DELETE_ORDER = [
   "photo",
   "day_grade",
   "task",
+  // After `task`, which references it; before `goal`, which it does.
+  "goal_condition",
   "goal",
   "unit_weight",
   "rating",
@@ -105,7 +107,7 @@ export async function eraseAllData(): Promise<void> {
     await tx.run(sql.raw(`UPDATE goal SET autocount_task_id = NULL`));
 
     for (const table of TABLES_IN_DELETE_ORDER) {
-      // `life_unit` references itself (`parent_unit_id`, ADR-0029), so
+      // `life_unit` references itself (`parent_unit_id`, ADR-0035), so
       // a single bulk delete can trip the constraint mid-statement with
       // foreign keys on: a parent row may go before its sub-commitment.
       // Clearing the children first makes the order hold inside the

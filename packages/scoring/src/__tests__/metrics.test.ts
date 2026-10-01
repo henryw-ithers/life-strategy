@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   barFraction,
   metricState,
-  milestonesReached,
   type MetricProgress,
 } from "../metrics";
 
@@ -132,34 +131,3 @@ describe("ordering and edge cases", () => {
   });
 });
 
-describe("milestonesReached", () => {
-  const rungs = [
-    { id: "a", targetValue: 135 },
-    { id: "b", targetValue: 185 },
-    { id: "c", targetValue: 225 },
-    { id: "untimed", targetValue: null },
-  ];
-
-  it("reports rungs the reading has passed, ascending", () => {
-    const def = { kind: "target" as const, targetValue: 225 };
-    const s = metricState(def, [e("2026-01-01", 100), e("2026-03-01", 190)]);
-    expect(milestonesReached(def, s, rungs)).toEqual(["a", "b"]);
-  });
-
-  it("inverts for a descending goal", () => {
-    const def = { kind: "target" as const, targetValue: 80 };
-    const s = metricState(def, [e("2026-01-01", 95), e("2026-02-01", 86)]);
-    expect(milestonesReached(def, s, [{ id: "x", targetValue: 90 }])).toEqual(["x"]);
-  });
-
-  it("ignores rungs with no threshold", () => {
-    const def = { kind: "cumulative" as const, targetValue: 24 };
-    const s = metricState(def, [e("2026-01-01", 300)]);
-    expect(milestonesReached(def, s, rungs)).not.toContain("untimed");
-  });
-
-  it("reports nothing before the first reading", () => {
-    const def = { kind: "target" as const, targetValue: 225 };
-    expect(milestonesReached(def, metricState(def, []), rungs)).toEqual([]);
-  });
-});

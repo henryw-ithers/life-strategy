@@ -1,21 +1,18 @@
 /**
- * Goal lifecycle & milestones (ADR-0007). Goals sit between a life
- * unit and its tasks: optional, temporary, and never scored directly
+ * Goal lifecycle and conditions (ADR-0007, ADR-0030). Goals sit between
+ * a life unit and its tasks: optional, temporary, and never scored
+ * directly
  * — all points still derive from active tasks' rank shares (ADR-0003)
  * via `recomputeAllUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
-import type {
-  GoalStatus,
-  MetricKind,
-  MilestoneStatus,
-  Streak,
-} from "@glide/scoring";
+import type { GoalStatus, MetricKind, Streak } from "@glide/scoring";
 import {
-  advanceMilestone,
   computeStreak,
-  HABIT_LADDER,
+  habitRungsReached,
   nextGoalStatus,
+  rungReachedOn,
+  type StreakInput,
 } from "@glide/scoring";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -26,6 +23,7 @@ import {
   achievement,
   dayGrade,
   goal,
+  goalCondition,
   goalProgress,
   lifeArea,
   lifeUnit,
@@ -34,14 +32,15 @@ import {
   taskCompletion,
 } from "./schema";
 
-export type { GoalStatus, MilestoneStatus };
+export type { GoalStatus };
 
 export interface GoalListItem {
   id: string;
   title: string;
   status: GoalStatus;
-  milestoneCount: number;
-  completedMilestoneCount: number;
+  /** How much work is actually behind it. A goal with none is a
+   *  statement of intent — worth seeing at a glance in the list. */
+  taskCount: number;
 }
 
 export interface GoalsUnit {
@@ -58,26 +57,42 @@ export interface GoalsArea {
   units: GoalsUnit[];
 }
 
-export interface GoalMilestone {
-  id: string;
-  title: string;
-  sortOrder: number;
-  status: MilestoneStatus;
-  /** This rung's own threshold (ADR-0015 §5). Null = a plain rung; the
-   *  bench example is 135 → 185 → 225 and without this they are only
-   *  labels. Passing it *prompts*; nothing auto-completes. */
-  targetValue: number | null;
-  /** When it actually happened, `'YYYY-MM-DD'` — milestones are often
-   *  noticed late, and filing one in the wrong month would put a false
-   *  entry in the log of a life. */
-  completedOn: string | null;
-}
 
 export interface GoalTask {
   id: string;
   title: string;
   timesPerWeek: number;
   pointValue: number;
+  /**
+   * The task's home unit — **not necessarily the goal's** (ADR-0030 §2).
+   * A condition may recruit a task from anywhere in the portfolio, and
+   * that task is paid out of its own unit's weight, so every surface
+   * showing a goal's tasks has to be able to say where each one counts.
+   */
+  unitId: string;
+  unitName: string;
+  /** The unit's area, for the hue pip that marks a task counting
+   *  somewhere other than the goal's own unit. */
+  areaId: string;
+  /** Which condition it sits under; null = straight off the goal. */
+  conditionId: string | null;
+}
+
+/**
+ * A condition on a goal (ADR-0030 §1): something that has to be true
+ * for the goal to happen, with the tasks that make it true.
+ *
+ * Parallel, not sequential — every condition on a goal is live for the
+ * goal's whole life. There is no status here and nothing to complete;
+ * see the `goal_condition` table for why.
+ */
+export interface GoalCondition {
+  id: string;
+  title: string;
+  sortOrder: number;
+  /** Any number, including none — a condition with no tasks yet is a
+   *  statement of intent, not an error (ADR-0030 §3). */
+  tasks: GoalTask[];
 }
 
 export interface GoalProgressEntry {
@@ -110,8 +125,20 @@ export interface GoalDetail {
   linkedFromGoalId: string | null;
   linkKind: "revision" | "follow_up" | null;
   successorGoalId: string | null;
-  milestones: GoalMilestone[];
+  /** Ordered as the user arranged them. */
+  conditions: GoalCondition[];
+  /** Tasks hanging straight off the goal, outside any condition. Every
+   *  task worked this way before ADR-0030 and most still will. */
   tasks: GoalTask[];
+  /**
+   * Every task serving this goal, grouped or not, in rank order.
+   *
+   * The lifecycle sheets — complete, revise, set aside — ask what
+   * happens to *the goal's work*, and a condition is only where that
+   * work was filed. Handing them `tasks` alone would silently drop
+   * everything inside a condition from the decision.
+   */
+  allTasks: GoalTask[];
   /** Earliest first. */
   progress: GoalProgressEntry[];
   /**
@@ -138,13 +165,15 @@ export async function loadGoals(): Promise<{ areas: GoalsArea[] }> {
     .where(isNull(lifeUnit.archivedAt))
     .orderBy(asc(lifeUnit.sortOrder));
   const goals = await db.select().from(goal);
-  const milestones = await db.select().from(milestone);
+  const activeTasks = await db
+    .select({ goalId: task.goalId })
+    .from(task)
+    .where(eq(task.active, true));
 
-  const milestonesByGoal = new Map<string, typeof milestones>();
-  for (const m of milestones) {
-    const list = milestonesByGoal.get(m.goalId) ?? [];
-    list.push(m);
-    milestonesByGoal.set(m.goalId, list);
+  const taskCountByGoal = new Map<string, number>();
+  for (const t of activeTasks) {
+    if (t.goalId === null) continue;
+    taskCountByGoal.set(t.goalId, (taskCountByGoal.get(t.goalId) ?? 0) + 1);
   }
 
   return {
@@ -161,18 +190,12 @@ export async function loadGoals(): Promise<{ areas: GoalsArea[] }> {
             areaId: u.areaId,
             activeGoalCount: unitGoals.filter((g) => g.status === "active")
               .length,
-            goals: unitGoals.map((g) => {
-              const ms = milestonesByGoal.get(g.id) ?? [];
-              return {
-                id: g.id,
-                title: g.title,
-                status: g.status as GoalStatus,
-                milestoneCount: ms.length,
-                completedMilestoneCount: ms.filter(
-                  (m) => m.status === "completed",
-                ).length,
-              };
-            }),
+            goals: unitGoals.map((g) => ({
+              id: g.id,
+              title: g.title,
+              status: g.status as GoalStatus,
+              taskCount: taskCountByGoal.get(g.id) ?? 0,
+            })),
           };
         }),
     })),
@@ -196,7 +219,7 @@ export async function loadGoals(): Promise<{ areas: GoalsArea[] }> {
 async function habitStreak(
   goalId: string,
   progress: readonly { localDate: string }[],
-): Promise<Streak> {
+): Promise<{ streak: Streak; input: StreakInput }> {
   const goalTasks = await db
     .select({ id: task.id })
     .from(task)
@@ -222,14 +245,61 @@ async function habitStreak(
     .from(dayGrade)
     .where(eq(dayGrade.kind, "rest"));
 
-  return computeStreak({
+  const input: StreakInput = {
     done: [
       ...completions.map((c) => c.localDate),
       ...progress.map((p) => p.localDate),
     ],
     daysOff: off.map((d) => d.localDate),
     today: new Date().toISOString().slice(0, 10),
-  });
+  };
+  // The input travels with the result so a rung can be *dated*, not
+  // just detected — see `recordHabitRungs`.
+  return { streak: computeStreak(input), input };
+}
+
+/**
+ * Write an achievement for every habit rung the streak has passed and
+ * the log does not already hold (ADR-0030 §5).
+ *
+ * **Automatic, where advancing a milestone never was.** ADR-0015 §3's
+ * rule is that reaching a target *invites* completion rather than
+ * performing it — and it still holds, because nothing here completes
+ * anything: a habit goal never completes by design. This only records
+ * that a run happened, and the completion dates are the evidence. There
+ * is nothing for the user to confirm and nothing to get wrong.
+ *
+ * Idempotent on `(goalId, titleSnapshot)`, because it runs on every
+ * visit to the goal. Dated by `rungReachedOn`, so a rung noticed in
+ * September but passed in July files in July — the thing the old
+ * two-step date picker existed to protect.
+ */
+async function recordHabitRungs(
+  goalId: string,
+  goalTitle: string,
+  streak: Streak,
+  input: StreakInput,
+): Promise<void> {
+  const reached = habitRungsReached(streak);
+  if (reached.length === 0) return;
+
+  const existing = await db
+    .select({ titleSnapshot: achievement.titleSnapshot })
+    .from(achievement)
+    .where(eq(achievement.goalId, goalId));
+  const held = new Set(existing.map((a) => a.titleSnapshot));
+
+  for (const days of reached) {
+    const title = `${days} days of ${goalTitle}`;
+    if (held.has(title)) continue;
+    await db.insert(achievement).values({
+      id: Crypto.randomUUID(),
+      goalId,
+      milestoneId: null,
+      titleSnapshot: title,
+      achievedAt: rungReachedOn(input, days) ?? input.today,
+    });
+  }
 }
 
 export async function loadGoalDetail(
@@ -238,16 +308,29 @@ export async function loadGoalDetail(
   const [row] = await db.select().from(goal).where(eq(goal.id, goalId));
   if (!row) return null;
 
-  const milestones = await db
+  const conditions = await db
     .select()
-    .from(milestone)
-    .where(eq(milestone.goalId, goalId))
-    .orderBy(asc(milestone.sortOrder));
-  const tasks = await db
-    .select()
+    .from(goalCondition)
+    .where(eq(goalCondition.goalId, goalId))
+    .orderBy(asc(goalCondition.sortOrder));
+  // Left join so a task whose unit was archived still lists, unnamed,
+  // rather than vanishing from the goal that owns it.
+  const taskRows = await db
+    .select({ t: task, unitName: lifeUnit.name, areaId: lifeUnit.areaId })
     .from(task)
+    .leftJoin(lifeUnit, eq(lifeUnit.id, task.unitId))
     .where(and(eq(task.goalId, goalId), eq(task.active, true)))
     .orderBy(asc(task.rankInUnit));
+  const tasks = taskRows.map((r) => ({
+    id: r.t.id,
+    title: r.t.title,
+    timesPerWeek: r.t.timesPerWeek,
+    pointValue: r.t.pointValue,
+    unitId: r.t.unitId,
+    unitName: r.unitName ?? "",
+    areaId: r.areaId ?? "",
+    conditionId: r.t.conditionId,
+  }));
   const [successor] = await db
     .select()
     .from(goal)
@@ -258,8 +341,12 @@ export async function loadGoalDetail(
     .where(eq(goalProgress.goalId, goalId))
     .orderBy(asc(goalProgress.localDate), asc(goalProgress.createdAt));
 
-  const streak =
-    row.metricKind === "habit" ? await habitStreak(goalId, progress) : null;
+  let streak: Streak | null = null;
+  if (row.metricKind === "habit") {
+    const habit = await habitStreak(goalId, progress);
+    streak = habit.streak;
+    await recordHabitRungs(goalId, row.title, habit.streak, habit.input);
+  }
   const [unit] = await db
     .select()
     .from(lifeUnit)
@@ -281,20 +368,14 @@ export async function loadGoalDetail(
     linkedFromGoalId: row.linkedFromGoalId,
     linkKind: row.linkKind as "revision" | "follow_up" | null,
     successorGoalId: successor?.id ?? null,
-    milestones: milestones.map((m) => ({
-      id: m.id,
-      title: m.title,
-      sortOrder: m.sortOrder,
-      status: m.status as MilestoneStatus,
-      targetValue: m.targetValue,
-      completedOn: m.completedOn,
+    conditions: conditions.map((c) => ({
+      id: c.id,
+      title: c.title,
+      sortOrder: c.sortOrder,
+      tasks: tasks.filter((t) => t.conditionId === c.id),
     })),
-    tasks: tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      timesPerWeek: t.timesPerWeek,
-      pointValue: t.pointValue,
-    })),
+    tasks: tasks.filter((t) => t.conditionId === null),
+    allTasks: tasks,
     progress: progress.map((p) => ({
       id: p.id,
       localDate: p.localDate,
@@ -554,19 +635,9 @@ export async function setGoalMetric(
     )
     .where(eq(goal.id, goalId));
 
-  // Seed the ladder so a new habit has rungs to pass. Only when it has
-  // none: re-saving the metric must not overwrite the user's own.
-  if (habit) {
-    const existing = await db
-      .select()
-      .from(milestone)
-      .where(eq(milestone.goalId, goalId));
-    if (existing.length === 0) {
-      for (const days of HABIT_LADDER) {
-        await addMilestone(goalId, String(days), days);
-      }
-    }
-  }
+  // Nothing to seed. A habit's rungs are `HABIT_LADDER` computed
+  // against its streak (ADR-0030 §5) — three rows recording a constant
+  // the app already had was the thing that retirement removed.
 }
 
 /**
@@ -674,109 +745,148 @@ export async function removeAutocountForTask(
   }
 }
 
-/** @param targetValue This rung's own threshold on a metric goal
- *   (ADR-0015 §5). Null for a plain rung. */
-export async function addMilestone(
+// ── Conditions (ADR-0030) ───────────────────────────────────────────
+
+/**
+ * Add a condition to a goal. Any number are allowed (ADR-0030 §3): the
+ * Harada chart's fixed eight is a completeness surface, and this app
+ * does not have those.
+ */
+export async function addCondition(
   goalId: string,
   title: string,
-  targetValue: number | null = null,
+): Promise<string> {
+  const id = Crypto.randomUUID();
+  const existing = await db
+    .select()
+    .from(goalCondition)
+    .where(eq(goalCondition.goalId, goalId));
+  const maxSortOrder = existing.reduce((max, c) => Math.max(max, c.sortOrder), 0);
+  await db.insert(goalCondition).values({
+    id,
+    goalId,
+    title,
+    sortOrder: maxSortOrder + 1,
+  });
+  return id;
+}
+
+export async function renameCondition(
+  conditionId: string,
+  title: string,
+): Promise<void> {
+  await db
+    .update(goalCondition)
+    .set({ title })
+    .where(eq(goalCondition.id, conditionId));
+}
+
+/**
+ * Remove a condition, **keeping its tasks**.
+ *
+ * The tasks fall back to the goal (`condition_id` → null), exactly
+ * where they would have lived before ADR-0030. A condition is a
+ * grouping, and deleting a grouping must never delete the work inside
+ * it — the user wrote those tasks, and they are still earning points
+ * from their units either way.
+ */
+export async function deleteCondition(conditionId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(task)
+      .set({ conditionId: null })
+      .where(eq(task.conditionId, conditionId));
+    await tx.delete(goalCondition).where(eq(goalCondition.id, conditionId));
+  });
+}
+
+/** Persist a drag-reorder. `orderedIds` is the full set for the goal,
+ *  in the order it should read; anything missing is left alone. */
+export async function reorderConditions(orderedIds: readonly string[]): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const [i, id] of orderedIds.entries()) {
+      await tx
+        .update(goalCondition)
+        .set({ sortOrder: i + 1 })
+        .where(eq(goalCondition.id, id));
+    }
+  });
+}
+
+/**
+ * Move a task into a condition, out of one, or between two.
+ *
+ * Never touches the task's units or its rank, so nothing about what it
+ * is worth changes: a condition is where a task was *written*, not
+ * where it is *paid* (ADR-0030 §2). No `recomputeAllUnitPoints` call
+ * for exactly that reason.
+ */
+export async function setTaskCondition(
+  taskId: string,
+  conditionId: string | null,
+): Promise<void> {
+  await db.update(task).set({ conditionId }).where(eq(task.id, taskId));
+}
+
+/**
+ * Attach an **existing** task to this goal, and optionally to one of its
+ * conditions (ADR-0030 §1).
+ *
+ * Both columns move together, in one transaction, because
+ * `condition_id` is only meaningful alongside `goal_id` and a task
+ * carrying a condition belonging to a different goal is a row that
+ * should never exist. `setTaskCondition` is the within-goal move; this
+ * is the way in from anywhere else in the plan.
+ *
+ * **Points do not move.** A goal is a grouping and a condition is a
+ * grouping inside it (ADR-0030 §4); the task still earns from its own
+ * unit's weight, so there is nothing to recompute.
+ */
+export async function attachTaskToGoal(
+  taskId: string,
+  goalId: string,
+  conditionId: string | null,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    const existing = await tx
-      .select()
-      .from(milestone)
-      .where(eq(milestone.goalId, goalId));
-    const maxSortOrder = existing.reduce(
-      (max, m) => Math.max(max, m.sortOrder),
-      0,
-    );
-    const hasCurrent = existing.some((m) => m.status === "current");
-    await tx.insert(milestone).values({
-      id: Crypto.randomUUID(),
-      goalId,
-      title,
-      targetValue,
-      sortOrder: maxSortOrder + 1,
-      status: hasCurrent ? "pending" : "current",
-    });
+    await tx.update(task).set({ goalId, conditionId }).where(eq(task.id, taskId));
   });
 }
 
 /**
- * Marks a milestone completed, records the minor achievement, and
- * either promotes the next milestone to `current` or — if it was the
- * last one — signals that the goal itself should now complete. The
- * caller is responsible for presenting the three-path completion flow
- * (this function never auto-picks a path).
+ * Take a task off this goal entirely — the inverse of the above, and
+ * the reason it exists: anything the UI can add, it has to be able to
+ * undo without sending the user to another screen.
+ *
+ * **The task survives.** It goes back to standing on its own under its
+ * unit, which is where most tasks live and how every task worked before
+ * goals could hold them. Deleting the work because it stopped serving a
+ * goal would be the same mistake `deleteCondition` avoids one level
+ * down.
  */
-/**
- * @param completedOn `'YYYY-MM-DD'` for when it *actually* happened,
- *   defaulting to today (ADR-0015 §5). Milestones are frequently
- *   noticed late — "I passed 185 a few weeks ago" — and recording one
- *   in the wrong month would put a false entry in the log of a life,
- *   which is the one thing that log is for. The date reaches both
- *   `milestone.completed_on` and the achievement's `achieved_at`, so
- *   look-back views place it in the month it belongs to.
- */
-export async function completeMilestone(
-  milestoneId: string,
-  completedOn?: string,
-): Promise<{ goalShouldComplete: boolean; goalId: string }> {
-  let goalShouldComplete = false;
-  let goalId = "";
+export async function detachTaskFromGoal(taskId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(milestone)
-      .where(eq(milestone.id, milestoneId));
-    if (!row) throw new Error(`completeMilestone: ${milestoneId} not found`);
-    goalId = row.goalId;
-    const [goalRow] = await tx.select().from(goal).where(eq(goal.id, goalId));
-
-    const day = completedOn ?? new Date().toISOString().slice(0, 10);
     await tx
-      .update(milestone)
-      .set({ status: "completed", completedOn: day })
-      .where(eq(milestone.id, milestoneId));
-
-    const siblings = await tx
-      .select()
-      .from(milestone)
-      .where(eq(milestone.goalId, goalId));
-    const { nextCurrentId } = advanceMilestone(
-      siblings.map((m) => ({
-        id: m.id,
-        sortOrder: m.sortOrder,
-        status: (m.id === milestoneId
-          ? "completed"
-          : m.status) as MilestoneStatus,
-      })),
-      milestoneId,
-    );
-
-    if (nextCurrentId) {
-      await tx
-        .update(milestone)
-        .set({ status: "current" })
-        .where(eq(milestone.id, nextCurrentId));
-    } else {
-      goalShouldComplete = goalRow?.status === "active";
-    }
-
-    await tx.insert(achievement).values({
-      id: Crypto.randomUUID(),
-      goalId,
-      milestoneId,
-      titleSnapshot: row.title,
-      // The chosen day, not the moment it was recorded — so a
-      // look-back view files it in the month it happened. Midday
-      // avoids a timezone read pulling it onto the wrong date.
-      achievedAt: completedOn ? `${day}T12:00:00.000Z` : now(),
-    });
+      .update(task)
+      .set({ goalId: null, conditionId: null })
+      .where(eq(task.id, taskId));
   });
-  return { goalShouldComplete, goalId };
 }
 
+/**
+ * `addMilestone` and `completeMilestone` **retired 2026-08-26**
+ * (ADR-0030 §5).
+ *
+ * A goal's authored child is a **condition** now — parallel, with no
+ * order to advance through and nothing to complete. The `milestone`
+ * table stays in the schema and stops being written (ADR-0002 is
+ * forward-only, and rows a user already earned are theirs), but no
+ * path in the app creates, completes, edits or deletes one.
+ *
+ * The one ladder worth keeping went the other way: a habit goal's
+ * 7 · 30 · 66 rungs were the app writing three rows to record a
+ * constant it already had. They are `HABIT_LADDER` measured against
+ * the streak now — see `recordHabitRungs` below.
+ */
 /**
  * Delete a goal outright (Henry, 2026-08-18: "everything should be
  * editable, deletable").
@@ -789,7 +899,8 @@ export async function completeMilestone(
  * outcome to protect. "Set aside" remains the honest end for a goal you
  * genuinely tried.
  *
- * What goes: the goal, its milestones, its progress entries — all
+ * What goes: the goal, its conditions, any legacy milestone rows, its
+ * progress entries — all
  * authored scaffolding.
  *
  * What survives:
@@ -846,56 +957,8 @@ export async function deleteGoal(goalId: string): Promise<void> {
   });
 }
 
-/** Rename a milestone, or change the reading it is reached at
- *  (ADR-0015 §5). Milestones were add-and-complete only until
- *  2026-08-18; a rung you cannot correct is a typo you live with. */
-export async function updateMilestone(
-  milestoneId: string,
-  title: string,
-  targetValue: number | null,
-): Promise<void> {
-  const trimmed = title.trim();
-  if (trimmed.length === 0) return;
-  await db
-    .update(milestone)
-    .set({ title: trimmed, targetValue })
-    .where(eq(milestone.id, milestoneId));
-}
-
 /**
- * Remove a milestone.
- *
- * If it was the current rung, the next pending one takes over, so a
- * goal is never left with a ladder and nothing lit. A completed
- * milestone's **achievement is detached, not deleted** — same reasoning
- * as `deleteGoal`: the rung is scaffolding, the achievement is history.
+ * `updateMilestone` and `deleteMilestone` **retired 2026-08-26**
+ * (ADR-0030 §5), with `addMilestone` and `completeMilestone` above.
+ * Nothing authors a rung any more, so nothing edits or removes one.
  */
-export async function deleteMilestone(milestoneId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(milestone)
-      .where(eq(milestone.id, milestoneId));
-    if (!row) return;
-
-    await tx
-      .update(achievement)
-      .set({ milestoneId: null })
-      .where(eq(achievement.milestoneId, milestoneId));
-    await tx.delete(milestone).where(eq(milestone.id, milestoneId));
-
-    if (row.status !== "current") return;
-    const rest = await tx
-      .select()
-      .from(milestone)
-      .where(eq(milestone.goalId, row.goalId))
-      .orderBy(asc(milestone.sortOrder));
-    const nextUp = rest.find((m) => m.status === "pending");
-    if (nextUp) {
-      await tx
-        .update(milestone)
-        .set({ status: "current" })
-        .where(eq(milestone.id, nextUp.id));
-    }
-  });
-}
