@@ -11,6 +11,9 @@
  * 2. **The week's count** — "2nd of 5 this week" — but only for a task
  *    whose goal *is* a count. See `countsRuns`.
  * 3. **A daily task's run**, from a week up.
+ *
+ * Ahead of all of them, a session **done ahead** says when — it is the
+ * one thing about that row that is not obvious from a tick.
  */
 
 /** The row fields the caption reads. */
@@ -27,6 +30,17 @@ export interface CaptionTask {
   oneOffSize: string | null;
   /** Filed under a commitment or one of its parts. */
   commitment: boolean;
+  /** The earlier day this session was done on, if it was done ahead. */
+  doneAheadOn: string | null;
+}
+
+const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** "Done ahead · Tue" — a fact about when, never about lateness. */
+export function doneAheadLabel(localDate: string): string {
+  // Noon UTC, so no time zone can move a `YYYY-MM-DD` onto another day.
+  const day = new Date(`${localDate}T12:00:00Z`).getUTCDay();
+  return `Done ahead · ${WEEKDAY[day]}`;
 }
 
 /** "Half done" — what a running total reads as (§5, never a deficit). */
@@ -108,6 +122,7 @@ function countCaption(task: CaptionTask): string | null {
 
 /** The row's one line, or null when nothing is worth the space. */
 export function rowCaption(task: CaptionTask): string | null {
+  if (task.doneAheadOn !== null) return doneAheadLabel(task.doneAheadOn);
   if (task.progress > 0 && task.progress < 1) return progressLabel(task.progress);
   return countCaption(task) ?? streakCaption(task);
 }

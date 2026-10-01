@@ -155,7 +155,10 @@ second one. What separates it is its **band**, not its table
   then 80/20 on what remains. Every other day is unchanged
   (ADR-0032). Commitment work is **scheduled, not counted**: it pays
   its scheduled-day value on its day, the same value uncapped on any
-  other, and never an extra-run rate. Formula v10.
+  other, and never an extra-run rate. **An early session is the next
+  session done early** — it takes that session's value, and that
+  session is then done on its own day — so each session pays once.
+  Formula v11.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
 - **All cryptography is Apple's, and adding any bundled crypto library

@@ -9,9 +9,12 @@ import { bandPointValues, type BandTask, type CommitmentDay } from "@glide/scori
 import { describe, expect, it } from "vitest";
 
 import {
+  coverage,
+  doneAheadOn,
   isCommitmentUnit,
   membershipsFor,
   scheduledDateFor,
+  sessionFor,
   toBandKeys,
 } from "../commitmentPlan";
 
@@ -155,5 +158,89 @@ describe("scheduledDateFor — the day off-schedule work is priced against", () 
 
   it("has nothing to borrow for an unpinned recurring task", () => {
     expect(scheduledDateFor(recurring(null), "2026-09-29")).toBeNull();
+  });
+});
+
+describe("coverage — an early session stands in for the next (ADR-0032 §4)", () => {
+  // 2026-09-28 is a Monday. A Mon/Wed/Fri session.
+  const mwf = { plannedWeekdays: "1,3,5", timesPerWeek: 3 };
+  const MON = "2026-09-28";
+  const TUE = "2026-09-29";
+  const WED = "2026-09-30";
+  const THU = "2026-10-01";
+  const FRI = "2026-10-02";
+  const SAT = "2026-10-03";
+  const SUN = "2026-10-04";
+  const NEXT_MON = "2026-10-05";
+  const NEXT_WED = "2026-10-07";
+
+  it("takes the next scheduled session", () => {
+    expect(coverage(mwf, [TUE])).toEqual(new Map([[TUE, WED]]));
+  });
+
+  it("ignores completions on the task's own days", () => {
+    expect(coverage(mwf, [MON, WED, FRI]).size).toBe(0);
+  });
+
+  it("gives two early ticks two sessions rather than one", () => {
+    // Saturday and Sunday would both reach Monday; each session is paid
+    // once, so Sunday moves on to Wednesday.
+    expect(coverage(mwf, [SAT, SUN])).toEqual(
+      new Map([
+        [SAT, NEXT_MON],
+        [SUN, NEXT_WED],
+      ]),
+    );
+  });
+
+  it("skips a session already done on its own day", () => {
+    // Wednesday was ticked on Wednesday; Tuesday's early tick, entered
+    // later, takes Friday instead of doing Wednesday twice.
+    expect(coverage(mwf, [WED, TUE]).get(TUE)).toBe(FRI);
+  });
+
+  it("answers the same however the rows were entered", () => {
+    expect(coverage(mwf, [SUN, SAT, TUE])).toEqual(coverage(mwf, [TUE, SAT, SUN]));
+  });
+
+  it("never lets two completions share a session", () => {
+    // Every off day of a fortnight, ticked.
+    const days = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 8, 28 + i));
+      return d.toISOString().slice(0, 10);
+    });
+    const sessions = [...coverage(mwf, days).values()];
+    expect(new Set(sessions).size).toBe(sessions.length);
+  });
+
+  it("covers nothing for a task with no scheduled days", () => {
+    expect(coverage({ plannedWeekdays: null, timesPerWeek: 3 }, [TUE]).size).toBe(0);
+  });
+
+  describe("sessionFor — what an unticked off-day row would take", () => {
+    it("is the next free session", () => {
+      expect(sessionFor(mwf, TUE, [])).toBe(WED);
+      expect(sessionFor(mwf, SUN, [SAT])).toBe(NEXT_WED);
+    });
+
+    it("is nothing on the task's own day", () => {
+      expect(sessionFor(mwf, WED, [])).toBeNull();
+    });
+
+    it("matches what the tick then records", () => {
+      const before = sessionFor(mwf, THU, [TUE]);
+      expect(coverage(mwf, [TUE, THU]).get(THU)).toBe(before);
+    });
+  });
+
+  describe("doneAheadOn — the session's own day", () => {
+    it("names the day that did it early", () => {
+      expect(doneAheadOn(mwf, WED, [TUE])).toBe(TUE);
+    });
+
+    it("is null for a session nobody covered", () => {
+      expect(doneAheadOn(mwf, FRI, [TUE])).toBeNull();
+      expect(doneAheadOn(mwf, WED, [])).toBeNull();
+    });
   });
 });

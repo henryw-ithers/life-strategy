@@ -68,6 +68,7 @@ import {
 } from "../../components/plan/planning";
 import { DayGrid, windowKey } from "../../components/today/DayGrid";
 import { formatLength } from "../../components/today/dayGridLayout";
+import { doneAheadLabel } from "../../components/today/rowCaption";
 import { WindowSheet } from "../../components/today/WindowSheet";
 import { loadPools, type PoolOnDay } from "../../db/commitments";
 import {
@@ -520,8 +521,13 @@ export default function PlanDayScreen() {
                         once
                       </AppText>
                     ) : null}
+                    {/* A session already worked on an earlier day is
+                        done, and was paid then; a 0 here would read as
+                        "worth nothing" rather than "taken care of". */}
                     <AppText variant="caption" color={theme.muted} tabular>
-                      {t.pointValue}
+                      {t.doneAheadOn !== null
+                        ? doneAheadLabel(t.doneAheadOn)
+                        : t.pointValue}
                     </AppText>
                   </View>
                 );

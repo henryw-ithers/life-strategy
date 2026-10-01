@@ -101,6 +101,11 @@ export const UNPLANNED_CAP = VARIABLE_BAND;
  *  nothing, because a commitment has no weight among the 18.
  *  v10 (2026-09-30): **the same work, uncapped.** Henry: "remove the
  *  cap." It no longer draws on the unplanned pool's headroom; it is
- *  paid in full beside extra runs, as the plan done on another day. */
-export const FORMULA_VERSION = 10;
+ *  paid in full beside extra runs, as the plan done on another day.
+ *  v11 (2026-10-01): **an early session stands in for the next one.**
+ *  A recurring commitment session ticked off its schedule is its next
+ *  scheduled session done early: it is priced at that session's value,
+ *  and that session leaves its own day's band. Under v10 it paid again
+ *  on every day it was ticked. */
+export const FORMULA_VERSION = 11;
 export const DAILY_BUDGET = 100;

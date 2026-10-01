@@ -164,6 +164,13 @@ still lapses silently.
 >
 > Formula version 9 paid it from the pool; version 10 pays it
 > uncapped. Under v8 it paid nothing.
+>
+> **Amended again 2026-10-01: an early session is the next session.**
+> Uncapped, a recurring session ticked on its off days paid in full
+> each time, on top of its own days. Henry: *"go with option 1"* — the
+> early tick stands in for the next scheduled session, takes that
+> session's value, and that session is then done on its own day. Each
+> session pays once. Detail in action item 8. Formula version 11.
 
 ### 5. Formula version 8; history does not restate
 
@@ -274,10 +281,26 @@ of it reaches a screen.
        a completion outside every cap; `scheduledDateFor` finds the day
        it is priced against; `FORMULA_VERSION` 10. Tested and
        mutation-tested.
-8. [ ] **Repeated off-schedule sessions.** Uncapped, a *recurring*
-       commitment task pays its full scheduled value on every day it is
-       ticked off-schedule, as well as on its own days — a Mon/Wed/Fri
-       study session ticked every day of the week pays seven times. A
-       one-off cannot do this; it is completed once. Open: whether an
-       off-schedule session should stand in for its next scheduled
-       one, pay at the extra-run rate, or be left as it is.
+8. [x] **Repeated off-schedule sessions** — decided 2026-10-01, built
+       the same day. Uncapped, a recurring session ticked off its
+       schedule paid in full every day it was ticked, on top of its own
+       days. Henry chose the first of three answers: **an early session
+       stands in for the next scheduled one.**
+       - `coverage` walks a task's completions in date order and gives
+         each off-schedule one the first later session that is neither
+         done on its own day nor already taken — so Saturday covers
+         Monday and Sunday covers Wednesday, and a session is paid once
+         however far ahead it is worked. Pure and tested.
+       - The covered session **leaves its own day's band**, which
+         re-divides among what is left. §1's rule — the band exists only
+         where it can be earned — is why: a Wednesday whose one session
+         was done on Tuesday becomes an ordinary day rather than one
+         stranded below 100.
+       - The early tick is priced against that day **as scheduled**,
+         with the session still in it. Otherwise taking Wednesday's
+         session would price Tuesday's own tick at nothing.
+       - On its own day the session reads *"Done ahead · Tue"*, shows
+         no points, and tapping it undoes Tuesday's tick, so one session
+         always has one completion. A day whose session was taken or
+         given back is re-scored if it already holds a grade.
+       `FORMULA_VERSION` 11.

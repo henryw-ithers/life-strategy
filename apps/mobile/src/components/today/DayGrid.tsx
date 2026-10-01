@@ -220,7 +220,7 @@ export function DayGrid({
                   onPress={() => onPress(t)}
                   accessibilityRole="button"
                   accessibilityLabel={`${t.title}, ${span}${
-                    t.completedToday ? ", done" : ""
+                    t.completedToday || t.doneAheadOn !== null ? ", done" : ""
                   }`}
                   style={({ pressed }) => [
                     styles.block,
@@ -231,7 +231,7 @@ export function DayGrid({
                       width,
                       backgroundColor: wash(hue, theme),
                       borderLeftColor: hue,
-                      opacity: pressed ? 0.6 : t.completedToday ? 0.55 : 1,
+                      opacity: pressed ? 0.6 : t.completedToday || t.doneAheadOn !== null ? 0.55 : 1,
                     },
                   ]}
                 >
@@ -281,13 +281,13 @@ export function DayGrid({
                 key={t.id}
                 onPress={() => onPress(t)}
                 accessibilityRole="button"
-                accessibilityLabel={`${t.title}${t.completedToday ? ", done" : ""}`}
+                accessibilityLabel={`${t.title}${t.completedToday || t.doneAheadOn !== null ? ", done" : ""}`}
                 style={({ pressed }) => [
                   styles.chip,
                   {
                     backgroundColor: theme.surface,
                     borderColor: hueFor(t),
-                    opacity: pressed ? 0.6 : t.completedToday ? 0.5 : 1,
+                    opacity: pressed ? 0.6 : t.completedToday || t.doneAheadOn !== null ? 0.5 : 1,
                   },
                 ]}
               >

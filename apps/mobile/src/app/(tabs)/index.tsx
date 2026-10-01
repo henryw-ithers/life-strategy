@@ -8,6 +8,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   addDays,
+  isEditable,
   specialDayBonus,
   weekStart,
   type PeriodGrade,
@@ -266,13 +267,15 @@ export default function TodayScreen() {
     if (task.progress > 0 && task.progress < 1) {
       await setCompletionFraction(task.id, day.date, 1);
     } else {
-      await toggleCompletion(task.id, day.date);
+      // A session done ahead belongs to the day it was done on, so
+      // undoing it undoes that tick — one session, one completion.
+      await toggleCompletion(task.id, task.doneAheadOn ?? day.date);
     }
     const next = await reload(day.date);
     // The visual feedback is the climbing number; give screen readers
     // the same loop.
     AccessibilityInfo.announceForAccessibility(
-      `${task.title} ${task.completedToday ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
+      `${task.title} ${isDone(task) ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
     );
     const allDone =
       next.daily.length > 0 && next.daily.every((t) => t.completedToday);
@@ -316,8 +319,13 @@ export default function TodayScreen() {
   const byPlan = (a: TodayTask, b: TodayTask) =>
     compareForDay(a, b, day?.date ?? "");
 
+  /** Done today, or done ahead on an earlier day (ADR-0032 §4). */
+  function isDone(t: TodayTask): boolean {
+    return t.completedToday || t.doneAheadOn !== null;
+  }
+
   const openTasks = day
-    ? [...day.daily, ...day.week].filter((t) => !t.completedToday)
+    ? [...day.daily, ...day.week].filter((t) => !isDone(t))
     : [];
 
   const isElsewhere = (t: TodayTask): boolean =>
@@ -378,9 +386,9 @@ export default function TodayScreen() {
         {
           key: "completed" as const,
           label: "Completed",
-          tasks: allTasks.filter((t) => t.completedToday),
+          tasks: allTasks.filter(isDone),
           pts: allTasks
-            .filter((t) => t.completedToday)
+            .filter(isDone)
             .reduce(
               (a, t) => a + (t.extraToday ? t.pointsIfCompletedNow : t.pointValue),
               0,
@@ -404,7 +412,7 @@ export default function TodayScreen() {
    * view exists to get right.
    */
   const gridTasks = day
-    ? [...todayTasks, ...allTasks.filter((t) => t.completedToday)]
+    ? [...todayTasks, ...allTasks.filter(isDone)]
     : [];
 
   /**
@@ -948,7 +956,11 @@ export default function TodayScreen() {
                           <TaskRow
                             task={t}
                             hue={hueFor(t)}
-                            disabled={!day.editable}
+                            disabled={
+                              !day.editable ||
+                              (t.doneAheadOn !== null &&
+                                !isEditable(t.doneAheadOn, day.today))
+                            }
                             onToggle={() => void onToggle(t)}
                             onTag={
                               t.completedToday && day.editable && day.communalUnits.length > 0
@@ -956,12 +968,15 @@ export default function TodayScreen() {
                                 : undefined
                             }
                             onPartial={
-                              t.allowsPartial && day.editable && t.progress < 1
+                              t.allowsPartial &&
+                              day.editable &&
+                              t.progress < 1 &&
+                              t.doneAheadOn === null
                                 ? () => setPartialTask(t)
                                 : undefined
                             }
                             onMove={
-                              day.editable && !t.completedToday
+                              day.editable && !isDone(t)
                                 ? () => setMovingTask(t)
                                 : undefined
                             }

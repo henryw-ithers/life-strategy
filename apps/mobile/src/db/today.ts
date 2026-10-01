@@ -32,7 +32,15 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { loadCommitmentDay } from "./commitments";
-import { isCommitmentUnit, scheduledDateFor } from "./commitmentPlan";
+import {
+  COVERAGE_LOOKBACK_DAYS,
+  doneAheadOn,
+  isCommitmentUnit,
+  scheduledDateFor,
+  sessionFor,
+} from "./commitmentPlan";
+import { completionDatesAround } from "./sessionCoverage";
+import { isDueOn } from "../components/plan/planning";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { autocountForTask, removeAutocountForTask } from "./goals";
 import {
@@ -109,6 +117,12 @@ export interface TodayTask {
    * scheduled-day value, paid in full outside every cap (ADR-0032 §4).
    */
   offSchedule: boolean;
+  /**
+   * The earlier day this session was done on, when it was done ahead
+   * (ADR-0032 §4). The session is finished: it pays nothing today and
+   * reads as done; undoing it undoes that earlier tick.
+   */
+  doneAheadOn: string | null;
   /** A one-off's planned day, or null. Places a future one-off among
    *  "Planned for other days". */
   oneOffDate: string | null;
@@ -180,26 +194,39 @@ export interface DayData {
 const AHEAD_DAYS = 7;
 
 /**
- * What each off-schedule commitment task is worth on the day it is
- * scheduled for (ADR-0032 §4, amended 2026-09-30).
+ * What each off-schedule commitment task is worth: the value of the
+ * scheduled session it stands in for (ADR-0032 §4, amended 2026-09-30
+ * and 2026-10-01).
  *
- * Each is priced against a real scheduled day, sharing that day's band
- * with that day's other work — not against today, where on a free
- * Sunday one assignment would take the whole band to itself. Tasks
- * sharing a scheduled day are priced in one pass.
+ * - A **one-off** done ahead takes its own planned day.
+ * - A **recurring** task takes the session its tick covers — the next
+ *   one not already done, on its day or by an earlier early tick
+ *   (`sessionFor`). So a session is paid once however far ahead it is
+ *   worked.
+ *
+ * Each is priced against that real day **as scheduled** — the session
+ * still in it, sharing the band with that day's other work. Not against
+ * today, where on a free Sunday one assignment would take the whole
+ * band; and not with the session already removed, which would price the
+ * tick that removed it at nothing. Tasks sharing a day are priced in
+ * one pass.
  */
 async function scheduledDayValues(
   tasks: readonly (Parameters<typeof scheduledDateFor>[0] & { id: string })[],
   date: string,
+  sessionDates: ReadonlyMap<string, string[]>,
 ): Promise<Map<string, number>> {
   const byDate = new Map<string, string[]>();
   for (const t of tasks) {
-    const on = scheduledDateFor(t, date);
+    const on =
+      t.oneOffSize != null
+        ? scheduledDateFor(t, date)
+        : sessionFor(t, date, sessionDates.get(t.id) ?? []);
     if (on !== null) byDate.set(on, [...(byDate.get(on) ?? []), t.id]);
   }
   const values = new Map<string, number>();
   for (const [on, ids] of byDate) {
-    const day = await loadCommitmentDay(on);
+    const day = await loadCommitmentDay(on, { includeCovered: true });
     if (day === null) continue;
     const points = await taskPointsOn(day);
     for (const id of ids) values.set(id, points.get(id) ?? 0);
@@ -388,25 +415,54 @@ export async function loadDay(
   const commitmentTaskIds = new Set(commitmentDay?.eligibleTaskIds ?? []);
 
   /**
+   * Recurring commitment sessions **already done early** — the session
+   * due today, done on an earlier off-schedule day (ADR-0032 §4, amended
+   * 2026-10-01). It is done: it left today's band (`loadCommitmentDay`),
+   * it pays nothing today, and it reads as finished rather than as one
+   * more thing to tick.
+   */
+  const commitmentTasks = tasks.filter((t) => commitmentUnitIds.has(t.unitId));
+  const recurringCommitment = commitmentTasks.filter((t) => t.oneOffSize == null);
+  const sessionDates = await completionDatesAround(
+    recurringCommitment.map((t) => t.id),
+    date,
+  );
+  const doneAhead = new Map<string, string>();
+  for (const t of recurringCommitment) {
+    const early = doneAheadOn(t, date, sessionDates.get(t.id) ?? []);
+    if (early !== null) doneAhead.set(t.id, early);
+  }
+
+  /**
    * Commitment work on the day but **not scheduled for it** — ahead of
    * its day, or in place of something else — and what it is worth
    * (ADR-0032 §4, amended 2026-09-30).
    *
-   * Priced at its value on the day it *is* scheduled, and paid in full
-   * outside every cap — beside extra runs, not in the unplanned pool.
-   * Under v8 these paid nothing: a commitment has no weight among the
-   * 18, so the stored value is 0.
+   * Priced at the session it stands in for, and paid in full outside
+   * every cap — beside extra runs, not in the unplanned pool. Under v8
+   * these paid nothing: a commitment has no weight among the 18, so the
+   * stored value is 0.
+   *
+   * Decided by the schedule, not by whether a band happens to be set:
+   * a one-off planned for later, or a recurring task on one of its
+   * off days.
    */
-  const offSchedule = tasks.filter(
-    (t) => commitmentUnitIds.has(t.unitId) && !commitmentTaskIds.has(t.id),
+  const offSchedule = commitmentTasks.filter(
+    (t) =>
+      !doneAhead.has(t.id) &&
+      (t.oneOffSize != null
+        ? scheduledDateFor(t, date) !== null
+        : !isDueOn(t, date)),
   );
-  const offScheduleValue = await scheduledDayValues(offSchedule, date);
+  const offScheduleValue = await scheduledDayValues(offSchedule, date, sessionDates);
   const offScheduleIds = new Set(offSchedule.map((t) => t.id));
 
   const pointsFor = (t: { id: string; pointValue: number }) =>
-    offScheduleIds.has(t.id)
-      ? (offScheduleValue.get(t.id) ?? 0)
-      : (pointsToday?.get(t.id) ?? t.pointValue);
+    doneAhead.has(t.id)
+      ? 0
+      : offScheduleIds.has(t.id)
+        ? (offScheduleValue.get(t.id) ?? 0)
+        : (pointsToday?.get(t.id) ?? t.pointValue);
 
   /**
    * How much of each task is already done, and how much today's own
@@ -573,6 +629,7 @@ export async function loadDay(
       allowsPartial: t.allowsPartial,
       commitment: commitmentUnitIds.has(t.unitId),
       offSchedule: offScheduleIds.has(t.id),
+      doneAheadOn: doneAhead.get(t.id) ?? null,
       oneOffDate: t.oneOffDate,
       progress: progressByTask.get(t.id) ?? 0,
       earnedToday: earnedByTask.get(t.id) ?? null,
@@ -828,6 +885,7 @@ export async function toggleCompletion(
   const cleared = await clearCompletion(taskId, date);
   if (!cleared) await writeCompletion(taskId, date, 1);
   await cacheDayScore(date);
+  await recacheCoveredSessions(taskId, date);
 }
 
 /**
@@ -848,6 +906,37 @@ export async function setCompletionFraction(
   await clearCompletion(taskId, date);
   await writeCompletion(taskId, date, fraction);
   await cacheDayScore(date);
+  await recacheCoveredSessions(taskId, date);
+}
+
+/**
+ * Re-score the days whose session an off-schedule tick on `date` may
+ * have taken or given back (ADR-0032 §4, amended 2026-10-01).
+ *
+ * Ticking Tuesday takes Wednesday's session out of Wednesday's band;
+ * unticking it puts it back. If Wednesday has already been scored, its
+ * stored grade would otherwise describe a band it no longer has. Only
+ * days already holding a grade are touched — a day never opened is
+ * computed when it is — and only up to today, since no later day has a
+ * grade to correct.
+ */
+async function recacheCoveredSessions(taskId: string, date: string): Promise<void> {
+  const [row] = await db.select().from(task).where(eq(task.id, taskId));
+  if (!row || row.oneOffSize != null || isDueOn(row, date)) return;
+  const [home] = await db.select().from(lifeUnit).where(eq(lifeUnit.id, row.unitId));
+  if (!home || !isCommitmentUnit(home)) return;
+
+  const today = currentLocalDate();
+  for (let i = 1; i <= COVERAGE_LOOKBACK_DAYS; i++) {
+    const day = addDays(date, i);
+    if (day > today) break;
+    if (!isDueOn(row, day)) continue;
+    const [graded] = await db
+      .select({ localDate: dayGrade.localDate })
+      .from(dayGrade)
+      .where(eq(dayGrade.localDate, day));
+    if (graded) await cacheDayScore(day);
+  }
 }
 
 /** Removes the day's completion if there is one. Returns whether there was. */

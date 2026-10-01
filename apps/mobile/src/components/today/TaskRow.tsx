@@ -52,7 +52,8 @@ export function TaskRow({
   theme,
   reduceMotion,
 }: TaskRowProps) {
-  const checked = task.completedToday;
+  // Done ahead reads as done: the session is finished, on another day.
+  const checked = task.completedToday || task.doneAheadOn !== null;
   const fill = useSharedValue(checked ? 1 : 0);
 
   useEffect(() => {
@@ -161,9 +162,13 @@ export function TaskRow({
         </View>
       ) : null}
       <AppText variant="footnote" color={theme.muted} tabular>
-        {task.extraToday && checked
-          ? `+${task.pointsIfCompletedNow}`
-          : `${task.pointValue}`}
+        {/* Nothing for a session done ahead: it was paid on the day it
+            was done, and a 0 here would read as "worth nothing". */}
+        {task.doneAheadOn !== null
+          ? ""
+          : task.extraToday && checked
+            ? `+${task.pointsIfCompletedNow}`
+            : `${task.pointValue}`}
       </AppText>
     </Pressable>
   );

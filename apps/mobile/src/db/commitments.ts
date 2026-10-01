@@ -14,9 +14,11 @@ import { db } from "./client";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import {
   buildCommitmentDay,
+  doneAheadOn,
   eligibleTaskIds,
   groupCommitments,
 } from "./commitmentPlan";
+import { completionDatesAround } from "./sessionCoverage";
 import { lifeUnit, pool, poolMember, task } from "./schema";
 import { loadCommitmentBand } from "./settings";
 
@@ -65,7 +67,11 @@ export async function loadCommitments(): Promise<CommitmentRow[]> {
  * to be scheduled: an unscheduled one belongs to no day, so no day's
  * band could ever pay it.
  */
-async function eligibleOn(date: string, unitIds: string[]): Promise<string[]> {
+async function eligibleOn(
+  date: string,
+  unitIds: string[],
+  includeCovered: boolean,
+): Promise<string[]> {
   if (unitIds.length === 0) return [];
 
   const rows = await db
@@ -78,8 +84,22 @@ async function eligibleOn(date: string, unitIds: string[]): Promise<string[]> {
   // means finished, so a part-done assignment is still owed today.
   const oneOffIds = rows.filter((t) => t.oneOffSize != null).map((t) => t.id);
   const settledBefore = settledOf(await fractionsBefore(oneOffIds, date));
+  const eligible = eligibleTaskIds(rows, settledBefore, date);
+  if (includeCovered) return eligible;
 
-  return eligibleTaskIds(rows, settledBefore, date);
+  // **A session done early is done** (ADR-0032 §4, amended 2026-10-01).
+  // It leaves this day's band, which re-divides among what is left —
+  // the band exists only where it can be earned (§1), so a day whose
+  // one session was worked on Tuesday is an ordinary day, not one
+  // stranded below 100.
+  const recurring = rows.filter((t) => t.oneOffSize == null && eligible.includes(t.id));
+  const dates = await completionDatesAround(recurring.map((t) => t.id), date);
+  const covered = new Set(
+    recurring
+      .filter((t) => doneAheadOn(t, date, dates.get(t.id) ?? []) !== null)
+      .map((t) => t.id),
+  );
+  return eligible.filter((id) => !covered.has(id));
 }
 
 /**
@@ -99,6 +119,14 @@ async function eligibleOn(date: string, unitIds: string[]): Promise<string[]> {
  */
 export async function loadCommitmentDay(
   date: string,
+  /**
+   * Price the day **as scheduled**, with sessions already done early
+   * left in. Used only to find what an off-schedule tick is worth — it
+   * is worth its session's value with the session still in the day.
+   * Without this, ticking Tuesday would take Wednesday's session out of
+   * Wednesday and so price Tuesday's own tick at nothing.
+   */
+  options: { includeCovered?: boolean } = {},
 ): Promise<CommitmentDay | null> {
   const band = await loadCommitmentBand();
   if (band === null) return null;
@@ -113,6 +141,7 @@ export async function loadCommitmentDay(
   const eligible = await eligibleOn(
     date,
     groups.flatMap((g) => [...g.unitIds]),
+    options.includeCovered === true,
   );
   const day = buildCommitmentDay(band, groups, eligible);
   if (day === null) return null;

@@ -297,3 +297,93 @@ export function scheduledDateFor(
   }
   return null;
 }
+
+// ── An early session stands in for the next one (ADR-0032 §4) ───────
+
+/** The schedule fields `isDueOn` reads. */
+export interface ScheduledTask {
+  plannedWeekdays: string | null;
+  timesPerWeek: number;
+  fortnightOffset?: number;
+}
+
+/**
+ * Which scheduled session each off-schedule completion stands in for —
+ * `offScheduleDate → sessionDate`.
+ *
+ * Henry, 2026-10-01, choosing between three ways to stop a recurring
+ * session paying again every day it is ticked off its schedule: **an
+ * early session replaces the next scheduled one.** Tuesday's tick is
+ * Wednesday's session done early, so Wednesday is already done, and a
+ * session is paid once however far ahead it is worked.
+ *
+ * Walked in date order, so the answer is the same however the rows were
+ * entered. Each off-schedule completion takes the first session after
+ * it that is neither **done on its own day** nor **already taken** by
+ * an earlier one — so Saturday covers Monday and Sunday covers
+ * Wednesday, rather than both claiming Monday. One with nothing left to
+ * take inside the horizon stands in for nothing.
+ *
+ * Recurring tasks only: a one-off is done once, so working it early
+ * already settles it.
+ */
+export function coverage(
+  task: ScheduledTask,
+  completionDates: readonly string[],
+): Map<string, string> {
+  const dates = [...new Set(completionDates)].sort();
+  const doneOnTheDay = new Set(dates.filter((d) => isDueOn(task, d)));
+  const taken = new Set<string>();
+  const out = new Map<string, string>();
+  for (const d of dates) {
+    if (doneOnTheDay.has(d)) continue;
+    for (let i = 1; i <= SCHEDULE_HORIZON_DAYS; i++) {
+      const session = addDays(d, i);
+      if (!isDueOn(task, session)) continue;
+      if (doneOnTheDay.has(session) || taken.has(session)) continue;
+      out.set(d, session);
+      taken.add(session);
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * The session a tick on `date` would stand in for, given what is
+ * already recorded — what an unticked off-schedule row is worth.
+ * Null when the date is one of the task's own days, or nothing is left
+ * to take.
+ */
+export function sessionFor(
+  task: ScheduledTask,
+  date: string,
+  completionDates: readonly string[],
+): string | null {
+  if (isDueOn(task, date)) return null;
+  return coverage(task, [...completionDates, date]).get(date) ?? null;
+}
+
+/**
+ * The off-schedule day that already did `date`'s session, or null.
+ * The session is then done: it leaves the day's band and cannot be
+ * ticked again.
+ */
+export function doneAheadOn(
+  task: ScheduledTask,
+  date: string,
+  completionDates: readonly string[],
+): string | null {
+  for (const [early, session] of coverage(task, completionDates)) {
+    if (session === date) return early;
+  }
+  return null;
+}
+
+/**
+ * How far back a completion can reach to cover a session. One horizon
+ * to find its session, and another for the earlier completions that
+ * pushed it along: past that, a chain would need three weeks of daily
+ * off-schedule ticks.
+ */
+export const COVERAGE_LOOKBACK_DAYS = SCHEDULE_HORIZON_DAYS * 2;

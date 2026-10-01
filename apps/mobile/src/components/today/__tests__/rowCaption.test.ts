@@ -3,7 +3,13 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { countsRuns, progressLabel, rowCaption, type CaptionTask } from "../rowCaption";
+import {
+  countsRuns,
+  doneAheadLabel,
+  progressLabel,
+  rowCaption,
+  type CaptionTask,
+} from "../rowCaption";
 
 const weekly = (over: Partial<CaptionTask> = {}): CaptionTask => ({
   timesPerWeek: 5,
@@ -17,6 +23,7 @@ const weekly = (over: Partial<CaptionTask> = {}): CaptionTask => ({
   allowsPartial: false,
   oneOffSize: null,
   commitment: false,
+  doneAheadOn: null,
   ...over,
 });
 
@@ -89,5 +96,22 @@ describe("a daily task's run", () => {
     expect(rowCaption(daily(12, { allowsPartial: true, progress: 0.75 }))).toBe(
       "Three quarters done",
     );
+  });
+});
+
+describe("a session done ahead (ADR-0032 §4)", () => {
+  it("says which day it was done on", () => {
+    // 2026-09-29 is a Tuesday.
+    expect(doneAheadLabel("2026-09-29")).toBe("Done ahead · Tue");
+  });
+
+  it("leads the row, ahead of anything else", () => {
+    expect(
+      rowCaption(weekly({ commitment: true, doneAheadOn: "2026-09-29", progress: 0.5 })),
+    ).toBe("Done ahead · Tue");
+  });
+
+  it("names the day without ever reading as late", () => {
+    expect(doneAheadLabel("2026-10-04")).not.toMatch(/late|missed|overdue/i);
   });
 });
