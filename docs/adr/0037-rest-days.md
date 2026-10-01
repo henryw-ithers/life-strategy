@@ -154,12 +154,16 @@ value: `day_grade.kind` is untouched.
   credit; it is the grade of a day your plan asked nothing of.
 - **Weeks and months read higher** for anyone who works ahead, because
   days that were excluded now count, at 70 or more. That is the intent.
-- **On a day that does ask something, early life work still follows
-  ADR-0029 §3**: Friday's run done on a busy Tuesday counts toward
-  Tuesday's fraction, at Tuesday's rate, inside the 90. Only commitment
-  work (ADR-0032 §4) and work done on a day that asks nothing are paid
-  at their planned day's worth. Whether a busy day should pay early
-  life work the same way is open.
+- **Busy days pay it the same way** (Henry, 2026-10-01: *"make busy
+  days pay early work its planned value too"*). A run pinned to another
+  day this week, done on any day, is paid what its planned day would
+  have paid (`plannedDateFor` finds the day: the next pinned day still
+  to come, or the latest one if all have passed), **outside every band
+  and uncapped**, and is kept out of that day's own load so it is paid
+  once. It no longer counts toward a busy Tuesday's fraction, so it can
+  neither stand in for Tuesday's own work nor be capped by it. This
+  amends ADR-0029 §3; its promise — the wrong day costs nothing — is
+  kept, and now the wrong day pays the right amount.
 - **Formula v10**, folded in: v10 had reached no device.
 - **Revisit when** a fortnight of use shows rest days outscoring the
   ordinary days around them — that would mean 70 is too generous a

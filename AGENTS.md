@@ -139,16 +139,18 @@ second one. What separates it is its **band**, not its table
   points of a day may come from anything the user didn't plan —
   activity credit and the special-day rating bonus share that one
   pool (scaled with the life share on a commitment day). Two routes sit outside it, deliberately, and both are your own
-  plan: extra runs of planned tasks, and commitment work done on a day
-  it wasn't scheduled for, paid its scheduled-day worth (ADR-0032 §4).
-  Those are the only uncapped routes above 100. Do not add a new
+  plan: extra runs of planned tasks, and work done off the day it was
+  planned for — commitment work (ADR-0032 §4) and runs pinned to another
+  day (ADR-0037 §3) — paid what that day would have paid. Those are the
+  only uncapped routes above 100. Do not add a new
   credit source without deciding which side of that line it falls on.
 - **A day that asks nothing becomes a rest day automatically**
   (ADR-0037, `isRestDay`): no life work due, no commitment work
   scheduled, a plan behind it, **and** either nothing open later this
   week or something open done early today. It scores **70**; activities
   fill the last 30 at three times the usual rate; early work is paid on
-  top, uncapped, at **what its planned day would have paid**. It is
+  top, uncapped, at **what its planned day would have paid** — as it is
+  on every other day too. It is
   never offered or chosen and is not a day kind; a day off stays
   ungraded. An empty day with work open and none done is ungraded.
 - Daily grades are **private by default**. Never add leaderboards,

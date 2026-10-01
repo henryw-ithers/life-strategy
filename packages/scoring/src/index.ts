@@ -36,6 +36,7 @@ export type { LoadTask, LoadCompletion, DayLoad } from "./dayLoad";
 export {
   averageDayExpected,
   computeDayLoad,
+  plannedDateFor,
   daysLeftInWeek,
   isAnchoredOn,
   isoWeekday,

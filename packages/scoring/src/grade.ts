@@ -155,6 +155,15 @@ export interface DayScoreInput {
    */
   offScheduleCredit?: number;
   /**
+   * Life work done off its planned day — a run pinned to another day
+   * this week — at **what its planned day would have paid**
+   * (`plannedDayRunPoints`; ADR-0037 §3 as extended 2026-10-01). Paid in
+   * full, outside every band, on any graded day: Henry, *"make busy days
+   * pay early work its planned value too."* The caller keeps these
+   * completions out of today's load, so they are paid once.
+   */
+  earlyCredit?: number;
+  /**
    * What a rest day needs (ADR-0037). Omitted, a day with nothing due
    * is ungraded, as ADR-0029 has it.
    */
@@ -313,7 +322,8 @@ export function computeDayScore(input: DayScoreInput): DayScore {
     planned +
     unplanned +
     extraCredit +
-    Math.max(0, input.offScheduleCredit ?? 0);
+    Math.max(0, input.offScheduleCredit ?? 0) +
+    Math.max(0, input.earlyCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded
   // pair, so the day screen and the calendar can never read one point
@@ -340,10 +350,6 @@ export interface RestDayInput {
   openThisWeek: boolean;
   /** Whether anything was done early today. */
   earlyToday: boolean;
-  /** Early life work, already priced at its planned day's worth
-   *  (`plannedDayRunPoints`). Commitment work done ahead comes in as
-   *  `offScheduleCredit`. */
-  earlyCredit?: number;
 }
 
 /**
@@ -411,7 +417,7 @@ export function plannedDayRunPoints(
 function restDayScore(input: DayScoreInput): DayScore {
   const average = input.restDay?.averageExpected ?? 0;
   const early =
-    Math.max(0, input.restDay?.earlyCredit ?? 0) +
+    Math.max(0, input.earlyCredit ?? 0) +
     EXTRA_RUN_RATE * runPoints(input.load.extra, average) +
     Math.max(0, input.offScheduleCredit ?? 0);
   const unplannedRaw =

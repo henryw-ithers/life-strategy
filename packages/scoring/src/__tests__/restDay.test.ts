@@ -13,7 +13,12 @@
 import { describe, expect, it } from "vitest";
 
 import { REST_DAY_BASE, REST_DAY_UNPLANNED } from "../constants";
-import { averageDayExpected, computeDayLoad, type LoadTask } from "../dayLoad";
+import {
+  averageDayExpected,
+  computeDayLoad,
+  plannedDateFor,
+  type LoadTask,
+} from "../dayLoad";
 import {
   computeDayScore,
   isRestDay,
@@ -111,7 +116,7 @@ describe("what it scores — §2", () => {
 
   it("is 70 + the task when the task done early is what made it one", () => {
     // Henry's Tuesday: work open, Friday's task done today.
-    const s = score({}, { openThisWeek: true, earlyToday: true, earlyCredit: 20 });
+    const s = score({ earlyCredit: 20 }, { openThisWeek: true, earlyToday: true });
     expect(s.earned).toBe(90);
   });
 
@@ -165,5 +170,53 @@ describe("early work pays its planned day's worth — §3", () => {
 
   it("prices nothing when there is nothing to price against", () => {
     expect(restDayRunPoints(10, 0)).toBe(0);
+  });
+});
+
+describe("which day a run was planned for", () => {
+  it("is the next pinned day still to come this week", () => {
+    // Wednesday; pinned Monday and Friday.
+    expect(plannedDateFor(weekly("mf", 10, [1, 5]), date)).toBe("2026-07-17");
+  });
+
+  it("is the latest pinned day once they have all passed — late work", () => {
+    expect(plannedDateFor(weekly("m", 10, [1]), date)).toBe("2026-07-13");
+  });
+
+  it("is the nearest of several pinned days still to come", () => {
+    expect(plannedDateFor(weekly("tf", 10, [4, 5]), date)).toBe("2026-07-16");
+  });
+
+  it("is the most recent of several passed pinned days", () => {
+    expect(plannedDateFor(weekly("mt", 10, [1, 2]), date)).toBe("2026-07-14");
+  });
+
+  it("is none for a task due today, an every-day task, or one not pinned", () => {
+    expect(plannedDateFor(weekly("w", 10, [3]), date)).toBeNull();
+    expect(
+      plannedDateFor({ taskId: "d", weight: 5, timesPerWeek: 7, pinnedWeekdays: [] }, date),
+    ).toBeNull();
+    expect(plannedDateFor(weekly("flex"), date)).toBeNull();
+  });
+});
+
+describe("busy days pay early work its planned value too", () => {
+  // Henry, 2026-10-01: "make busy days pay early work its planned value
+  // too." A day with its own work due, and Friday's run done early.
+  const habit: LoadTask = { taskId: "h", weight: 10, timesPerWeek: 7, pinnedWeekdays: [] };
+  const busy = computeDayLoad([habit], [{ taskId: "h", localDate: date }], date);
+
+  it("pays it on top, outside the bands", () => {
+    const s = computeDayScore({ kind: "normal", load: busy, earlyCredit: 30 });
+    expect(s.earned).toBe(120);
+  });
+
+  it("does not let it stand in for today's own work", () => {
+    const idle = computeDayLoad([habit], [], date);
+    expect(computeDayScore({ kind: "normal", load: idle, earlyCredit: 30 }).earned).toBe(30);
+  });
+
+  it("is never negative", () => {
+    expect(computeDayScore({ kind: "normal", load: busy, earlyCredit: -5 }).earned).toBe(90);
   });
 });

@@ -177,6 +177,16 @@ point — it is what makes "did I do today's list" answerable — and it is
 not the same thing as being charged for doing the right work on the
 wrong day.
 
+> **Amended 2026-10-01 by [ADR-0037](0037-rest-days.md) §3.** A run
+> pinned to another day this week is no longer counted into the day it
+> is done on. It is paid **what its pinned day would have paid**,
+> outside the bands and uncapped, on whatever day it is done — Henry:
+> *"early tasks count as much as they would if they were done on the
+> day they were planned."* Everything above still holds: nothing
+> compares a completion's date to its pin to charge for it, a missed
+> pinned day still lapses silently, and no adherence figure exists.
+> The date is read only to choose which day's price to pay.
+
 ### 4. A task's worth is a property of the day, not of the task
 
 `task.point_value` now stores a **weight**: a share of the portfolio's

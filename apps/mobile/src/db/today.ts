@@ -20,9 +20,8 @@ import {
   isEditable,
   EXTRA_RUN_RATE,
   isFinalized,
-  isAnchoredOn,
-  isPinnedElsewhere,
   isRestDay,
+  plannedDateFor,
   plannedDayRunPoints,
   lifeShare,
   localDateOf,
@@ -635,7 +634,6 @@ export async function loadDay(
     fraction: c.fraction,
   }));
   const lifeCompletions = loadCompletions.filter((c) => lifeTaskIds.has(c.taskId));
-  const load = computeDayLoad(loadTasks, lifeCompletions, date);
   const statuses = [
     ...deriveChecklist(loadTasks, lifeCompletions, date, share),
     ...deriveChecklist(
@@ -644,6 +642,26 @@ export async function loadDay(
       date,
     ),
   ];
+
+  /**
+   * Runs done off their planned day — pinned to another day this week —
+   * and the day each was planned for (`plannedDateFor`). Paid what that
+   * day would have paid, on any day, outside the bands (ADR-0037 §3 as
+   * extended 2026-10-01: *"make busy days pay early work its planned
+   * value too"*). So today's own load must not count them as well.
+   */
+  const offDayPlanned = new Map<string, string>();
+  for (const lt of loadTasks) {
+    if (lt.oneOff) continue;
+    if (statuses.find((st) => st.taskId === lt.taskId)?.extraToday) continue;
+    const d = plannedDateFor(lt, date);
+    if (d !== null) offDayPlanned.set(lt.taskId, d);
+  }
+  const load = computeDayLoad(
+    loadTasks,
+    lifeCompletions.filter((c) => !(c.localDate === date && offDayPlanned.has(c.taskId))),
+    date,
+  );
 
   /**
    * A rest day (ADR-0037), decided rather than chosen. A day off stays a
@@ -667,19 +685,8 @@ export async function loadDay(
    * if they were done on the day they were planned"*), priced with that
    * day's life share if it carries a commitment band.
    */
-  const plannedDateOf = new Map<string, string>();
+  const plannedDateOf = new Map(offDayPlanned);
   if (nothingDue) {
-    for (const lt of loadTasks) {
-      if (lt.oneOff || !isPinnedElsewhere(lt, date)) continue;
-      if (statuses.find((st) => st.taskId === lt.taskId)?.extraToday) continue;
-      for (let i = 1; i <= 13; i++) {
-        const d = addDays(date, i);
-        if (isAnchoredOn(lt, d)) {
-          plannedDateOf.set(lt.taskId, d);
-          break;
-        }
-      }
-    }
     for (const t of aheadLifeTasks) {
       if (t.oneOffDate) plannedDateOf.set(t.id, t.oneOffDate);
     }
@@ -830,25 +837,30 @@ export async function loadDay(
      * day's load, in the life share; a commitment task's is its band
      * value. `point_value` itself is a weight and is never shown.
      */
+    const early = earlyValue.get(t.id);
     const value = commitmentUnitIds.has(t.unitId)
       ? commitmentValue(t.id)
-      : nothingDue
-        ? Math.round(earlyValue.get(t.id) ?? restDayRunPoints(t.pointValue, averageExpected))
-        : load.expected > 0
-          ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
-          : 0;
-    // On a day that asks nothing a life task's run is early work at its
-    // planned day's worth, or an extra run at the extra-run rate on an
-    // average day (ADR-0037 §3).
+      : early !== undefined
+        ? Math.round(early)
+        : nothingDue
+          ? Math.round(restDayRunPoints(t.pointValue, averageExpected))
+          : load.expected > 0
+            ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
+            : 0;
+    // A run off its planned day pays that day's worth, on any day; on a
+    // day that asks nothing, a run beyond the week's count pays the
+    // extra-run rate on an average day (ADR-0037 §3).
     const sRest =
-      nothingDue && !commitmentUnitIds.has(t.unitId)
-        ? {
-            ...s,
-            pointsIfCompletedNow: s.extraToday
-              ? Math.round(EXTRA_RUN_RATE * restDayRunPoints(t.pointValue, averageExpected))
-              : value,
-          }
-        : s;
+      early !== undefined
+        ? { ...s, pointsIfCompletedNow: value }
+        : nothingDue && !commitmentUnitIds.has(t.unitId)
+          ? {
+              ...s,
+              pointsIfCompletedNow: s.extraToday
+                ? Math.round(EXTRA_RUN_RATE * restDayRunPoints(t.pointValue, averageExpected))
+                : value,
+            }
+          : s;
     return {
       id: t.id,
       title: t.title,
@@ -967,7 +979,8 @@ export async function loadDay(
           commitment: { band: commitmentBandOn(commitmentDay), earned: commitmentEarned },
           offScheduleCredit,
           activities: activityCredits,
-          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday, earlyCredit },
+          earlyCredit,
+          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday },
         });
 
   // Life one-offs planned for later can be done early on any day that

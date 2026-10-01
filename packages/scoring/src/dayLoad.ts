@@ -150,6 +150,30 @@ export function isPinnedElsewhere(task: LoadTask, date: string): boolean {
 }
 
 /**
+ * The day this week a run done on `date` was planned for, or null.
+ *
+ * For a task pinned to other days: the **next** pinned day still to
+ * come this week — the run is early — or, if every pinned day has
+ * passed, the **latest** one — the run is late. Either way it is paid
+ * what that day would have paid (ADR-0037 §3), so a run is worth the
+ * same whichever day of its week it is done on. Null for a task that is
+ * not pinned elsewhere, and for a fortnightly task whose pinned days
+ * all fall in the other week.
+ */
+export function plannedDateFor(task: LoadTask, date: string): string | null {
+  if (!isPinnedElsewhere(task, date)) return null;
+  const start = weekStart(date);
+  let latestPast: string | null = null;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    if (d === date || !isAnchoredOn(task, d)) continue;
+    if (d > date) return d;
+    latestPast = d;
+  }
+  return latestPast;
+}
+
+/**
  * What an **average** day of this plan expects: every recurring task's
  * weekly demand (a fortnightly task's half-run included), over seven.
  *
