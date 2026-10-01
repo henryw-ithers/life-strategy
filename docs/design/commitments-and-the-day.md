@@ -1,7 +1,8 @@
 # Working Note — Commitments, windows, and the third band
 
 > **Status: working note. The decisions now live in ADRs**
-> (2026-09-11).
+> (2026-09-11), **accepted 2026-10-01** with dated amendments from
+> building them.
 >
 > This is the working-out — how the design moved across one long
 > session, what was tried and dropped, and crucially **which numbers

@@ -1,6 +1,6 @@
 # ADR-0014: Partial credit
 
-> **Status:** Proposed\
+> **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11\
 > **Deciders:** Henry
 
@@ -221,5 +221,7 @@ too generous, or unnecessary.
 5. [~] The sheet and the row count up — "Half done", "Takes you to
        75%" — and no copy names a remainder. Worth one more read on
        device against §5.
-6. [ ] Amend ADR-0004 §2 with a pointer here, recording that the
-       calibration gate did not fire and why this proceeded anyway.
+6. [x] ADR-0004 §2 carries the pointer, written 2026-09-11 and ticked
+       2026-10-01: superseded by this ADR, **its gate did not fire**,
+       and what changed instead was the premise — windows made "worked
+       on it, didn't finish" a visible event.

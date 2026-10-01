@@ -1,6 +1,6 @@
 # ADR-0026: Task size and day load
 
-> **Status:** Proposed\
+> **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11\
 > **Deciders:** Henry
 
@@ -151,5 +151,5 @@ real plan, which is a formula-version conversation.
        things (ADR-0030 §2). Rounded to a quarter hour, because the
        sizes are rough and a figure like "2h 20m" would claim a
        precision they do not have.
-4. [ ] Amend ADR-0024 §6 with a pointer here, noting the trigger that
-       actually fired.
+4. [x] ADR-0024 §6 points here (2026-10-01), naming the trigger that
+       actually fired — the commitments design, not the weekly pass.

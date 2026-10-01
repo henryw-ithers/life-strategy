@@ -1,6 +1,6 @@
 # ADR-0030: Granularity is the user's
 
-> **Status:** Proposed\
+> **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11 (rewritten; first drafted 2026-09-08)\
 > **Deciders:** Henry
 

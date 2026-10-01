@@ -428,6 +428,16 @@ load meaningful, and its shape should inform the decision. **Trigger:**
 the weekly planning pass is in real use and the question "is this day
 too full?" has come up unprompted.
 
+> **Filled 2026-09-11 by [ADR-0026](0026-task-size-and-day-load.md),
+> accepted 2026-10-01 — and not by this trigger.** The weekly pass is
+> not in heavy use and nobody asked whether a day was too full. What
+> fired instead was the commitments design: window capacity, "what
+> fits here?", and separating an essay from a reading within one
+> commitment all needed task size at once (ADR-0026, Context). Same
+> signal, different route. 0026 kept this section's two constraints
+> intact — sizes, never minutes, for the planning-fallacy reason given
+> above, and a load that is shown and never warned about.
+
 ## Schema additions
 
 Landing with their phases, per ADR-0002 conventions:

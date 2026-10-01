@@ -10,7 +10,7 @@ status to *Accepted*.
 | [0001](0001-platform-and-tech-stack.md) | Platform and tech stack | Accepted |
 | [0002](0002-data-model-and-persistence.md) | Data model and persistence | Accepted |
 | [0003](0003-scoring-and-weight-derivation.md) | Scoring and weight derivation | Accepted |
-| [0004](0004-grade-lifecycle-and-aggregation.md) | Grade lifecycle and aggregation | Accepted |
+| [0004](0004-grade-lifecycle-and-aggregation.md) | Grade lifecycle and aggregation | §2 superseded by 0014 |
 | [0005](0005-diagnostic-snapshots-and-history.md) | Diagnostic snapshots and portfolio history | Accepted |
 | [0006](0006-task-and-goal-recommendations.md) | Task and goal recommendation source | Accepted |
 | [0007](0007-goal-lifecycle.md) | Goal lifecycle and milestones | Accepted |
@@ -19,23 +19,23 @@ status to *Accepted*.
 | [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
 | [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
 | [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
-| [0014](0014-partial-credit.md) | Partial credit | Proposed |
+| [0014](0014-partial-credit.md) | Partial credit | Accepted |
 | [0015](0015-metric-linked-goals.md) | Metric-linked goals | Accepted |
 | [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
 | [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
 | [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
-| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Accepted |
+| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | Amended by 0026, 0030, 0032 |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
-| [0026](0026-task-size-and-day-load.md) | Task size and day load | Proposed |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Accepted |
+| [0026](0026-task-size-and-day-load.md) | Task size and day load | Accepted |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | Extended by 0032 |
 | [0028](0028-schedule-mode.md) | Schedule mode | **Withdrawn** |
-| [0029](0029-commitments-are-custom-units.md) | Commitments are custom units | Proposed |
-| [0030](0030-granularity-is-the-users.md) | Granularity is the user's | Proposed |
+| [0029](0029-commitments-are-custom-units.md) | Commitments are custom units | Accepted |
+| [0030](0030-granularity-is-the-users.md) | Granularity is the user's | Accepted |
 | [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
-| [0032](0032-the-commitment-band.md) | The commitment band | Proposed |
-| [0033](0033-windows-and-pools.md) | Windows and pools | Proposed |
+| [0032](0032-the-commitment-band.md) | The commitment band | Accepted |
+| [0033](0033-windows-and-pools.md) | Windows and pools | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -48,8 +48,11 @@ takes 0026's number out of order because the 112-point day would not
 wait for the load meter.
 
 **0014, 0026 and 0029–0033 are the commitments work**, drafted
-together across one long session on 2026-09-08..11 and still
-**proposed**. Read them in this order:
+together across one long session on 2026-09-08..11, built over the
+following three weeks, and **accepted 2026-10-01**. Several carry
+dated amendments from that building — the code showed where the
+decision as written was incomplete or wrong — so read each through to
+its action items. Read them in this order:
 
 1. **[0029](0029-commitments-are-custom-units.md)** — a commitment is a
    custom `life_unit` in two levels, not a goal and not a parallel
@@ -58,8 +61,11 @@ together across one long session on 2026-09-08..11 and still
    `1,1,1,1,1,1,1,1,0,0,0,0,0` — **five worth literally zero** — which
    is the edge ADR-0027 named and parked.
 2. **[0032](0032-the-commitment-band.md)** — a third band on days with
-   scheduled commitment work. **Formula v8**, and the first
-   date-dependent split in the app's history. Read ADR-0027 first.
+   scheduled commitment work, and the first date-dependent split in
+   the app's history. **Formula v8**, and **v11** after §4's
+   amendments: off-schedule commitment work pays its scheduled-day
+   worth, uncapped, and an early session stands in for the next one.
+   Read ADR-0027 first.
 3. **[0033](0033-windows-and-pools.md)** — the day divides into
    windows, work carries forward, and a window may hold a pool of up to
    three equal-priced options.
@@ -148,7 +154,8 @@ request for rough deadlines and retroactive milestones.) **0024–0026
 continue past the reserved block** for the same reason: the 2026-08-16
 scheduling workshop split into three decisions with different evidence
 and different triggers. 0024 and 0025 were accepted that day; 0026
-waits for its trigger. **Read 0024 first** — 0025 argues that 0024's
+was filled ahead of its trigger on 2026-09-11 and accepted with the
+commitments work. **Read 0024 first** — 0025 argues that 0024's
 uniform rule is wrong for three of the eighteen units, so it only makes
 sense afterwards.
 

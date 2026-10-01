@@ -1,6 +1,6 @@
 # ADR-0032: The commitment band
 
-> **Status:** Proposed\
+> **Status:** Accepted 2026-10-01\
 > **Date:** 2026-09-11\
 > **Deciders:** Henry
 
