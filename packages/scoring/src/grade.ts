@@ -155,13 +155,10 @@ export interface DayScoreInput {
    */
   offScheduleCredit?: number;
   /**
-   * What a rest day needs (ADR-0037): the plan's `averageDayExpected`,
-   * which prices early work and says there *is* a plan, and the weight
-   * of life one-offs done ahead of their planned day — on the list only
-   * on a rest day, so never in the load. Omitted, a day with nothing
-   * due is ungraded, as ADR-0029 has it.
+   * What a rest day needs (ADR-0037). Omitted, a day with nothing due
+   * is ungraded, as ADR-0029 has it.
    */
-  restDay?: { averageExpected: number; aheadWeight?: number };
+  restDay?: RestDayInput;
 }
 
 /** Points earned out of points possible, plus the rendered grade.
@@ -270,7 +267,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   // Nothing due of either kind, with a plan behind it: a rest day,
   // automatically (ADR-0037). Never chosen, never offered — the day
   // simply is one. A day off stays a day off (returned above).
-  if (isRestDay(input.load, band, input.restDay?.averageExpected ?? 0)) {
+  if (isRestDay(input.load, band, input.restDay)) {
     return restDayScore(input);
   }
 
@@ -331,32 +328,71 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   };
 }
 
+export interface RestDayInput {
+  /** The plan's `averageDayExpected` — prices extra runs. */
+  averageExpected: number;
+  /** Whether there is a plan at all: any recurring task, life or
+   *  commitment. Without one, nothing due is just nothing. */
+  hasPlan: boolean;
+  /** Anything still owed later this week — a run pinned to a later
+   *  day, a one-off planned for later this week, a commitment session
+   *  still to come. Measured from before today. */
+  openThisWeek: boolean;
+  /** Whether anything was done early today. */
+  earlyToday: boolean;
+  /** Early life work, already priced at its planned day's worth
+   *  (`plannedDayRunPoints`). Commitment work done ahead comes in as
+   *  `offScheduleCredit`. */
+  earlyCredit?: number;
+}
+
 /**
  * Whether a day is a rest day (ADR-0037 §1) — decided, never chosen.
  *
- * Nothing of your own life is due — no every-day task, nothing pinned
- * here, no flexible work left owing this week — no commitment work is
- * scheduled, **and there is a plan**: `averageExpected` is above zero.
- * Without that last test a new account, or a day before any task
- * existed, would be handed 70 for having nothing to do.
- *
- * Work pinned to *another* day does not count against it; doing it
- * today is early work, which a rest day pays for. Measured, like the
- * load, from the days before this one, so ticking something today never
- * turns a rest day back into an ordinary one.
+ * Nothing of your own life is due today, no commitment work is
+ * scheduled, there is a plan — and then **either** nothing is open for
+ * the rest of the week (Henry: *"having any open tasks should prevent
+ * rest day from occurring"*) **or** something was done early today,
+ * which makes it one (Henry: doing Friday's task on an empty Tuesday
+ * makes Tuesday "70 + the task"). An empty day with work still open
+ * and none of it done is ungraded, as ADR-0029 has it.
  */
 export function isRestDay(
   load: DayLoad,
   commitmentBand: number,
-  averageExpected: number,
+  rest: Pick<RestDayInput, "hasPlan" | "openThisWeek" | "earlyToday"> | undefined,
 ): boolean {
-  return load.expected <= 0 && commitmentBand <= 0 && averageExpected > 0;
+  if (!rest || load.expected > 0 || commitmentBand > 0 || !rest.hasPlan) return false;
+  return !rest.openThisWeek || rest.earlyToday;
 }
 
-/** What one run is worth on a rest day: its points on an average day of
- *  the plan (ADR-0037 §3). Zero when the plan holds nothing recurring. */
+/** What one run is worth on a rest day when it has no planned day to
+ *  borrow from — an extra run: its points on an average day of the plan
+ *  (ADR-0037 §3). Zero when the plan holds nothing recurring. */
 export function restDayRunPoints(weight: number, averageExpected: number): number {
   return runPoints(weight, averageExpected);
+}
+
+/**
+ * What a task done early is worth: **what it would have paid on the day
+ * it was planned for** (Henry: *"early tasks count as much as they would
+ * if they were done on the day they were planned"*).
+ *
+ * That day is priced as it stands before today — the task still owed,
+ * sharing it with whatever else that day expects — so the early tick
+ * takes the value its own day would have given it. `scale` is that
+ * day's life share, if it carries a commitment band.
+ */
+export function plannedDayRunPoints(
+  tasks: readonly LoadTask[],
+  completionsBefore: readonly LoadCompletion[],
+  task: LoadTask,
+  plannedDate: string,
+  scale = 1,
+): number {
+  const all = tasks.some((t) => t.taskId === task.taskId) ? tasks : [...tasks, task];
+  const load = computeDayLoad(all, completionsBefore, plannedDate);
+  return scale * runPoints(task.weight, load.expected);
 }
 
 /**
@@ -365,19 +401,18 @@ export function restDayRunPoints(weight: number, averageExpected: number): numbe
  * - Activities fill the last 30 (`REST_DAY_UNPLANNED`), with a special
  *   day's rating bonus if the day is also special.
  * - **Early work is paid on top, uncapped** — it is your own plan done
- *   ahead, the side of ADR-0023's line extra runs already sit on. A run
- *   owed later this week (pinned to another day) and a life one-off
- *   planned for later pay a full run at the average day's rate;
- *   commitment work done ahead pays its scheduled-day worth
- *   (`offScheduleCredit`); a run beyond the week's count pays the
- *   extra-run rate.
+ *   ahead, the side of ADR-0023's line extra runs already sit on. Every
+ *   piece of it pays **what its planned day would have paid** — a run
+ *   pinned to a later day, a life one-off planned for later
+ *   (`earlyCredit`, priced by `plannedDayRunPoints`), commitment work
+ *   (`offScheduleCredit`). A run beyond the week's count has no planned
+ *   day and pays the extra-run rate on an average day.
  */
 function restDayScore(input: DayScoreInput): DayScore {
   const average = input.restDay?.averageExpected ?? 0;
-  const { earned: earlyWeight, extra } = input.load;
   const early =
-    runPoints(earlyWeight + Math.max(0, input.restDay?.aheadWeight ?? 0), average) +
-    EXTRA_RUN_RATE * runPoints(extra, average) +
+    Math.max(0, input.restDay?.earlyCredit ?? 0) +
+    EXTRA_RUN_RATE * runPoints(input.load.extra, average) +
     Math.max(0, input.offScheduleCredit ?? 0);
   const unplannedRaw =
     (input.activities ?? []).reduce(

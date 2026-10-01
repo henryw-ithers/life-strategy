@@ -30,6 +30,11 @@ Henry, 2026-10-01:
 > *"Rest day should trigger automatically in the scenario we described
 > and should not appear otherwise."*
 
+> *"Having any open tasks should prevent rest day from occurring. … I
+> want early tasks to count as much as they would if they were done on
+> the day they were planned."* And, asked what an empty Tuesday with
+> Friday's task done early should score: **"70 + the task."**
+
 ## Open questions
 
 1. When is a day a rest day, and who decides?
@@ -56,21 +61,34 @@ Henry, 2026-10-01:
 
 ### 1. Automatic, and only on a day that asks nothing
 
-A day is a rest day when, measured from the days before it like the
+A day **asks nothing** when, measured from the days before it like the
 load itself:
 
 - nothing of your own life is due — no every-day task, nothing pinned
   to today, no flexible work left owing this week;
 - no commitment work is scheduled (the band is 0); and
-- **there is a plan** — the plan's average day expects something
-  (`averageDayExpected > 0`). Without this a new account, or any day
-  before a task existed, would be handed 70 for having nothing to do.
+- **there is a plan** — any recurring task, life or commitment. Without
+  this a new account, or any day before a task existed, would be handed
+  70 for having nothing to do.
+
+Such a day **is a rest day** when either:
+
+- **nothing is open later this week** — no run pinned to a later day
+  still owed, no one-off planned for later this week, no commitment
+  session still to come; or
+- **something open was done early today**. Doing Friday's task on an
+  empty Tuesday makes Tuesday a rest day: 70 plus the task.
+
+An empty day with work still open and none of it done stays ungraded,
+as ADR-0029 has it; the Today screen says doing something from later in
+the week makes it a rest day.
 
 It is never offered and never chosen; it does not appear in the day-
 kind sheet. A **day off** on such a day stays a day off — ungraded —
 because the user said so. A **special** day on such a day is a rest day
 with its rating bonus in the last 30. A run pinned to *another* day
-does not stop a rest day; doing it today is early work.
+is open work: it stops an empty day being a rest day until some of it
+is done early.
 
 `isRestDay` in `@glide/scoring` is the one test. A day that stops
 qualifying — a task added that is due today — is scored as the
@@ -93,23 +111,31 @@ So a rest day with nothing in it is 70; one with a full afternoon of
 activities is 100; one with work done ahead can pass 100, as a day with
 extra runs can.
 
-### 3. Early work, priced against an average day
+### 3. Early work pays what its planned day would have
 
-A rest day's own load is empty, so `90 × weight ÷ expected` has nothing
-to divide by. Life work is priced against **an average day of the
-plan** instead — every recurring task's weekly demand over seven
-(`averageDayExpected`, one-offs left out as `taskWeights` leaves them
-out):
+Every piece of early work is worth **what it would have paid on the day
+it was planned for**, priced as that day stands before today — the task
+still owed, sharing the day with whatever else it asks for, scaled by
+that day's life share if it carries a commitment band
+(`plannedDayRunPoints`):
 
-| Done on a rest day | Pays |
+| Done early | Pays |
 |---|---|
-| A run owed later this week (pinned to another day) | A full run at the average day's rate |
-| A life one-off planned within the next week | A full run at the average day's rate; it is then done when its day comes |
-| A run beyond this week's count | The extra-run rate, `EXTRA_RUN_RATE` |
+| A run still owed this week, pinned to a later day | Its pinned day's worth |
+| A life one-off planned within the next week | Its planned day's worth; it is then done when its day comes |
 | Commitment work done ahead | Its scheduled-day worth (ADR-0032 §4), unchanged |
+| A run beyond this week's count | Not early — it has no planned day — so the extra-run rate on **an average day of the plan** (`averageDayExpected`: weekly demand over seven) |
 
-Life one-offs planned for later appear on the list **only on a rest
-day**, and never enter the load — they are not today's work.
+Life one-offs planned for later are listed on any day that asks
+nothing, and never enter the load — they are not today's work.
+
+A task done early leaves its own day: that day no longer expects it,
+so a week cleared early can turn its remaining days into rest days too.
+
+**A first cut priced all early life work at the average day's rate.**
+Henry corrected it the same day: early work counts as much as it would
+have on its own day, the rule ADR-0032 §4 already applied to
+commitments, now applied to everything.
 
 ### 4. Day off is unchanged
 
@@ -128,6 +154,12 @@ value: `day_grade.kind` is untouched.
   credit; it is the grade of a day your plan asked nothing of.
 - **Weeks and months read higher** for anyone who works ahead, because
   days that were excluded now count, at 70 or more. That is the intent.
+- **On a day that does ask something, early life work still follows
+  ADR-0029 §3**: Friday's run done on a busy Tuesday counts toward
+  Tuesday's fraction, at Tuesday's rate, inside the 90. Only commitment
+  work (ADR-0032 §4) and work done on a day that asks nothing are paid
+  at their planned day's worth. Whether a busy day should pay early
+  life work the same way is open.
 - **Formula v10**, folded in: v10 had reached no device.
 - **Revisit when** a fortnight of use shows rest days outscoring the
   ordinary days around them — that would mean 70 is too generous a

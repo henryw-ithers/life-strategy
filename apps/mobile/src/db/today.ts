@@ -20,7 +20,10 @@ import {
   isEditable,
   EXTRA_RUN_RATE,
   isFinalized,
+  isAnchoredOn,
+  isPinnedElsewhere,
   isRestDay,
+  plannedDayRunPoints,
   lifeShare,
   localDateOf,
   monthStart,
@@ -180,12 +183,14 @@ export interface DayData {
   satisfactionRating: number | null;
   score: DayScore;
   hasSnapshot: boolean;
-  /**
-   * Today is a rest day (ADR-0037): nothing of your own life due, no
-   * commitment work scheduled, a plan behind it. Automatic; scored from
-   * 70.
-   */
+  /** Today is a rest day (ADR-0037): automatic, scored from 70. */
   restDay: boolean;
+  /**
+   * The day asks nothing and there is a plan. A rest day already if
+   * nothing is open later this week; otherwise it becomes one the moment
+   * something is done early (ADR-0037 §1).
+   */
+  nothingDue: boolean;
   hasTasks: boolean;
   /** Anchored to today: every-day tasks and anything pinned here. */
   due: TodayTask[];
@@ -641,22 +646,83 @@ export async function loadDay(
   ];
 
   /**
-   * A rest day (ADR-0037): automatic on any day that asks nothing, with
-   * a plan behind it — never chosen and never offered. A day off stays
-   * a day off. Early work on it is priced against an average day of the
-   * plan, since the day's own load is empty.
+   * A rest day (ADR-0037), decided rather than chosen. A day off stays a
+   * day off. The day is a candidate when it asks nothing and there is a
+   * plan; it *is* one when nothing is open later this week, or once
+   * something open is done early today.
    */
   const averageExpected = averageDayExpected(loadTasks);
+  const band = commitmentBandOn(commitmentDay);
+  const hasPlan =
+    averageExpected > 0 || commitmentTasks.some((t) => t.oneOffSize == null);
+  const nothingDue = kind !== "rest" && load.expected <= 0 && band <= 0 && hasPlan;
+  const weekEnd = addDays(weekStart(date), 6);
+  const lifeCompletionsBefore = lifeCompletions.filter((c) => c.localDate < date);
+
+  /**
+   * Life work that can be done early, and the day it was planned for:
+   * a run still owed this week but pinned to a later day, and a life
+   * one-off planned for later. Each is worth **what its planned day
+   * would have paid** (Henry: *"early tasks count as much as they would
+   * if they were done on the day they were planned"*), priced with that
+   * day's life share if it carries a commitment band.
+   */
+  const plannedDateOf = new Map<string, string>();
+  if (nothingDue) {
+    for (const lt of loadTasks) {
+      if (lt.oneOff || !isPinnedElsewhere(lt, date)) continue;
+      if (statuses.find((st) => st.taskId === lt.taskId)?.extraToday) continue;
+      for (let i = 1; i <= 13; i++) {
+        const d = addDays(date, i);
+        if (isAnchoredOn(lt, d)) {
+          plannedDateOf.set(lt.taskId, d);
+          break;
+        }
+      }
+    }
+    for (const t of aheadLifeTasks) {
+      if (t.oneOffDate) plannedDateOf.set(t.id, t.oneOffDate);
+    }
+  }
+  const shareOn = new Map<string, number>();
+  for (const d of new Set(plannedDateOf.values())) {
+    shareOn.set(d, lifeShare(await loadCommitmentDay(d)));
+  }
+  const allLife = [...loadTasks, ...aheadLifeTasks.map(toLoadTask)];
+  const earlyValue = new Map<string, number>();
+  for (const [id, d] of plannedDateOf) {
+    const lt = allLife.find((x) => x.taskId === id);
+    if (!lt) continue;
+    earlyValue.set(
+      id,
+      plannedDayRunPoints(loadTasks, lifeCompletionsBefore, lt, d, shareOn.get(d) ?? 1),
+    );
+  }
+
+  /** Anything still owed later this week, measured from before today. */
+  const datesBefore = (id: string) =>
+    (sessionDates.get(id) ?? []).filter((d) => d !== date);
+  const openThisWeek =
+    [...plannedDateOf.values()].some((d) => d <= weekEnd) ||
+    commitmentTasks.some((t) => {
+      if (t.oneOffSize != null) {
+        return t.oneOffDate != null && t.oneOffDate > date && t.oneOffDate <= weekEnd;
+      }
+      for (let d = addDays(date, 1); d <= weekEnd; d = addDays(d, 1)) {
+        if (isDueOn(t, d) && doneAheadOn(t, d, datesBefore(t.id)) === null) return true;
+      }
+      return false;
+    });
+  const earlyToday =
+    [...earlyValue.keys()].some((id) => fractionToday.has(id)) ||
+    offSchedule.some((t) => fractionToday.has(t.id));
   const restDay =
-    kind !== "rest" &&
-    isRestDay(load, commitmentBandOn(commitmentDay), averageExpected);
-  /** Life one-offs done ahead today, as weight, at most what each owed. */
-  const aheadWeight = aheadLifeTasks.reduce((a, t) => {
-    const f = fractionToday.get(t.id);
-    if (f === undefined) return a;
-    const owed = Math.max(0, 1 - progressOf(priorFractions.get(t.id) ?? []));
-    return a + t.pointValue * Math.min(f, owed);
-  }, 0);
+    kind !== "rest" && isRestDay(load, band, { hasPlan, openThisWeek, earlyToday });
+  /** Early life work done today, at its planned day's worth. */
+  const earlyCredit = [...earlyValue].reduce(
+    (a, [id, v]) => a + paidToday(id, v),
+    0,
+  );
 
   /** The band's spend today, and the off-schedule work beside it. */
   const commitmentEarned = commitmentTasks
@@ -766,15 +832,16 @@ export async function loadDay(
      */
     const value = commitmentUnitIds.has(t.unitId)
       ? commitmentValue(t.id)
-      : restDay
-        ? Math.round(restDayRunPoints(t.pointValue, averageExpected))
+      : nothingDue
+        ? Math.round(earlyValue.get(t.id) ?? restDayRunPoints(t.pointValue, averageExpected))
         : load.expected > 0
           ? Math.round((share * PLANNED_BAND * t.pointValue) / load.expected)
           : 0;
-    // On a rest day a life task's run is early work at the average
-    // day's rate, or an extra run at the extra-run rate (ADR-0037 §3).
+    // On a day that asks nothing a life task's run is early work at its
+    // planned day's worth, or an extra run at the extra-run rate on an
+    // average day (ADR-0037 §3).
     const sRest =
-      restDay && !commitmentUnitIds.has(t.unitId)
+      nothingDue && !commitmentUnitIds.has(t.unitId)
         ? {
             ...s,
             pointsIfCompletedNow: s.extraToday
@@ -900,10 +967,12 @@ export async function loadDay(
           commitment: { band: commitmentBandOn(commitmentDay), earned: commitmentEarned },
           offScheduleCredit,
           activities: activityCredits,
-          restDay: { averageExpected, aheadWeight },
+          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday, earlyCredit },
         });
 
-  const shown = todayTasks.filter((t) => restDay || !aheadLifeIds.has(t.id));
+  // Life one-offs planned for later can be done early on any day that
+  // asks nothing — doing one is what can make it a rest day.
+  const shown = todayTasks.filter((t) => nothingDue || !aheadLifeIds.has(t.id));
 
   return {
     date,
@@ -916,8 +985,10 @@ export async function loadDay(
     score,
     hasSnapshot: weights.size > 0,
     restDay,
+    nothingDue,
     hasTasks: tasks.length > 0,
-    // Life one-offs planned for later are only on a rest day's list.
+    // Life one-offs planned for later are only listed on a day that
+    // asks nothing.
     due: shown.filter((t) => t.band === "due"),
     week: shown.filter((t) => t.band === "week"),
     doneThisWeek: shown.filter((t) => t.band === "doneThisWeek"),

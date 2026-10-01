@@ -769,6 +769,11 @@ export default function TodayScreen() {
                 Nothing's due — a rest day. It starts at 70; activities
                 add up to 30, and anything you do early counts on top.
               </AppText>
+            ) : day.nothingDue && day.kind !== "rest" ? (
+              <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
+                Nothing's due today. Do something from later in the week
+                and it becomes a rest day — 70, plus what you did.
+              </AppText>
             ) : null}
 
             {/* ── The day's record: ahead of tasks on past days, where

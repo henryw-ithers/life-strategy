@@ -168,8 +168,9 @@ export const REST_DAY_UNPLANNED = 30;
  *    that session leaves its own day (ADR-0032 §4).
  *  - Part credit reaches the day: a part-done run counts its fraction
  *    of its weight (ADR-0014).
- *  - A day with nothing due and a plan behind it is a rest day: 70,
- *    activities up to 30, early work on top (ADR-0037). Before, it was
- *    ungraded. */
+ *  - A day with nothing due, a plan behind it, and nothing open later
+ *    in the week — or something done early — is a rest day: 70,
+ *    activities up to 30, early work on top at its planned day's worth
+ *    (ADR-0037). Before, it was ungraded. */
 export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;
