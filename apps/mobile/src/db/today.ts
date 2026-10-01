@@ -137,6 +137,12 @@ export interface TodayTask {
    *  "Planned for other days". */
   oneOffDate: string | null;
   /**
+   * The day this task is planned for when that is not today — a later
+   * pinned day, a one-off's date, a commitment's next session — or null.
+   * Orders "Planned for other days" soonest first.
+   */
+  plannedOn: string | null;
+  /**
    * How much of it is done, 0–1. A one-off accumulates across days; a
    * recurring task's is today's own fraction, since its Tuesday is not
    * a continuation of its Monday.
@@ -209,8 +215,6 @@ export interface DayData {
   communalUnits: { id: string; name: string; areaId: string }[];
 }
 
-/** How far ahead commitment one-offs reach onto today (see `loadDay`). */
-const AHEAD_DAYS = 7;
 
 /**
  * What each off-schedule commitment task is worth: the value of the
@@ -429,7 +433,6 @@ export async function loadDay(
   const commitmentUnitIds = new Set(
     units.filter(isCommitmentUnit).map((u) => u.id),
   );
-  const aheadUntil = addDays(date, AHEAD_DAYS);
   const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
   const kind: DayKind = dayRow?.kind ?? "normal";
   /** Life one-offs planned for a later day. Shown only on a rest day,
@@ -439,17 +442,13 @@ export async function loadDay(
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
     if (t.oneOffDate == null || t.oneOffDate <= date) return true;
-    // **Commitment work in the week ahead is on the day too**, in
-    // "Planned for other days" (`pinnedElsewhere`). Doing it early is
-    // exactly the case ADR-0032 §4 now pays for — "you're super ahead
-    // on work" — and it can only be paid if it can be ticked. Bounded to
-    // a week, the same reach a pinned task's other days have there, so
-    // a term of assignments entered up front does not fill today.
-    // A life one-off waits for its day — except on a rest day, when
-    // doing it early is the point (ADR-0037 §3). Whether today is one
-    // is only known once the load is, so it is read here and hidden
-    // below on any other day.
-    if (t.oneOffDate > aheadUntil) return false;
+    // **Every open task is on the day before its date**, at the bottom,
+    // in "Planned for other days" (`pinnedElsewhere`) — Henry: *"you
+    // should always be able to view and complete any open task before
+    // the planned date however it should appear at the bottom of the
+    // list."* Done early it pays what its planned day would have paid
+    // (ADR-0032 §4, ADR-0037 §3). A life one-off is kept out of the
+    // load: it is not today's work.
     if (!commitmentUnitIds.has(t.unitId)) aheadLifeIds.add(t.id);
     return true;
   });
@@ -686,10 +685,8 @@ export async function loadDay(
    * day's life share if it carries a commitment band.
    */
   const plannedDateOf = new Map(offDayPlanned);
-  if (nothingDue) {
-    for (const t of aheadLifeTasks) {
-      if (t.oneOffDate) plannedDateOf.set(t.id, t.oneOffDate);
-    }
+  for (const t of aheadLifeTasks) {
+    if (t.oneOffDate) plannedDateOf.set(t.id, t.oneOffDate);
   }
   const shareOn = new Map<string, number>();
   for (const d of new Set(plannedDateOf.values())) {
@@ -892,6 +889,11 @@ export async function loadDay(
       offSchedule: offScheduleIds.has(t.id),
       doneAheadOn: doneAhead.get(t.id) ?? null,
       oneOffDate: t.oneOffDate,
+      plannedOn:
+        plannedDateOf.get(t.id) ??
+        (commitmentUnitIds.has(t.unitId) && !isDueOn(t, date)
+          ? scheduledDateFor(t, date)
+          : null),
       progress: progressByTask.get(t.id) ?? 0,
       earnedToday:
         (fractionToday.get(t.id) ?? 1) < 1 ? paidToday(t.id, value) : null,
@@ -983,9 +985,6 @@ export async function loadDay(
           restDay: { averageExpected, hasPlan, openThisWeek, earlyToday },
         });
 
-  // Life one-offs planned for later can be done early on any day that
-  // asks nothing — doing one is what can make it a rest day.
-  const shown = todayTasks.filter((t) => nothingDue || !aheadLifeIds.has(t.id));
 
   return {
     date,
@@ -1000,11 +999,9 @@ export async function loadDay(
     restDay,
     nothingDue,
     hasTasks: tasks.length > 0,
-    // Life one-offs planned for later are only listed on a day that
-    // asks nothing.
-    due: shown.filter((t) => t.band === "due"),
-    week: shown.filter((t) => t.band === "week"),
-    doneThisWeek: shown.filter((t) => t.band === "doneThisWeek"),
+    due: todayTasks.filter((t) => t.band === "due"),
+    week: todayTasks.filter((t) => t.band === "week"),
+    doneThisWeek: todayTasks.filter((t) => t.band === "doneThisWeek"),
     activities,
     journal: journal.map((j) => ({ id: j.id, body: j.body })),
     photos: photos.map((p) => ({ id: p.id, uri: p.uri, caption: p.caption })),

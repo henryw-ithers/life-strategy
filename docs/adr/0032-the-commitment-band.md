@@ -205,7 +205,9 @@ still lapses silently.
 > - **It has to be tickable.** A one-off was only on the checklist from
 >   its planned day, so "super ahead" had nowhere to happen. Commitment
 >   one-offs planned within the week ahead now sit in "Planned for
->   other days", beside the week's other pinned sessions.
+>   other days", beside the week's other pinned sessions. (The week's
+>   limit was lifted 2026-10-01 by ADR-0037 §3: every open task is
+>   listed before its date.)
 >
 > Formula version 9 paid it from the pool; version 10 pays it
 > uncapped. Under v8 it paid nothing.

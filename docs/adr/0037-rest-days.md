@@ -122,12 +122,20 @@ that day's life share if it carries a commitment band
 | Done early | Pays |
 |---|---|
 | A run still owed this week, pinned to a later day | Its pinned day's worth |
-| A life one-off planned within the next week | Its planned day's worth; it is then done when its day comes |
+| A life one-off planned for a later day | Its planned day's worth; it is then done when its day comes |
 | Commitment work done ahead | Its scheduled-day worth (ADR-0032 §4), unchanged |
 | A run beyond this week's count | Not early — it has no planned day — so the extra-run rate on **an average day of the plan** (`averageDayExpected`: weekly demand over seven) |
 
-Life one-offs planned for later are listed on any day that asks
-nothing, and never enter the load — they are not today's work.
+**Every open task is listed before its planned day, on every day**, at
+the bottom of the open list in "Planned for other days", soonest first
+— Henry: *"you should always be able to view and complete any open task
+before the planned date however it should appear at the bottom of the
+list."* That covers runs pinned to later days, life and commitment
+one-offs with a later date however far ahead, and commitment sessions
+still to come. Life one-offs listed early never enter the load — they
+are not today's work. (A first cut listed life one-offs only on a day
+that asked nothing, and capped one-offs at a week ahead; both were
+withdrawn the same day.)
 
 A task done early leaves its own day: that day no longer expects it,
 so a week cleared early can turn its remaining days into rest days too.

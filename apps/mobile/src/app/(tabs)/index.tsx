@@ -365,7 +365,14 @@ export default function TodayScreen() {
   const isElsewhere = (t: TodayTask): boolean =>
     day ? pinnedElsewhere(t, day.date) : false;
   const todayTasks = openTasks.filter((t) => !isElsewhere(t));
-  const otherDayTasks = openTasks.filter(isElsewhere).sort(byPlan);
+  // Every open task with a later day is here, below today's work, so it
+  // can be done early — soonest planned first, then your own order.
+  const otherDayTasks = openTasks
+    .filter(isElsewhere)
+    .sort(
+      (a, b) =>
+        (a.plannedOn ?? "\uffff").localeCompare(b.plannedOn ?? "\uffff") || byPlan(a, b),
+    );
 
   /** `emptyNote` null means the section hides when it empties — the
    *  rule for everything that is not one of the three periods. */
