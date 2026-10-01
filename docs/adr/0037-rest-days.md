@@ -137,6 +137,15 @@ are not today's work. (A first cut listed life one-offs only on a day
 that asked nothing, and capped one-offs at a week ahead; both were
 withdrawn the same day.)
 
+**The section opens collapsed, and its one-offs load only when it is
+opened** (Henry: *"only load the future planned tasks when the user
+requests like when they open the dropdown"*). Every later date has to
+be priced, and a term of assignments is a lot of dates; the day's own
+score needs none of them except the ones already done today, which are
+always loaded. Collapsed, the header shows how many tasks it holds;
+open, it shows their points. Whether anything is still open this week —
+which decides a rest day — is a cheap check that needs no prices.
+
 A task done early leaves its own day: that day no longer expects it,
 so a week cleared early can turn its remaining days into rest days too.
 

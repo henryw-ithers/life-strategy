@@ -196,6 +196,12 @@ export interface DayData {
    * something is done early (ADR-0037 §1).
    */
   nothingDue: boolean;
+  /**
+   * Open one-offs planned for later that this load left out — listed
+   * only once "Planned for other days" is opened (`loadPlannedAhead`).
+   * Zero when loaded with `includeAhead`.
+   */
+  aheadCount: number;
   hasTasks: boolean;
   /** Anchored to today: every-day tasks and anything pinned here. */
   due: TodayTask[];
@@ -382,7 +388,21 @@ function parsePinnedWeekdays(raw: string | null): number[] {
 
 export async function loadDay(
   date: string,
-  { recompute = false }: { recompute?: boolean } = {},
+  {
+    recompute = false,
+    includeAhead = false,
+  }: {
+    recompute?: boolean;
+    /**
+     * List every open one-off planned for a later day, priced. Off by
+     * default: "Planned for other days" opens collapsed and asks for
+     * them only when opened (`loadPlannedAhead`), since each later date
+     * has to be priced and a term of assignments is a lot of dates.
+     * The day's score never needs them — only the ones already done
+     * today, which are always loaded.
+     */
+    includeAhead?: boolean;
+  } = {},
 ): Promise<DayData> {
   const today = currentLocalDate();
   await finalizePastDays(today);
@@ -435,9 +455,34 @@ export async function loadDay(
   );
   const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
   const kind: DayKind = dayRow?.kind ?? "normal";
-  /** Life one-offs planned for a later day. Shown only on a rest day,
-   *  and never in the load: they are not today's work. */
+  /** Life one-offs planned for a later day, when listed. Never in the
+   *  load: they are not today's work. */
   const aheadLifeIds = new Set<string>();
+  const futureIds = everyTask
+    .filter(
+      (t) =>
+        t.oneOffSize != null &&
+        !settledBefore.has(t.id) &&
+        t.oneOffDate != null &&
+        t.oneOffDate > date,
+    )
+    .map((t) => t.id);
+  /** Future one-offs already done today: always loaded, since the
+   *  score pays them and Completed shows them. */
+  const futureDoneToday = new Set(
+    futureIds.length
+      ? (
+          await db
+            .select({ taskId: taskCompletion.taskId })
+            .from(taskCompletion)
+            .where(
+              and(eq(taskCompletion.localDate, date), inArray(taskCompletion.taskId, futureIds)),
+            )
+        ).map((r) => r.taskId)
+      : [],
+  );
+  /** Future one-offs left out until "Planned for other days" is opened. */
+  const deferred: (typeof everyTask)[number][] = [];
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
@@ -449,9 +494,18 @@ export async function loadDay(
     // list."* Done early it pays what its planned day would have paid
     // (ADR-0032 §4, ADR-0037 §3). A life one-off is kept out of the
     // load: it is not today's work.
+    if (!includeAhead && !futureDoneToday.has(t.id)) {
+      deferred.push(t);
+      return false;
+    }
     if (!commitmentUnitIds.has(t.unitId)) aheadLifeIds.add(t.id);
     return true;
   });
+  /** Deferred one-offs that would be on the day: homed in a commitment
+   *  or a unit still in scoring. Counted, not priced. */
+  const deferredListed = deferred.filter(
+    (t) => commitmentUnitIds.has(t.unitId) || scoredUnitIds.has(t.unitId),
+  );
   const memberships = allTasks.length
     ? await db
         .select()
@@ -708,6 +762,7 @@ export async function loadDay(
     (sessionDates.get(id) ?? []).filter((d) => d !== date);
   const openThisWeek =
     [...plannedDateOf.values()].some((d) => d <= weekEnd) ||
+    deferredListed.some((t) => t.oneOffDate != null && t.oneOffDate <= weekEnd) ||
     commitmentTasks.some((t) => {
       if (t.oneOffSize != null) {
         return t.oneOffDate != null && t.oneOffDate > date && t.oneOffDate <= weekEnd;
@@ -998,6 +1053,7 @@ export async function loadDay(
     hasSnapshot: weights.size > 0,
     restDay,
     nothingDue,
+    aheadCount: deferredListed.length,
     hasTasks: tasks.length > 0,
     due: todayTasks.filter((t) => t.band === "due"),
     week: todayTasks.filter((t) => t.band === "week"),
@@ -1012,6 +1068,20 @@ export async function loadDay(
       .filter((u) => u.motivationKind === "communal")
       .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId })),
   };
+}
+
+/**
+ * Every open one-off planned for a later day, priced at what its
+ * planned day would pay — what "Planned for other days" lists once it
+ * is opened (ADR-0037 §3). Loaded on request, not with the day: each
+ * later date has to be priced, and the day's own score never needs the
+ * ones not yet done.
+ */
+export async function loadPlannedAhead(date: string): Promise<TodayTask[]> {
+  const day = await loadDay(date, { includeAhead: true });
+  return [...day.due, ...day.week, ...day.doneThisWeek].filter(
+    (t) => t.oneOffDate != null && t.oneOffDate > date && !t.completedToday,
+  );
 }
 
 /** Journal is append-only and exempt from the edit window (ADR-0002:
@@ -1214,10 +1284,12 @@ async function writeCompletion(
   date: string,
   fraction: number,
 ): Promise<void> {
-  const day = await loadDay(date);
-  const status = [...day.due, ...day.week, ...day.doneThisWeek].find(
-    (t) => t.id === taskId,
-  );
+  const find = (d: DayData) =>
+    [...d.due, ...d.week, ...d.doneThisWeek].find((t) => t.id === taskId);
+  // A one-off planned for later is only on the day once listed, so a
+  // tick from "Planned for other days" prices it from the full list.
+  const status =
+    find(await loadDay(date)) ?? find(await loadDay(date, { includeAhead: true }));
   if (!status) return;
   // What a partial completion pays: the rounded running total minus
   // what earlier fractions already paid (ADR-0014 §3). Never more

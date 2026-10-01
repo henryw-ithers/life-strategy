@@ -152,7 +152,8 @@ second one. What separates it is its **band**, not its table
   top, uncapped, at **what its planned day would have paid** — as it is
   on every other day too. **Every open task is listed before its
   planned day**, at the bottom of the open list, soonest first, so it
-  can be done early. It is
+  can be done early. That section opens collapsed and loads its
+  one-offs only when opened (`loadPlannedAhead`). It is
   never offered or chosen and is not a day kind; a day off stays
   ungraded. An empty day with work open and none done is ungraded.
 - Daily grades are **private by default**. Never add leaderboards,

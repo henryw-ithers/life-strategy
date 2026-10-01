@@ -86,6 +86,7 @@ import {
   deletePhoto,
   editWindowDays,
   loadDay,
+  loadPlannedAhead,
   loadCalendarGrades,
   logActivity,
   setDayKind,
@@ -223,6 +224,31 @@ export default function TodayScreen() {
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>(
     {},
   );
+  /**
+   * "Planned for other days" opens collapsed, and its one-offs are only
+   * loaded once it is opened (`loadPlannedAhead`): each later date has
+   * to be priced, and a term of assignments is a lot of dates. Every
+   * other section opens expanded, as before.
+   */
+  const isCollapsed = (key: SectionKey) => collapsed[key] ?? key === "otherDays";
+  const [ahead, setAhead] = useState<TodayTask[] | null>(null);
+  const otherDaysOpen = !isCollapsed("otherDays");
+  // Fetched when the section opens, and again whenever the day reloads
+  // while it is open, so a tick there moves the row straight away.
+  // Closing it drops the list, and the header goes back to a count.
+  useEffect(() => {
+    if (!day || !otherDaysOpen) {
+      setAhead(null);
+      return;
+    }
+    let live = true;
+    void loadPlannedAhead(day.date).then((rows) => {
+      if (live) setAhead(rows);
+    });
+    return () => {
+      live = false;
+    };
+  }, [day, otherDaysOpen]);
   const allDoneBefore = useRef(false);
   /** null while unknown — the gate must not flash Today before it
    *  resolves (ADR-0011 decision 1). Reads fail open. */
@@ -367,8 +393,11 @@ export default function TodayScreen() {
   const todayTasks = openTasks.filter((t) => !isElsewhere(t));
   // Every open task with a later day is here, below today's work, so it
   // can be done early — soonest planned first, then your own order.
-  const otherDayTasks = openTasks
-    .filter(isElsewhere)
+  const listedIds = new Set(allTasks.map((t) => t.id));
+  const otherDayTasks = [
+    ...openTasks.filter(isElsewhere),
+    ...(ahead ?? []).filter((t) => !listedIds.has(t.id)),
+  ]
     .sort(
       (a, b) =>
         (a.plannedOn ?? "\uffff").localeCompare(b.plannedOn ?? "\uffff") || byPlan(a, b),
@@ -400,6 +429,8 @@ export default function TodayScreen() {
     label: string;
     tasks: TodayTask[];
     pts: number;
+    /** Set only where the rows are not all loaded yet. */
+    count?: number;
     emptyNote: string | null;
   }[] = day
     ? [
@@ -416,6 +447,10 @@ export default function TodayScreen() {
           label: "Planned for other days",
           tasks: otherDayTasks,
           pts: otherDayTasks.reduce((a, t) => a + t.pointValue, 0),
+          // Until it is opened its one-offs are unpriced, so it says how
+          // many there are rather than a points total it does not know.
+          count:
+            ahead === null ? otherDayTasks.length + day.aheadCount : otherDayTasks.length,
           emptyNote: null,
         },
         {
@@ -439,7 +474,10 @@ export default function TodayScreen() {
             ),
           emptyNote: null,
         },
-      ].filter((s) => s.tasks.length > 0 || s.emptyNote !== null)
+      ].filter(
+          (s) =>
+            s.tasks.length > 0 || ("count" in s && s.count > 0) || s.emptyNote !== null,
+        )
     : [];
 
   /** The four parts of the day are one drag surface; the rest of
@@ -986,11 +1024,15 @@ export default function TodayScreen() {
                 >
                   <Pressable
                     onPress={() =>
-                      setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
+                      setCollapsed((prev) => ({ ...prev, [s.key]: !isCollapsed(s.key) }))
                     }
                     accessibilityRole="button"
-                    accessibilityState={{ expanded: !collapsed[s.key] }}
-                    accessibilityLabel={`${s.label}, ${s.pts} points`}
+                    accessibilityState={{ expanded: !isCollapsed(s.key) }}
+                    accessibilityLabel={
+                      s.count !== undefined && ahead === null
+                        ? `${s.label}, ${s.count} ${s.count === 1 ? "task" : "tasks"}`
+                        : `${s.label}, ${s.pts} points`
+                    }
                     hitSlop={{ top: 6, bottom: 6 }}
                     style={styles.sectionHeader}
                   >
@@ -999,16 +1041,18 @@ export default function TodayScreen() {
                         {s.label}
                       </AppText>
                       <Disclosure
-                        open={collapsed[s.key] !== true}
+                        open={!isCollapsed(s.key)}
                         theme={theme}
                         size={13}
                       />
                     </View>
                     <AppText variant="caption" color={theme.muted} tabular>
-                      {s.pts} pts
+                      {s.count !== undefined && ahead === null
+                        ? `${s.count} ${s.count === 1 ? "task" : "tasks"}`
+                        : `${s.pts} pts`}
                     </AppText>
                   </Pressable>
-                  {collapsed[s.key]
+                  {isCollapsed(s.key)
                     ? null
                     : s.tasks.map((t) => (
                         <Animated.View key={t.id} layout={layout}>
