@@ -145,9 +145,9 @@ export const UNPLANNED_CAP = UNPLANNED_BAND;
  *    as the share of today's commitment work done. v9's 90 planned and
  *    10 unplanned are scaled into what is left. Every other day is v9
  *    exactly.
- *  - A day whose only due work is commitment work gives the band the
- *    planned share too, rather than stranding it: the band exists only
- *    where it can be earned (ADR-0032 §1), and so does the life share.
+ *  - Commitments are the band, never more. A day whose only due work
+ *    is commitment work tops out at the band: the life share has
+ *    nothing due, so it pays nothing, activities included.
  *  - Commitment work done on a day it was not scheduled is priced at
  *    its scheduled-day value and paid in full, outside every band; an
  *    early recurring session stands in for its next scheduled one, and

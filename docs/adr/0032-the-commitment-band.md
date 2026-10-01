@@ -29,17 +29,25 @@
 > - commitment tasks are **not** in the day's load — they have no
 >   weight (`taskWeights` gives their units none), so they cannot be
 >   paid twice;
-> - **if no life work is due that day, the band takes the planned
->   share too** (B + 90 × (100 − B)/100), by §1's own rule that a share
->   exists only where it can be earned. Without it, a day of nothing
->   but lectures would cap at B plus the unplanned scraps;
+> - **commitments are the band, never more.** If no life work is due
+>   that day, the life share holds nothing to do and pays nothing —
+>   activities included, as ADR-0029 grades nothing on an ordinary day
+>   with nothing due — so the day tops out at B. Henry: *"a true 100
+>   day is one where you fulfil both your school/work related
+>   commitments and keep up the other areas of your life. Sacrificing
+>   one should be reflected in the score. So if you chose 40% as the
+>   commitment band, completing all the commitment tasks and only the
+>   commitment tasks leaves you with a score of 40%."* (A first cut of
+>   the merge let the band take the planned share on such a day; that
+>   broke the rule and was withdrawn the same day.);
 > - §4 as amended holds as written: off-schedule commitment work pays
 >   its scheduled-day worth, uncapped, outside every band, and an early
 >   session stands in for the next.
 >
-> A finished commitment day lands at B + 90 × (100 − B)/100 — 94 at a
-> band of 40 — with the scaled unplanned band holding the rest, where
-> an ordinary finished day lands at 90. The 80/20 arithmetic in §§1–2
+> Commitment work finished and life plan finished lands at
+> B + 90 × (100 − B)/100 — 94 at a band of 40 — with the scaled
+> unplanned band holding the last 6, where an ordinary finished day
+> lands at 90. Commitments alone land at B. The 80/20 arithmetic in §§1–2
 > and the worked numbers below (a weight-9 habit at 7 or 3 points) are
 > the record of the decision as made and are not current. The
 > branch's v8–v11 are one version on main: **v10**. The commitments

@@ -180,8 +180,9 @@ second one. What separates it is its **band**, not its table
   that share of the whole day** (user-set, 10–60, capped flat at 60),
   paid as the share of today's commitment work done, and ADR-0029's
   whole day — planned 90, unplanned 10, extra runs — is scaled into
-  what it leaves. If no life work is due that day, the band takes the
-  planned share too. Every other day is ADR-0029's day exactly
+  what it leaves. **Commitments are the band, never more**: doing only
+  the commitment work scores the band, and a day with no life work due
+  tops out there. Every other day is ADR-0029's day exactly
   (ADR-0032 as amended 2026-10-01). Commitment tasks have **no weight**
   and are never in the day's load. Commitment work is **scheduled, not
   counted**: it pays its scheduled-day value on its day, the same

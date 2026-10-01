@@ -105,12 +105,47 @@ describe("a commitment day with nothing of your own life due", () => {
     expect(score({ load: NOTHING, commitment: { band: 40, earned: 0 } }).base).toBe(0);
   });
 
-  it("gives the band the planned share, so a finished day lands at 94", () => {
-    // A share exists only where it can be earned (ADR-0032 §1): with no
-    // life work due, the 90 × 0.6 the planned band would hold would be
-    // stranded, capping the day at 40 plus the unplanned scraps.
-    expect(score({ load: NOTHING, commitment: { band: 40, earned: 40 } }).earned).toBe(94);
-    expect(score({ load: NOTHING, commitment: { band: 40, earned: 20 } }).earned).toBe(47);
+  it("tops out at the band — commitments alone are the band, never more", () => {
+    // Henry, 2026-10-01: "if you chose 40% as the commitment band,
+    // completing all the commitment tasks and only the commitment tasks
+    // leaves you with a score of 40%."
+    expect(score({ load: NOTHING, commitment: { band: 40, earned: 40 } }).earned).toBe(40);
+    expect(score({ load: NOTHING, commitment: { band: 40, earned: 20 } }).earned).toBe(20);
+  });
+
+  it("credits no activities into a life share that holds nothing due", () => {
+    const s = score({
+      load: NOTHING,
+      commitment: { band: 40, earned: 40 },
+      activities: [[{ unitId: "friendship", pointsCredited: 10 }]],
+    });
+    expect(s.earned).toBe(40);
+    expect(s.unplanned).toBe(0);
+    expect(s.unplannedForgone).toBe(10);
+  });
+
+  it("still pays off-schedule work on top, as on any day", () => {
+    expect(
+      score({ load: NOTHING, commitment: { band: 40, earned: 40 }, offScheduleCredit: 8 }).earned,
+    ).toBe(48);
+  });
+});
+
+describe("a commitment day with life work due", () => {
+  const tasks = [habit("a"), habit("b")];
+
+  it("pays only the band when only the commitments are done", () => {
+    expect(score({ load: loadOf(tasks, []), commitment: { band: 40, earned: 40 } }).earned)
+      .toBe(40);
+  });
+
+  it("reaches 100 only when both are kept up", () => {
+    const s = score({
+      load: loadOf(tasks, ["a", "b"]),
+      commitment: { band: 40, earned: 40 },
+      activities: [[{ unitId: "friendship", pointsCredited: 10 }]],
+    });
+    expect(s.earned).toBe(100);
   });
 });
 

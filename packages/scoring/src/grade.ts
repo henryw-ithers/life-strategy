@@ -265,22 +265,22 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   // 100 and the band is exactly the share it says it is.
   const life = (100 - band) / 100;
 
-  // **A share exists only where it can be earned** (ADR-0032 §1). A
-  // commitment day with nothing of your own life due would otherwise
-  // strand the planned share, capping the day at the band plus the
-  // unplanned scraps; instead the band takes it, so finishing that day's
-  // commitment work lands where finishing any day's plan does.
-  const lifePlanned = expected > 0 ? PLANNED_BAND * life : 0;
-  const commitmentShare = band > 0 ? band + (expected > 0 ? 0 : PLANNED_BAND * life) : 0;
+  // **Commitments are the band, never more** (Henry, 2026-10-01): *"a
+  // true 100 day is one where you fulfil both your school/work related
+  // commitments and keep up the other areas of your life. Sacrificing
+  // one should be reflected in the score."* So finished commitment work
+  // pays exactly the band, and nothing else can earn the life share.
+  // On a commitment day with no life work due, that share holds nothing
+  // to do — so it pays nothing, activities included, just as ADR-0029
+  // grades nothing on an ordinary day with nothing due. The day tops out
+  // at the band.
+  const lifeDue = expected > 0;
+  const lifePlanned = lifeDue ? PLANNED_BAND * life : 0;
   const commitmentEarned =
-    band > 0
-      ? Math.min(commitmentShare, ((input.commitment?.earned ?? 0) * commitmentShare) / band)
-      : 0;
+    band > 0 ? Math.min(band, input.commitment?.earned ?? 0) : 0;
 
-  const planned =
-    expected > 0 ? lifePlanned * Math.min(1, earnedWeight / expected) : 0;
-  const extraCredit =
-    expected > 0 ? life * EXTRA_RUN_RATE * runPoints(extra, expected) : 0;
+  const planned = lifeDue ? lifePlanned * Math.min(1, earnedWeight / expected) : 0;
+  const extraCredit = lifeDue ? life * EXTRA_RUN_RATE * runPoints(extra, expected) : 0;
 
   const activityCredit = (input.activities ?? []).reduce(
     (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
@@ -289,7 +289,7 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   const ratingBonus =
     input.kind === "special" ? specialDayBonus(input.satisfactionRating) * life : 0;
   const unplannedRaw = activityCredit + ratingBonus;
-  const unplanned = Math.min(unplannedRaw, UNPLANNED_BAND * life);
+  const unplanned = Math.min(unplannedRaw, lifeDue ? UNPLANNED_BAND * life : 0);
 
   const earned =
     commitmentEarned +
