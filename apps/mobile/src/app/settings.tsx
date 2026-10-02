@@ -141,7 +141,11 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(theme.accent)} />
-      <ScreenHeader title="Settings" theme={theme} />
+      <ScreenHeader
+        title="Settings"
+        theme={theme}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/log" as Href))}
+      />
       <ScrollView style={styles.body} contentContainerStyle={styles.container}>
         {/* Tuning the plan itself comes first: it is the only thing here
             that changes what the app shows you tomorrow. */}
