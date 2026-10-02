@@ -52,6 +52,7 @@ import { UNIT_INFO } from "../content/units";
 import {
   buildEntries,
   loadDiagnosticAreas,
+  loadPreviousPriorityOrder,
   loadDiagnosticDiff,
   loadWeightSummary,
   saveDiagnostic,
@@ -60,6 +61,7 @@ import {
   type DiagnosticArea,
   type DiagnosticDiff,
 } from "../db/diagnostic";
+import { carryOverOrder } from "../db/priorityCarryOver";
 import { loadGraphSnapshots } from "../db/graph";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { space } from "../theme/tokens";
@@ -93,9 +95,12 @@ type Step =
  * Grouping and colour are exactly the presentational work areas are
  * still allowed to do (ADR-0021).
  */
-function buildSequence(areas: DiagnosticArea[]): Step[] {
+function buildSequence(areas: DiagnosticArea[], carriedOver: boolean): Step[] {
   return [
-    { kind: "areas" },
+    // The area pass seeds a first-ever ranking and nothing else. Once
+    // there is a last time to start from, that is the better seed, so
+    // the pass is skipped (ADR-0021 §4).
+    ...(carriedOver ? [] : [{ kind: "areas" as const }]),
     { kind: "priority" },
     ...areas.map((a) => ({ kind: "satisfaction" as const, areaId: a.id })),
     { kind: "review" },
@@ -104,6 +109,7 @@ function buildSequence(areas: DiagnosticArea[]): Step[] {
 
 const AREA_PROMPT = "Which area needs more attention right now?";
 const PRIORITY_PROMPT = "Everything, in order of attention";
+const CARRIED_PROMPT = "Your order from last time — move anything that has changed";
 const PRIORITY_HEADING = "Your priorities";
 
 interface DiffRowProps {
@@ -166,6 +172,9 @@ export default function DiagnosticFlow() {
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [areaOrder, setAreaOrder] = useState<string[] | undefined>(undefined);
+  /** Whether this diagnostic opens on the last one's priority order
+   *  (ADR-0005 §7's carry-over prefill). False on a first-ever run. */
+  const [carriedOver, setCarriedOver] = useState(false);
   /** Unit id → satisfaction 1–10. Absent means not yet rated, which the
    *  dial shows as "—" and the Continue button refuses to pass. */
   const [satisfaction, setSatisfaction] = useState<Record<string, number>>({});
@@ -189,8 +198,15 @@ export default function DiagnosticFlow() {
 
   useEffect(() => {
     (async () => {
-      const loadedAreas = await loadDiagnosticAreas();
+      const [loadedAreas, previous] = await Promise.all([
+        loadDiagnosticAreas(),
+        loadPreviousPriorityOrder(),
+      ]);
       setAreas(loadedAreas);
+      if (previous) {
+        setFinalOrder(carryOverOrder(previous, suggestOverallOrder(loadedAreas, undefined)));
+        setCarriedOver(true);
+      }
       setPhase("intro");
     })();
   }, []);
@@ -207,7 +223,7 @@ export default function DiagnosticFlow() {
     ]);
   });
 
-  const sequence = useMemo(() => buildSequence(areas), [areas]);
+  const sequence = useMemo(() => buildSequence(areas, carriedOver), [areas, carriedOver]);
 
   /** One dot per step; review shares the last one. Priority steps take
    *  the app accent — they are about the whole portfolio, not any one
@@ -312,9 +328,9 @@ export default function DiagnosticFlow() {
               open with a near-identical screen of its own; that screen
               is gone (ADR-0011 as amended), so this one carries it. */}
           <AppText color={theme.ink} style={styles.introCopy}>
-            First you’ll put the parts of your life in order — which ones
-            need your attention most. Then you’ll rate how satisfied you
-            are with each one out of ten.
+            {carriedOver
+              ? "First you’ll check the order of your life’s parts — it starts where you left it last time, so move only what has changed. Then you’ll rate how satisfied you are with each one out of ten."
+              : "First you’ll put the parts of your life in order — which ones need your attention most. Then you’ll rate how satisfied you are with each one out of ten."}
           </AppText>
           <AppText variant="caption" color={theme.muted}>
             Six areas · about five minutes
@@ -389,18 +405,18 @@ export default function DiagnosticFlow() {
         />
       );
     } else if (step.kind === "priority") {
-      // Opens ordered by the area ranking made on the previous screen,
-      // units in taxonomy order within each. Every row wears its own
-      // area's hue, which is the explanation for where it landed — and
-      // the cue for whether a move you want is really a correction to
-      // the area ranking one step back.
+      // A re-run opens on last time's order, so the work is moving what
+      // changed. A first run opens ordered by the area ranking made on
+      // the previous screen, units in taxonomy order within each. Every
+      // row wears its own area's hue, which is the explanation for where
+      // it landed.
       const order = finalOrder ?? suggestOverallOrder(areas, areaOrder);
       heading = PRIORITY_HEADING;
       content = (
         <RankGroup
           key="priority"
           items={order.map(unitRow)}
-          prompt={PRIORITY_PROMPT}
+          prompt={carriedOver ? CARRIED_PROMPT : PRIORITY_PROMPT}
           hint={UNIT_HINT}
           theme={theme}
           onPressItem={openInfo}

@@ -255,6 +255,10 @@ A settled day is now a fact rather than a function of today's weights.
 6. [x] Tests: pool never exceeds `UNPLANNED_CAP`; extra runs are
        exempt; a special day with no completions scores its bonus
        alone; an untasked unit credits zero.
-7. [ ] Make "Day off" discoverable enough to carry its new load — the
+7. [x] Make "Day off" discoverable enough to carry its new load — the
        consequence above is the one most likely to bite. Needs a real
-       look at the day-kind sheet, not just the rename.
+       look at the day-kind sheet, not just the rename. *(Decided
+       2026-10-02, Henry: **leave it behind the ⋯ beside the day's
+       score.** Rest days (ADR-0037) now cover days with nothing due
+       automatically, so Day off carries only the real exceptions —
+       illness, travel, a wedding — and one tap away is enough.)*

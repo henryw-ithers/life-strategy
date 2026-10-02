@@ -234,8 +234,10 @@ a metric proves unreadable.
        its checkpoints section, and `PastDaySheet` — which existed only
        to date a rung — was deleted. The table stays in the schema,
        carries a retirement note, and is still cleared by `deleteGoal`.
-6. [ ] Decide whether the goal screen renders its conditions as a grid
+6. [x] Decide whether the goal screen renders its conditions as a grid
        when the shape fits (≤ 8 conditions), or always as a list.
+       *(Decided 2026-10-02, Henry: **always a list**, the checklist's
+       own shape, at any count. That is how it is built.)*
 7. [ ] Copy pass on "condition" against the Environment area's
        description, and on how a task belonging to another unit is
        labelled where the goal shows it.

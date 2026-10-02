@@ -272,9 +272,12 @@ genuinely confusing in use, in which case the lever is presentation
 3. [x] Withdraw ADR-0024 §2, amend ADR-0023 §1, ADR-0027 §§1/3 and
        ADR-0028 §3 with pointers here; update the ADR index and
        AGENTS.md.
-4. [ ] The checklist shows a point value per row that now changes with
+4. [x] The checklist shows a point value per row that now changes with
        the day. Read `components/today/TaskRow.tsx` against §4 and
-       decide whether the number or a share reads better.
+       decide whether the number or a share reads better. *(Decided
+       2026-10-02, Henry: **live points.** Each row shows what it pays
+       today — or, done off its planned day, what that day would have
+       paid (ADR-0037 §3).)*
 5. [x] `docs/design/calendar-and-day-planning.md` and
        `docs/design/copy-guide.md` describe pins as presentation-only.
        Both need a pass against §3. *(Done 2026-10-02: the calendar

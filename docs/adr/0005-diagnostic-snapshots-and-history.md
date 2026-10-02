@@ -126,6 +126,11 @@ axes**, hierarchical to keep the comparison count sane:
   month's numbers" convenience doesn't yet have a ranking equivalent —
   a drag-to-reorder starting from the previous order is the likely
   shape, shared with the still-deferred task re-rank gesture).
+  **Built 2026-10-02** (ADR-0021 action item 2): a re-run opens on the
+  last snapshot's priority order, read back from `rating.importance`;
+  units gone since drop out, units new since join at the end, and the
+  area pass runs only on a first-ever diagnostic. Satisfaction is not
+  carried over — it is rated fresh each time (ADR-0022).
 
 > **Amended 2026-07-30 (re-ranking without a diagnostic):** the
 > Portfolio tab's primary job is now the priority order, and the graph

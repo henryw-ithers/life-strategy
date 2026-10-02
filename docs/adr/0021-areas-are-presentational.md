@@ -154,7 +154,11 @@ convenience.
 1. [x] Record the invariant in [AGENTS.md](../../AGENTS.md) alongside
        the other product invariants, since it constrains what may
        influence scoring.
-2. [ ] Build carry-over prefill for the priority ranking (ADR-0005 §7's
-       open gap), then gate the area pass to first-run only.
+2. [x] Build carry-over prefill for the priority ranking (ADR-0005 §7's
+       open gap), then gate the area pass to first-run only. *(Built
+       2026-10-02: `loadPreviousPriorityOrder` + `carryOverOrder`; the
+       area pass now runs only when there is no previous snapshot.)*
 3. [ ] Allow re-homing a unit to a different area in the taxonomy
-       editor — free under §3, and currently not offered.
+       editor — free under §3, and currently not offered. *(Reviewed
+       2026-10-02: not wanted now. Henry chose prefill alone from the
+       unbuilt items. Still free to build under §3 whenever it is.)*

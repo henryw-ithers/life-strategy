@@ -11,6 +11,7 @@ import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
+import { isCommitmentUnit } from "./commitmentPlan";
 import { loadGoals } from "./goals";
 import {
   activity,
@@ -55,13 +56,36 @@ export async function loadDiagnosticAreas(): Promise<DiagnosticArea[]> {
     id: area.id,
     name: area.name,
     units: units
-      .filter((u) => u.areaId === area.id)
+      // Commitments and their parts are not among the 18 and are never
+      // diagnosed (ADR-0035): their share of a day is the band the user
+      // sets, not a rank. Without this they were listed to be ranked
+      // and rated beside the life units.
+      .filter((u) => u.areaId === area.id && !isCommitmentUnit(u))
       .map((u) => ({
         id: u.id,
         name: u.name,
         includeInScoring: u.includeInScoring,
       })),
   }));
+}
+
+/**
+ * The priority order the last diagnostic saved, highest first, or null
+ * before the first one — the seed for carry-over prefill
+ * (`carryOverOrder`). Read back from `rating.importance`, which is
+ * `rankToScore` of each unit's rank and so sorts exactly as the ranking
+ * did.
+ */
+export async function loadPreviousPriorityOrder(): Promise<string[] | null> {
+  const [latest] = await db
+    .select()
+    .from(snapshot)
+    .orderBy(desc(snapshot.takenAt))
+    .limit(1);
+  if (!latest) return null;
+  const rows = await db.select().from(rating).where(eq(rating.snapshotId, latest.id));
+  if (rows.length === 0) return null;
+  return [...rows].sort((a, b) => b.importance - a.importance).map((r) => r.unitId);
 }
 
 export interface DiagnosticEntry {

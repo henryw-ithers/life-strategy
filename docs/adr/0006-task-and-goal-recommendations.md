@@ -136,3 +136,9 @@ and every unit offers something to each of the three profiles.
        bands) as a pure function in the `scoring`/content layer.
 4. [ ] Wire recommendation surfacing into the post-diagnostic diff and
        monthly review flows (ADR-0005).
+
+> **Reviewed 2026-10-02: 3 and 4 are not wanted now.** Henry chose
+> neither the starter plan nor post-diagnostic suggestions when asked
+> which unbuilt items to build. The per-unit suggestions sheet on the
+> Tasks screen is the library's one surface for now. ADR-0019 item 5
+> (default memberships in the package schema) waits on these.
