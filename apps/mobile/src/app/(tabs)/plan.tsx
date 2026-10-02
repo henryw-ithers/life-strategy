@@ -9,7 +9,7 @@
  * collapses the rest, so the screen never becomes a wall.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { unitProfile } from "@glide/scoring";
+import { unitProfile, type CommitmentDay } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import {
   router,
@@ -33,7 +33,10 @@ import Animated, {
 
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
-import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
+import { EventSheet } from "../../components/plan/EventSheet";
+import { eventWhen, ItemRow } from "../../components/plan/ItemRow";
+import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
+import { applyTaskEdit, editableFrom } from "../../components/plan/applyTaskEdit";
 import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
 import {
@@ -41,6 +44,14 @@ import {
 } from "../../components/plan/planning";
 import { CoverageBar } from "../../components/plan/CoverageBar";
 import type { OneOffState } from "../../components/plan/SchedulePicker";
+import {
+  COMMITMENT_AREA,
+  pickableUnits,
+} from "../../components/plan/unitSelection";
+import {
+  NO_DETAIL,
+  type TaskDetail,
+} from "../../components/plan/TaskDetailPicker";
 import { ReorderableList } from "../../components/ui/ReorderableList";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
 import { AppText } from "../../components/ui/AppText";
@@ -52,22 +63,19 @@ import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LIBRARY } from "../../content/library";
 import { UNIT_INFO } from "../../content/units";
+import { loadCommitmentDay } from "../../db/commitments";
 import { createGoal, loadGoals, setGoalMetric } from "../../db/goals";
+import { currentLocalDate } from "../../db/today";
 import {
+  addEvent,
   addTask,
   archiveTask,
   latestRatings,
   loadPlan,
   reorderUnitTasks,
   restoreTask,
-  setTaskDetails,
-  setTaskFortnightOffset,
-  setTaskOneOff,
-  setTaskFrequency,
-  setTaskGoal,
-  setTaskPlanning,
-  setTaskUnits,
   setUnitScoring,
+  updateEvent,
   type PlanData,
   type PlanTask,
   type PlanUnit,
@@ -83,8 +91,14 @@ const TASK_ROW_HEIGHT = 64;
 
 interface EditTarget {
   task: PlanTask;
-  unit: PlanUnit;
+  /** Where it is listed — a life unit, or a commitment or its part.
+   *  Only its id and hue are read. */
+  unit: { id: string; areaId: string };
 }
+
+/** A unit's tasks and its events, listed apart (ADR-0038 §4). */
+const unitTasksOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind !== "event");
+const unitEventsOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind === "event");
 
 export default function PlanScreen() {
   const scheme = useColorScheme();
@@ -101,6 +115,8 @@ export default function PlanScreen() {
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Today's commitment day, so the coverage bar can lead with the band. */
+  const [commitmentDay, setCommitmentDay] = useState<CommitmentDay | null>(null);
   /** Active goals per unit, for the edit sheet's goal row. */
   const [goalsByUnit, setGoalsByUnit] = useState<
     Record<string, { id: string; title: string }[]>
@@ -108,8 +124,16 @@ export default function PlanScreen() {
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
-  const [adding, setAdding] = useState<{ homeUnit: PlanUnit | null } | null>(null);
+  const [adding, setAdding] = useState<{ homeUnit: { id: string } | null } | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
+  /** Adding an event (ADR-0038): the unit it starts filed under, chosen
+   *  in the sheet like a task's. */
+  const [addingEvent, setAddingEvent] = useState<{
+    unitIds: string[];
+    /** Set when added from a unit, which then needs no choosing — the
+     *  sheet looks exactly as it does on a commitment's screen. */
+    unitName?: string;
+  } | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
   const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
@@ -142,12 +166,17 @@ export default function PlanScreen() {
   );
 
   const reload = useCallback(async () => {
-    const [next, goals, rated] = await Promise.all([
+    const [next, goals, rated, today] = await Promise.all([
       loadPlan(),
       loadGoals(),
       latestRatings(),
+      // The bar draws today's commitment band first when there is one,
+      // so it needs today's commitment day — without it a scheduled day
+      // is drawn as an ordinary one and overstates the life units' share.
+      loadCommitmentDay(currentLocalDate()),
     ]);
     setPlan(next);
+    setCommitmentDay(today);
     setRatings(rated);
     const byUnit: Record<string, { id: string; title: string }[]> = {};
     for (const area of goals.areas) {
@@ -170,20 +199,9 @@ export default function PlanScreen() {
    * dead ends: an "Add task" button that opened a sheet with no chip
    * to file the result under.
    */
-  const allUnits: PickableUnit[] = useMemo(
-    () =>
-      (plan?.areas ?? []).flatMap((a) =>
-        a.units
-          .filter((u) => u.includeInScoring)
-          .map((u) => ({
-            id: u.id,
-            name: u.name,
-            areaId: u.areaId,
-            motivationKind: u.motivationKind,
-          })),
-      ),
-    [plan],
-  );
+  /** Commitments and their parts first, then the scored life units —
+   *  one list for every sheet that files a task (see `pickableUnits`). */
+  const allUnits: PickableUnit[] = useMemo(() => pickableUnits(plan), [plan]);
 
   const toggleUnit = (unitId: string) => {
     setOpenUnitId((current) => (current === unitId ? null : unitId));
@@ -193,11 +211,9 @@ export default function PlanScreen() {
    * The number in the right-hand column: the unit's own diagnostic
    * weight, whether or not it currently spends it.
    *
-   * ADR-0027 §2 withdraws the reallocation that used to inflate a
-   * covered unit's number past its own weight — a unit with no daily
-   * task simply cannot earn this, and nobody else receives it either,
-   * so the figure shown here and the figure in the day's ceiling are
-   * the same one.
+   * ADR-0027 §2 withdrew the reallocation that used to inflate a
+   * covered unit's number past its own weight, so the figure shown here
+   * is just the unit's weight — its share of the 100.
    */
   const shownPoints = (unit: PlanUnit): number => unit.weight ?? 0;
 
@@ -261,6 +277,7 @@ export default function PlanScreen() {
     plannedWeekdays: string | null,
     partOfDay: PartOfDay | null,
     oneOff: OneOffState | null = null,
+    detail: TaskDetail = NO_DETAIL,
   ) => {
     const id = await addTask(
       unitIds,
@@ -270,8 +287,23 @@ export default function PlanScreen() {
       partOfDay,
       null,
       oneOff,
+      null,
+      detail,
     );
     const home = unitIds[0];
+    if (home) setOpenUnitId(home);
+    await reload();
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (home) revealUnit(home);
+    if (id) {
+      setJustAdded(id);
+      if (freshTimer.current) clearTimeout(freshTimer.current);
+      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
+    }
+  };
+
+  /** An event is added, then revealed like a task. */
+  const afterEventAdded = async (id: string | null, home: string | undefined) => {
     if (home) setOpenUnitId(home);
     await reload();
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -291,7 +323,9 @@ export default function PlanScreen() {
       {/* The screen's own thesis, above everything it applies to: how
           much of your hundred a daily habit currently reaches, and
           therefore what today can score. Drawn rather than written. */}
-      {plan?.hasSnapshot ? <CoverageBar areas={plan.areas} theme={theme} /> : null}
+      {plan?.hasSnapshot ? (
+        <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
+      ) : null}
 
       {/* Capture, before navigation. Adding a task used to start with
           finding its unit and expanding it; this opens the same sheet
@@ -299,14 +333,27 @@ export default function PlanScreen() {
           away with the list — it's furniture, like the header it sits
           under. */}
       {plan?.hasSnapshot && allUnits.length > 0 ? (
-        <View style={styles.addBar}>
-          <Button
-            variant="tonal"
-            icon="add"
-            label="Add task"
-            onPress={() => setAdding({ homeUnit: null })}
-            theme={theme}
-          />
+        <View style={[styles.addBar, styles.addBarRow]}>
+          {/* Two kinds of thing, two doors (ADR-0038): work you fit in,
+              and a time you turn up for. */}
+          <View style={styles.grow}>
+            <Button
+              variant="tonal"
+              icon="add"
+              label="Add task"
+              onPress={() => setAdding({ homeUnit: null })}
+              theme={theme}
+            />
+          </View>
+          <View style={styles.grow}>
+            <Button
+              variant="tonal"
+              icon="calendar-outline"
+              label="Add event"
+              onPress={() => setAddingEvent({ unitIds: [] })}
+              theme={theme}
+            />
+          </View>
         </View>
       ) : null}
 
@@ -553,18 +600,23 @@ export default function PlanScreen() {
                               ADR-0029: a unit holding no work is not in
                               play at all, and the units that do hold work
                               share the band between them. */}
-                          {unit.tasks.length === 0 ? null : (
+                          {unitTasksOf(unit).length === 0 ? null : (
                             // Rank is the thing you most often want to
                             // change while looking at the list, so the
                             // grip is here rather than two taps away in
                             // the edit sheet.
                             <ReorderableList
-                              items={unit.tasks.map((t) => ({ id: t.id, label: t.title }))}
+                              items={unitTasksOf(unit).map((t) => ({ id: t.id, label: t.title }))}
                               rowHeight={TASK_ROW_HEIGHT}
                               scrollable={false}
                               onDragStateChange={setDraggingTask}
+                              // Events are listed apart and rank after the
+                              // unit's tasks, so a reorder keeps them there.
                               onReorder={(ids) => {
-                                void reorderUnitTasks(unit.id, ids).then(reload);
+                                void reorderUnitTasks(unit.id, [
+                                  ...ids,
+                                  ...unitEventsOf(unit).map((e) => e.id),
+                                ]).then(reload);
                               }}
                               renderItem={(item) => {
                                 const t = unit.tasks.find((x) => x.id === item.id);
@@ -605,6 +657,41 @@ export default function PlanScreen() {
                                 screen: one action, named once. */}
                             <AppText variant="label" color={theme.accent}>
                               + Add task
+                            </AppText>
+                          </Pressable>
+                          {/* Events apart from tasks, drawn as a
+                              commitment draws them (ADR-0038 §4): when
+                              and where, opening the event sheet. */}
+                          {unitEventsOf(unit).length > 0 ? (
+                            <View style={styles.eventsBlock}>
+                              <AppText variant="caption" color={theme.muted}>
+                                Events
+                              </AppText>
+                              {unitEventsOf(unit).map((e, i, all) => (
+                                <ItemRow
+                                  key={e.id}
+                                  item={e}
+                                  detail={eventWhen(e)}
+                                  theme={theme}
+                                  last={i === all.length - 1}
+                                  onPress={() => setEditing({ task: e, unit })}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
+                          <Pressable
+                            onPress={() =>
+                              setAddingEvent({ unitIds: [unit.id], unitName: unit.name })
+                            }
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add an event to ${unit.name}`}
+                            style={({ pressed }) => [
+                              styles.addRow,
+                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                            ]}
+                          >
+                            <AppText variant="label" color={theme.accent}>
+                              + Add event
                             </AppText>
                           </Pressable>
 
@@ -659,6 +746,113 @@ export default function PlanScreen() {
                   );
                 })}
               </Group>
+              ))}
+
+              {/* Commitments, after the 18 rather than among them. They
+                  are not a share of your hundred — they are paid from
+                  their own band on the days they have work (ADR-0032) —
+                  and listing School as one more unit is what invited
+                  the "put it back in my plan" offer that would have
+                  made it one. Rows edit and swipe-delete exactly like
+                  every other task on this screen. */}
+              {(plan?.commitments ?? []).map((c) => (
+                <Group
+                  key={c.id}
+                  theme={theme}
+                  title={c.name}
+                  footnote={
+                    c.tasks.length === 0
+                      ? "Classes, shifts, assignments — anything scheduled that belongs to this."
+                      : "Worth a share of the day each one is scheduled on, so the number changes with the day."
+                  }
+                >
+                  {c.tasks.filter((t) => t.kind !== "event").map((t) => (
+                    <View key={t.id} style={{ height: TASK_ROW_HEIGHT }}>
+                      <TaskRow
+                        context={t.homeUnitId === c.id ? null : t.homeName}
+                        title={t.title}
+                        timesPerWeek={t.timesPerWeek}
+                        pointValue={null}
+                        otherUnitNames={t.otherUnitNames}
+                        plannedWeekdays={t.plannedWeekdays}
+                        partOfDay={t.partOfDay}
+                        accent={theme.areas[COMMITMENT_AREA] ?? theme.accent}
+                        theme={theme}
+                        highlight={t.id === justAdded}
+                        onDelete={() => deleteTask(t)}
+                        onEdit={() =>
+                          setEditing({
+                            task: t,
+                            unit: { id: t.homeUnitId, areaId: COMMITMENT_AREA },
+                          })
+                        }
+                      />
+                    </View>
+                  ))}
+                  {/* Events apart, drawn as everywhere else (ADR-0038 §4). */}
+                  {c.tasks.some((t) => t.kind === "event") ? (
+                    <View style={styles.eventsBlock}>
+                      <AppText variant="caption" color={theme.muted}>
+                        Events
+                      </AppText>
+                      {c.tasks
+                        .filter((t) => t.kind === "event")
+                        .map((e, i, all) => (
+                          <ItemRow
+                            key={e.id}
+                            item={e}
+                            detail={[e.homeUnitId === c.id ? null : e.homeName, eventWhen(e)]
+                              .filter(Boolean)
+                              .join(" · ")}
+                            theme={theme}
+                            last={i === all.length - 1}
+                            onPress={() =>
+                              setEditing({
+                                task: e,
+                                unit: { id: e.homeUnitId, areaId: COMMITMENT_AREA },
+                              })
+                            }
+                          />
+                        ))}
+                    </View>
+                  ) : null}
+                  <Pressable
+                    // A split commitment's work goes in a sub-commitment,
+                    // so this opens the commitment to choose one.
+                    onPress={() =>
+                      c.split
+                        ? router.push(`/goals/commitment/${c.id}` as Href)
+                        : setAdding({ homeUnit: { id: c.id } })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      c.split ? `Open ${c.name} to add to a sub-commitment` : `Add a task to ${c.name}`
+                    }
+                    style={({ pressed }) => [
+                      styles.addRow,
+                      { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                    ]}
+                  >
+                    <AppText variant="label" color={theme.accent}>
+                      {c.split ? "Add in a sub-commitment ›" : "+ Add task"}
+                    </AppText>
+                  </Pressable>
+                  {c.split ? null : (
+                    <Pressable
+                      onPress={() => setAddingEvent({ unitIds: [c.id], unitName: c.name })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add an event to ${c.name}`}
+                      style={({ pressed }) => [
+                        styles.addRow,
+                        { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                      ]}
+                    >
+                      <AppText variant="label" color={theme.accent}>
+                        + Add event
+                      </AppText>
+                    </Pressable>
+                  )}
+                </Group>
               ))}
             </>
           )}
@@ -721,24 +915,67 @@ export default function PlanScreen() {
         />
       ) : null}
 
-      {editing ? (
+      {addingEvent ? (
+        <EventSheet
+          visible
+          unitName={addingEvent.unitName}
+          unitChoice={
+            addingEvent.unitName
+              ? undefined
+              : {
+                  units: allUnits,
+                  value: addingEvent.unitIds,
+                  onChange: (unitIds) => setAddingEvent({ unitIds }),
+                  areaColors: theme.areas,
+                }
+          }
+          accent={theme.accent}
+          theme={theme}
+          onClose={() => setAddingEvent(null)}
+          onSave={async (input) => {
+            const unitIds = addingEvent.unitIds;
+            setAddingEvent(null);
+            const id = await addEvent(unitIds, input);
+            await afterEventAdded(id, unitIds[0]);
+          }}
+        />
+      ) : null}
+
+      {/* An event opens its own sheet, not the task editor — it is
+          planned by when, not by how often (ADR-0038). */}
+      {editing && editing.task.kind === "event" ? (
+        <EventSheet
+          visible
+          initial={{
+            title: editing.task.title,
+            plannedWeekdays: editing.task.plannedWeekdays,
+            oneOffDate: editing.task.oneOffDate,
+            startMinute: editing.task.startMinute,
+            endMinute: editing.task.endMinute,
+            location: editing.task.location,
+            notes: editing.task.description,
+          }}
+          accent={theme.areas[editing.unit.areaId] ?? theme.accent}
+          theme={theme}
+          onClose={() => setEditing(null)}
+          onSave={async (input) => {
+            const id = editing.task.id;
+            setEditing(null);
+            await updateEvent(id, input);
+            await reload();
+          }}
+          onDelete={async () => {
+            const t = editing.task;
+            setEditing(null);
+            await deleteTask(t);
+          }}
+        />
+      ) : null}
+
+      {editing && editing.task.kind !== "event" ? (
         <TaskEditSheet
           visible
-          task={
-            {
-              id: editing.task.id,
-              title: editing.task.title,
-              timesPerWeek: editing.task.timesPerWeek,
-              unitIds: editing.task.unitIds,
-              plannedWeekdays: editing.task.plannedWeekdays,
-              partOfDay: editing.task.partOfDay,
-              goalId: editing.task.goalId,
-              fortnightOffset: editing.task.fortnightOffset,
-              oneOffSize: editing.task.oneOffSize,
-              oneOffDate: editing.task.oneOffDate,
-              oneOffDue: editing.task.oneOffDue,
-            } satisfies EditableTask
-          }
+          task={editableFrom(editing.task)}
           units={allUnits}
           goals={goalsByUnit[editing.unit.id] ?? []}
           areaColors={theme.areas}
@@ -746,47 +983,7 @@ export default function PlanScreen() {
           theme={theme}
           onClose={() => setEditing(null)}
           onSave={async (next) => {
-            const t = editing.task;
-            // The description field is gone from the sheet (2026-08-18)
-            // but the column stays, so this preserves whatever was
-            // already written rather than clearing it on the next save.
-            if (next.title !== t.title) {
-              await setTaskDetails(t.id, next.title, t.description);
-            }
-            if (next.timesPerWeek !== t.timesPerWeek) {
-              await setTaskFrequency(t.id, next.timesPerWeek);
-            }
-            if (next.unitIds.join("|") !== t.unitIds.join("|")) {
-              await setTaskUnits(t.id, next.unitIds);
-            }
-            if (
-              next.plannedWeekdays !== t.plannedWeekdays ||
-              next.partOfDay !== t.partOfDay
-            ) {
-              await setTaskPlanning(t.id, next.plannedWeekdays, next.partOfDay);
-            }
-            if (next.goalId !== t.goalId) {
-              await setTaskGoal(t.id, next.goalId);
-            }
-            if (next.fortnightOffset !== t.fortnightOffset) {
-              await setTaskFortnightOffset(
-                t.id,
-                next.fortnightOffset === 1 ? 1 : 0,
-              );
-            }
-            if (
-              next.oneOff &&
-              (next.oneOff.size !== t.oneOffSize ||
-                next.oneOff.date !== t.oneOffDate ||
-                next.oneOff.due !== t.oneOffDue)
-            ) {
-              await setTaskOneOff(
-                t.id,
-                next.oneOff.size,
-                next.oneOff.date,
-                next.oneOff.due,
-              );
-            }
+            await applyTaskEdit(editing.task, next);
             await reload();
           }}
           onDelete={() => deleteTask(editing.task)}
@@ -876,6 +1073,8 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingBottom: space.sm,
   },
+  addBarRow: { flexDirection: "row", gap: space.sm },
+  eventsBlock: { marginTop: space.md },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   /** Outlined rather than surface-filled: `Group` below owns the filled

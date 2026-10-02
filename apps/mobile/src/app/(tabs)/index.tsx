@@ -6,7 +6,15 @@
  * The date header expands the current month (calendar phase, early).
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { addDays, specialDayBonus, weekStart, type PeriodGrade } from "@glide/scoring";
+import {
+  addDays,
+  isEditable,
+  ROLLOVER_HOUR,
+  specialDayBonus,
+  weekStart,
+  type PeriodGrade,
+  type Window as GridWindow,
+} from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useFocusEffect, type Href } from "expo-router";
@@ -19,6 +27,7 @@ import {
   ScrollView,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,13 +40,31 @@ import { DayNumber } from "../../components/today/DayNumber";
 import { MonthGrid } from "../../components/today/MonthGrid";
 import { NoteSheet } from "../../components/today/NoteSheet";
 import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
+import { PartialSheet } from "../../components/today/PartialSheet";
+import { DayGrid, windowKey } from "../../components/today/DayGrid";
+import { WindowSheet } from "../../components/today/WindowSheet";
+import { loadPools, type PoolOnDay } from "../../db/commitments";
+import {
+  createPool,
+  deletePool,
+  updatePool,
+} from "../../db/commitmentWrites";
+import {
+  loadDayLayout,
+  setDayLayout,
+  type DayLayout,
+} from "../../db/settings";
+import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { TaskRow } from "../../components/today/TaskRow";
 import { WeekStrip } from "../../components/today/WeekStrip";
 import {
   ANYTIME_LABEL,
   compareForDay,
+  carriedPart,
   emptyPeriodNote,
+  isPast,
+  partNow,
   PART_OF_DAY_LABEL,
   PART_OF_DAY_ORDER,
   pinnedElsewhere,
@@ -59,6 +86,7 @@ import {
   deletePhoto,
   editWindowDays,
   loadDay,
+  loadPlannedAhead,
   loadCalendarGrades,
   logActivity,
   setDayKind,
@@ -66,6 +94,7 @@ import {
   clearPlacementForDay,
   isPlannable,
   placeTaskForDay,
+  setCompletionFraction,
   toggleCompletion,
   updateActivity,
   updateJournalEntry,
@@ -104,6 +133,23 @@ import { radius, space } from "../../theme/tokens";
  *  Fits a title plus its factual caption with the row's own padding. */
 const CHECKLIST_ROW_HEIGHT = 56;
 
+/**
+ * Minutes into today. Past midnight and before the 3am rollover it is
+ * still today, so the count runs on past 1440 rather than wrapping to
+ * a morning that has not started.
+ */
+function minuteOfToday(): number {
+  const now = new Date();
+  const minute = now.getHours() * 60 + now.getMinutes();
+  return now.getHours() < ROLLOVER_HOUR ? minute + 24 * 60 : minute;
+}
+
+/** Two words, because the difference is the whole point. */
+const LAYOUTS = [
+  { value: "checklist" as const, label: "List" },
+  { value: "grid" as const, label: "Hours" },
+];
+
 /** The header block above each part of the day, including the air
  *  that separates it from the slot above. Fixed, because the drag
  *  layout walks these to place every row. */
@@ -126,6 +172,8 @@ export default function TodayScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
+  /** Dynamic Type, so the grid's hours grow with its labels. */
+  const { fontScale } = useWindowDimensions();
 
   /** Null = follow today (so an overnight rollover moves with us);
    *  a date = the user navigated somewhere in the edit window. */
@@ -151,6 +199,20 @@ export default function TodayScreen() {
    *  loaded day, since the screen behind it still shows today. */
   /** The row whose slot is being changed (ADR-0024 phase 3). */
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
+  /** The row whose part-credit sheet is open (ADR-0014 §4). */
+  const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
+  /** Checklist or hours. Presentation only — both hold the same day. */
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
+  /** This day's pools, and the one being edited (ADR-0033 §2). */
+  const [pools, setPools] = useState<PoolOnDay[]>([]);
+  const [planning, setPlanning] = useState<{
+    window: GridWindow;
+    chosen: string[];
+    plannedCount: number;
+    poolId: string | null;
+    /** Unfinished options from windows that have ended (ADR-0033 §2). */
+    carried: string[];
+  } | null>(null);
   /** A cross-slot drop awaiting its scope answer. */
   const [dropped, setDropped] = useState<{
     task: TodayTask;
@@ -162,6 +224,31 @@ export default function TodayScreen() {
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>(
     {},
   );
+  /**
+   * "Planned for other days" opens collapsed, and its one-offs are only
+   * loaded once it is opened (`loadPlannedAhead`): each later date has
+   * to be priced, and a term of assignments is a lot of dates. Every
+   * other section opens expanded, as before.
+   */
+  const isCollapsed = (key: SectionKey) => collapsed[key] ?? key === "otherDays";
+  const [ahead, setAhead] = useState<TodayTask[] | null>(null);
+  const otherDaysOpen = !isCollapsed("otherDays");
+  // Fetched when the section opens, and again whenever the day reloads
+  // while it is open, so a tick there moves the row straight away.
+  // Closing it drops the list, and the header goes back to a count.
+  useEffect(() => {
+    if (!day || !otherDaysOpen) {
+      setAhead(null);
+      return;
+    }
+    let live = true;
+    void loadPlannedAhead(day.date).then((rows) => {
+      if (live) setAhead(rows);
+    });
+    return () => {
+      live = false;
+    };
+  }, [day, otherDaysOpen]);
   const allDoneBefore = useRef(false);
   /** null while unknown — the gate must not flash Today before it
    *  resolves (ADR-0011 decision 1). Reads fail open. */
@@ -169,17 +256,20 @@ export default function TodayScreen() {
 
   useEffect(() => {
     void isOnboardingComplete().then(setOnboarded);
+    void loadDayLayout().then(setDayLayoutState);
   }, []);
 
   const reload = useCallback(async (date: string, month?: string | null) => {
-    const [next, grades, week] = await Promise.all([
+    const [next, grades, week, nextPools] = await Promise.all([
       loadDay(date),
       loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
       loadWeekGrade(date),
+      loadPools(date),
     ]);
     setDay(next);
     setMonthGrades(grades);
     setWeekGrade(week);
+    setPools(nextPools);
     if (next.date === next.today) void syncDailyNudge(next);
     return next;
   }, []);
@@ -214,12 +304,21 @@ export default function TodayScreen() {
   const onToggle = async (task: TodayTask) => {
     if (!day) return;
     void Haptics.selectionAsync();
-    await toggleCompletion(task.id, day.date);
+    // Tap always moves forward until the task is done: on a part-done
+    // row it finishes rather than throwing away what was logged. Undo
+    // lives on the row that is actually finished, and on the sheet.
+    if (task.progress > 0 && task.progress < 1) {
+      await setCompletionFraction(task.id, day.date, 1);
+    } else {
+      // A session done ahead belongs to the day it was done on, so
+      // undoing it undoes that tick — one session, one completion.
+      await toggleCompletion(task.id, task.doneAheadOn ?? day.date);
+    }
     const next = await reload(day.date);
     // The visual feedback is the climbing number; give screen readers
     // the same loop.
     AccessibilityInfo.announceForAccessibility(
-      `${task.title} ${task.completedToday ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
+      `${task.title} ${isDone(task) ? "unchecked" : "done"}. Day at ${Math.round(next.score.base ?? 0)}.`,
     );
     const allDone =
       next.due.length > 0 && next.due.every((t) => t.completedToday);
@@ -263,26 +362,61 @@ export default function TodayScreen() {
   const byPlan = (a: TodayTask, b: TodayTask) =>
     compareForDay(a, b, day?.date ?? "");
 
+  /**
+   * Which part of the day it is, on today only — the window unfinished
+   * work carries forward into (ADR-0033 §2). Null on any other day.
+   */
+  const nowPart =
+    day && day.date === day.today ? partNow(minuteOfToday()) : null;
+
+  /**
+   * Where a row sits on the checklist: its own part of day, or — once
+   * that window has ended — the one open now. A task with a clock time
+   * stays put: a 9am lecture is not afternoon work because nobody ticked
+   * it, and its time is a fact about the day rather than a window to
+   * fill.
+   */
+  const shownPart = (t: TodayTask): PartOfDay | null =>
+    t.startMinute !== null ? t.partOfDay : carriedPart(t.partOfDay, nowPart);
+
+  /** Done today, or done ahead on an earlier day (ADR-0032 §4). */
+  function isDone(t: TodayTask): boolean {
+    return t.completedToday || t.doneAheadOn !== null;
+  }
+
   const openTasks = day
-    ? [...day.due, ...day.week].filter((t) => !t.completedToday)
+    ? [...day.due, ...day.week].filter((t) => !isDone(t))
     : [];
 
   const isElsewhere = (t: TodayTask): boolean =>
     day ? pinnedElsewhere(t, day.date) : false;
   const todayTasks = openTasks.filter((t) => !isElsewhere(t));
-  const otherDayTasks = openTasks.filter(isElsewhere).sort(byPlan);
+  // Every open task with a later day is here, below today's work, so it
+  // can be done early — soonest planned first, then your own order.
+  const listedIds = new Set(allTasks.map((t) => t.id));
+  const otherDayTasks = [
+    ...openTasks.filter(isElsewhere),
+    ...(ahead ?? []).filter((t) => !listedIds.has(t.id)),
+  ]
+    .sort(
+      (a, b) =>
+        (a.plannedOn ?? "\uffff").localeCompare(b.plannedOn ?? "\uffff") || byPlan(a, b),
+    );
 
   /** `emptyNote` null means the section hides when it empties — the
    *  rule for everything that is not one of the three periods. */
   const partSection = (part: PartOfDay | null) => {
-    const tasks = todayTasks.filter((t) => t.partOfDay === part).sort(byPlan);
+    const tasks = todayTasks.filter((t) => shownPart(t) === part).sort(byPlan);
     return {
       key: (part ?? "anytime") as SectionKey,
       label: part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL,
       tasks,
       pts: tasks.reduce((a, t) => a + t.pointValue, 0),
+      // A window that has ended is shown only while it still holds
+      // something — a timed task, which does not carry. Empty, it would
+      // be a drop target in the past and a "Free" that is not.
       emptyNote:
-        part === null
+        part === null || isPast(part, nowPart)
           ? null
           : emptyPeriodNote(
               allTasks.some((t) => t.partOfDay === part && t.completedToday),
@@ -295,6 +429,8 @@ export default function TodayScreen() {
     label: string;
     tasks: TodayTask[];
     pts: number;
+    /** Set only where the rows are not all loaded yet. */
+    count?: number;
     emptyNote: string | null;
   }[] = day
     ? [
@@ -311,6 +447,10 @@ export default function TodayScreen() {
           label: "Planned for other days",
           tasks: otherDayTasks,
           pts: otherDayTasks.reduce((a, t) => a + t.pointValue, 0),
+          // Until it is opened its one-offs are unpriced, so it says how
+          // many there are rather than a points total it does not know.
+          count:
+            ahead === null ? otherDayTasks.length + day.aheadCount : otherDayTasks.length,
           emptyNote: null,
         },
         {
@@ -325,27 +465,64 @@ export default function TodayScreen() {
         {
           key: "completed" as const,
           label: "Completed",
-          tasks: allTasks.filter((t) => t.completedToday),
+          tasks: allTasks.filter(isDone),
           pts: allTasks
-            .filter((t) => t.completedToday)
+            .filter(isDone)
             .reduce(
               (a, t) => a + (t.extraToday ? t.pointsIfCompletedNow : t.pointValue),
               0,
             ),
           emptyNote: null,
         },
-      ].filter((s) => s.tasks.length > 0 || s.emptyNote !== null)
+      ].filter(
+          (s) =>
+            s.tasks.length > 0 || ("count" in s && s.count > 0) || s.emptyNote !== null,
+        )
     : [];
 
   /** The four parts of the day are one drag surface; the rest of
    *  the page is not. Empty periods stay in — they are drop
    *  targets, so a section with nothing in it still has to be
    *  somewhere the finger can land. */
+  /**
+   * The day's rows as the grid draws them: everything for today,
+   * finished or not.
+   *
+   * Completed work stays in, dimmed. The grid's job is the *shape* of
+   * the day, and a 9am lecture you attended leaving a hole in the
+   * morning would misreport that shape — which is the one thing this
+   * view exists to get right.
+   */
+  const gridTasks = day
+    ? [...todayTasks, ...allTasks.filter(isDone)]
+    : [];
+
+  /**
+   * Whether the hours are worth offering.
+   *
+   * Nothing timed means the grid is an empty ruler with the whole day
+   * in chips underneath — strictly less than the checklist. The
+   * exception is being in it already: a toggle you can enter and not
+   * leave is a trap.
+   */
+  const showsGrid =
+    dayLayout === "grid" ||
+    gridTasks.some((t) => t.startMinute !== null && t.endMinute !== null);
+
+  /** What each window already holds, keyed the way the grid keys them. */
+  const pooledByWindow = new Map<string, string[]>(
+    pools.map((p) => [windowKey(p), p.taskIds]),
+  );
+
   const ARRANGEABLE: SectionKey[] = ["morning", "afternoon", "evening", "anytime"];
   const arrangeable = sections.filter((s) =>
     ARRANGEABLE.includes(s.key),
   );
-  const tailSections = sections.filter((s) => !ARRANGEABLE.includes(s.key));
+  const tailSections = sections
+    .filter((s) => !ARRANGEABLE.includes(s.key))
+    // The grid already shows today's completed work in place, so the
+    // Completed section would be the same rows a second time.
+    .filter((s) => !(dayLayout === "grid" && s.key === "completed"));
 
   /**
    * A row was dropped. Two different things can have happened, and
@@ -368,14 +545,17 @@ export default function TodayScreen() {
       toSectionKey === "anytime" ? null : (toSectionKey as PartOfDay);
 
     // The order of that slot after the drop, for persistence.
+    // Against where rows are *shown*, not where they were planned: a
+    // morning task carried into the afternoon and reordered there is a
+    // reorder, not a move that needs its scope asked.
     const others = openTasks
-      .filter((t) => t.id !== rowId && (t.partOfDay ?? "anytime") === toSectionKey)
+      .filter((t) => t.id !== rowId && (shownPart(t) ?? "anytime") === toSectionKey)
       .sort(byPlan)
       .map((t) => t.id);
     const ordered = [...others];
     ordered.splice(Math.min(toIndex, ordered.length), 0, rowId);
 
-    if (moved.partOfDay === toPart) {
+    if (shownPart(moved) === toPart) {
       void reorderDayTasks(ordered).then(() => reload(day.date));
       return;
     }
@@ -568,21 +748,43 @@ export default function TodayScreen() {
                 needs. Right-aligned and quiet, so it reads as an exit
                 from the strip and never competes with the grade. */}
             {day.hasTasks ? (
-              <Pressable
-                onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
-                accessibilityRole="button"
-                accessibilityLabel="Plan ahead"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.planAhead,
-                  { opacity: pressed ? 0.5 : 1 },
-                ]}
-              >
-                <AppText variant="footnote" color={theme.accent}>
-                  Plan ahead
-                </AppText>
-                <Chevron color={theme.accent} theme={theme} size={13} />
-              </Pressable>
+              <View style={styles.headerActions}>
+                {/* Only once the day has an hour to show, or once you
+                    are already in the grid and need the way back. A
+                    toggle whose other side is an empty ruler is a
+                    control offering nothing, and the checklist is the
+                    app for anyone who never times anything. */}
+                {showsGrid ? (
+                  <View style={styles.layoutToggle}>
+                    <Segmented
+                      segments={LAYOUTS}
+                      value={dayLayout}
+                      onChange={(next) => {
+                        setDayLayoutState(next);
+                        void setDayLayout(next);
+                      }}
+                      accent={theme.accent}
+                      theme={theme}
+                      label="How to show the day"
+                    />
+                  </View>
+                ) : null}
+                <Pressable
+                  onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Plan ahead"
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.planAhead,
+                    { opacity: pressed ? 0.5 : 1 },
+                  ]}
+                >
+                  <AppText variant="footnote" color={theme.accent}>
+                    Plan ahead
+                  </AppText>
+                  <Chevron color={theme.accent} theme={theme} size={13} />
+                </Pressable>
+              </View>
             ) : null}
           </View>
 
@@ -601,6 +803,21 @@ export default function TodayScreen() {
             {day.kind === "rest" ? (
               <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
                 Nothing counts today; anything you do still logs.
+              </AppText>
+            ) : null}
+
+            {/* A rest day (ADR-0037): automatic on a day that asks
+                nothing, never offered or chosen. Said once, plainly,
+                as what the day is — not as a reward or a warning. */}
+            {day.restDay ? (
+              <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
+                Nothing's due — a rest day. It starts at 70; activities
+                add up to 30, and anything you do early counts on top.
+              </AppText>
+            ) : day.nothingDue && day.kind !== "rest" ? (
+              <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
+                Nothing's due today. Do something from later in the week
+                and it becomes a rest day — 70, plus what you did.
               </AppText>
             ) : null}
 
@@ -687,7 +904,36 @@ export default function TodayScreen() {
                     targets too, which is the point — "do this in the
                     afternoon" matters most when the afternoon is
                     empty. */}
-                {arrangeable.length > 0 ? (
+                {dayLayout === "grid" ? (
+                  <DayGrid
+                    tasks={gridTasks}
+                    hueFor={hueFor}
+                    theme={theme}
+                    fontScale={fontScale}
+                    // A line for where you are, and only on the day you
+                    // are actually in. On any other day it would point
+                    // at an hour that has nothing to do with it.
+                    nowMinute={day.date === day.today ? minuteOfToday() : null}
+                    onPress={(t) => void onToggle(t)}
+                    pooledByWindow={pooledByWindow}
+                    onPlanWindow={
+                      day.editable
+                        ? (w, _own, carried) => {
+                            const existing = pools.find(
+                              (p) => windowKey(p) === windowKey(w),
+                            );
+                            setPlanning({
+                              window: w,
+                              chosen: existing?.taskIds ?? [],
+                              plannedCount: existing?.plannedCount ?? 1,
+                              poolId: existing?.id ?? null,
+                              carried,
+                            });
+                          }
+                        : undefined
+                    }
+                  />
+                ) : arrangeable.length > 0 ? (
                   <SectionedChecklist
                     sections={arrangeable.map((s) => ({
                       key: s.key,
@@ -743,6 +989,11 @@ export default function TodayScreen() {
                               ? () => setTaggingTask(t)
                               : undefined
                           }
+                          onPartial={
+                            t.allowsPartial && day.editable && t.progress < 1
+                              ? () => setPartialTask(t)
+                              : undefined
+                          }
                           onMove={
                             day.editable && !t.completedToday
                               ? () => setMovingTask(t)
@@ -773,11 +1024,15 @@ export default function TodayScreen() {
                 >
                   <Pressable
                     onPress={() =>
-                      setCollapsed((prev) => ({ ...prev, [s.key]: !prev[s.key] }))
+                      setCollapsed((prev) => ({ ...prev, [s.key]: !isCollapsed(s.key) }))
                     }
                     accessibilityRole="button"
-                    accessibilityState={{ expanded: !collapsed[s.key] }}
-                    accessibilityLabel={`${s.label}, ${s.pts} points`}
+                    accessibilityState={{ expanded: !isCollapsed(s.key) }}
+                    accessibilityLabel={
+                      s.count !== undefined && ahead === null
+                        ? `${s.label}, ${s.count} ${s.count === 1 ? "task" : "tasks"}`
+                        : `${s.label}, ${s.pts} points`
+                    }
                     hitSlop={{ top: 6, bottom: 6 }}
                     style={styles.sectionHeader}
                   >
@@ -786,31 +1041,45 @@ export default function TodayScreen() {
                         {s.label}
                       </AppText>
                       <Disclosure
-                        open={collapsed[s.key] !== true}
+                        open={!isCollapsed(s.key)}
                         theme={theme}
                         size={13}
                       />
                     </View>
                     <AppText variant="caption" color={theme.muted} tabular>
-                      {s.pts} pts
+                      {s.count !== undefined && ahead === null
+                        ? `${s.count} ${s.count === 1 ? "task" : "tasks"}`
+                        : `${s.pts} pts`}
                     </AppText>
                   </Pressable>
-                  {collapsed[s.key]
+                  {isCollapsed(s.key)
                     ? null
                     : s.tasks.map((t) => (
                         <Animated.View key={t.id} layout={layout}>
                           <TaskRow
                             task={t}
                             hue={hueFor(t)}
-                            disabled={!day.editable}
+                            disabled={
+                              !day.editable ||
+                              (t.doneAheadOn !== null &&
+                                !isEditable(t.doneAheadOn, day.today))
+                            }
                             onToggle={() => void onToggle(t)}
                             onTag={
                               t.completedToday && day.editable && day.communalUnits.length > 0
                                 ? () => setTaggingTask(t)
                                 : undefined
                             }
+                            onPartial={
+                              t.allowsPartial &&
+                              day.editable &&
+                              t.progress < 1 &&
+                              t.doneAheadOn === null
+                                ? () => setPartialTask(t)
+                                : undefined
+                            }
                             onMove={
-                              day.editable && !t.completedToday
+                              day.editable && !isDone(t)
                                 ? () => setMovingTask(t)
                                 : undefined
                             }
@@ -1006,6 +1275,109 @@ export default function TodayScreen() {
             </View>
           </Modal>
 
+          {planning ? (
+            <WindowSheet
+              visible
+              window={planning.window}
+              // Only open work: a window is a plan for what you have
+              // not done yet, and offering something already ticked
+              // would be offering to plan the past.
+              candidates={todayTasks.filter(
+                (t) => !planning.carried.includes(t.id),
+              )}
+              carried={allTasks.filter((t) => planning.carried.includes(t.id))}
+              chosen={planning.chosen}
+              plannedCount={planning.plannedCount}
+              hueFor={hueFor}
+              accent={theme.accent}
+              theme={theme}
+              onToggle={(taskId) =>
+                setPlanning((prev) =>
+                  prev === null
+                    ? prev
+                    : {
+                        ...prev,
+                        chosen: prev.chosen.includes(taskId)
+                          ? prev.chosen.filter((id) => id !== taskId)
+                          : [...prev.chosen, taskId],
+                      },
+                )
+              }
+              onPlannedCountChange={(plannedCount) =>
+                setPlanning((prev) => (prev === null ? prev : { ...prev, plannedCount }))
+              }
+              onClose={() => setPlanning(null)}
+              onSave={() => {
+                const p = planning;
+                setPlanning(null);
+                void (async () => {
+                  if (p.poolId !== null) {
+                    await updatePool(p.poolId, {
+                      taskIds: p.chosen,
+                      plannedCount: p.plannedCount,
+                    });
+                  } else {
+                    await createPool({
+                      localDate: day.date,
+                      taskIds: p.chosen,
+                      plannedCount: p.plannedCount,
+                      afterTaskId: p.window.afterTaskId,
+                      partOfDay: p.window.partOfDay,
+                    });
+                  }
+                  await reload(day.date);
+                })();
+              }}
+              onClear={
+                planning.poolId === null
+                  ? undefined
+                  : () => {
+                      const id = planning.poolId;
+                      setPlanning(null);
+                      if (id !== null) {
+                        void deletePool(id).then(() => reload(day.date));
+                      }
+                    }
+              }
+            />
+          ) : null}
+
+          {partialTask ? (
+            <PartialSheet
+              visible
+              task={partialTask}
+              accent={hueFor(partialTask)}
+              theme={theme}
+              onClose={() => setPartialTask(null)}
+              onPick={(fraction) => {
+                const t = partialTask;
+                setPartialTask(null);
+                void Haptics.selectionAsync();
+                void setCompletionFraction(t.id, day.date, fraction).then(() =>
+                  reload(day.date),
+                );
+              }}
+              onClear={() => {
+                const t = partialTask;
+                setPartialTask(null);
+                void toggleCompletion(t.id, day.date).then(() =>
+                  reload(day.date),
+                );
+              }}
+              // The gesture's older job, kept reachable rather than
+              // taken over (ADR-0024 §3).
+              onMove={
+                partialTask.completedToday
+                  ? undefined
+                  : () => {
+                      const t = partialTask;
+                      setPartialTask(null);
+                      setMovingTask(t);
+                    }
+              }
+            />
+          ) : null}
+
           {movingTask ? (
             <MoveTaskSheet
               visible
@@ -1143,6 +1515,16 @@ const styles = StyleSheet.create({
     gap: 2,
     minHeight: 32,
   },
+  /** The toggle and the planner share the row under the dates rather
+   *  than taking one each — the space was already there. */
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.md,
+  },
+  /** Bounded so two words do not stretch to half the screen. */
+  layoutToggle: { flex: 1, maxWidth: 180 },
   /** Icon and label as one unit, so the pair never wraps apart. */
   recordAction: { flexDirection: "row", alignItems: "center", gap: 4 },
   recordButtons: {

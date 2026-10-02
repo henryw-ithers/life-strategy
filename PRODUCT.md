@@ -80,6 +80,15 @@ guideline.
 5. **The log is a record of a life.** Over time, memories (journals,
    photos, special days, achievements) outrank metrics in what the
    app resurfaces.
+6. **Granularity is the user's.** The app supports planning a day to
+   the minute and planning it not at all, and neither is the lesser
+   use. Defaults sit at the light end — `anytime` is first-class,
+   part-of-day is the default, nothing requires a time — and every step
+   toward precision is offered while none is required. The opinion
+   lives in the defaults; the ceiling belongs to the user. (Added
+   2026-09-11. It extends principle 4 into a dimension it never
+   covered, and it is why principle 2 is a statement about what the
+   daily surface *defaults to*, not a cap on what it permits.)
 
 ## Accessibility & Inclusion
 

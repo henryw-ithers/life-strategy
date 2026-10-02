@@ -1,0 +1,140 @@
+/**
+ * What a checklist row says under its title.
+ */
+import { describe, expect, it } from "vitest";
+
+import {
+  countsRuns,
+  doneAheadLabel,
+  progressLabel,
+  rowCaption,
+  type CaptionTask,
+} from "../rowCaption";
+
+const weekly = (over: Partial<CaptionTask> = {}): CaptionTask => ({
+  timesPerWeek: 5,
+  band: "week",
+  completedToday: false,
+  doneCount: 2,
+  goalCount: 5,
+  pointsIfCompletedNow: 4,
+  streak: null,
+  progress: 0,
+  allowsPartial: false,
+  oneOffSize: null,
+  commitment: false,
+  doneAheadOn: null,
+  ...over,
+});
+
+describe("the week's count", () => {
+  it("still reads on an ordinary counted task", () => {
+    expect(rowCaption(weekly())).toBe("3rd of 5 this week");
+    expect(rowCaption(weekly({ completedToday: true }))).toBe("2nd of 5 this week");
+  });
+
+  it("is gone from a part-credit task, which is measured by progress", () => {
+    // Henry, 2026-09-30: why would "3 of 5 this week" exist here?
+    expect(countsRuns(weekly({ allowsPartial: true }))).toBe(false);
+    expect(rowCaption(weekly({ allowsPartial: true }))).toBeNull();
+    expect(
+      rowCaption(weekly({ allowsPartial: true, band: "doneThisWeek", doneCount: 5 })),
+    ).toBeNull();
+  });
+
+  it("is gone from a one-off, which has no week", () => {
+    expect(rowCaption(weekly({ timesPerWeek: 1, goalCount: 1, doneCount: 0, oneOffSize: "big" }))).toBeNull();
+  });
+
+  it("is gone from commitment work, which is scheduled rather than counted", () => {
+    expect(rowCaption(weekly({ commitment: true, timesPerWeek: 3, goalCount: 3 }))).toBeNull();
+    // Progress still leads on a part-done commitment task.
+    expect(
+      rowCaption(weekly({ commitment: true, allowsPartial: true, progress: 0.5 })),
+    ).toBe("Half done");
+  });
+
+  it("never shows on a daily task", () => {
+    expect(rowCaption(weekly({ timesPerWeek: 7, band: "due" }))).toBeNull();
+  });
+});
+
+describe("progress", () => {
+  it("leads while a task is part done", () => {
+    expect(rowCaption(weekly({ allowsPartial: true, progress: 0.5 }))).toBe("Half done");
+    // Even where a count would otherwise have shown.
+    expect(rowCaption(weekly({ progress: 0.25 }))).toBe("A quarter done");
+  });
+
+  it("says nothing at zero rather than naming what is left", () => {
+    expect(progressLabel(0)).toBeNull();
+  });
+
+  it("counts up in every label", () => {
+    for (const p of [0.25, 0.5, 0.75]) {
+      expect(progressLabel(p)).toMatch(/done$/);
+      expect(progressLabel(p)).not.toMatch(/left|remaining|to go|missing/i);
+    }
+  });
+});
+
+describe("a daily task's run", () => {
+  const daily = (streak: number | null, over: Partial<CaptionTask> = {}) =>
+    weekly({ timesPerWeek: 7, band: "due", streak, ...over });
+
+  it("shows from a week up, and not before", () => {
+    expect(rowCaption(daily(6))).toBeNull();
+    expect(rowCaption(daily(7))).toBe("7 days");
+  });
+
+  it("still shows on a part-credit daily task", () => {
+    // Part credit drops the count, not the run: showing up counts.
+    expect(rowCaption(daily(12, { allowsPartial: true }))).toBe("12 days");
+  });
+
+  it("gives way to progress on a part-done day", () => {
+    expect(rowCaption(daily(12, { allowsPartial: true, progress: 0.75 }))).toBe(
+      "Three quarters done",
+    );
+  });
+});
+
+describe("a session done ahead (ADR-0032 §4)", () => {
+  it("says which day it was done on", () => {
+    // 2026-09-29 is a Tuesday.
+    expect(doneAheadLabel("2026-09-29")).toBe("Done ahead · Tue");
+  });
+
+  it("leads the row, ahead of anything else", () => {
+    expect(
+      rowCaption(weekly({ commitment: true, doneAheadOn: "2026-09-29", progress: 0.5 })),
+    ).toBe("Done ahead · Tue");
+  });
+
+  it("names the day without ever reading as late", () => {
+    expect(doneAheadLabel("2026-10-04")).not.toMatch(/late|missed|overdue/i);
+  });
+});
+
+describe("events (ADR-0038)", () => {
+  const event = (over: Partial<CaptionTask> = {}) =>
+    weekly({
+      kind: "event",
+      startMinute: 9 * 60,
+      endMinute: 11 * 60,
+      location: "Room 101",
+      ...over,
+    });
+
+  it("says when and where, not a count", () => {
+    expect(rowCaption(event())).toBe("09:00–11:00 · Room 101");
+  });
+
+  it("says just when, with no place", () => {
+    expect(rowCaption(event({ location: null }))).toBe("09:00–11:00");
+  });
+
+  it("still leads with done ahead, which is the less obvious fact", () => {
+    expect(rowCaption(event({ doneAheadOn: "2026-09-28" }))).toMatch(/Done ahead/);
+  });
+});

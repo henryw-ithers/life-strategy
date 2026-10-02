@@ -40,7 +40,15 @@ const MAX_PULL = -132;
 interface TaskRowProps {
   title: string;
   timesPerWeek: number;
-  pointValue: number;
+  /**
+   * What it is worth, or null when it has no one worth. A commitment
+   * task is priced by the day it lands on (ADR-0032), so a stored
+   * figure would be a number true on no particular day — the row leaves
+   * the column empty rather than show a 0 that reads as "worthless".
+   */
+  pointValue: number | null;
+  /** Leads the detail line: the part a commitment task is filed under. */
+  context?: string | null;
   /** Other units this task also serves, for the secondary line. */
   otherUnitNames: string[];
   /** `"1,3,5"`, or null for flexible (ADR-0024). */
@@ -57,6 +65,7 @@ interface TaskRowProps {
 }
 
 export function TaskRow({
+  context = null,
   title,
   timesPerWeek,
   pointValue,
@@ -141,6 +150,7 @@ export function TaskRow({
    * spend and it goes to whatever the task actually has.
    */
   const facts = [
+    context,
     formatWeekdaySummary(parseWeekdays(plannedWeekdays)),
     partOfDay ? PART_OF_DAY_LABEL[partOfDay] : null,
     otherUnitNames.length > 0 ? `also ${otherUnitNames.join(" · ")}` : null,
@@ -179,7 +189,8 @@ export function TaskRow({
             formatFrequency(timesPerWeek),
             formatWeekdaySummary(parseWeekdays(plannedWeekdays)),
             partOfDay ? PART_OF_DAY_LABEL[partOfDay] : null,
-            `${pointValue} points`,
+            context,
+            pointValue === null ? null : `${pointValue} points`,
             otherUnitNames.length
               ? `also counts toward ${otherUnitNames.join(" and ")}`
               : null,
@@ -227,7 +238,7 @@ export function TaskRow({
             {formatFrequencyShort(timesPerWeek)}
           </AppText>
           <AppText color={theme.ink} tabular style={styles.pts}>
-            {pointValue}
+            {pointValue ?? ""}
           </AppText>
         </Animated.View>
       </GestureDetector>

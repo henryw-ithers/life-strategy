@@ -160,6 +160,13 @@ asked*:
 | Special | How did the plan go, and how was the day? | Tasks + rating bonus |
 | Day off | Not asked. | None; excluded |
 
+> **Amended 2026-10-01 by [ADR-0037](0037-rest-days.md).** A day with
+> nothing due — and a plan behind it — is now a **rest day**,
+> automatically: 70, with activities filling the last 30 rather than
+> `UNPLANNED_CAP`. It is not a fourth kind and is never chosen; the
+> table above is unchanged, and a day off on such a day stays a day
+> off.
+
 ### 5. Activity credit is denominated in the unit's daily share
 
     pointsCredited = round(SIZE_RATE[size] × unitDailyShare)
@@ -248,6 +255,10 @@ A settled day is now a fact rather than a function of today's weights.
 6. [x] Tests: pool never exceeds `UNPLANNED_CAP`; extra runs are
        exempt; a special day with no completions scores its bonus
        alone; an untasked unit credits zero.
-7. [ ] Make "Day off" discoverable enough to carry its new load — the
+7. [x] Make "Day off" discoverable enough to carry its new load — the
        consequence above is the one most likely to bite. Needs a real
-       look at the day-kind sheet, not just the rename.
+       look at the day-kind sheet, not just the rename. *(Decided
+       2026-10-02, Henry: **leave it behind the ⋯ beside the day's
+       score.** Rest days (ADR-0037) now cover days with nothing due
+       automatically, so Day off carries only the real exceptions —
+       illness, travel, a wedding — and one tap away is enough.)*

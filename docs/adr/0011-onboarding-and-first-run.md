@@ -152,7 +152,7 @@ wanted.
 >   it read as a broken score. The figures come from `ROUTINE_BAND` and
 >   `VARIABLE_BAND` at render, so the copy cannot outlive the constants.
 >   The screen closes with parts of day
->   ([ADR-0024](0024-planning-a-task-when-you-create-it.md)), the other
+>   ([ADR-0024](0024-day-planning-is-intention.md)), the other
 >   mechanic that shipped unexplained.
 >
 > **This is the same bet as the first-tasks deletion**, not a reversal

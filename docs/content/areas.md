@@ -49,7 +49,7 @@ What you do for a living and what it pays for.
 
 ## home-environment — Environment
 
-The conditions you live in, and the upkeep that keeps them liveable.
+Where you live and what surrounds you, and the upkeep that keeps it liveable.
 
 - Living space: the state of where you live.
 - Nature: time outdoors, in whatever form you get it.

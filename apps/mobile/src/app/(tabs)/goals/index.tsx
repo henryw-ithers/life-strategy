@@ -1,7 +1,17 @@
 /**
- * The Goals screen: every unit's active, paused, and past goals
- * (ADR-0007). Goals sit between a unit and its tasks — optional,
- * temporary, and never scored directly.
+ * The Goals screen, in two halves: **Goals** and **Commitments**.
+ *
+ * Goals sit between a unit and its tasks (ADR-0007) — optional,
+ * temporary, never scored directly. Commitments are the other kind of
+ * thing you are in the middle of: a course, a job, a team, with a
+ * schedule and its own share of a scheduled day (ADR-0035).
+ *
+ * They share a tab because they are the same question asked twice —
+ * *what am I currently committed to* — and because the tab bar is the
+ * most expensive space in the app and neither half earns a sixth
+ * destination on its own. A segmented control rather than two screens:
+ * the two lists are peers, and switching between peers is what a
+ * segment is for.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, type Href } from "expo-router";
@@ -16,6 +26,13 @@ import {
 } from "react-native";
 
 import { AddGoalModal } from "../../../components/goals/AddGoalModal";
+import { BandSheet } from "../../../components/commitments/BandSheet";
+import {
+  CommitmentSheet,
+  type CommitmentSheetMode,
+} from "../../../components/commitments/CommitmentSheet";
+import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
+import { Segmented } from "../../../components/plan/Segmented";
 import { AppText } from "../../../components/ui/AppText";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
@@ -23,11 +40,17 @@ import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import {
+  loadCommitmentsScreen,
+  type CommitmentsScreenData,
+} from "../../../db/commitments";
+import { createCommitment } from "../../../db/commitmentWrites";
+import {
   createGoal,
   loadGoals,
   type GoalListItem,
   type GoalsUnit,
 } from "../../../db/goals";
+import { setCommitmentBand, clearCommitmentBand } from "../../../db/settings";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 
@@ -55,9 +78,20 @@ export default function GoalsScreen() {
   const [adding, setAdding] = useState(false);
   const [addingTo, setAddingTo] = useState<GoalsUnit | null>(null);
   const [addingToAreaId, setAddingToAreaId] = useState<string | null>(null);
+  const [tab, setTab] = useState<"goals" | "commitments">("goals");
+  const [commitments, setCommitments] = useState<CommitmentsScreenData | null>(
+    null,
+  );
+  const [bandOpen, setBandOpen] = useState(false);
+  const [sheetMode, setSheetMode] = useState<CommitmentSheetMode | null>(null);
 
   const reload = useCallback(async () => {
-    setAreas((await loadGoals()).areas);
+    const [goals, screen] = await Promise.all([
+      loadGoals(),
+      loadCommitmentsScreen(),
+    ]);
+    setAreas(goals.areas);
+    setCommitments(screen);
   }, []);
 
   /** Every unit a goal can hang off, flattened for the sheet's picker. */
@@ -76,23 +110,55 @@ export default function GoalsScreen() {
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScreenHeader title="Goals" theme={theme} />
 
+      <View style={styles.segment}>
+        <Segmented
+          segments={[
+            { value: "goals" as const, label: "Goals" },
+            { value: "commitments" as const, label: "Commitments" },
+          ]}
+          value={tab}
+          onChange={setTab}
+          accent={theme.accent}
+          theme={theme}
+          label="What to show"
+        />
+      </View>
+
       {/* Furniture, like the header above it and the add bar on Tasks.
           It is the only way to start a goal in a unit that has none,
           now that the list shows goals rather than every place one
           could go. */}
       {areas !== null ? (
         <View style={styles.addBar}>
-          <Button
-            variant="tonal"
-            icon="add"
-            label="Add goal"
-            onPress={() => {
-              setAdding(true);
-              setAddingTo(null);
-              setAddingToAreaId(null);
-            }}
-            theme={theme}
-          />
+          {tab === "goals" ? (
+            <Button
+              variant="tonal"
+              icon="add"
+              label="Add goal"
+              onPress={() => {
+                setAdding(true);
+                setAddingTo(null);
+                setAddingToAreaId(null);
+              }}
+              theme={theme}
+            />
+          ) : commitments?.canAddMore === true ? (
+            <Button
+              variant="tonal"
+              icon="add"
+              label="Add commitment"
+              onPress={() => setSheetMode({ kind: "commitment" })}
+              theme={theme}
+            />
+          ) : (
+            /* The cap says why rather than showing a dead control.
+               A disabled button with no explanation is the version of
+               this that makes people tap twice and give up. */
+            <AppText variant="caption" color={theme.muted}>
+              Three commitments is the most at once. Archive one to add
+              another.
+            </AppText>
+          )}
         </View>
       ) : null}
 
@@ -101,6 +167,20 @@ export default function GoalsScreen() {
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : areas === null ? (
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
+        ) : tab === "commitments" ? (
+          commitments === null ? null : (
+            <CommitmentsList
+              band={commitments.band}
+              commitments={commitments.commitments}
+              archived={commitments.archived}
+              hue={theme.areas["work-money"] ?? theme.accent}
+              theme={theme}
+              onOpenBand={() => setBandOpen(true)}
+              onOpen={(id) =>
+                router.push(`/goals/commitment/${id}` as Href)
+              }
+            />
+          )
         ) : (
           areas.every((a) => a.units.every((u) => u.goals.length === 0)) ? (
             <View style={styles.empty}>
@@ -213,6 +293,41 @@ export default function GoalsScreen() {
         )}
       </ScrollView>
 
+      {bandOpen ? (
+        <BandSheet
+          visible
+          band={commitments?.band ?? null}
+          commitments={commitments?.commitments.length ?? 0}
+          theme={theme}
+          onClose={() => setBandOpen(false)}
+          onSave={async (band) => {
+            if (band === null) await clearCommitmentBand();
+            else await setCommitmentBand(band);
+            setBandOpen(false);
+            await reload();
+          }}
+        />
+      ) : null}
+
+      {sheetMode !== null ? (
+        <CommitmentSheet
+          visible
+          mode={sheetMode}
+          others={(commitments?.commitments ?? []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            percent: c.sharePercent,
+          }))}
+          theme={theme}
+          onClose={() => setSheetMode(null)}
+          onSave={async ({ name, percent, usesSubCommitments }) => {
+            await createCommitment({ name, percent, usesSubCommitments });
+            setSheetMode(null);
+            await reload();
+          }}
+        />
+      ) : null}
+
       {adding ? (
         <AddGoalModal
           visible
@@ -249,6 +364,10 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
+  segment: {
+    paddingHorizontal: space.screen,
+    paddingBottom: space.md,
+  },
   addBar: { paddingHorizontal: space.screen, paddingBottom: space.sm },
   empty: { marginTop: space.xxxl, gap: space.sm },
   emptyText: { maxWidth: 340 },
@@ -280,7 +399,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   nudge: { marginTop: space.xs },
-  emptyGoal: { marginTop: space.xs, marginBottom: space.xs },
   goalRow: {
     flexDirection: "row",
     alignItems: "center",

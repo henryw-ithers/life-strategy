@@ -8,7 +8,7 @@
  * provides (ADR-0024 §1, reaffirmed under challenge in ADR-0025 §7).
  */
 
-import { weekOfFortnight } from "@glide/scoring";
+import { PART_OF_DAY_BOUNDS, ROLLOVER_HOUR, weekOfFortnight } from "@glide/scoring";
 
 import { MIN_TIMES_PER_WEEK } from "./frequency";
 
@@ -195,6 +195,8 @@ export interface DayOrderable {
   timesPerWeek: number;
   fortnightOffset?: number;
   dayOrder?: number | null;
+  /** A one-off's planned day, when it has one. */
+  oneOffDate?: string | null;
 }
 
 /**
@@ -208,11 +210,19 @@ export interface DayOrderable {
  *
  * Flexible tasks are never "elsewhere" — an unpinned task belongs to
  * whichever day you give it.
+ *
+ * **A one-off planned for a later day is elsewhere too** (2026-09-30).
+ * Commitment work can now be done ahead of its day and paid for it
+ * (ADR-0032 §4), so a Friday assignment has to be somewhere you can
+ * tick it on Tuesday — beside Friday's pinned lecture, not among
+ * Tuesday's own work. A one-off dated today or earlier is outstanding
+ * and belongs to today.
  */
 export function pinnedElsewhere(
   task: DayOrderable,
   localDate: string,
 ): boolean {
+  if (task.oneOffDate != null) return task.oneOffDate > localDate;
   return (
     parseWeekdays(task.plannedWeekdays).length > 0 && !isDueOn(task, localDate)
   );
@@ -283,3 +293,46 @@ export function isoWeekday(localDate: string): Weekday {
  */
 export const COMMUNAL_TASK_NOTE =
   "Scores like anywhere else — and you can press and hold any completion to also count it here.";
+
+// ── Carry-forward (ADR-0033 §2) ─────────────────────────────────────
+
+/**
+ * Which part of the day it is, from minutes past midnight.
+ *
+ * Before the 3am rollover it is still the previous day's evening —
+ * the day has not turned over, and its last window is the one open.
+ */
+export function partNow(minuteOfDay: number): PartOfDay {
+  if (minuteOfDay < ROLLOVER_HOUR * 60) return "evening";
+  if (minuteOfDay < PART_OF_DAY_BOUNDS.afternoon.start) return "morning";
+  if (minuteOfDay < PART_OF_DAY_BOUNDS.evening.start) return "afternoon";
+  return "evening";
+}
+
+/**
+ * Where unfinished work in `part` shows, once `now` has passed it.
+ *
+ * **Unfinished work carries forward to the next window, always**
+ * (ADR-0033 §2; Henry, 2026-10-01). A morning task not done by noon is
+ * afternoon work now, and sits there rather than in a morning that has
+ * gone. A display rule, never a write: the task keeps its own part of
+ * day, so tomorrow it is morning work again, and nothing records that
+ * the morning was missed.
+ *
+ * `now` is null on any day but today, where nothing has ended yet or
+ * everything has. *Anytime* has no window to leave.
+ */
+export function carriedPart(
+  part: PartOfDay | null,
+  now: PartOfDay | null,
+): PartOfDay | null {
+  if (part === null || now === null) return part;
+  return PART_OF_DAY_ORDER.indexOf(part) < PART_OF_DAY_ORDER.indexOf(now)
+    ? now
+    : part;
+}
+
+/** Whether a part of the day is already over, seen from `now`. */
+export function isPast(part: PartOfDay, now: PartOfDay | null): boolean {
+  return now !== null && PART_OF_DAY_ORDER.indexOf(part) < PART_OF_DAY_ORDER.indexOf(now);
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `task` ADD `moved_from_unit_id` text;

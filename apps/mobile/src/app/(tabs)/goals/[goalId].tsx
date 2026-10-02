@@ -48,6 +48,7 @@ import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
 import { AddExistingTaskSheet, type AttachableTask } from "../../../components/goals/AddExistingTaskSheet";
+import { MenuSheet } from "../../../components/ui/MenuSheet";
 import { AddTaskModal } from "../../../components/plan/AddTaskModal";
 import { formatFrequency } from "../../../components/plan/frequency";
 import type { PickableUnit } from "../../../components/plan/UnitPicker";
@@ -551,7 +552,8 @@ export default function GoalDetailScreen() {
             {goal.tasks.length > 0 || editable ? (
               <Group
                 theme={theme}
-                title={goal.conditions.length > 0 ? "Not under a condition" : "Tasks"}
+                // Named for what the group is, not for what it is not.
+                title={goal.conditions.length > 0 ? "Other tasks" : "Tasks"}
                 flush
               >
                 {goal.tasks.map((t, i) => (
@@ -651,7 +653,7 @@ export default function GoalDetailScreen() {
                     <>
                       <GroupDivider theme={theme} />
                       <AppText variant="caption" color={theme.muted} style={styles.conditionEmpty}>
-                        Named, with nothing doing it yet.
+                        Nothing under this yet.
                       </AppText>
                     </>
                   ) : null}
@@ -699,7 +701,8 @@ export default function GoalDetailScreen() {
                   value={conditionTitle}
                   onChangeText={setConditionTitle}
                   accessibilityLabel="Condition"
-                  placeholder={editingCondition ? "Condition" : "What has to be true?"}
+                  // The same prompt adding or renaming: it is one job.
+                  placeholder="What has to be true?"
                   placeholderTextColor={theme.muted}
                   autoFocus
                   returnKeyType="done"
@@ -894,7 +897,15 @@ export default function GoalDetailScreen() {
                 homeUnitId={goal.unitId}
                 areaColors={theme.areas}
                 theme={theme}
-                onCommit={async (title, timesPerWeek, unitIds, plannedWeekdays, partOfDay) => {
+                onCommit={async (
+                  title,
+                  timesPerWeek,
+                  unitIds,
+                  plannedWeekdays,
+                  partOfDay,
+                  oneOff,
+                  detail,
+                ) => {
                   await addTask(
                     unitIds,
                     title,
@@ -902,8 +913,9 @@ export default function GoalDetailScreen() {
                     plannedWeekdays,
                     partOfDay,
                     goal.id,
-                    null,
+                    oneOff,
                     addingTask.conditionId,
+                    detail,
                   );
                   await reload();
                 }}
@@ -952,7 +964,9 @@ export default function GoalDetailScreen() {
                   // The tasks survive: a condition is a grouping, and
                   // removing a grouping must never delete the work in it
                   // (ADR-0030, `deleteCondition`).
-                  label: "Remove condition",
+                  // Said on the button, because the button is the only
+                  // place a person decides whether it is safe to press.
+                  label: "Remove condition (keeps its tasks)",
                   destructive: true,
                   onPress: () => {
                     const target = conditionMenu;
@@ -995,7 +1009,12 @@ export default function GoalDetailScreen() {
                 ...(movingTask?.conditionId
                   ? [
                       {
-                        label: "Take out of its condition",
+                        // Names the condition, like the "Move to" rows
+                        // beside it.
+                        label: ((title) =>
+                          title ? `Move out of “${title}”` : "Move out of its condition")(
+                          goal.conditions.find((c) => c.id === movingTask.conditionId)?.title,
+                        ),
                         onPress: () => {
                           const t = movingTask;
                           setMovingTask(null);
@@ -1080,7 +1099,7 @@ export default function GoalDetailScreen() {
               animationType="fade"
               onRequestClose={() => setDeleting(false)}
             >
-              <View style={styles.menuBackdrop}>
+              <View style={styles.confirmBackdrop}>
                 <View
                   style={[
                     styles.confirmCard,
@@ -1123,82 +1142,6 @@ export default function GoalDetailScreen() {
         )}
       </ScrollView>
     </View>
-  );
-}
-
-/**
- * The press-and-hold menu: a centred card over a scrim, matching the
- * day record's own so one gesture has one look app-wide.
- *
- * Extracted because this screen now raises three of them — conditions,
- * tasks and legacy checkpoints — and three hand-rolled copies of the
- * same modal is how vocabularies drift apart.
- */
-function MenuSheet({
-  visible,
-  rows,
-  theme,
-  onClose,
-  title,
-}: {
-  visible: boolean;
-  rows: { label: string; onPress: () => void; destructive?: boolean; disabled?: boolean }[];
-  theme: ThemeTokens;
-  onClose: () => void;
-  title?: string;
-}) {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      statusBarTranslucent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable
-        style={styles.menuBackdrop}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      >
-        <View
-          style={[
-            styles.menuCard,
-            { backgroundColor: theme.canvas, borderColor: theme.hairline },
-          ]}
-        >
-          {title ? (
-            <AppText variant="caption" color={theme.muted} style={styles.menuTitle} numberOfLines={1}>
-              {title}
-            </AppText>
-          ) : null}
-          {rows.map((row) => (
-            <Pressable
-              key={row.label}
-              onPress={row.onPress}
-              disabled={row.disabled}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: row.disabled }}
-              style={({ pressed }) => [
-                styles.menuRow,
-                { opacity: row.disabled ? 0.35 : pressed ? 0.5 : 1 },
-              ]}
-            >
-              <AppText color={row.destructive ? theme.danger : theme.ink}>
-                {row.label}
-              </AppText>
-            </Pressable>
-          ))}
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.menuRow, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <AppText color={theme.muted}>Cancel</AppText>
-          </Pressable>
-        </View>
-      </Pressable>
-    </Modal>
   );
 }
 
@@ -1275,27 +1218,13 @@ const styles = StyleSheet.create({
 
   /** Centred card over a scrim, matching the day record's own
    *  press-and-hold menu so one gesture has one look app-wide. */
-  menuBackdrop: {
+  confirmBackdrop: {
     flex: 1,
     backgroundColor: SCRIM,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: space.screen,
   },
-  menuCard: {
-    width: "100%",
-    maxWidth: 320,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: space.xs,
-  },
-  menuTitle: {
-    textAlign: "center",
-    paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-    paddingBottom: space.xs,
-  },
-  menuRow: { minHeight: 48, alignItems: "center", justifyContent: "center" },
   confirmCard: {
     width: "100%",
     maxWidth: 380,

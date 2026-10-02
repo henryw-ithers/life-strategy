@@ -62,6 +62,53 @@ export const lifeUnit = sqliteTable("life_unit", {
   })
     .notNull()
     .default("instrumental"),
+  /**
+   * The commitment this unit sits inside (ADR-0035 §1). Null for all 18
+   * life units and for a commitment itself; set on a **sub-commitment**
+   * — School → COMP2521.
+   *
+   * Two levels only: a sub-commitment may not itself be a parent. That
+   * is enforced at the write seam rather than by the schema, which
+   * cannot express it.
+   *
+   * Sub-commitments **price nothing**. ADR-0032 §3 divides the band
+   * across a commitment's eligible *tasks*, so this column groups and
+   * labels; it never takes a cut. Treat it the way ADR-0021 treats
+   * `area_id` — a soft attribute that may decide colour and grouping
+   * and never a stored score.
+   */
+  parentUnitId: text("parent_unit_id").references(
+    (): AnySQLiteColumn => lifeUnit.id,
+  ),
+  /**
+   * A **commitment's** relative share of the commitment band
+   * (ADR-0032 §3) — School 50, Work 30, Basketball 20. Null on the 18
+   * life units, on sub-commitments, and on any unit that is not a
+   * commitment.
+   *
+   * Relative, not a percentage: shares are normalised at read time
+   * across the commitments that actually hold work on the day being
+   * scored, so a Monday with only School gives School the whole band
+   * rather than leaving the others' shares dead. Since 2026-10-02 the
+   * app writes them as whole percentages summing to 100
+   * (`rebalanceShares`); the engine still reads them only relative to
+   * one another, so older rows that sum to anything keep working.
+   *
+   * The band's own size is a single number and lives in `app_setting`
+   * under `commitment.band` — see `db/settings.ts`.
+   */
+  commitmentShare: real("commitment_share"),
+  /**
+   * Whether a commitment is split into sub-commitments (ADR-0035 §1 as
+   * amended 2026-10-02). On, its work lives in its sub-commitments and
+   * the commitment holds none directly; off, it holds its own work and
+   * has no sub-commitments. Meaningful only on a commitment. A
+   * commitment with live sub-commitments reads as on whatever this
+   * says, so rows written before the column existed need no backfill.
+   */
+  usesSubCommitments: integer("uses_sub_commitments", { mode: "boolean" })
+    .notNull()
+    .default(false),
   archivedAt: text("archived_at"),
   ...timestamps,
 });
@@ -398,6 +445,71 @@ export const task = sqliteTable("task", {
    *  never an alarm colour (PRODUCT.md rules out loss-aversion tricks);
    *  it exists so that rolling forward has a visible edge. */
   oneOffDue: text("one_off_due"),
+  /**
+   * Start and end as **integer minutes from local midnight**, 0–1439,
+   * or null for a task with no clock time (ADR-0036).
+   *
+   * Any task may carry one and **nothing requires one** — part-of-day
+   * stays the default and no flow prompts for a time. Those defaults
+   * are load-bearing: they are the only place the product's opinion
+   * about granularity now lives (PRODUCT.md principle 6).
+   *
+   * Integers rather than `"HH:MM"` because the grid does arithmetic on
+   * them constantly: they sort and compare correctly and cannot be
+   * malformed. `formatMinutes` handles display.
+   *
+   * The rollover hour is 3am (ADR-0004 §1), so these are a position
+   * *within* a day and not a day boundary. Do not confuse the two.
+   */
+  startMinute: integer("start_minute"),
+  endMinute: integer("end_minute"),
+  /**
+   * Effort size (ADR-0026 §1), reusing `activity.size`'s vocabulary so
+   * one scale means the same thing everywhere.
+   *
+   * Optional, and unset rather than `normal` by default: a person who
+   * never wants to think about size should never have to, and an
+   * unsized task behaves exactly as tasks did before this column.
+   *
+   * **Never minutes.** ADR-0024 §6's reasoning stands — a minute
+   * estimate inherits the planning fallacy, which the app cannot
+   * correct without task segmentation it does not have. Window
+   * capacity is a rough fit, not an arithmetic.
+   *
+   * It does **not** price a recurring task (ADR-0026 §2): rank already
+   * does that job, and two mechanisms for one job can disagree. It
+   * feeds fit and display only. One-offs keep pricing by size through
+   * `ONE_OFF_SIZE_RATE`, unchanged.
+   */
+  size: text("size", { enum: ["quick", "normal", "big"] }),
+  /**
+   * Whether this task may be completed partially (ADR-0014 §1).
+   *
+   * A per-task toggle, off by default, rather than the app inferring
+   * which tasks qualify. "Brush teeth, 50%" is meaningless and simply
+   * has it off; the app offers the capability and the user says where
+   * it applies (PRODUCT.md principle 6).
+   */
+  allowsPartial: integer("allows_partial", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  /**
+   * `task` or `event` (ADR-0038). An event is a window of
+   * time you attend — a class, a shift — and so always carries a start
+   * and an end; otherwise it is a task in every way, ticked and paid
+   * like one.
+   */
+  kind: text("kind", { enum: ["task", "event"] }).notNull().default("task"),
+  /** Where an event happens — a room, an address. Free text,
+   *  optional, shown with it (ADR-0038). Null on ordinary tasks. */
+  location: text("location"),
+  /**
+   * The sub-commitment this task lived in before its commitment stopped
+   * using sub-commitments, so turning them back on puts it home again
+   * (ADR-0035 §1 as amended 2026-10-02). Null otherwise, and cleared
+   * once it has gone back.
+   */
+  movedFromUnitId: text("moved_from_unit_id"),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),
@@ -464,6 +576,22 @@ export const taskCompletion = sqliteTable("task_completion", {
   completedAt: text("completed_at").notNull(),
   /** Denormalized at completion time; past days never restate (ADR-0002). */
   pointsEarned: integer("points_earned").notNull(),
+  /**
+   * How much of the task this completion represents: 0.25, 0.5, 0.75 or
+   * 1 (ADR-0014 §2). Defaults to a whole completion, which is what
+   * every row written before partial credit existed was.
+   *
+   * **This is the column ADR-0004 §2 anticipated** — "the
+   * `task_completion` schema anticipates a partial-credit fraction
+   * column" — added once windows made "I worked on it and did not
+   * finish" a visible recurring event rather than an invisible one.
+   *
+   * Progress is the **sum** of a task's fractions, so finishing later
+   * pays only the remainder without any new state that could disagree
+   * with the completion history. `pointsEarned` still denormalizes what
+   * this particular completion paid.
+   */
+  fraction: real("fraction").notNull().default(1),
   ...timestamps,
 });
 
@@ -526,6 +654,62 @@ export const plannedOccurrence = sqliteTable("planned_occurrence", {
 });
 
 // ── Days, grades, and the life log (ADR-0004) ──────────────────────
+
+/**
+ * A window's pool of interchangeable options (ADR-0033 §3).
+ *
+ * Up to three candidate tasks, any of which satisfies the window's
+ * intention. Members are **equal-priced** — a pool holding "write the
+ * essay (8)" beside "do the reading (3)" would have the choice made by
+ * the scoreboard rather than by what the person needs, and equal points
+ * are what make the choice free.
+ *
+ * `plannedCount` is how many the user means to do. It sets the
+ * **divisor** when the band is shared out, not the payout: every member
+ * is worth one slot, so doing more than planned is beyond-plan work
+ * rather than a discount on each.
+ */
+export const pool = sqliteTable("pool", {
+  id: text("id").primaryKey(),
+  /** The date this pool belongs to. A pool is a property of a *window*
+   *  on a day, not of a task, so it does not outlive its date. */
+  localDate: text("local_date").notNull(),
+  /**
+   * Which window on that day, as the commitment whose block it follows
+   * — the cue form (ADR-0036 §3), which survives a timetable change
+   * where a clock time would silently become wrong. Null means a
+   * part-of-day window on a day with no commitments.
+   */
+  afterTaskId: text("after_task_id").references((): AnySQLiteColumn => task.id),
+  /** Which part of the day, when no commitment bounds the window. */
+  partOfDay: text("part_of_day", { enum: ["morning", "afternoon", "evening"] }),
+  /** 1..members. Clamped on write and again in `commitmentPointValues`. */
+  plannedCount: integer("planned_count").notNull().default(1),
+  ...timestamps,
+});
+
+/**
+ * A task's membership of a pool (ADR-0033 §3).
+ *
+ * At most three rows per pool, and **a task appears at most once per
+ * window** — a window holding two pools must not carry the same task in
+ * both, or "every completion pays in full" could be read as ticking one
+ * task twice. Enforced at the write seam.
+ */
+export const poolMember = sqliteTable(
+  "pool_member",
+  {
+    poolId: text("pool_id")
+      .notNull()
+      .references(() => pool.id),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => task.id),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.poolId, t.taskId] })],
+);
 
 export const dayGrade = sqliteTable("day_grade", {
   localDate: text("local_date").primaryKey(),

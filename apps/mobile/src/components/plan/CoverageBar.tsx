@@ -33,8 +33,22 @@
  * No caption explains it. A mostly-filled bar reads as "most of my life
  * is covered" on sight, and the number to its right is the same
  * right-column grammar the area and unit rows below already use.
+ *
+ * **On a day with commitment work, the band leads the bar** (ADR-0032).
+ * The band is that share of the whole day and the life units share
+ * what is left, so drawing the 18 units at full width would overstate
+ * them. The band is drawn first, at its size and in the commitments'
+ * hue, and every area after it is scaled into the remainder. It is
+ * always filled: it divides only among commitments with work today, so
+ * none of it is stranded. Whether it applies comes from
+ * `commitmentBandOn`, the same helper the grade uses; on a free day it
+ * is zero and the bar is exactly main's.
  */
-import { unitCoverage } from "@glide/scoring";
+import {
+  commitmentBandOn,
+  unitCoverage,
+  type CommitmentDay,
+} from "@glide/scoring";
 import { StyleSheet, View } from "react-native";
 
 import type { PlanArea } from "../../db/tasks";
@@ -46,11 +60,17 @@ import { AppText } from "../ui/AppText";
  *  so it is dropped rather than drawn as a sliver. */
 const MIN_VISIBLE_WEIGHT = 1;
 
+/** The hue commitments are drawn in everywhere else. */
+const COMMITMENT_AREA = "work-money";
+
 export function CoverageBar({
   areas,
+  day,
   theme,
 }: {
   areas: PlanArea[];
+  /** Today's commitment day, or null for an ordinary day. */
+  day: CommitmentDay | null;
   theme: ThemeTokens;
 }) {
   const units = areas.flatMap((a) =>
@@ -80,30 +100,47 @@ export function CoverageBar({
     .filter((a) => a.weight >= MIN_VISIBLE_WEIGHT);
   const uncovered = Math.max(0, total - covered.reduce((s, a) => s + a.weight, 0));
 
+  const band = commitmentBandOn(day);
+  /** What the band leaves the life units, as a multiplier. */
+  const scale = (100 - band) / 100;
+  const shown = band + Math.round(coveredWeight * scale);
+
   return (
     <View
       style={styles.root}
       accessible
-      accessibilityLabel={`${coveredWeight} of ${total} points have something planned in them.`}
+      accessibilityLabel={
+        band > 0
+          ? `Today has commitment work, so ${band} of today's points are your commitments. ${coveredWeight} of ${total} points of the rest have something planned in them.`
+          : `${coveredWeight} of ${total} points have something planned in them.`
+      }
     >
       <View style={styles.track}>
+        {band > 0 ? (
+          <View
+            style={[
+              styles.fill,
+              { flex: band, backgroundColor: theme.areas[COMMITMENT_AREA] ?? theme.accent },
+            ]}
+          />
+        ) : null}
         {covered.map((area) => (
           <View
             key={area.id}
             style={[
               styles.fill,
-              { flex: area.weight, backgroundColor: theme.areas[area.id] ?? theme.muted },
+              { flex: area.weight * scale, backgroundColor: theme.areas[area.id] ?? theme.muted },
             ]}
           />
         ))}
         {uncovered > 0 ? (
           <View
-            style={[styles.fill, { flex: uncovered, backgroundColor: theme.hairline }]}
+            style={[styles.fill, { flex: uncovered * scale, backgroundColor: theme.hairline }]}
           />
         ) : null}
       </View>
       <AppText variant="label" color={theme.ink} tabular>
-        {coveredWeight}
+        {shown}
       </AppText>
     </View>
   );

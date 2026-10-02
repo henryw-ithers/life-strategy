@@ -173,10 +173,11 @@ thing the graph cannot show, rather than tweening through it silently.
 4. [x] Surface the scale boundary on the graph.
        *(`GraphSnapshot.satisfactionScale`, `db/graph.ts`,
        `PortfolioGraphView.tsx`.)*
-5. [ ] Revisit `GAP_COEFFICIENT`. At g=0.5 the gap term was tuned
+5. [x] Revisit `GAP_COEFFICIENT`. At g=0.5 the gap term was tuned
        against two axes with identical spreads; absolute satisfaction
        makes real gaps both rarer and larger, so the same coefficient
        may now boost harder than intended. Needs real snapshots to
-       judge, not arithmetic.
+       judge, not arithmetic. *(Moot 2026-10-02: ADR-0028 §1 retired
+       `GAP_COEFFICIENT` with the satisfaction-gap term itself.)*
 6. [x] Update [diagnostic-flow-brief.md](../design/diagnostic-flow-brief.md),
        which still described the pre-ranking dial era on both axes.

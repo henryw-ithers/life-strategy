@@ -79,7 +79,9 @@ import {
   type Weekday,
 } from "./planning";
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
+import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
+import { needsDays } from "./unitSelection";
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -114,6 +116,8 @@ interface AddTaskModalProps {
     partOfDay: PartOfDay | null,
     /** Non-null makes this a one-off; cadence and pins are ignored. */
     oneOff: OneOffState | null,
+    /** A clock time, a size, part credit — all unset unless asked for. */
+    detail: TaskDetail,
   ) => Promise<void> | void;
 }
 
@@ -143,6 +147,7 @@ export function AddTaskModal({
     date: lockedOneOffDate ?? null,
     due: null,
   });
+  const [detail, setDetail] = useState<TaskDetail>(NO_DETAIL);
   const [saving, setSaving] = useState(false);
 
   /** The home unit's area hue, or the app accent until one is picked —
@@ -151,7 +156,14 @@ export function AddTaskModal({
   const accent =
     areaColors[units.find((u) => u.id === home)?.areaId ?? ""] ?? theme.accent;
 
-  const ready = title.trim().length > 0 && unitIds.length > 0 && !saving;
+  /** Recurring commitment work has to name its days (ADR-0033). */
+  const missingDays = needsDays({
+    homeIsCommitment: units.find((u) => u.id === unitIds[0])?.commitment === true,
+    once,
+    weekdays,
+  });
+  const ready =
+    title.trim().length > 0 && unitIds.length > 0 && !missingDays && !saving;
 
   const close = () => {
     setTitle("");
@@ -161,6 +173,7 @@ export function AddTaskModal({
     setPartOfDay(null);
     setOnce(lockedOneOffDate !== undefined);
     setOneOff({ size: "normal", date: lockedOneOffDate ?? null, due: null });
+    setDetail(NO_DETAIL);
     setSaving(false);
     onClose();
   };
@@ -180,6 +193,11 @@ export function AddTaskModal({
     const committedDays = once ? null : formatWeekdays(weekdays);
     const committedPart = partOfDay;
     const committedOneOff = once ? oneOff : null;
+    // A one-off's size comes from its own block; `addTask` mirrors it
+    // into `size`, so this must not send a null over the top of it.
+    const committedDetail = once
+      ? { ...detail, size: null }
+      : detail;
     close();
     void onCommit(
       committedTitle,
@@ -188,6 +206,7 @@ export function AddTaskModal({
       committedDays,
       committedPart,
       committedOneOff,
+      committedDetail,
     );
   };
 
@@ -282,12 +301,28 @@ export function AddTaskModal({
             onTimesPerWeekChange={setTimesPerWeek}
             weekdays={weekdays}
             onWeekdaysChange={setWeekdays}
+            detail={detail}
+            onDetailChange={setDetail}
+            daysRequired={
+              !once &&
+              units.find((u) => u.id === unitIds[0])?.commitment === true
+            }
             partOfDay={partOfDay}
             onPartOfDayChange={setPartOfDay}
             accent={accent}
             theme={theme}
           />
           </ScrollView>
+
+          {/* Why Add is unavailable, beside the button that is — the
+              days row that asks may be scrolled out of sight, and a
+              disabled button with no reason reads as broken. */}
+          {missingDays && title.trim().length > 0 ? (
+            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+              Pick the days it happens. Commitment work is paid on the days
+              it is scheduled.
+            </AppText>
+          ) : null}
 
           {/* Side by side: the card is short enough that stacking two
               full-width buttons would make the actions the tallest
@@ -313,6 +348,7 @@ export function AddTaskModal({
 }
 
 const styles = StyleSheet.create({
+  blocker: { textAlign: "center" },
   /**
    * A bottom sheet, not a centred dialog (changed 2026-08-18).
    *

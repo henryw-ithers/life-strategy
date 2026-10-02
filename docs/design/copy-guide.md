@@ -50,7 +50,19 @@ A streak is **shown, never enforced**. It never touches the grade. The rule that
 - **Never show a past best beside a current run.** "Best: 30 · Now: 1" is the app pointing at the break. A best is shown **only when the current run is the best** — celebration may condition on positive events, and only on those (ADR-0008).
 - **Don't announce small numbers.** On a task row nothing appears below seven days. A row that said "1 day" every time you restarted would be reporting resets.
 - **A declared day off is never a break** (ADR-0004 §3) and is never described as one.
+- **The research agrees with the tone.** Lally et al. (2010) found that **missing one occasion does not materially affect habit formation** (ADR-0024's context). So "never remark on a break" is not only kindness — remarking on it would overstate what a break costs.
 - Habit goals are **never offered completion**. They have no target and are meant to be permanent, so "finish it" is not a state they have.
+
+## Goal conditions (ADR-0030, copy pass 2026-10-02)
+
+A **condition** is something that has to be true for a goal to happen. The word is reserved for that meaning in user-facing copy — the Environment area's description used to say "the conditions you live in" and was rewritten so the two never meet.
+
+- **Name groups for what they are.** Tasks on a goal that sit under no condition are **"Other tasks"**, not "Not under a condition".
+- **An empty condition is waiting, not missing:** "Nothing under this yet."
+- **One prompt for one job.** Adding and renaming a condition both ask "What has to be true?"
+- **Say what is safe on the button that does it.** Removing a condition never removes its tasks, so the button says **"Remove condition (keeps its tasks)"**.
+- **Name the condition a task leaves**, the same way "Move to “…”" names the one it joins: **"Move out of “Control”"**.
+- A task borrowed from another unit shows that unit's name and hue on its row ("3×/wk · Sleep") — left as it is by decision; "from Sleep" was proposed and declined.
 
 ## Calibration copy (ADR-0008)
 

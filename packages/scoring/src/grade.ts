@@ -1,11 +1,17 @@
 import { PLANNED_BAND, UNPLANNED_BAND } from "./bands";
-import { DAILY_BUDGET, EXTRA_RUN_RATE } from "./constants";
+import {
+  DAILY_BUDGET,
+  EXTRA_RUN_RATE,
+  REST_DAY_BASE,
+  REST_DAY_UNPLANNED,
+} from "./constants";
 import {
   computeDayLoad,
   isAnchoredOn,
   type DayLoad,
   type LoadCompletion,
   type LoadTask,
+  runsBefore,
 } from "./dayLoad";
 import { addDays, fortnightStart, weekStart } from "./days";
 
@@ -80,6 +86,8 @@ export function deriveChecklist(
   tasks: readonly ChecklistTask[],
   completions: readonly CompletionRow[],
   date: string,
+  /** The life share of the day (`lifeShare`); 1 on an ordinary day. */
+  scale = 1,
 ): TaskDayStatus[] {
   const load = computeDayLoad(tasks, completions, date);
   return tasks.map((t) => {
@@ -89,7 +97,12 @@ export function deriveChecklist(
         c.taskId === t.taskId && c.localDate >= window && c.localDate <= date,
     );
     const completedToday = inWindow.some((c) => c.localDate === date);
-    const doneBeforeToday = inWindow.length - (completedToday ? 1 : 0);
+    // The same count the load uses, so a part-done one-off is still owed
+    // here rather than banded as finished.
+    const doneBeforeToday = runsBefore(
+      t,
+      inWindow.filter((c) => c.localDate !== date),
+    );
     const goalCount = t.oneOff ? 1 : t.timesPerWeek === 0 ? 1 : t.timesPerWeek;
     const extraToday = doneBeforeToday >= goalCount;
     const band: TaskBand = extraToday
@@ -105,8 +118,8 @@ export function deriveChecklist(
       goalCount,
       extraToday,
       pointsIfCompletedNow: extraToday
-        ? extraRunPoints(t.weight, load.expected)
-        : Math.round(runPoints(t.weight, load.expected)),
+        ? Math.round(scale * EXTRA_RUN_RATE * runPoints(t.weight, load.expected))
+        : Math.round(scale * runPoints(t.weight, load.expected)),
     };
   });
 }
@@ -124,6 +137,37 @@ export interface DayScoreInput {
   load: DayLoad;
   /** Credited activities, chronological (ADR-0009 §3). */
   activities?: ActivityCredit[];
+  /**
+   * The commitment band today (ADR-0032), or omitted on an ordinary
+   * day.
+   *
+   * `band` is the share of the whole day it takes — `commitmentBandOn`,
+   * so 0 on a day with no commitment work scheduled — and `earned` is
+   * the points of it today's completions paid (`commitmentPointValues`
+   * for each eligible task done, at its fraction). The planned and
+   * unplanned bands are scaled into `100 − band`.
+   */
+  commitment?: { band: number; earned: number };
+  /**
+   * Commitment work done on a day it was not scheduled for, at its
+   * scheduled-day worth (ADR-0032 §4). Paid **in full, outside every
+   * band** — the plan done on another day — beside extra runs.
+   */
+  offScheduleCredit?: number;
+  /**
+   * Life work done off its planned day — a run pinned to another day
+   * this week — at **what its planned day would have paid**
+   * (`plannedDayRunPoints`; ADR-0037 §3 as extended 2026-10-01). Paid in
+   * full, outside every band, on any graded day: Henry, *"make busy days
+   * pay early work its planned value too."* The caller keeps these
+   * completions out of today's load, so they are paid once.
+   */
+  earlyCredit?: number;
+  /**
+   * What a rest day needs (ADR-0037). Omitted, a day with nothing due
+   * is ungraded, as ADR-0029 has it.
+   */
+  restDay?: RestDayInput;
 }
 
 /** Points earned out of points possible, plus the rendered grade.
@@ -227,23 +271,59 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   }
 
   const { expected, earned: earnedWeight, extra } = input.load;
-  if (expected <= 0) {
+  const band = Math.max(0, input.commitment?.band ?? 0);
+
+  // Nothing due of either kind, with a plan behind it: a rest day,
+  // automatically (ADR-0037). Never chosen, never offered — the day
+  // simply is one. A day off stays a day off (returned above).
+  if (isRestDay(input.load, band, input.restDay)) {
+    return restDayScore(input);
+  }
+
+  // Nothing due of either kind: not graded, as on an ordinary day.
+  if (expected <= 0 && band <= 0) {
     return { possible: 0, earned: 0, base: null, unplanned: 0, unplannedForgone: 0 };
   }
 
-  const planned = PLANNED_BAND * Math.min(1, earnedWeight / expected);
-  const extraCredit = EXTRA_RUN_RATE * runPoints(extra, expected);
+  // The life share of the day (ADR-0032): all of it on an ordinary day,
+  // `100 − band` on a commitment day. Planned work, unplanned credit and
+  // extra runs are all scaled into it, so a commitment day still totals
+  // 100 and the band is exactly the share it says it is.
+  const life = (100 - band) / 100;
+
+  // **Commitments are the band, never more** (Henry, 2026-10-01): *"a
+  // true 100 day is one where you fulfil both your school/work related
+  // commitments and keep up the other areas of your life. Sacrificing
+  // one should be reflected in the score."* So finished commitment work
+  // pays exactly the band, and nothing else can earn the life share.
+  // On a commitment day with no life work due, that share holds nothing
+  // to do — so it pays nothing, activities included, just as ADR-0029
+  // grades nothing on an ordinary day with nothing due. The day tops out
+  // at the band.
+  const lifeDue = expected > 0;
+  const lifePlanned = lifeDue ? PLANNED_BAND * life : 0;
+  const commitmentEarned =
+    band > 0 ? Math.min(band, input.commitment?.earned ?? 0) : 0;
+
+  const planned = lifeDue ? lifePlanned * Math.min(1, earnedWeight / expected) : 0;
+  const extraCredit = lifeDue ? life * EXTRA_RUN_RATE * runPoints(extra, expected) : 0;
 
   const activityCredit = (input.activities ?? []).reduce(
     (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
     0,
   );
   const ratingBonus =
-    input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0;
+    input.kind === "special" ? specialDayBonus(input.satisfactionRating) * life : 0;
   const unplannedRaw = activityCredit + ratingBonus;
-  const unplanned = Math.min(unplannedRaw, UNPLANNED_BAND);
+  const unplanned = Math.min(unplannedRaw, lifeDue ? UNPLANNED_BAND * life : 0);
 
-  const earned = planned + unplanned + extraCredit;
+  const earned =
+    commitmentEarned +
+    planned +
+    unplanned +
+    extraCredit +
+    Math.max(0, input.offScheduleCredit ?? 0) +
+    Math.max(0, input.earlyCredit ?? 0);
 
   // Rounded here, at the source, and `base` derived from the rounded
   // pair, so the day screen and the calendar can never read one point
@@ -251,6 +331,104 @@ export function computeDayScore(input: DayScoreInput): DayScore {
   return {
     ...storedDayScore({
       earned: Math.round(earned),
+      possible: DAILY_BUDGET,
+    }),
+    unplanned,
+    unplannedForgone: unplannedRaw - unplanned,
+  };
+}
+
+export interface RestDayInput {
+  /** The plan's `averageDayExpected` — prices extra runs. */
+  averageExpected: number;
+  /** Whether there is a plan at all: any recurring task, life or
+   *  commitment. Without one, nothing due is just nothing. */
+  hasPlan: boolean;
+  /** Anything still owed later this week — a run pinned to a later
+   *  day, a one-off planned for later this week, a commitment session
+   *  still to come. Measured from before today. */
+  openThisWeek: boolean;
+  /** Whether anything was done early today. */
+  earlyToday: boolean;
+}
+
+/**
+ * Whether a day is a rest day (ADR-0037 §1) — decided, never chosen.
+ *
+ * Nothing of your own life is due today, no commitment work is
+ * scheduled, there is a plan — and then **either** nothing is open for
+ * the rest of the week (Henry: *"having any open tasks should prevent
+ * rest day from occurring"*) **or** something was done early today,
+ * which makes it one (Henry: doing Friday's task on an empty Tuesday
+ * makes Tuesday "70 + the task"). An empty day with work still open
+ * and none of it done is ungraded, as ADR-0029 has it.
+ */
+export function isRestDay(
+  load: DayLoad,
+  commitmentBand: number,
+  rest: Pick<RestDayInput, "hasPlan" | "openThisWeek" | "earlyToday"> | undefined,
+): boolean {
+  if (!rest || load.expected > 0 || commitmentBand > 0 || !rest.hasPlan) return false;
+  return !rest.openThisWeek || rest.earlyToday;
+}
+
+/** What one run is worth on a rest day when it has no planned day to
+ *  borrow from — an extra run: its points on an average day of the plan
+ *  (ADR-0037 §3). Zero when the plan holds nothing recurring. */
+export function restDayRunPoints(weight: number, averageExpected: number): number {
+  return runPoints(weight, averageExpected);
+}
+
+/**
+ * What a task done early is worth: **what it would have paid on the day
+ * it was planned for** (Henry: *"early tasks count as much as they would
+ * if they were done on the day they were planned"*).
+ *
+ * That day is priced as it stands before today — the task still owed,
+ * sharing it with whatever else that day expects — so the early tick
+ * takes the value its own day would have given it. `scale` is that
+ * day's life share, if it carries a commitment band.
+ */
+export function plannedDayRunPoints(
+  tasks: readonly LoadTask[],
+  completionsBefore: readonly LoadCompletion[],
+  task: LoadTask,
+  plannedDate: string,
+  scale = 1,
+): number {
+  const all = tasks.some((t) => t.taskId === task.taskId) ? tasks : [...tasks, task];
+  const load = computeDayLoad(all, completionsBefore, plannedDate);
+  return scale * runPoints(task.weight, load.expected);
+}
+
+/**
+ * A rest day's number (ADR-0037 §2): **70, then whatever the day held.**
+ *
+ * - Activities fill the last 30 (`REST_DAY_UNPLANNED`), with a special
+ *   day's rating bonus if the day is also special.
+ * - **Early work is paid on top, uncapped** — it is your own plan done
+ *   ahead, the side of ADR-0023's line extra runs already sit on. Every
+ *   piece of it pays **what its planned day would have paid** — a run
+ *   pinned to a later day, a life one-off planned for later
+ *   (`earlyCredit`, priced by `plannedDayRunPoints`), commitment work
+ *   (`offScheduleCredit`). A run beyond the week's count has no planned
+ *   day and pays the extra-run rate on an average day.
+ */
+function restDayScore(input: DayScoreInput): DayScore {
+  const average = input.restDay?.averageExpected ?? 0;
+  const early =
+    Math.max(0, input.earlyCredit ?? 0) +
+    EXTRA_RUN_RATE * runPoints(input.load.extra, average) +
+    Math.max(0, input.offScheduleCredit ?? 0);
+  const unplannedRaw =
+    (input.activities ?? []).reduce(
+      (a, tags) => a + tags.reduce((b, tag) => b + tag.pointsCredited, 0),
+      0,
+    ) + (input.kind === "special" ? specialDayBonus(input.satisfactionRating) : 0);
+  const unplanned = Math.min(unplannedRaw, REST_DAY_UNPLANNED);
+  return {
+    ...storedDayScore({
+      earned: Math.round(REST_DAY_BASE + unplanned + early),
       possible: DAILY_BUDGET,
     }),
     unplanned,

@@ -38,14 +38,26 @@
  * after today, and offering the gesture would invite exactly the "get
  * ahead" mechanic the grade is built to ignore.
  */
-import { addDays } from "@glide/scoring";
+import {
+  addDays,
+  planLoadHours,
+  type Window as GridWindow,
+} from "@glide/scoring";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useColorScheme,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
+import { pickableUnits } from "../../components/plan/unitSelection";
 import {
   ANYTIME_LABEL,
   compareForDay,
@@ -54,6 +66,22 @@ import {
   pinnedElsewhere,
   type PartOfDay,
 } from "../../components/plan/planning";
+import { DayGrid, windowKey } from "../../components/today/DayGrid";
+import { formatLength } from "../../components/today/dayGridLayout";
+import { doneAheadLabel } from "../../components/today/rowCaption";
+import { WindowSheet } from "../../components/today/WindowSheet";
+import { loadPools, type PoolOnDay } from "../../db/commitments";
+import {
+  createPool,
+  deletePool,
+  updatePool,
+} from "../../db/commitmentWrites";
+import {
+  loadDayLayout,
+  setDayLayout,
+  type DayLayout,
+} from "../../db/settings";
+import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { AppText } from "../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../components/ui/Backdrop";
@@ -83,6 +111,22 @@ const HEADER_HEIGHT = 44;
  *  things live when you have not decided, so it reads as the remainder. */
 const SLOTS: readonly (PartOfDay | "anytime")[] = [...PART_OF_DAY_ORDER, "anytime"];
 
+/** "2 hours 15 minutes" — `formatLength` read aloud, since VoiceOver
+ *  says "2h" as "2 h". */
+function spokenLength(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hours = h === 0 ? "" : `${h} ${h === 1 ? "hour" : "hours"}`;
+  const mins = m === 0 ? "" : `${m} minutes`;
+  return [hours, mins].filter(Boolean).join(" ");
+}
+
+/** Same two words as Home's, because it is the same choice. */
+const LAYOUTS = [
+  { value: "checklist" as const, label: "List" },
+  { value: "grid" as const, label: "Hours" },
+];
+
 /** "2026-08-21" → "Thursday 21 August". Written out, because this screen
  *  is *about* the date and abbreviating it would bury the subject. */
 function spoken(localDate: string): string {
@@ -109,6 +153,8 @@ export default function PlanDayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
+  /** Dynamic Type, so the grid's hours grow with its labels. */
+  const { fontScale } = useWindowDimensions();
   const params = useLocalSearchParams<{ date?: string }>();
 
   const today = currentLocalDate();
@@ -128,13 +174,31 @@ export default function PlanDayScreen() {
   );
   const [day, setDay] = useState<DayData | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Shared with Home through `app_setting`, so the day reads the same
+   *  way wherever you opened it from. Presentation only. */
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
+  /** This day's pools, and the one being edited (ADR-0033 §2). */
+  const [pools, setPools] = useState<PoolOnDay[]>([]);
+  const [planning, setPlanning] = useState<{
+    window: GridWindow;
+    chosen: string[];
+    plannedCount: number;
+    poolId: string | null;
+  } | null>(null);
   const [adding, setAdding] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   const load = useCallback(async () => {
-    const [nextDay, nextPlan] = await Promise.all([loadDay(date), loadPlan()]);
+    const [nextDay, nextPlan, layout, nextPools] = await Promise.all([
+      loadDay(date),
+      loadPlan(),
+      loadDayLayout(),
+      loadPools(date),
+    ]);
     setDay(nextDay);
     setPlan(nextPlan);
+    setDayLayoutState(layout);
+    setPools(nextPools);
   }, [date]);
   const { error, retry } = useScreenLoad(load);
 
@@ -157,6 +221,36 @@ export default function PlanDayScreen() {
     () => all.filter((t) => !pinnedElsewhere(t, date)),
     [all, date],
   );
+  /**
+   * About how much sized work the day holds (ADR-0026 §3), in minutes,
+   * or null when nothing on it has a size.
+   *
+   * **Shown, never warned about.** No threshold, no colour, no
+   * comparison against the free time the grid draws — "this is more
+   * than your windows hold" is a verdict on the plan, and the version of
+   * this that advises rather than informs was already rejected. It is
+   * the same muted caption at two hours as at ten.
+   *
+   * Pools count at their planned count, not their member count, and
+   * unsized work counts as nothing rather than as a guess. Rounded to a
+   * quarter hour, because the sizes are rough and a figure like
+   * "2h 20m" would claim a precision they do not have.
+   *
+   * Absent rather than "0m" when nothing is sized: unsized is a
+   * first-class state (ADR-0026 §1), and a zero would read as a prompt
+   * to go and size things, which nothing is allowed to be (ADR-0036 §2).
+   */
+  const loadMinutes = useMemo(() => {
+    const hours = planLoadHours(tasks, pools);
+    if (hours <= 0) return null;
+    return Math.max(15, Math.round((hours * 60) / 15) * 15);
+  }, [tasks, pools]);
+
+  /** Whether the hours are worth offering — see Home's own note. */
+  const showsGrid =
+    dayLayout === "grid" ||
+    tasks.some((t) => t.startMinute !== null && t.endMinute !== null);
+
   const elsewhere = useMemo(
     () =>
       all
@@ -312,10 +406,78 @@ export default function PlanDayScreen() {
           </View>
         ) : tasks.length === 0 ? null : (
           <>
+            {/* Only once there is an hour to draw, and always once you
+                are in the grid — a view you can enter and not leave is
+                a trap. */}
+            {showsGrid || loadMinutes !== null ? (
+              <View style={styles.topRow}>
+                {showsGrid ? (
+                  <View style={styles.layoutToggle}>
+                    <Segmented
+                      segments={LAYOUTS}
+                      value={dayLayout}
+                      onChange={(next) => {
+                        setDayLayoutState(next);
+                        void setDayLayout(next);
+                      }}
+                      accent={theme.accent}
+                      theme={theme}
+                      label="How to show the day"
+                    />
+                  </View>
+                ) : null}
+                {/* A readout, not a control: plain muted text with
+                    nothing about it that invites a tap. "Of sized work"
+                    names its own scope, so a day with unsized tasks is
+                    not misreported as lighter than it is. */}
+                {loadMinutes !== null ? (
+                  <AppText
+                    variant="caption"
+                    color={theme.muted}
+                    tabular
+                    style={styles.load}
+                    accessibilityLabel={`About ${spokenLength(loadMinutes)} of work, counting tasks with a size`}
+                  >
+                    About {formatLength(loadMinutes)} of sized work
+                  </AppText>
+                ) : null}
+              </View>
+            ) : null}
+
             <AppText variant="caption" color={theme.muted} style={styles.lead}>
-              Hold a task to move it. This changes {relativeLabel?.toLowerCase() ?? "this day"} only.
+              {dayLayout === "grid"
+                ? "Timed work sits on the hours. Switch to List to move anything."
+                : `Hold a task to move it. This changes ${relativeLabel?.toLowerCase() ?? "this day"} only.`}
             </AppText>
 
+            {dayLayout === "grid" ? (
+              <DayGrid
+                tasks={tasks}
+                hueFor={(t) => theme.areas[t.areaId] ?? theme.accent}
+                theme={theme}
+                fontScale={fontScale}
+                // This screen is never today — the strip on Home owns
+                // that — so there is no "now" to point at.
+                nowMinute={null}
+                onPress={() => undefined}
+                pooledByWindow={
+                  new Map(pools.map((p) => [windowKey(p), p.taskIds]))
+                }
+                // Planning ahead is this screen's entire job, so a
+                // window here is always a way in.
+                onPlanWindow={(w) => {
+                  const existing = pools.find(
+                    (p) => windowKey(p) === windowKey(w),
+                  );
+                  setPlanning({
+                    window: w,
+                    chosen: existing?.taskIds ?? [],
+                    plannedCount: existing?.plannedCount ?? 1,
+                    poolId: existing?.id ?? null,
+                  });
+                }}
+              />
+            ) : (
             <SectionedChecklist
               sections={sections}
               rowHeight={ROW_HEIGHT}
@@ -359,13 +521,19 @@ export default function PlanDayScreen() {
                         once
                       </AppText>
                     ) : null}
+                    {/* A session already worked on an earlier day is
+                        done, and was paid then; a 0 here would read as
+                        "worth nothing" rather than "taken care of". */}
                     <AppText variant="caption" color={theme.muted} tabular>
-                      {t.pointValue}
+                      {t.doneAheadOn !== null
+                        ? doneAheadLabel(t.doneAheadOn)
+                        : t.pointValue}
                     </AppText>
                   </View>
                 );
               }}
             />
+            )}
           </>
         )}
 
@@ -424,18 +592,98 @@ export default function PlanDayScreen() {
         </View>
       </ScrollView>
 
+      {planning ? (
+        <WindowSheet
+          visible
+          window={planning.window}
+          candidates={tasks}
+          chosen={planning.chosen}
+          plannedCount={planning.plannedCount}
+          hueFor={(t) => theme.areas[t.areaId] ?? theme.accent}
+          accent={theme.accent}
+          theme={theme}
+          onToggle={(taskId) =>
+            setPlanning((prev) =>
+              prev === null
+                ? prev
+                : {
+                    ...prev,
+                    chosen: prev.chosen.includes(taskId)
+                      ? prev.chosen.filter((id) => id !== taskId)
+                      : [...prev.chosen, taskId],
+                  },
+            )
+          }
+          onPlannedCountChange={(plannedCount) =>
+            setPlanning((prev) => (prev === null ? prev : { ...prev, plannedCount }))
+          }
+          onClose={() => setPlanning(null)}
+          onSave={() => {
+            const p = planning;
+            setPlanning(null);
+            void (async () => {
+              if (p.poolId !== null) {
+                await updatePool(p.poolId, {
+                  taskIds: p.chosen,
+                  plannedCount: p.plannedCount,
+                });
+              } else {
+                await createPool({
+                  localDate: date,
+                  taskIds: p.chosen,
+                  plannedCount: p.plannedCount,
+                  afterTaskId: p.window.afterTaskId,
+                  partOfDay: p.window.partOfDay,
+                });
+              }
+              await load();
+            })();
+          }}
+          onClear={
+            planning.poolId === null
+              ? undefined
+              : () => {
+                  const id = planning.poolId;
+                  setPlanning(null);
+                  if (id !== null) void deletePool(id).then(load);
+                }
+          }
+        />
+      ) : null}
+
       {adding && plan ? (
         <AddTaskModal
           visible
           onClose={() => setAdding(false)}
-          units={plan.areas.flatMap((a) =>
-            a.units.map((u) => ({ id: u.id, name: u.name, areaId: a.id })),
-          )}
+          // The same list every sheet files into: commitments first,
+          // then the scored units. This used to offer every unit,
+          // excluded ones included, with nothing marking a commitment
+          // as one — so an assignment filed here took a scoring slot
+          // like any life task.
+          units={pickableUnits(plan)}
           areaColors={theme.areas}
           theme={theme}
           lockedOneOffDate={date}
-          onCommit={async (title, timesPerWeek, unitIds, weekdays, part, oneOff) => {
-            await addTask(unitIds, title, timesPerWeek, weekdays, part, null, oneOff);
+          onCommit={async (
+            title,
+            timesPerWeek,
+            unitIds,
+            weekdays,
+            part,
+            oneOff,
+            detail,
+          ) => {
+            await addTask(
+              unitIds,
+              title,
+              timesPerWeek,
+              weekdays,
+              part,
+              null,
+              oneOff,
+              null,
+              detail,
+            );
             await load();
           }}
         />
@@ -482,5 +730,18 @@ const styles = StyleSheet.create({
    *  from here — the dimming is the affordance's absence, stated. */
   elsewhereRow: { minHeight: 44 },
   empty: { marginTop: space.xxl, gap: space.sm },
+  /** Its own row above the lead line, since this screen's header is a
+   *  full row of navigation already. */
+  /** The toggle and the load share one row; either may be absent. */
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: space.md,
+    marginBottom: space.sm,
+  },
+  layoutToggle: { flex: 1, maxWidth: 180, minWidth: 140 },
+  load: { flexShrink: 1, textAlign: "right", marginLeft: "auto" },
   emptyText: { maxWidth: 340 },
 });

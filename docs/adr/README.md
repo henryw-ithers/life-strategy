@@ -10,7 +10,7 @@ status to *Accepted*.
 | [0001](0001-platform-and-tech-stack.md) | Platform and tech stack | Accepted |
 | [0002](0002-data-model-and-persistence.md) | Data model and persistence | Accepted |
 | [0003](0003-scoring-and-weight-derivation.md) | Scoring and weight derivation | Accepted |
-| [0004](0004-grade-lifecycle-and-aggregation.md) | Grade lifecycle and aggregation | Accepted |
+| [0004](0004-grade-lifecycle-and-aggregation.md) | Grade lifecycle and aggregation | §2 superseded by 0014 |
 | [0005](0005-diagnostic-snapshots-and-history.md) | Diagnostic snapshots and portfolio history | Accepted |
 | [0006](0006-task-and-goal-recommendations.md) | Task and goal recommendation source | Accepted |
 | [0007](0007-goal-lifecycle.md) | Goal lifecycle and milestones | Accepted |
@@ -19,18 +19,28 @@ status to *Accepted*.
 | [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
 | [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
 | [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
+| [0014](0014-partial-credit.md) | Partial credit | Accepted |
 | [0015](0015-metric-linked-goals.md) | Metric-linked goals | Accepted |
 | [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
 | [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
 | [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
 | [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
-| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | §2 withdrawn by 0029 |
+| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | §2 withdrawn by 0029; amended by 0026, 0036, 0032 |
 | [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029 |
+| [0026](0026-task-size-and-day-load.md) | Task size and day load | Accepted |
+| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029; extended by 0032 |
 | [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
-| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted |
+| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted; extended by 0032, 0037 |
 | [0030](0030-goals-have-conditions.md) | Goals have conditions | Accepted |
+| [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
+| [0032](0032-the-commitment-band.md) | The commitment band | Accepted; rebuilt on 0029 (formula v10) |
+| [0033](0033-windows-and-pools.md) | Windows and pools | Accepted |
+| [0034](0034-schedule-mode.md) | Schedule mode | **Withdrawn** |
+| [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted; §1 and §4 amended 2026-10-02 (0038) |
+| [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted; events excepted by 0038 |
+| [0037](0037-rest-days.md) | Rest days | Accepted |
+| [0038](0038-events.md) | Events | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002
@@ -68,6 +78,56 @@ correction: **the next change to this engine waits for a fortnight of
 use.** No window in the calibration experiment (ADR-0008) currently
 spans a single formula.
 
+**0014, 0026 and 0031–0036 are the commitments work**, drafted
+together across one long session on 2026-09-08..11, built over the
+following three weeks, and **accepted 2026-10-01**. It was built on a
+branch beside the scoring rewrite above and met it the same day: its
+own three ADRs numbered 0028–0030 collided with main's and were
+renumbered **0034, 0035 and 0036** (schedule mode, commitments are
+custom units, granularity is the user's) — a file rename and nothing
+else; the bodies are as accepted. Its formulas, numbered v8–v11 on the
+branch, became one: **formula v10**, the commitment band on v9's day. Several carry
+dated amendments from that building — the code showed where the
+decision as written was incomplete or wrong — so read each through to
+its action items. Read them in this order:
+
+1. **[0035](0035-commitments-are-custom-units.md)** — a commitment is a
+   custom `life_unit` in two levels, not a goal and not a parallel
+   model. It also carries the measured finding that forced the whole
+   design: thirteen non-daily tasks in a weight-12 unit price at
+   `1,1,1,1,1,1,1,1,0,0,0,0,0` — **five worth literally zero** — which
+   is the edge ADR-0027 named and parked.
+2. **[0032](0032-the-commitment-band.md)** — on days with scheduled
+   commitment work, the band (10–60) is that share of the whole day
+   and ADR-0029's 90/10 is scaled into the rest. The first
+   date-dependent split in the app's history. **Formula v10** (v8–v11
+   in its own text, which predates the merge): off-schedule commitment
+   work pays its scheduled-day worth, uncapped, and an early session
+   stands in for the next one. Read ADR-0029 first.
+3. **[0033](0033-windows-and-pools.md)** — the day divides into
+   windows, work carries forward, and a window may hold a pool of up to
+   three equal-priced options.
+4. **[0036](0036-granularity-is-the-users.md)** — **the reopening
+   ADR-0024 §1 demands.** Any task may carry a clock time; part-of-day
+   stays the default, and that default is now load-bearing.
+5. **[0026](0026-task-size-and-day-load.md)** and
+   **[0014](0014-partial-credit.md)** — two reserved slots, both
+   filled ahead of their stated triggers because this design needed
+   them. Each records that, and why it proceeded anyway. **A third
+   would be a signal.**
+
+**[0034](0034-schedule-mode.md) and [0031](0031-the-semester-score.md)
+are withdrawn**, never accepted — the first because generalising
+commitments left nothing school-shaped to hide behind a mode, the
+second because a term-length score needed a term and terms did not
+survive generalisation. Both keep their bodies as the record.
+
+The working-out, including what is measured against the engine versus
+hand-computed, is in
+[design/commitments-and-the-day.md](../design/commitments-and-the-day.md).
+The surface detail is in
+[design/hour-grid-day-view.md](../design/hour-grid-day-view.md).
+
 ## Work not tracked by any action item
 
 Each ADR's own action items are the checklist for that decision. These
@@ -98,7 +158,12 @@ here so they stop being invisible.
   `goals.ts` and the data reset. Design principle 5 ("the log is a
   record of a life") has no surface yet, and the look-back views that
   memory flags and special days feed do not exist.
-- **The calendar tint for untouched past days is undecided.** ADR-0004's
+- ~~**The calendar tint for untouched past days is undecided.**~~
+  **Decided 2026-10-02: leave it as it is.** Henry, looking at it:
+  untouched past days "look fine right now — they don't need a decision
+  or a change." Rest days (ADR-0037) also narrowed it: an empty past day
+  that was ever opened now reads 70 or more. The original wording
+  follows. **The calendar tint for untouched past days is undecided.** ADR-0004's
   2026-07-26 amendment left it open on purpose: a past day with no row
   renders blank rather than as its half credit, so a week can read below
   100% with no visibly imperfect day behind it. Rendering twenty skipped
@@ -116,11 +181,9 @@ code.
 | # | Title | Trigger — open this ADR when… | Decides |
 |---|-------|-------------------------------|---------|
 | 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
-| 0014 | Partial credit | …calibration data (ADR-0008) shows binary completion diverging from felt contentment — the trigger written into ADR-0004 | The completion-fraction model and its UI without breaking one-tap simplicity |
 | 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
 | 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
 | 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
-| 0026 | Task size and day load | …the weekly planning pass (ADR-0024) is in real use and "is this day too full?" has come up unprompted | Effort size on tasks (`quick`/`normal`/`big`, reusing `activity.size`'s vocabulary), the per-day load indicator, and the confirmation that load stays presentational and never reaches the grade |
 
 **0019–0022 were written ahead of the reserved numbers.** The
 remaining reserved slots stay reserved for the triggers listed above;
@@ -134,7 +197,8 @@ request for rough deadlines and retroactive milestones.) **0024–0026
 continue past the reserved block** for the same reason: the 2026-08-16
 scheduling workshop split into three decisions with different evidence
 and different triggers. 0024 and 0025 were accepted that day; 0026
-waits for its trigger. **Read 0024 first** — 0025 argues that 0024's
+was filled ahead of its trigger on 2026-09-11 and accepted with the
+commitments work. **Read 0024 first** — 0025 argues that 0024's
 uniform rule is wrong for three of the eighteen units, so it only makes
 sense afterwards.
 

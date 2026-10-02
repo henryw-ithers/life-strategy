@@ -177,6 +177,16 @@ point — it is what makes "did I do today's list" answerable — and it is
 not the same thing as being charged for doing the right work on the
 wrong day.
 
+> **Amended 2026-10-01 by [ADR-0037](0037-rest-days.md) §3.** A run
+> pinned to another day this week is no longer counted into the day it
+> is done on. It is paid **what its pinned day would have paid**,
+> outside the bands and uncapped, on whatever day it is done — Henry:
+> *"early tasks count as much as they would if they were done on the
+> day they were planned."* Everything above still holds: nothing
+> compares a completion's date to its pin to charge for it, a missed
+> pinned day still lapses silently, and no adherence figure exists.
+> The date is read only to choose which day's price to pay.
+
 ### 4. A task's worth is a property of the day, not of the task
 
 `task.point_value` now stores a **weight**: a share of the portfolio's
@@ -262,13 +272,21 @@ genuinely confusing in use, in which case the lever is presentation
 3. [x] Withdraw ADR-0024 §2, amend ADR-0023 §1, ADR-0027 §§1/3 and
        ADR-0028 §3 with pointers here; update the ADR index and
        AGENTS.md.
-4. [ ] The checklist shows a point value per row that now changes with
+4. [x] The checklist shows a point value per row that now changes with
        the day. Read `components/today/TaskRow.tsx` against §4 and
-       decide whether the number or a share reads better.
-5. [ ] `docs/design/calendar-and-day-planning.md` and
+       decide whether the number or a share reads better. *(Decided
+       2026-10-02, Henry: **live points.** Each row shows what it pays
+       today — or, done off its planned day, what that day would have
+       paid (ADR-0037 §3).)*
+5. [x] `docs/design/calendar-and-day-planning.md` and
        `docs/design/copy-guide.md` describe pins as presentation-only.
-       Both need a pass against §3.
-6. [ ] Decide what happens to a week bunched into one day, if it turns
+       Both need a pass against §3. *(Done 2026-10-02: the calendar
+       note carries a dated amendment covering §3 and ADR-0037 §3; the
+       copy guide never described pins and needed nothing.)*
+6. [x] Decide what happens to a week bunched into one day, if it turns
        out to happen. The candidate is to keep grading days with
        nothing due, at full marks — but that pays for silence, so it
-       needs its own thinking rather than a default.
+       needs its own thinking rather than a default. **Decided
+       2026-10-01 by [ADR-0037](0037-rest-days.md):** a day with
+       nothing due and a plan behind it is a rest day, automatically —
+       70, then activities and early work on top.

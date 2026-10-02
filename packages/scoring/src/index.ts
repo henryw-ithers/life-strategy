@@ -2,6 +2,8 @@ export {
   WEIGHT_SPREAD,
   EXTRA_RUN_RATE,
   UNPLANNED_CAP,
+  REST_DAY_BASE,
+  REST_DAY_UNPLANNED,
   FORMULA_VERSION,
   DAILY_BUDGET,
 } from "./constants";
@@ -9,16 +11,34 @@ export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
 export { deriveWeights } from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
-export type { BandTask, BandUnit } from "./bands";
+export type {
+  BandTask,
+  BandUnit,
+  CommitmentDay,
+  CommitmentGroup,
+  Pool,
+} from "./bands";
 export {
+  commitmentBandOn,
+  commitmentPointValues,
+  lifeShare,
+  normalizeBand,
+  commitmentBandMax,
+  rebalanceShares,
   taskWeights,
   unitCoverage,
+  COMMITMENT_BAND_MAX,
+  COMMITMENT_BAND_MIN,
+  COMMITMENT_BAND_STEP,
+  MAX_COMMITMENTS,
   PLANNED_BAND,
   UNPLANNED_BAND,
 } from "./bands";
 export type { LoadTask, LoadCompletion, DayLoad } from "./dayLoad";
 export {
+  averageDayExpected,
   computeDayLoad,
+  plannedDateFor,
   daysLeftInWeek,
   isAnchoredOn,
   isoWeekday,
@@ -54,6 +74,28 @@ export {
   weightsForPriorityOrder,
 } from "./ranking";
 export { recommendedTaskRange } from "./taskGuidance";
+export type { PartialFraction } from "./partial";
+export {
+  isSettled,
+  normalizeFraction,
+  partialPoints,
+  progressOf,
+  PARTIAL_FRACTIONS,
+} from "./partial";
+export type { Block, PartOfDay, TaskSize, Window } from "./windows";
+export {
+  formatMinutes,
+  gridExtent,
+  dayLoadHours,
+  planLoadHours,
+  fitsInWindow,
+  windowCapacity,
+  windowLength,
+  windowsFor,
+  SIZE_HOURS,
+  MIN_WINDOW_MINUTES,
+  PART_OF_DAY_BOUNDS,
+} from "./windows";
 export type { Profile, UnitSituation } from "./profile";
 export { GAP_THRESHOLD, unitProfile } from "./profile";
 export type {
@@ -82,6 +124,7 @@ export type {
   TaskDayStatus,
   ActivityCredit,
   DayScoreInput,
+  RestDayInput,
   DayScore,
   Grade,
   PeriodGrade,
@@ -94,6 +137,9 @@ export {
   periodDays,
   aggregateGrade,
   extraRunPoints,
+  isRestDay,
+  plannedDayRunPoints,
+  restDayRunPoints,
   specialDayBonus,
   storedDayScore,
 } from "./grade";

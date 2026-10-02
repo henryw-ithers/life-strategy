@@ -66,6 +66,16 @@ should be able to say what they were, not just what they scored.
 
 ### 2. Completion is binary (v1)
 
+> **Superseded 2026-09-11 by [ADR-0014](0014-partial-credit.md).** The
+> fraction column anticipated below is being added. **Its gate did not
+> fire** — no ADR-0008 calibration exists — and 0014 records that
+> plainly. What changed instead is the premise: windows
+> ([ADR-0033](0033-windows-and-pools.md)) make *"I worked on it and did
+> not finish"* a visible recurring event, where before no object in
+> the app represented the time spent. One tap still completes a task;
+> the fraction lives behind a long-press, on tasks whose owner has
+> turned it on.
+
 Done or not done — one tap, checklist feel. The
 `task_completion` schema anticipates a partial-credit fraction column;
 it gets added only if ADR-0008 calibration shows all-or-nothing

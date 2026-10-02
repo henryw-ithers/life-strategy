@@ -102,6 +102,17 @@ Constraints already in force:
 
 ### 1. A plan is a weekday and a part of day. Never a clock time.
 
+> **Superseded 2026-09-11 by [ADR-0036](0036-granularity-is-the-users.md).**
+> Any task may now carry an explicit clock time. This section's own
+> functional argument is what licensed the change — it refused times
+> because *"a clock time would drive nothing this app does,"* and
+> [ADR-0033](0033-windows-and-pools.md) added an hour grid and a
+> timetable, which are things it drives. **Part-of-day remains the
+> default and `anytime` remains first-class**, so the Tonietto &
+> Malkoc protection still applies to anyone who does not reach for a
+> time; those defaults are now load-bearing rather than incidental.
+> §§2–3 below stand, with one amendment to §2 noted there.
+
 > **Challenged and reaffirmed, 2026-08-16.** Henry argued for times on
 > the strength of real cases — a weekly band practice, a Tuesday night
 > movie tradition, a tee time — and the argument that carried for
@@ -138,6 +149,30 @@ is the correct representation for most of the plan.
 > stored, or derivable from what is. What changed is that the plan now
 > shapes *what today asks of you*, which is not the same thing as
 > charging you for doing the right work on the wrong day.
+>
+> **Amended 2026-09-11 by [ADR-0032](0032-the-commitment-band.md) §4,
+> for commitment work only.** A commitment task done on its scheduled
+> day pays from the commitment band; the same work on an unscheduled
+> day pays from the ordinary unplanned route. So *when* changes what
+> it is worth — Henry's call, on the reasoning that Thursday pays
+> nothing because Thursday's work did not happen, and Sunday pays
+> from the unplanned pool because that is what the pool is for.
+>
+> **Everything else in this section stands in full**: no adherence
+> rate, no plan-completion percentage, no streak, and an unfulfilled
+> placement still lapses silently. Ordinary (non-commitment) tasks are
+> untouched — three runs on three unplanned days is still a perfect
+> week.
+>
+> **Revised 2026-09-30 and 2026-10-01 by ADR-0032 §4; met the
+> withdrawal above on 2026-10-01.** Off-schedule commitment work no
+> longer pays from the unplanned pool: it pays its scheduled-day worth,
+> uncapped, outside every band, and a recurring session done early
+> stands in for the next scheduled one. So *when* no longer changes what
+> commitment work is worth — only which day's share it counts against.
+> The two amendments were written on separate lines of work and do not
+> conflict: this one qualifies how commitment work is paid, the
+> withdrawal how the 18 life units' day is measured.
 
 `times_per_week` remains the sole scoring source of truth. Day plans
 shape **presentation and defaults** — what the checklist leads with,
@@ -419,6 +454,16 @@ load meaningful, and its shape should inform the decision. **Trigger:**
 the weekly planning pass is in real use and the question "is this day
 too full?" has come up unprompted.
 
+> **Filled 2026-09-11 by [ADR-0026](0026-task-size-and-day-load.md),
+> accepted 2026-10-01 — and not by this trigger.** The weekly pass is
+> not in heavy use and nobody asked whether a day was too full. What
+> fired instead was the commitments design: window capacity, "what
+> fits here?", and separating an essay from a reading within one
+> commitment all needed task size at once (ADR-0026, Context). Same
+> signal, different route. 0026 kept this section's two constraints
+> intact — sizes, never minutes, for the planning-fallacy reason given
+> above, and a load that is shown and never warned about.
+
 ## Schema additions
 
 Landing with their phases, per ADR-0002 conventions:
@@ -493,14 +538,23 @@ ADR-0026's load work needs placement data this ADR chose not to keep.
        created it. What remains of §4 is the *weekly* pass — a
        once-a-week surface over the whole week rather than one day
        at a time.
-4. [ ] Confirm no adherence statistic is computed anywhere — this is
+4. [x] Confirm no adherence statistic is computed anywhere — this is
        the invariant most likely to be violated by a well-meaning
        addition.
-5. [ ] Note in ADR-0010 §1 that the pinned-day trigger fired and was
+5. [x] Note in ADR-0010 §1 that the pinned-day trigger fired and was
        answered here with "no change."
-6. [ ] Update the ADR index: 0024 listed; 0025 and 0026 reserved with
+6. [x] Update the ADR index: 0024 listed; 0025 and 0026 reserved with
        triggers.
-7. [ ] Fold the Lally citation into
+7. [x] Fold the Lally citation into
        [copy-guide.md](../design/copy-guide.md) beside the
        missed-day copy — the research and the tone agree, and that is
        worth recording where the copy decisions live.
+
+> **Checked 2026-10-02.** (4) Nothing computes an adherence rate or a
+> plan-completion percentage. Since ADR-0037 §3 a pinned day's *date*
+> is read — but only to choose which day's price a run pays, never to
+> charge for the day it missed. The one run-length number is ADR-0004
+> §5's streak on every-day tasks, which counts consecutive days done,
+> not days done as planned, so it is not the adherence streak §2 rules
+> out. (5) ADR-0010 carries its note. (6) 0025 and 0026 are long since
+> written. (7) The citation is in copy-guide.md under Streaks.

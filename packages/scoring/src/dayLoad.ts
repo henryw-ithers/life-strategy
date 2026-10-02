@@ -62,6 +62,27 @@ export interface LoadTask {
 export interface LoadCompletion {
   taskId: string;
   localDate: string;
+  /**
+   * How much of the task this completion was for (ADR-0014): 0.25–1,
+   * and 1 when omitted, which is every completion written before part
+   * credit existed.
+   */
+  fraction?: number;
+}
+
+/**
+ * Runs a task has already done in this window, before today.
+ *
+ * A recurring task counts **rows**: a part-done day is a day you showed
+ * up, and it counts toward the week's runs (Henry, 2026-09-30: "some
+ * days showing up is what counts"). A one-off counts **progress** — the
+ * sum of its fractions — because it is one piece of work, and a quarter
+ * of it done on Tuesday leaves three quarters owed on Wednesday rather
+ * than settling it (ADR-0014 §2).
+ */
+export function runsBefore(task: LoadTask, rows: readonly LoadCompletion[]): number {
+  if (!task.oneOff) return rows.length;
+  return Math.min(1, rows.reduce((a, r) => a + (r.fraction ?? 1), 0));
 }
 
 export interface DayLoad {
@@ -129,6 +150,48 @@ export function isPinnedElsewhere(task: LoadTask, date: string): boolean {
 }
 
 /**
+ * The day this week a run done on `date` was planned for, or null.
+ *
+ * For a task pinned to other days: the **next** pinned day still to
+ * come this week — the run is early — or, if every pinned day has
+ * passed, the **latest** one — the run is late. Either way it is paid
+ * what that day would have paid (ADR-0037 §3), so a run is worth the
+ * same whichever day of its week it is done on. Null for a task that is
+ * not pinned elsewhere, and for a fortnightly task whose pinned days
+ * all fall in the other week.
+ */
+export function plannedDateFor(task: LoadTask, date: string): string | null {
+  if (!isPinnedElsewhere(task, date)) return null;
+  const start = weekStart(date);
+  let latestPast: string | null = null;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    if (d === date || !isAnchoredOn(task, d)) continue;
+    if (d > date) return d;
+    latestPast = d;
+  }
+  return latestPast;
+}
+
+/**
+ * What an **average** day of this plan expects: every recurring task's
+ * weekly demand (a fortnightly task's half-run included), over seven.
+ *
+ * Only a rest day reads this (ADR-0037 §3). A rest day expects nothing,
+ * so the day's own load cannot price work done on it — `90 × w ÷ 0` —
+ * and early work is priced against the day it would ordinarily have
+ * been instead. One-offs are left out, as `taskWeights` leaves them out
+ * of the recurring allocation: an errand on the list must not move what
+ * everything else is worth.
+ */
+export function averageDayExpected(tasks: readonly LoadTask[]): number {
+  const weekly = tasks
+    .filter((t) => !t.oneOff)
+    .reduce((a, t) => a + t.weight * (t.timesPerWeek === 0 ? 0.5 : t.timesPerWeek), 0);
+  return weekly / 7;
+}
+
+/**
  * The day's expected and completed load.
  *
  * `completions` must cover at least the fortnight containing `date`, so
@@ -156,17 +219,24 @@ export function computeDayLoad(
         c.localDate >= windowStart &&
         c.localDate <= date,
     );
-    const doneToday = inWindow.some((c) => c.localDate === date);
-    const doneBefore = inWindow.length - (doneToday ? 1 : 0);
+    const today = inWindow.find((c) => c.localDate === date);
+    const doneToday = today !== undefined;
+    const doneBefore = runsBefore(
+      task,
+      inWindow.filter((c) => c.localDate !== date),
+    );
     const goal = weeklyGoal(task);
     const owed = Math.max(0, goal - doneBefore);
 
     // A completion counts toward the day's earned weight while the week
     // still owed the run; past that it is an extra run, which sits
-    // outside the band entirely (ADR-0023 §2).
-    if (doneToday) {
-      if (owed > 0) earned += task.weight;
-      else extra += task.weight;
+    // outside the band entirely (ADR-0023 §2). A part-done run counts
+    // its fraction of the task's weight (ADR-0014), and a one-off can
+    // pay at most what is still owed of it.
+    if (today) {
+      const f = today.fraction ?? 1;
+      if (owed > 0) earned += task.weight * (task.oneOff ? Math.min(f, owed) : f);
+      else extra += task.weight * f;
     }
 
     if (owed === 0) continue;

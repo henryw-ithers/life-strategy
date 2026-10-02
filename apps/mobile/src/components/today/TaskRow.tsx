@@ -7,6 +7,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { TodayTask } from "../../db/today";
+import { rowCaption } from "./rowCaption";
 import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -26,46 +27,16 @@ interface TaskRowProps {
    * not one you are still deciding when to do.
    */
   onMove?: () => void;
+  /**
+   * Press-and-hold on a part-credit row: how much of it did you do
+   * (ADR-0014 §4). Takes precedence over `onMove`, and the sheet it
+   * opens carries the move along so nothing is lost.
+   */
+  onPartial?: () => void;
   /** Area hue per tagged unit, for the pips. */
   tagHues?: Record<string, string>;
   theme: ThemeTokens;
   reduceMotion: boolean;
-}
-
-function ordinal(n: number): string {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 13) return `${n}th`;
-  const suffix = { 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th";
-  return `${n}${suffix}`;
-}
-
-/**
- * A daily task's run of days.
- *
- * **Only once it's worth saying, and only while it's true.** Below a
- * week there is no run to speak of, and a row that announced "1 day"
- * every time you restarted would be reporting the break rather than
- * the habit. That is the one thing docs/backburner.md warned a streak
- * must never do: its emotional weight lives entirely in the reset.
- *
- * So: nothing at 0, nothing at 3, and a quiet count from 7 up.
- */
-function streakCaption(task: TodayTask): string | null {
-  if (task.streak === null || task.streak < 7) return null;
-  return `${task.streak} days`;
-}
-
-/** Progress copy stays factual — counts, never deficits (ADR-0008).
- *  Ordinal phrasing: the run at hand — "2nd of 5 this week" is the
- *  one just done (checked) or the one a tap would log (unchecked). */
-function progressCaption(task: TodayTask): string | null {
-  if (task.timesPerWeek === 7) return null;
-  const span = task.timesPerWeek === 0 ? "fortnight" : "week";
-  const at = task.completedToday ? task.doneCount : task.doneCount + 1;
-  if (task.band === "doneThisWeek") {
-    return `${task.goalCount} of ${task.goalCount} this ${span} · +${task.pointsIfCompletedNow} for another`;
-  }
-  return `${ordinal(at)} of ${task.goalCount} this ${span}`;
 }
 
 /** One checklist row: area-hue check circle, title, factual caption. */
@@ -76,11 +47,13 @@ export function TaskRow({
   onToggle,
   onTag,
   onMove,
+  onPartial,
   tagHues,
   theme,
   reduceMotion,
 }: TaskRowProps) {
-  const checked = task.completedToday;
+  // Done ahead reads as done: the session is finished, on another day.
+  const checked = task.completedToday || task.doneAheadOn !== null;
   const fill = useSharedValue(checked ? 1 : 0);
 
   useEffect(() => {
@@ -94,14 +67,14 @@ export function TaskRow({
     opacity: fill.value,
   }));
 
-  // Daily tasks have no frequency caption, so the run takes that slot
-  // rather than adding a line to the row.
-  const caption = progressCaption(task) ?? streakCaption(task);
+  const partial = task.progress > 0 && task.progress < 1;
+  // What earns the row's one line is decided in `rowCaption`.
+  const caption = rowCaption(task);
 
   return (
     <Pressable
       onPress={onToggle}
-      onLongPress={onTag ?? onMove}
+      onLongPress={onTag ?? onPartial ?? onMove}
       delayLongPress={350}
       disabled={disabled}
       accessibilityRole="checkbox"
@@ -117,12 +90,16 @@ export function TaskRow({
       accessibilityActions={
         onTag
           ? [{ name: "magicTap", label: "Where else it counts" }]
-          : onMove
-            ? [{ name: "magicTap", label: "Move to another part of the day" }]
-            : undefined
+          : onPartial
+            ? [{ name: "magicTap", label: "How much of it you did" }]
+            : onMove
+              ? [{ name: "magicTap", label: "Move to another part of the day" }]
+              : undefined
       }
       onAccessibilityAction={(e) => {
-        if (e.nativeEvent.actionName === "magicTap") (onTag ?? onMove)?.();
+        if (e.nativeEvent.actionName === "magicTap") {
+          (onTag ?? onPartial ?? onMove)?.();
+        }
       }}
       style={({ pressed }) => [
         styles.row,
@@ -134,6 +111,20 @@ export function TaskRow({
           raw Green or Amber is the same 3.78:1 / 3.16:1 the primary
           button had. */}
       <View style={[styles.circle, { borderColor: hue }]}>
+        {/* A partial fills from the bottom rather than dimming or
+            half-ticking: "some of it" needs to read as a level, and a
+            faded tick reads as a disabled one. */}
+        {partial ? (
+          <View
+            style={[
+              styles.level,
+              {
+                backgroundColor: solidFill(hue, theme),
+                height: CIRCLE * task.progress,
+              },
+            ]}
+          />
+        ) : null}
         <Animated.View
           style={[styles.circleFill, { backgroundColor: solidFill(hue, theme) }, fillStyle]}
         >
@@ -171,13 +162,20 @@ export function TaskRow({
         </View>
       ) : null}
       <AppText variant="footnote" color={theme.muted} tabular>
-        {task.extraToday && checked
-          ? `+${task.pointsIfCompletedNow}`
-          : `${task.pointValue}`}
+        {/* Nothing for a session done ahead: it was paid on the day it
+            was done, and a 0 here would read as "worth nothing". */}
+        {task.doneAheadOn !== null
+          ? ""
+          : task.extraToday && checked
+            ? `+${task.pointsIfCompletedNow}`
+            : `${task.pointValue}`}
       </AppText>
     </Pressable>
   );
 }
+
+/** The check circle's diameter; the partial level is a share of it. */
+const CIRCLE = 26;
 
 const styles = StyleSheet.create({
   row: {
@@ -188,17 +186,19 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   circle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  level: { position: "absolute", left: 0, right: 0, bottom: 0 },
   circleFill: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
     alignItems: "center",
     justifyContent: "center",
   },

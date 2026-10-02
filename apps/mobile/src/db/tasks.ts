@@ -19,6 +19,18 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import {
+  eventProblem,
+  eventTimesPerWeek,
+  optionalText,
+  type EventInput,
+} from "./events";
+import {
+  isCommitmentUnit,
+  subCommitmentsOn,
+  membershipsFor,
+  type Membership,
+} from "./commitmentPlan";
+import {
   lifeArea,
   lifeUnit,
   rating,
@@ -58,6 +70,19 @@ export interface PlanTask {
   oneOffDate: string | null;
   /** Its deadline, or null. */
   oneOffDue: string | null;
+  /** `event` for a time you attend (ADR-0038); otherwise `task`. */
+  kind: "task" | "event";
+  /** Where an event happens; null otherwise. */
+  location: string | null;
+  /** Minutes from local midnight, or null for no clock time
+   *  (ADR-0036 §1). Presentation and fit only; never scored. */
+  startMinute: number | null;
+  endMinute: number | null;
+  /** Effort size, or null for unsized (ADR-0026 §1). Does not reprice
+   *  a recurring task; a one-off's mirrors its `oneOffSize`. */
+  size: "quick" | "normal" | "big" | null;
+  /** Whether quarter completions are offered (ADR-0014 §1). */
+  allowsPartial: boolean;
 }
 
 export interface PlanUnit {
@@ -91,9 +116,49 @@ export interface PlanArea {
   units: PlanUnit[];
 }
 
+/**
+ * A commitment as the Tasks screen lists it: its own name, its parts,
+ * and the tasks filed under either (ADR-0035).
+ *
+ * Kept **out of `areas`** on purpose. A commitment is a custom unit and
+ * was reaching the Tasks screen as one — an excluded life unit with no
+ * weight, offering to "put it back in my plan" and so make School one of
+ * the 18. Commitments are priced by their own band, not by a weight, and
+ * listing them beside the 18 invited exactly that confusion.
+ */
+export interface PlanCommitment {
+  id: string;
+  name: string;
+  parts: { id: string; name: string }[];
+  /** Split into sub-commitments (ADR-0035 §1): its work lives in them,
+   *  never on the commitment itself. */
+  split: boolean;
+  /** Every active task whose home is this commitment or one of its parts. */
+  tasks: (PlanTask & { homeUnitId: string; homeName: string })[];
+}
+
 export interface PlanData {
   hasSnapshot: boolean;
   areas: PlanArea[];
+  /** Active commitments, each with its tasks. Empty when there are none. */
+  commitments: PlanCommitment[];
+}
+
+/**
+ * Every commitment unit — commitments and their parts, archived or
+ * not. Being archived does not make School stop being a commitment, and
+ * the membership rule has to hold for a task being edited either way.
+ */
+async function commitmentUnitIdsIn(tx: Tx | typeof db): Promise<Set<string>> {
+  const rows = await tx
+    .select({
+      id: lifeUnit.id,
+      isCustom: lifeUnit.isCustom,
+      parentUnitId: lifeUnit.parentUnitId,
+      commitmentShare: lifeUnit.commitmentShare,
+    })
+    .from(lifeUnit);
+  return new Set(rows.filter(isCommitmentUnit).map((u) => u.id));
 }
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -177,14 +242,70 @@ export async function loadPlan(): Promise<PlanData> {
   for (const m of memberships) {
     byTask.set(m.taskId, [...(byTask.get(m.taskId) ?? []), m]);
   }
+  const commitmentIds = new Set(units.filter(isCommitmentUnit).map((u) => u.id));
+
+  /** One task as a list row, seen from the unit it is listed under. */
+  const rowFor = (t: (typeof tasks)[number], listedUnder: string, rank: number) => {
+    const mine = byTask.get(t.id) ?? [];
+    return {
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      timesPerWeek: t.timesPerWeek,
+      plannedWeekdays: t.plannedWeekdays,
+      partOfDay: t.partOfDay,
+      fortnightOffset: t.fortnightOffset,
+      oneOffSize: t.oneOffSize,
+      oneOffDate: t.oneOffDate,
+      oneOffDue: t.oneOffDue,
+      startMinute: t.startMinute,
+      endMinute: t.endMinute,
+      size: t.size,
+      allowsPartial: t.allowsPartial,
+      kind: t.kind,
+      location: t.location,
+      goalId: t.goalId,
+      pointValue: t.pointValue,
+      rankInUnit: rank,
+      unitIds: [
+        t.unitId,
+        ...mine.map((x) => x.unitId).filter((id) => id !== t.unitId),
+      ],
+      otherUnitNames: mine
+        .filter((x) => x.unitId !== listedUnder)
+        .map((x) => unitName.get(x.unitId) ?? x.unitId),
+    };
+  };
+
+  const commitments: PlanCommitment[] = units
+    .filter((u) => commitmentIds.has(u.id) && u.parentUnitId === null)
+    .map((c) => {
+      const parts = units.filter((u) => u.parentUnitId === c.id);
+      const homes = new Map([c, ...parts].map((u) => [u.id, u.name]));
+      return {
+        id: c.id,
+        name: c.name,
+        parts: parts.map((u) => ({ id: u.id, name: u.name })),
+        split: subCommitmentsOn(c, parts.length),
+        tasks: tasks
+          .filter((t) => homes.has(t.unitId))
+          .map((t) => ({
+            ...rowFor(t, t.unitId, t.rankInUnit),
+            homeUnitId: t.unitId,
+            homeName: homes.get(t.unitId) ?? "",
+          }))
+          .sort((a, b) => a.title.localeCompare(b.title)),
+      };
+    });
 
   return {
     hasSnapshot: weights.size > 0,
+    commitments,
     areas: areas.map((area) => ({
       id: area.id,
       name: area.name,
       units: units
-        .filter((u) => u.areaId === area.id)
+        .filter((u) => u.areaId === area.id && !commitmentIds.has(u.id))
         .map((u) => ({
           id: u.id,
           name: u.name,
@@ -192,36 +313,14 @@ export async function loadPlan(): Promise<PlanData> {
           includeInScoring: u.includeInScoring,
           motivationKind: u.motivationKind,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
-          // A task is listed under every unit it serves, ranked by that
-          // unit's own membership — not only its home unit.
+          // A task is listed under every unit it *scores* in, ranked by
+          // that unit's own membership — not only its home unit. A note
+          // membership earns nothing there and holds no rank, so listing
+          // a commitment task under Learning would show a row the unit
+          // does not pay for.
           tasks: memberships
-            .filter((m) => m.unitId === u.id)
-            .map((m) => {
-              const t = tasks.find((x) => x.id === m.taskId)!;
-              const mine = byTask.get(t.id) ?? [];
-              return {
-                id: t.id,
-                title: t.title,
-                description: t.description,
-                timesPerWeek: t.timesPerWeek,
-                plannedWeekdays: t.plannedWeekdays,
-                partOfDay: t.partOfDay,
-                fortnightOffset: t.fortnightOffset,
-                oneOffSize: t.oneOffSize,
-                oneOffDate: t.oneOffDate,
-                oneOffDue: t.oneOffDue,
-                goalId: t.goalId,
-                pointValue: t.pointValue,
-                rankInUnit: m.rankInUnit,
-                unitIds: [
-                  t.unitId,
-                  ...mine.map((x) => x.unitId).filter((id) => id !== t.unitId),
-                ],
-                otherUnitNames: mine
-                  .filter((x) => x.unitId !== u.id)
-                  .map((x) => unitName.get(x.unitId) ?? x.unitId),
-              };
-            })
+            .filter((m) => m.unitId === u.id && m.membership === "scoring")
+            .map((m) => rowFor(tasks.find((x) => x.id === m.taskId)!, u.id, m.rankInUnit))
             .sort((a, b) => a.rankInUnit - b.rankInUnit),
         })),
     })),
@@ -275,6 +374,11 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
   const units = await tx
     .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
     .from(lifeUnit);
+  const commitmentUnitIds = await commitmentUnitIdsIn(tx);
+  // Scoring rows only. A `note` row earns nothing and holds no rank
+  // (ADR-0025 §5); weighted as a slot it would pay a commitment task a
+  // second time from a life unit, which is the one way to inflate a day
+  // (ADR-0035 §3).
   const memberships = await tx
     .select({
       taskId: taskUnit.taskId,
@@ -283,7 +387,7 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     })
     .from(taskUnit)
     .innerJoin(task, eq(task.id, taskUnit.taskId))
-    .where(eq(task.active, true))
+    .where(and(eq(task.active, true), eq(taskUnit.membership, "scoring")))
     .orderBy(asc(taskUnit.rankInUnit));
   // One read of the per-task columns this pass needs. `unitId` is the
   // home unit, which decides whose rank lands back on `task`.
@@ -308,9 +412,14 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       .forEach((m, i) => normalizedRank.set(`${m.taskId}::${m.unitId}`, i + 1));
   }
 
+  // A commitment has no weight among the 18 (ADR-0035): its work is
+  // priced by the commitment band, per day, and stores a weight of 0.
   const bandUnits: BandUnit[] = units.map((u) => ({
     unitId: u.id,
-    weight: u.includeInScoring ? (weights.get(u.id) ?? 0) : 0,
+    weight:
+      u.includeInScoring && !commitmentUnitIds.has(u.id)
+        ? (weights.get(u.id) ?? 0)
+        : 0,
   }));
   // One-offs never enter the recurring allocation. If they did, every
   // other non-daily task in their unit would lose value while an errand
@@ -403,12 +512,23 @@ async function attachUnits(
   taskId: string,
   unitIds: string[],
   rankByUnit?: Record<string, number>,
+  membershipOf: ReadonlyMap<string, Membership> = new Map(),
 ): Promise<void> {
   for (const unitId of unitIds) {
+    const membership = membershipOf.get(unitId) ?? "scoring";
+    if (membership === "note") {
+      // No rank, no points, no shuffling anybody else's order: a note
+      // takes no slot (ADR-0025 §5). Both columns are written 0 and
+      // ignored, as the schema's comment requires.
+      await tx
+        .insert(taskUnit)
+        .values({ taskId, unitId, rankInUnit: 0, pointValue: 0, membership });
+      continue;
+    }
     const siblings = await tx
       .select()
       .from(taskUnit)
-      .where(eq(taskUnit.unitId, unitId));
+      .where(and(eq(taskUnit.unitId, unitId), eq(taskUnit.membership, "scoring")));
     const rank = rankByUnit?.[unitId] ?? siblings.length + 1;
     for (const s of siblings) {
       if (s.rankInUnit >= rank) {
@@ -445,6 +565,23 @@ async function attachUnits(
  * Returns the new task's id so the caller can point at it; null when
  * there is no home unit to file it under.
  */
+/**
+ * The optional refinements, all null-by-default (ADR-0036 §2).
+ *
+ * A caller that omits this creates exactly the task the app made before
+ * these columns existed, which is the point: the light defaults are
+ * where the product's opinion about granularity lives, so nothing here
+ * may be supplied unasked.
+ */
+export interface TaskDetail {
+  startMinute: number | null;
+  endMinute: number | null;
+  size: "quick" | "normal" | "big" | null;
+  allowsPartial: boolean;
+  /** `event` for a window of time you attend (ADR-0038). */
+  kind?: "task" | "event";
+}
+
 export interface OneOff {
   size: "quick" | "normal" | "big";
   /** The day you mean to do it. Null is "no particular day". */
@@ -465,11 +602,20 @@ export async function addTask(
    *  (ADR-0030 §1). Grouping only — it never affects what the task is
    *  worth, which still comes from its units and its rank there. */
   conditionId: string | null = null,
+  detail: TaskDetail | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
   if (!home) return null;
   const id = Crypto.randomUUID();
   await db.transaction(async (tx) => {
+    // Decided before anything is written, so a refused shape — a
+    // commitment as a second unit — leaves no half-made task behind.
+    const membershipOf = new Map(
+      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
+        m.unitId,
+        m.membership,
+      ]),
+    );
     const siblings = await tx
       .select()
       .from(taskUnit)
@@ -490,10 +636,16 @@ export async function addTask(
       oneOffSize: oneOff?.size ?? null,
       oneOffDate: oneOff?.date ?? null,
       oneOffDue: oneOff?.due ?? null,
+      ...clockTimes(detail?.startMinute ?? null, detail?.endMinute ?? null),
+      // A one-off's size lands in both columns: `one_off_size` prices
+      // it, `size` is what the day's load and a window's capacity read.
+      size: oneOff?.size ?? detail?.size ?? null,
+      allowsPartial: detail?.allowsPartial ?? false,
+      kind: detail?.kind ?? "task",
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
-    await attachUnits(tx, id, unitIds);
+    await attachUnits(tx, id, unitIds, undefined, membershipOf);
   });
   return id;
 }
@@ -506,10 +658,29 @@ export async function setTaskUnits(
   const home = unitIds[0];
   if (!home) return;
   await db.transaction(async (tx) => {
+    const desired = new Map(
+      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
+        m.unitId,
+        m.membership,
+      ]),
+    );
     const current = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
+    // A unit kept but changing kind — Learning going from a scoring
+    // slot to a note because the task moved under School — is removed
+    // and re-attached, so it gains or loses its rank properly rather
+    // than keeping one it no longer has a right to.
+    const changed = current
+      .filter((m) => desired.has(m.unitId) && desired.get(m.unitId) !== m.membership)
+      .map((m) => m.unitId);
     const currentIds = current.map((m) => m.unitId);
-    const removed = currentIds.filter((id) => !unitIds.includes(id));
-    const added = unitIds.filter((id) => !currentIds.includes(id));
+    const removed = [
+      ...currentIds.filter((id) => !unitIds.includes(id)),
+      ...changed,
+    ];
+    const added = [
+      ...unitIds.filter((id) => !currentIds.includes(id)),
+      ...changed,
+    ];
 
     for (const unitId of removed) {
       await tx
@@ -517,7 +688,7 @@ export async function setTaskUnits(
         .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
     }
     await tx.update(task).set({ unitId: home }).where(eq(task.id, taskId));
-    if (added.length) await attachUnits(tx, taskId, added);
+    if (added.length) await attachUnits(tx, taskId, added, undefined, desired);
     // Closes the rank gap in the units it left, and rescales the plan
     // if it left one of them with nothing.
     await recomputeAllUnitPoints(tx);
@@ -763,6 +934,11 @@ export async function setTaskPartOfDay(
  * completions between recurring and one-off would strand its history:
  * a recurring task turned one-off would count as already settled and
  * vanish the moment it was saved.
+ *
+ * The size is written to **both** columns. `one_off_size` prices it;
+ * `size` is what window capacity and day load read (ADR-0026 §1: "one
+ * effort vocabulary"), and a one-off invisible to the day's load would
+ * be the vocabulary splitting in two.
  */
 export async function setTaskOneOff(
   taskId: string,
@@ -773,7 +949,7 @@ export async function setTaskOneOff(
   await db.transaction(async (tx) => {
     await tx
       .update(task)
-      .set({ oneOffSize: size, oneOffDate: date, oneOffDue: due })
+      .set({ oneOffSize: size, size, oneOffDate: date, oneOffDue: due })
       .where(eq(task.id, taskId));
     await recomputeAllUnitPoints(tx);
   });
@@ -784,4 +960,160 @@ export async function setTaskFortnightOffset(
   offset: 0 | 1,
 ): Promise<void> {
   await db.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId));
+}
+
+/**
+ * Give a task a clock time, or take one away (ADR-0036 §1).
+ *
+ * **Any task may carry one and nothing requires one.** Pass `null` to
+ * clear it and the task goes back to part-of-day, which is the default
+ * and stays the default: those defaults are the only place the
+ * product's opinion about granularity now lives (PRODUCT.md
+ * principle 6), so no caller here should ever supply one unasked.
+ *
+ * Times are integer minutes from local midnight. A range that ends
+ * before it starts is refused rather than stored — it would render as a
+ * negative-height block and silently vanish from the grid.
+ */
+export async function setTaskTime(
+  taskId: string,
+  startMinute: number | null,
+  endMinute: number | null,
+): Promise<void> {
+  const times = clockTimes(startMinute, endMinute);
+  if (times.startMinute !== null && endMinute !== null && times.endMinute === null) {
+    throw new Error("A task's end time must be after its start time.");
+  }
+  await db.update(task).set(times).where(eq(task.id, taskId));
+}
+
+/**
+ * The one place a pair of clock times is made storable.
+ *
+ * Clamps to the day, and drops an end that does not come after its
+ * start — a negative-height block would silently vanish from the grid
+ * rather than looking wrong. An end with no start is dropped too: it is
+ * not a block, and nothing in the window math can read one.
+ * `setTaskTime` turns the dropped end into an error; creation takes the
+ * coercion, because a new task should not fail to exist over it.
+ */
+function clockTimes(
+  startMinute: number | null,
+  endMinute: number | null,
+): { startMinute: number | null; endMinute: number | null } {
+  const clamp = (m: number | null) =>
+    m === null ? null : Math.max(0, Math.min(1439, Math.round(m)));
+  const start = clamp(startMinute);
+  const end = clamp(endMinute);
+  if (start === null) return { startMinute: null, endMinute: null };
+  return { startMinute: start, endMinute: end !== null && end > start ? end : null };
+}
+
+/**
+ * Set or clear a task's effort size (ADR-0026 §1).
+ *
+ * `null` is a first-class value, not a missing one: an unsized task
+ * behaves exactly as tasks did before this column existed, and a person
+ * who never wants to think about size should never have to.
+ *
+ * Size does **not** reprice a recurring task (ADR-0026 §2) — rank
+ * already does that job — so this writes no points and needs no
+ * recompute. One-offs are the exception and keep pricing through
+ * `ONE_OFF_SIZE_RATE`, which `setTaskOneOff` handles.
+ */
+export async function setTaskSize(
+  taskId: string,
+  size: "quick" | "normal" | "big" | null,
+): Promise<void> {
+  await db.update(task).set({ size }).where(eq(task.id, taskId));
+}
+
+/**
+ * Turn partial completion on or off for a task (ADR-0014 §1).
+ *
+ * Off by default. Turning it **off** leaves any fractions already
+ * recorded exactly where they are: they are history, and ADR-0002 does
+ * not let a setting rewrite what a day earned. Subsequent completions
+ * are simply whole ones.
+ */
+export async function setTaskAllowsPartial(
+  taskId: string,
+  allowsPartial: boolean,
+): Promise<void> {
+  await db.update(task).set({ allowsPartial }).where(eq(task.id, taskId));
+}
+
+// ── Events (ADR-0038) ─────────────────────────────────────────
+
+/**
+ * Add an event — a window of time you attend. Stored as a task
+ * with `kind = 'event'` and a required start and end, so it is
+ * ticked and paid exactly as a task is. Repeating on the days picked,
+ * or once, on `date`, as a one-off. Refused if `eventProblem`
+ * finds anything wrong, so no half-made event is written.
+ */
+export async function addEvent(
+  unitIds: string[],
+  input: EventInput,
+): Promise<string | null> {
+  const problem = eventProblem(input);
+  if (problem) throw new Error(problem);
+  const repeating = input.weekdays.length > 0;
+  const id = await addTask(
+    unitIds,
+    input.title.trim(),
+    repeating ? eventTimesPerWeek(input.weekdays) : 1,
+    repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
+    null,
+    null,
+    repeating ? null : { size: "normal", date: input.date, due: null },
+    null,
+    {
+      startMinute: input.startMinute,
+      endMinute: input.endMinute,
+      size: null,
+      allowsPartial: false,
+      kind: "event",
+    },
+  );
+  if (id) {
+    await db
+      .update(task)
+      .set({ location: optionalText(input.location), description: optionalText(input.notes) })
+      .where(eq(task.id, id));
+  }
+  return id;
+}
+
+/**
+ * Change an event's name, days or date, and time. Switching
+ * between repeating and one-time is allowed: a one-time event is
+ * a one-off underneath, and the pricing pass is re-run either way.
+ */
+export async function updateEvent(
+  taskId: string,
+  input: EventInput,
+): Promise<void> {
+  const problem = eventProblem(input);
+  if (problem) throw new Error(problem);
+  const repeating = input.weekdays.length > 0;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(task)
+      .set({
+        title: input.title.trim(),
+        timesPerWeek: repeating ? eventTimesPerWeek(input.weekdays) : 1,
+        plannedWeekdays: repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
+        oneOffSize: repeating ? null : "normal",
+        size: repeating ? null : "normal",
+        oneOffDate: repeating ? null : input.date,
+        oneOffDue: null,
+        ...clockTimes(input.startMinute, input.endMinute),
+        kind: "event",
+        location: optionalText(input.location),
+        description: optionalText(input.notes),
+      })
+      .where(eq(task.id, taskId));
+    await recomputeAllUnitPoints(tx);
+  });
 }

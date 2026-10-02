@@ -340,7 +340,8 @@ balance is worth re-checking rather than re-assuming.
 5. [x] Update Settings → Privacy so the on-device log is stated rather
        than merely not contradicted, and add the triage note to
        [docs/release.md](../release.md).
-6. [ ] Keep the release build's source map for anything shipped to
+6. [x] Keep the release build's source map for anything shipped to
        testers, so a minified frame in a report can be read back. Not
        code — a step in the release runbook, and untestable until the
-       first EAS build exists.
+       first EAS build exists. *(Done 2026-10-02 check: the step is in
+       docs/release.md, "Keep the source map for anything you ship.")*

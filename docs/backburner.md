@@ -709,3 +709,94 @@ weight derivation, so moving it does **not** bump `FORMULA_VERSION` —
 the constant says so explicitly. It only affects how finished days
 aggregate, so unlike the rest of this section it could ship on its own
 without adding a version boundary to history.
+
+## Timetable import
+
+*Parked 2026-08-21, by Henry's call, while
+[ADR-0035](adr/0035-commitments-are-custom-units.md) was being drafted.*
+
+**The idea:** stop making people type a timetable in. Henry's first
+framing was "a local AI that is pre-trained on reading university
+schedules."
+
+**Why it's parked, not rejected:** the need is real and the ordering
+is wrong. Three things, in the order they should happen:
+
+- **`.ics` first, and it may be most of the answer.** Canvas, Moodle,
+  Blackboard and Banner all publish a calendar feed or export. Parsing
+  one is exact rather than probabilistic, testable off-device, needs no
+  model, and runs in Expo Go. `fixed_commitment` is already the
+  expanded form an importer produces — an `RRULE` with `EXDATE`s maps
+  onto `weeks` plus one-off `specific_date` rows.
+- **The seam is already paid for** (ADR-0035 §7): `source` and
+  `external_id` are two inert nullable columns, and every commitment is
+  written through one `createCommitment()`. An importer is a second
+  caller of one function, not a second write path.
+- **On-device extraction is the second pass**, for the PDF and the
+  screenshot `.ics` misses. Apple's Vision framework does the OCR with
+  nothing bundled; a structured-extraction pass over the text is the
+  part that wants a model. Note that "pre-trained on reading
+  university schedules" is not what would actually happen — you do not
+  train, you prompt with a schema and validate the result.
+
+**What it must not do.** [privacy.md](privacy.md) promises no server,
+no analytics and no third-party SDK that phones home, and the app's
+whole disposition rests on that being simply true. A cloud call would
+send someone's timetable — which is to say their location, hour by
+hour, for four months — off the device. So: on-device only, and
+**bundling a model or calling a network service reopens the privacy
+story rather than extending it.** Planned **ADR-0017** already reserves
+the on-device-LLM question and is where this lands.
+
+Note also that custom native code means **no Expo Go**, the same
+constraint ADR-0020 put on backup and for the same reason. That is a
+real cost for a feature whose whole promise is "this is quick."
+
+## The draggable weight pie
+
+*Parked 2026-09-11, by Henry's call — "that was a side thought."*
+
+**The idea:** replace the pairwise ranking board with a pie of the
+active units that the user drags directly, setting each unit's share of
+the 100 by hand.
+
+**Why it is worth keeping.** The write path already exists:
+`applyPriorityOrder` (`apps/mobile/src/db/ranking.ts:218`) takes a
+user-arranged ordering, writes the result to `unit_weight.override`,
+recomputes every task's points and recaches day scores;
+`resetToDiagnostic` drops the overrides. The schema already says
+*"Effective weight = override ?? derived."* And it is already a product
+invariant that every derived value is overridable with the recommended
+value still shown — which a pie renders beautifully: **the dragged
+slice with a ghost mark where the diagnostic put it.**
+
+**What parked it:** it is orthogonal to the commitment work that this
+branch is actually for, and it is the kind of change that would
+otherwise quietly become the main event.
+
+**Two things to settle before it is built:**
+
+- **It would be the first thing to bypass `deriveWeights`.** Today's
+  override still runs *through* the formula — the ranking board turns
+  an ordering into synthetic importance via `rankToScore` — so the
+  satisfaction-gap boost still applies. A pie sets the weight directly,
+  which trips the AGENTS.md invariant *"importance first,
+  satisfaction-gap boost second."* Recommended framing: the pie is the
+  **override editor**, not a replacement for the diagnostic, which
+  keeps the diagnostic's importance and satisfaction feeding the
+  portfolio graph.
+- **A literal pie is probably the wrong control.** Eighteen-plus slices
+  on a phone puts several units under 3% — about 10° of arc — against
+  44pt hit targets, 200% Dynamic Type and AA contrast across eighteen
+  colours from a six-hue palette. ADR-0021 carries the relevant scar:
+  *"No UI may let the user re-rank, re-weight, or reorder areas into a
+  stored value; that has been built once and it destroyed data."*
+  Likely shape: **pie as the display, a row per unit as the editor.**
+  Also needs a rule for what absorbs a drag — proportionally across the
+  rest, from a neighbour, or with locks. `largestRemainder` already
+  keeps the integers summing to 100.
+
+**Not needed by the commitment work.** The commitment band has its own
+controls — a slider for the band and a share per commitment — and the
+18 life units keep the diagnostic and the existing ranking board. This
+orphans nothing.

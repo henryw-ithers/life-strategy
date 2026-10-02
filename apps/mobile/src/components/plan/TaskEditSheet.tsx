@@ -50,7 +50,9 @@ import {
 } from "./planning";
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import type { OneOffSize } from "./OneOffPicker";
+import { type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
+import { needsDays } from "./unitSelection";
 
 export interface EditableTask {
   id: string;
@@ -70,6 +72,25 @@ export interface EditableTask {
   oneOffSize: OneOffSize | null;
   oneOffDate: string | null;
   oneOffDue: string | null;
+  /** All optional, all unset by default (ADR-0036 §2, ADR-0026 §1). */
+  startMinute: number | null;
+  endMinute: number | null;
+  size: OneOffSize | null;
+  allowsPartial: boolean;
+}
+
+/** What the sheet hands back on save — applied by `applyTaskEdit`. */
+export interface TaskEditResult {
+  title: string;
+  timesPerWeek: number;
+  unitIds: string[];
+  plannedWeekdays: string | null;
+  partOfDay: PartOfDay | null;
+  goalId: string | null;
+  fortnightOffset: number;
+  /** Null when the task is not a one-off; unchanged cadence either way. */
+  oneOff: OneOffState | null;
+  detail: TaskDetail;
 }
 
 interface TaskEditSheetProps {
@@ -83,17 +104,7 @@ interface TaskEditSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
-  onSave: (next: {
-    title: string;
-    timesPerWeek: number;
-    unitIds: string[];
-    plannedWeekdays: string | null;
-    partOfDay: PartOfDay | null;
-    goalId: string | null;
-    fortnightOffset: number;
-    /** Null when the task is not a one-off; unchanged cadence either way. */
-    oneOff: OneOffState | null;
-  }) => void;
+  onSave: (next: TaskEditResult) => void;
   onDelete: () => void;
 }
 
@@ -119,6 +130,12 @@ export function TaskEditSheet({
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(task.partOfDay);
   const [goalId, setGoalId] = useState<string | null>(task.goalId);
   const [fortnightOffset, setFortnightOffset] = useState(task.fortnightOffset);
+  const [detail, setDetail] = useState<TaskDetail>({
+    startMinute: task.startMinute,
+    endMinute: task.endMinute,
+    size: task.size,
+    allowsPartial: task.allowsPartial,
+  });
 
   /** Pinned days *are* the frequency (ADR-0024 §Schema) — the wheel
    *  retires while any chip is lit, inside `SchedulePicker`. */
@@ -132,7 +149,11 @@ export function TaskEditSheet({
     storedWeekdays !== task.plannedWeekdays ||
     partOfDay !== task.partOfDay ||
     goalId !== task.goalId ||
-    fortnightOffset !== task.fortnightOffset;
+    fortnightOffset !== task.fortnightOffset ||
+    detail.startMinute !== task.startMinute ||
+    detail.endMinute !== task.endMinute ||
+    detail.size !== task.size ||
+    detail.allowsPartial !== task.allowsPartial;
 
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
@@ -146,7 +167,13 @@ export function TaskEditSheet({
     due: task.oneOffDue,
   });
 
-  const savable = title.trim().length > 0 && unitIds.length > 0;
+  /** Recurring commitment work has to name its days (ADR-0033). This
+   *  bites when an unpinned task is moved under a commitment. */
+  const homeIsCommitment =
+    units.find((u) => u.id === unitIds[0])?.commitment === true;
+  const missingDays = needsDays({ homeIsCommitment, once, weekdays });
+  const savable =
+    title.trim().length > 0 && unitIds.length > 0 && !missingDays;
 
   const save = () => {
     if (!savable) return;
@@ -159,6 +186,10 @@ export function TaskEditSheet({
       goalId,
       fortnightOffset,
       oneOff: once ? oneOff : null,
+      // A one-off prices itself from its own "How big" above, and
+      // `setTaskOneOff` mirrors that into `size`. Sending this one's
+      // stale copy back would undo it.
+      detail: once ? { ...detail, size: task.size } : detail,
     });
     onClose();
   };
@@ -254,6 +285,9 @@ export function TaskEditSheet({
             onPartOfDayChange={setPartOfDay}
             fortnightOffset={fortnightOffset}
             onFortnightOffsetChange={setFortnightOffset}
+            detail={detail}
+            onDetailChange={setDetail}
+            daysRequired={homeIsCommitment && !once}
             accent={accent}
             theme={theme}
           />
@@ -325,6 +359,12 @@ export function TaskEditSheet({
           ) : null}
           </ScrollView>
 
+          {missingDays ? (
+            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+              Pick the days it happens. Commitment work is paid on the days
+              it is scheduled.
+            </AppText>
+          ) : null}
           <Button
             label={dirty ? "Save changes" : "Done"}
             color={accent}
@@ -348,6 +388,7 @@ export function TaskEditSheet({
 }
 
 const styles = StyleSheet.create({
+  blocker: { textAlign: "center", marginBottom: -space.sm },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

@@ -66,6 +66,20 @@ export const EXTRA_RUN_RATE = 0.5;
 export const UNPLANNED_CAP = UNPLANNED_BAND;
 
 /**
+ * A rest day's floor (ADR-0037): what calling one on a day with nothing
+ * due is worth before anything is done. Henry, 2026-10-01: *"call a
+ * rest day which gives an automatic 70%."*
+ */
+export const REST_DAY_BASE = 70;
+
+/**
+ * What activities may add on a rest day — the rest of the way to 100.
+ * Wider than `UNPLANNED_CAP` because a rest day has no planned band for
+ * activities to sit beside; the day is the activities (ADR-0037 §2).
+ */
+export const REST_DAY_UNPLANNED = 30;
+
+/**
  * `MISSED_DAY_CREDIT` **retired 2026-08-13.** An elapsed day with no
  * stored row was filled at 0.5 of the standard denominator so skipped
  * days could not vanish from it. Two problems ended it:
@@ -136,6 +150,27 @@ export const UNPLANNED_CAP = UNPLANNED_BAND;
  *  the first time, withdrawing ADR-0024 §2, though nothing compares a
  *  completion's date to the day it was pinned to: obligations are
  *  weekly, so doing Friday's run on Tuesday is still a perfect week.
- *  A v8 `earned` and a v9 one are not comparable; grades finalize. */
-export const FORMULA_VERSION = 9;
+ *  A v8 `earned` and a v9 one are not comparable; grades finalize.
+ *  v10 (2026-10-01): **the commitment band, on v9's day** (ADR-0032 as
+ *  amended; built on a branch as its own v8–v11 and renumbered when it
+ *  met v9, since none of those stamps reached a device).
+ *  - On a day with scheduled commitment work, the band — the user's
+ *    10–60 — is that share of the whole day, carved off first and paid
+ *    as the share of today's commitment work done. v9's 90 planned and
+ *    10 unplanned are scaled into what is left. Every other day is v9
+ *    exactly.
+ *  - Commitments are the band, never more. A day whose only due work
+ *    is commitment work tops out at the band: the life share has
+ *    nothing due, so it pays nothing, activities included.
+ *  - Commitment work done on a day it was not scheduled is priced at
+ *    its scheduled-day value and paid in full, outside every band; an
+ *    early recurring session stands in for its next scheduled one, and
+ *    that session leaves its own day (ADR-0032 §4).
+ *  - Part credit reaches the day: a part-done run counts its fraction
+ *    of its weight (ADR-0014).
+ *  - A day with nothing due, a plan behind it, and nothing open later
+ *    in the week — or something done early — is a rest day: 70,
+ *    activities up to 30, early work on top at its planned day's worth
+ *    (ADR-0037). Before, it was ungraded. */
+export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;
