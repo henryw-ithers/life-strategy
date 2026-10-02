@@ -5,7 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 
-import { normalizeBand } from "@glide/scoring";
+import { MAX_COMMITMENTS, normalizeBand } from "@glide/scoring";
 
 import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
@@ -135,13 +135,17 @@ export async function loadCommitmentBand(): Promise<number | null> {
   const value = await getSetting(KEY_COMMITMENT_BAND);
   if (value === null || value === "") return null;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? normalizeBand(parsed) : null;
+  // Normalised against the highest cap, three commitments' 80. The cap
+  // for however many there are today is applied where the band is used
+  // (`commitmentBandOn`), so archiving one never rewrites the setting.
+  return Number.isFinite(parsed) ? normalizeBand(parsed, MAX_COMMITMENTS) : null;
 }
 
 /** Stored normalised, so a value out of range cannot reach the engine
- *  even if this is called with one (ADR-0032 §2 clamps to 10–60). */
+ *  even if this is called with one (ADR-0032 §2: 10 up to 60, 70 or 80
+ *  for one, two or three commitments). */
 export async function setCommitmentBand(band: number): Promise<void> {
-  await setSetting(KEY_COMMITMENT_BAND, String(normalizeBand(band)));
+  await setSetting(KEY_COMMITMENT_BAND, String(normalizeBand(band, MAX_COMMITMENTS)));
 }
 
 /** Forget the band entirely — every day goes back to two bands. */

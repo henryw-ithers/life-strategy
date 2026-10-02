@@ -138,8 +138,22 @@ export function unitCoverage(
 
 /** The band's permitted range, in steps of 5 (ADR-0032 §2). */
 export const COMMITMENT_BAND_MIN = 10;
-export const COMMITMENT_BAND_MAX = 60;
+/** The highest the band can go at all — with three commitments. */
+export const COMMITMENT_BAND_MAX = 80;
 export const COMMITMENT_BAND_STEP = 5;
+
+/**
+ * How large the band may be for this many commitments (ADR-0032 §2 as
+ * amended 2026-10-02): **60 with one, 70 with two, 80 with three.**
+ * Henry: *"bump the commitments value to up to 70 if they have two
+ * commitments and 80 if they have 3."* More of a week is spoken for
+ * when more of it is scheduled, so more of the day may be.
+ */
+export function commitmentBandMax(commitments: number): number {
+  if (commitments >= 3) return 80;
+  if (commitments === 2) return 70;
+  return 60;
+}
 
 /** At most three commitments (ADR-0035 §1). */
 export const MAX_COMMITMENTS = 3;
@@ -178,7 +192,8 @@ export interface Pool {
  * nothing eligible — and the day is an ordinary two-band day.
  */
 export interface CommitmentDay {
-  /** 10–60. Clamped and snapped to a step of 5 by `normalizeBand`. */
+  /** 10 up to `commitmentBandMax(commitments.length)`. Clamped and
+   *  snapped to a step of 5 by `normalizeBand`. */
   band: number;
   commitments: readonly CommitmentGroup[];
   /** Ids of the commitment tasks scheduled or planned for this date. */
@@ -187,12 +202,48 @@ export interface CommitmentDay {
   pools?: readonly Pool[];
 }
 
-/** Clamp to [10, 60] and snap to the nearest step of 5 (ADR-0032 §2). */
-export function normalizeBand(band: number): number {
+/** Clamp to [10, the cap for this many commitments] and snap to the
+ *  nearest step of 5 (ADR-0032 §2). A setting above the cap — 80 kept
+ *  from when there were three commitments, after one was archived — is
+ *  read as the cap, never stored back down. */
+export function normalizeBand(band: number, commitments = 1): number {
   if (!Number.isFinite(band)) return COMMITMENT_BAND_MIN;
   const snapped =
     Math.round(band / COMMITMENT_BAND_STEP) * COMMITMENT_BAND_STEP;
-  return Math.min(COMMITMENT_BAND_MAX, Math.max(COMMITMENT_BAND_MIN, snapped));
+  return Math.min(
+    commitmentBandMax(commitments),
+    Math.max(COMMITMENT_BAND_MIN, snapped),
+  );
+}
+
+/**
+ * Set one commitment to `percent` of the band and fit the others into
+ * the rest, **keeping their proportions** — the commitment sheet's
+ * arithmetic (ADR-0032 §3 as amended 2026-10-02).
+ *
+ * Shares used to be free relative weights, which were right for the
+ * engine and too vague to set: "weight 2" means nothing until you know
+ * the others. They are now whole percentages summing to 100, so what is
+ * stored is what is shown. Integers that sum exactly, via
+ * `largestRemainder`; others whose shares are all zero split the rest
+ * evenly.
+ *
+ * With no others the commitment takes the whole band, whatever was
+ * asked — there is nothing to share it with.
+ */
+export function rebalanceShares(
+  others: readonly { id: string; share: number }[],
+  percent: number,
+): { self: number; others: { id: string; share: number }[] } {
+  if (others.length === 0) return { self: 100, others: [] };
+  const self = Math.min(99, Math.max(1, Math.round(percent)));
+  const rest = 100 - self;
+  const total = others.reduce((a, o) => a + Math.max(0, o.share), 0);
+  const exact = others.map((o) =>
+    total > 0 ? (rest * Math.max(0, o.share)) / total : rest / others.length,
+  );
+  const ints = largestRemainder(exact, rest);
+  return { self, others: others.map((o, i) => ({ id: o.id, share: ints[i] ?? 0 })) };
 }
 
 /**
@@ -207,7 +258,7 @@ export function normalizeBand(band: number): number {
  */
 export function commitmentBandOn(day: CommitmentDay | null | undefined): number {
   if (!day || day.eligibleTaskIds.length === 0) return 0;
-  return normalizeBand(day.band);
+  return normalizeBand(day.band, day.commitments.length);
 }
 
 /**
@@ -307,7 +358,7 @@ export function commitmentPointValues(
   const shareTotal = active.reduce((a, c) => a + c.share, 0);
   if (shareTotal <= 0) return values;
 
-  const band = normalizeBand(day.band);
+  const band = normalizeBand(day.band, day.commitments.length);
   const budgets = largestRemainder(
     active.map((c) => (band * c.share) / shareTotal),
     band,

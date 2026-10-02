@@ -297,6 +297,7 @@ export default function GoalsScreen() {
         <BandSheet
           visible
           band={commitments?.band ?? null}
+          commitments={commitments?.commitments.length ?? 0}
           theme={theme}
           onClose={() => setBandOpen(false)}
           onSave={async (band) => {
@@ -312,11 +313,15 @@ export default function GoalsScreen() {
         <CommitmentSheet
           visible
           mode={sheetMode}
-          otherShares={(commitments?.commitments ?? []).map((c) => c.share)}
+          others={(commitments?.commitments ?? []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            percent: c.sharePercent,
+          }))}
           theme={theme}
           onClose={() => setSheetMode(null)}
-          onSave={async ({ name, share }) => {
-            await createCommitment({ name, share });
+          onSave={async ({ name, percent }) => {
+            await createCommitment({ name, percent });
             setSheetMode(null);
             await reload();
           }}

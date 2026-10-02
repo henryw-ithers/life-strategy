@@ -7,6 +7,7 @@
  * three commitments** — are enforced at this seam, which is why every
  * write goes through it rather than touching the tables directly.
  */
+import { rebalanceShares } from "@glide/scoring";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
@@ -34,8 +35,12 @@ const COMMITMENT_AREA = "work-money";
 
 export interface CreateCommitmentInput {
   name: string;
-  /** Relative share of the band. Defaults to an equal-ish 1. */
-  share?: number;
+  /**
+   * What percent of the commitment band this one takes. The others are
+   * scaled into the rest, keeping their proportions (`rebalanceShares`).
+   * Ignored for a first commitment, which takes all of it.
+   */
+  percent?: number;
 }
 
 /**
@@ -62,16 +67,26 @@ export async function createCommitment(
   const [{ next } = { next: 0 }] = await db
     .select({ next: sql<number>`coalesce(max(${lifeUnit.sortOrder}), 0) + 1` })
     .from(lifeUnit);
-  await db.insert(lifeUnit).values({
-    id,
-    areaId: COMMITMENT_AREA,
-    name: input.name.trim(),
-    sortOrder: next,
-    isCustom: true,
-    // A commitment is scored from its own band, never from the 18's
-    // pool, so it takes no share of the diagnostic's 100.
-    includeInScoring: false,
-    commitmentShare: input.share ?? 1,
+  const others = await liveCommitmentShares();
+  const shares = rebalanceShares(
+    others,
+    input.percent ?? Math.round(100 / (others.length + 1)),
+  );
+  await db.transaction(async (tx) => {
+    await tx.insert(lifeUnit).values({
+      id,
+      areaId: COMMITMENT_AREA,
+      name: input.name.trim(),
+      sortOrder: next,
+      isCustom: true,
+      // A commitment is scored from its own band, never from the 18's
+      // pool, so it takes no share of the diagnostic's 100.
+      includeInScoring: false,
+      commitmentShare: shares.self,
+    });
+    for (const o of shares.others) {
+      await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
+    }
   });
   return id;
 }
@@ -118,8 +133,30 @@ export async function createSubCommitment(
 
 export interface UpdateCommitmentInput {
   name?: string;
-  /** Only meaningful on a commitment; ignored on a sub-commitment. */
-  share?: number;
+  /**
+   * Percent of the band this commitment takes; the others are scaled
+   * into the rest. Only meaningful on a commitment; ignored on a
+   * sub-commitment.
+   */
+  percent?: number;
+}
+
+/** Live commitments' shares — what a new or changed percentage is
+ *  balanced against. */
+async function liveCommitmentShares(exceptId?: string): Promise<{ id: string; share: number }[]> {
+  const rows = await db
+    .select({ id: lifeUnit.id, share: lifeUnit.commitmentShare })
+    .from(lifeUnit)
+    .where(
+      and(
+        eq(lifeUnit.isCustom, true),
+        isNull(lifeUnit.archivedAt),
+        isNull(lifeUnit.parentUnitId),
+      ),
+    );
+  return rows
+    .filter((r) => r.share !== null && r.id !== exceptId)
+    .map((r) => ({ id: r.id, share: r.share ?? 0 }));
 }
 
 /** Rename a commitment or sub-commitment, or change its band share. */
@@ -135,11 +172,18 @@ export async function updateCommitment(
   // A share on a sub-commitment would be a stored number that does
   // nothing, which is worse than ignoring the argument: sub-commitments
   // price nothing (ADR-0035 §1).
-  if (input.share !== undefined && row.parentUnitId === null) {
-    patch.commitmentShare = input.share;
-  }
+  const others =
+    input.percent !== undefined && row.parentUnitId === null && row.archivedAt === null
+      ? rebalanceShares(await liveCommitmentShares(id), input.percent)
+      : null;
+  if (others) patch.commitmentShare = others.self;
   if (Object.keys(patch).length === 0) return;
-  await db.update(lifeUnit).set(patch).where(eq(lifeUnit.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(lifeUnit).set(patch).where(eq(lifeUnit.id, id));
+    for (const o of others?.others ?? []) {
+      await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
+    }
+  });
 }
 
 /**

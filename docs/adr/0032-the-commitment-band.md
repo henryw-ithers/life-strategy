@@ -134,6 +134,17 @@ The floor and ceiling are the app having a mild opinion, against
 PRODUCT.md principle 6. Defensible: 0 makes the feature pointless, 100
 deletes the rest of a life from a scheduled day.
 
+> **Amended 2026-10-02: the cap grows with the commitments.** Henry:
+> *"bump the commitments value to up to 70 if they have two commitments
+> and 80 if they have 3."* The cap is **60 with one commitment, 70 with
+> two, 80 with three** (`commitmentBandMax`). The setting is stored up
+> to 80 and held to the cap for however many commitments there are at
+> the time it is used, so archiving one quietly lowers a band set above
+> the new cap without rewriting the setting. The flat 60 above, and
+> the reasoning that withdrew 80 — it leaves the 18 life units sharing
+> 20 — stand as the record; that cost is now one a person with three
+> commitments chooses knowingly, and the band sheet says it.
+
 ### 3. Division: by commitment, then across that day's eligible tasks
 
 - **Between commitments**, by user-set shares — School 50 / Work 30 /
@@ -154,6 +165,16 @@ A light day paying more per task is **not** a bug. It is
 to its single task, a fifth each when there are five — with the divisor
 scoped to a day instead of a plan. Finish the week early, attend the
 one Friday class, earn the commitment's full share.
+
+> **Amended 2026-10-02: shares are percentages, and the question
+> depends on the count.** Henry: the free relative weight was *"way too
+> vague."* Shares are now whole percentages of the commitment band,
+> summing to 100. The first commitment is asked nothing and takes 100.
+> A second or third is asked what percent of the commitment points
+> comes from it, with the others shown beside it, rescaled live into
+> the rest with their proportions kept (`rebalanceShares`). The engine
+> is unchanged — it divides by shares relative to one another, so
+> percentages are a special case of what it already took.
 
 ### 4. This amends ADR-0024 §2, knowingly
 

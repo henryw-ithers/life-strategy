@@ -72,7 +72,8 @@ export default function CommitmentScreen() {
   const accent = theme.areas["work-money"] ?? theme.accent;
 
   const [data, setData] = useState<CommitmentDetail | null>(null);
-  const [others, setOthers] = useState<number[]>([]);
+  /** The other live commitments, for the share question. */
+  const [others, setOthers] = useState<{ id: string; name: string; percent: number }[]>([]);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -84,7 +85,11 @@ export default function CommitmentScreen() {
     const [screen, plan] = await Promise.all([loadCommitmentsScreen(), loadPlan()]);
     const all = [...screen.commitments, ...screen.archived];
     setData(all.find((c) => c.id === id) ?? null);
-    setOthers(screen.commitments.filter((c) => c.id !== id).map((c) => c.share));
+    setOthers(
+      screen.commitments
+        .filter((c) => c.id !== id)
+        .map((c) => ({ id: c.id, name: c.name, percent: c.sharePercent })),
+    );
     setUnits(pickableUnits(plan));
   }, [id]);
 
@@ -153,21 +158,24 @@ export default function CommitmentScreen() {
                   setSheet({
                     kind: "commitment",
                     name: data.name,
-                    share: data.share,
+                    percent: data.sharePercent,
                   })
                 }
                 last={archived}
               />
-              {!archived ? (
+              {/* Only worth a row when there is something to share with:
+                  a lone commitment takes the whole band, and a row that
+                  opened onto a question with one answer is a dead end. */}
+              {!archived && others.length > 0 ? (
                 <ActionRow
-                  label="Weight"
-                  value={`${data.sharePercent}% of commitments`}
+                  label="Share"
+                  value={`${data.sharePercent}% of commitment points`}
                   theme={theme}
                   onPress={() =>
                     setSheet({
                       kind: "commitment",
                       name: data.name,
-                      share: data.share,
+                      percent: data.sharePercent,
                     })
                   }
                   last
@@ -339,15 +347,15 @@ export default function CommitmentScreen() {
               <CommitmentSheet
                 visible
                 mode={sheet}
-                otherShares={others}
+                others={others}
                 theme={theme}
                 onClose={() => {
                   setSheet(null);
                   setEditingSubId(null);
                 }}
-                onSave={async ({ name, share }) => {
+                onSave={async ({ name, percent }) => {
                   if (sheet.kind === "commitment") {
-                    await updateCommitment(data.id, { name, share });
+                    await updateCommitment(data.id, { name, percent });
                   } else if (editingSubId !== null) {
                     await updateCommitment(editingSubId, { name });
                   } else {

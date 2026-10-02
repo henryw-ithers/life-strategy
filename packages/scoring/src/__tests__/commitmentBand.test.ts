@@ -13,7 +13,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  commitmentBandMax,
   commitmentBandOn,
+  rebalanceShares,
   commitmentPointValues,
   lifeShare,
   normalizeBand,
@@ -36,13 +38,104 @@ const sum = (v: Map<string, number>, ids: readonly string[]) =>
   ids.reduce((a, id) => a + (v.get(id) ?? 0), 0);
 
 describe("normalizeBand — ADR-0032 §2", () => {
-  it("clamps to 10–60 and snaps to steps of 5", () => {
+  it("clamps to 10–60 with one commitment and snaps to steps of 5", () => {
     expect(normalizeBand(40)).toBe(40);
     expect(normalizeBand(42)).toBe(40);
     expect(normalizeBand(43)).toBe(45);
     expect(normalizeBand(0)).toBe(COMMITMENT_BAND_MIN);
-    expect(normalizeBand(100)).toBe(COMMITMENT_BAND_MAX);
+    expect(normalizeBand(100)).toBe(60);
     expect(normalizeBand(Number.NaN)).toBe(COMMITMENT_BAND_MIN);
+  });
+});
+
+describe("the cap grows with the commitments — ADR-0032 §2, 2026-10-02", () => {
+  it("is 60 with one, 70 with two, 80 with three", () => {
+    expect(commitmentBandMax(1)).toBe(60);
+    expect(commitmentBandMax(2)).toBe(70);
+    expect(commitmentBandMax(3)).toBe(80);
+    expect(COMMITMENT_BAND_MAX).toBe(80);
+  });
+
+  it("is 60 with none, so a band set early cannot run ahead of them", () => {
+    expect(commitmentBandMax(0)).toBe(60);
+  });
+
+  it("clamps to the cap for the count it is given", () => {
+    expect(normalizeBand(80, 1)).toBe(60);
+    expect(normalizeBand(80, 2)).toBe(70);
+    expect(normalizeBand(80, 3)).toBe(80);
+  });
+
+  it("applies on the day, from the commitments the day knows about", () => {
+    // 80 set with three commitments; one archived since → read as 70.
+    const two = [SCHOOL, WORK];
+    expect(commitmentBandOn({ band: 80, commitments: two, eligibleTaskIds: ["lec"] })).toBe(70);
+    const v = commitmentPointValues(
+      { band: 80, commitments: two, eligibleTaskIds: ["lec", "shift"] },
+      [task("lec", "comp2521"), task("shift", "work")],
+    );
+    expect(sum(v, ["lec", "shift"])).toBe(70);
+  });
+});
+
+describe("rebalanceShares — setting one commitment as a percentage", () => {
+  it("gives the first commitment the whole band", () => {
+    expect(rebalanceShares([], 30)).toEqual({ self: 100, others: [] });
+  });
+
+  it("gives the second what is asked, and the first the rest", () => {
+    expect(rebalanceShares([{ id: "school", share: 100 }], 30)).toEqual({
+      self: 30,
+      others: [{ id: "school", share: 70 }],
+    });
+  });
+
+  it("keeps the others' proportions when a third arrives", () => {
+    const out = rebalanceShares(
+      [
+        { id: "school", share: 60 },
+        { id: "work", share: 40 },
+      ],
+      20,
+    );
+    expect(out.self).toBe(20);
+    expect(out.others).toEqual([
+      { id: "school", share: 48 },
+      { id: "work", share: 32 },
+    ]);
+  });
+
+  it("always sums to exactly 100", () => {
+    for (const p of [1, 17, 33, 50, 99]) {
+      const out = rebalanceShares(
+        [
+          { id: "a", share: 1 },
+          { id: "b", share: 2 },
+        ],
+        p,
+      );
+      expect(out.self + out.others.reduce((x, o) => x + o.share, 0)).toBe(100);
+    }
+  });
+
+  it("keeps every commitment above zero by holding the new one to 1–99", () => {
+    expect(rebalanceShares([{ id: "a", share: 50 }], 100).self).toBe(99);
+    expect(rebalanceShares([{ id: "a", share: 50 }], 0).self).toBe(1);
+  });
+
+  it("splits evenly between others with no share yet", () => {
+    expect(
+      rebalanceShares(
+        [
+          { id: "a", share: 0 },
+          { id: "b", share: 0 },
+        ],
+        50,
+      ).others,
+    ).toEqual([
+      { id: "a", share: 25 },
+      { id: "b", share: 25 },
+    ]);
   });
 });
 
@@ -88,9 +181,8 @@ describe("the band is carved off the top — ADR-0032 §1", () => {
   });
 
   it("clamps an out-of-range band rather than honouring it", () => {
-    // A band of 80 was proposed and withdrawn because it left the 18
-    // life units sharing 20 points. The clamp in `normalizeBand` is
-    // what makes that unreachable, so 80 behaves as 60.
+    // With one commitment the cap is 60, so a setting of 80 — kept
+    // from a time with three — behaves as 60.
     expect(lifeShare({ ...day, band: 80 })).toBe(lifeShare(day));
     expect(sum(commitmentPointValues({ ...day, band: 80 }, tasks), ["lec1", "lec2", "essay"]))
       .toBe(60);
@@ -263,7 +355,7 @@ describe("commitmentBandOn", () => {
   });
 
   it("normalises, so a caller never draws a band the pricing refuses", () => {
-    expect(commitmentBandOn(day(99, ["essay"]))).toBe(COMMITMENT_BAND_MAX);
+    expect(commitmentBandOn(day(99, ["essay"]))).toBe(60);
     expect(commitmentBandOn(day(1, ["essay"]))).toBe(COMMITMENT_BAND_MIN);
   });
 

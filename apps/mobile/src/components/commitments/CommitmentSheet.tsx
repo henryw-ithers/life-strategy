@@ -8,12 +8,18 @@
  * (ADR-0035 §1) and a control that stored an inert number would be
  * worse than no control.
  *
- * **The share is a weight, not a percentage**, and the sheet says so by
- * showing what it works out to. Relative shares that need not sum to
- * anything are the right model (ADR-0032 §3) and the wrong thing to put
- * raw in front of someone: "50" means nothing until you know the others
- * are 30 and 20.
+ * **The share is a percentage, and the question changes with the
+ * count** (Henry, 2026-10-02: the old free "weight" was "way too
+ * vague"):
+ *
+ * - **The first commitment** is asked nothing. It is the only one, so
+ *   it takes the whole commitment band.
+ * - **A second or third** is asked one thing: what percent of the
+ *   commitment points comes from it. The others are shown beside it,
+ *   rescaled live into what is left with their proportions kept
+ *   (`rebalanceShares`), so the answer is never a number in a vacuum.
  */
+import { rebalanceShares } from "@glide/scoring";
 import { useState } from "react";
 import { Modal, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,41 +31,51 @@ import { Button } from "../ui/Button";
 import { SheetFrame } from "../ui/SheetFrame";
 
 export type CommitmentSheetMode =
-  | { kind: "commitment"; name?: string; share?: number }
+  | { kind: "commitment"; name?: string; percent?: number }
   | { kind: "sub"; parentName: string; name?: string };
 
 interface CommitmentSheetProps {
   visible: boolean;
   mode: CommitmentSheetMode;
-  /** Other commitments' shares, for working out what this one claims. */
-  otherShares?: number[];
+  /** The other live commitments and the percent each takes now. */
+  others?: { id: string; name: string; percent: number }[];
   onClose: () => void;
-  onSave: (input: { name: string; share?: number }) => void;
+  onSave: (input: { name: string; percent?: number }) => void;
   theme: ThemeTokens;
 }
 
 export function CommitmentSheet({
   visible,
   mode,
-  otherShares = [],
+  others = [],
   onClose,
   onSave,
   theme,
 }: CommitmentSheetProps) {
   const editing = mode.name !== undefined;
   const [name, setName] = useState(mode.name ?? "");
-  const [share, setShare] = useState(
-    mode.kind === "commitment" ? String(mode.share ?? 1) : "",
+  /** Asked only when there is something to share the band with. */
+  const asksPercent = mode.kind === "commitment" && others.length > 0;
+  const [percentText, setPercentText] = useState(
+    mode.kind === "commitment"
+      ? String(mode.percent ?? Math.round(100 / (others.length + 1)))
+      : "",
   );
   const insets = useSafeAreaInsets();
 
-  const shareNum = Number(share);
-  const shareValid = Number.isFinite(shareNum) && shareNum > 0;
-  const total = otherShares.reduce((a, s) => a + s, 0) + (shareValid ? shareNum : 0);
-  const percent =
-    shareValid && total > 0 ? Math.round((shareNum / total) * 100) : null;
+  const percentNum = Number(percentText);
+  const percentValid =
+    Number.isInteger(percentNum) && percentNum >= 1 && percentNum <= 99;
+  /** The others as they would be after saving — kept in proportion. */
+  const preview = percentValid
+    ? rebalanceShares(
+        others.map((o) => ({ id: o.id, share: o.percent })),
+        percentNum,
+      ).others
+    : null;
 
-  const canSave = name.trim().length > 0 && (mode.kind === "sub" || shareValid);
+  const canSave =
+    name.trim().length > 0 && (!asksPercent || percentValid);
 
   return (
     <Modal
@@ -113,16 +129,24 @@ export function CommitmentSheet({
             accessibilityLabel="Name"
           />
 
-          {mode.kind === "commitment" ? (
+          {mode.kind === "commitment" && !asksPercent ? (
+            <AppText variant="caption" color={theme.muted}>
+              Your only commitment, so it takes all of the commitment band.
+              Add another and you'll choose how they split it.
+            </AppText>
+          ) : null}
+
+          {asksPercent ? (
             <View style={styles.shareBlock}>
               <View style={styles.shareRow}>
                 <AppText variant="label" color={theme.ink} style={styles.grow}>
-                  Weight
+                  Share of commitment points
                 </AppText>
                 <TextInput
-                  value={share}
-                  onChangeText={setShare}
+                  value={percentText}
+                  onChangeText={(t) => setPercentText(t.replace(/[^0-9]/g, ""))}
                   keyboardType="number-pad"
+                  maxLength={2}
                   style={[
                     styles.shareInput,
                     {
@@ -131,13 +155,34 @@ export function CommitmentSheet({
                       ...typeScale.headline,
                     },
                   ]}
-                  accessibilityLabel="Weight"
+                  accessibilityLabel="Percent of commitment points from this commitment"
                 />
+                <AppText variant="headline" color={theme.ink}>
+                  %
+                </AppText>
+              </View>
+              {/* The answer means something only beside the others, so
+                  they are shown as they will be — live, in proportion. */}
+              <View style={[styles.others, { borderColor: theme.hairline }]}>
+                {others.map((o) => (
+                  <View key={o.id} style={styles.otherRow}>
+                    <AppText color={theme.muted} style={styles.grow} numberOfLines={1}>
+                      {o.name}
+                    </AppText>
+                    <AppText color={theme.muted} tabular>
+                      {preview
+                        ? `${preview.find((p) => p.id === o.id)?.share ?? 0}%`
+                        : `${o.percent}%`}
+                    </AppText>
+                  </View>
+                ))}
               </View>
               <AppText variant="caption" color={theme.muted}>
-                {percent !== null
-                  ? `Takes about ${percent}% of what commitments are worth. Weights are relative — it only matters how they compare.`
-                  : "Weights are relative — it only matters how they compare to your other commitments."}
+                {percentValid
+                  ? others.length === 1
+                    ? "The other commitment takes the rest."
+                    : "The others share the rest, keeping their proportions."
+                  : "Choose a number from 1 to 99."}
               </AppText>
             </View>
           ) : null}
@@ -147,7 +192,7 @@ export function CommitmentSheet({
             onPress={() =>
               onSave({
                 name: name.trim(),
-                ...(mode.kind === "commitment" ? { share: shareNum } : {}),
+                ...(asksPercent ? { percent: percentNum } : {}),
               })
             }
             disabled={!canSave}
@@ -176,6 +221,12 @@ const styles = StyleSheet.create({
   shareBlock: { gap: space.sm },
   shareRow: { flexDirection: "row", alignItems: "center", gap: space.md },
   grow: { flex: 1 },
+  others: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: space.sm,
+    gap: space.xs,
+  },
+  otherRow: { flexDirection: "row", alignItems: "center", gap: space.md },
   shareInput: {
     borderRadius: radius.md,
     paddingHorizontal: space.lg,

@@ -1,7 +1,8 @@
 /**
  * How much of a scheduled day belongs to commitments (ADR-0032 §2).
  *
- * One number, 10–60 in fives, and it is the most consequential setting
+ * One number, 10 up to 60, 70 or 80 in fives — the ceiling rises with
+ * each commitment (ADR-0032 §2) — and it is the most consequential setting
  * in the app — so the sheet **shows what it costs** rather than making
  * a person infer it from a percentage. Moving the stepper moves the
  * sentence underneath it, in real points, for a real task.
@@ -20,7 +21,13 @@
  * sample habit is worth: the band is that share of the day, and the
  * planned and unplanned bands are scaled into the rest.
  */
-import { PLANNED_BAND, UNPLANNED_BAND } from "@glide/scoring";
+import {
+  COMMITMENT_BAND_MIN,
+  COMMITMENT_BAND_STEP,
+  commitmentBandMax,
+  PLANNED_BAND,
+  UNPLANNED_BAND,
+} from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
@@ -32,9 +39,8 @@ import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { SheetFrame } from "../ui/SheetFrame";
 
-const MIN = 10;
-const MAX = 60;
-const STEP = 5;
+const MIN = COMMITMENT_BAND_MIN;
+const STEP = COMMITMENT_BAND_STEP;
 
 /** A band's size on a day the commitment band has taken `band` of. */
 function scaled(size: number, band: number): number {
@@ -45,6 +51,9 @@ interface BandSheetProps {
   visible: boolean;
   /** Null when no band is set — every day is an ordinary two-band day. */
   band: number | null;
+  /** How many commitments there are — the ceiling grows with them:
+   *  60, 70, 80 for one, two, three (ADR-0032 §2). */
+  commitments: number;
   onClose: () => void;
   onSave: (band: number | null) => void;
   theme: ThemeTokens;
@@ -53,11 +62,13 @@ interface BandSheetProps {
 export function BandSheet({
   visible,
   band,
+  commitments,
   onClose,
   onSave,
   theme,
 }: BandSheetProps) {
-  const [value, setValue] = useState(band ?? 40);
+  const MAX = commitmentBandMax(commitments);
+  const [value, setValue] = useState(Math.min(band ?? 40, MAX));
   const insets = useSafeAreaInsets();
 
   const step = (by: number) => {
@@ -162,7 +173,9 @@ export function BandSheet({
 
           <AppText variant="caption" color={theme.muted} style={styles.note}>
             {value >= MAX
-              ? "60% is the most a commitment can take, so the rest of your life always keeps at least 40%."
+              ? commitments >= 3
+                ? `${MAX}% is the most commitments can take, so the rest of your life always keeps at least ${100 - MAX}%.`
+                : `${MAX}% is the most with ${commitments <= 1 ? "one commitment" : "two commitments"}, so the rest of your life keeps at least ${100 - MAX}%. Each commitment you add raises it by 10.`
               : "Nothing is scored differently on a day with no commitment work."}
           </AppText>
 

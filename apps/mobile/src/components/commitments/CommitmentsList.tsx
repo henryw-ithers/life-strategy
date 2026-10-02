@@ -13,6 +13,7 @@
  * way to teach someone that tapping is not worth trying.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { commitmentBandMax } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { CommitmentDetail } from "../../db/commitments";
@@ -32,7 +33,7 @@ interface CommitmentsListProps {
 }
 
 export function CommitmentsList({
-  band,
+  band: setting,
   commitments,
   archived,
   hue,
@@ -40,6 +41,10 @@ export function CommitmentsList({
   onOpenBand,
   onOpen,
 }: CommitmentsListProps) {
+  // What the band actually is today: the setting, held to the cap for
+  // how many commitments there are (ADR-0032 §2). A setting of 80 kept
+  // from three commitments reads 70 once one is archived.
+  const band = setting === null ? null : Math.min(setting, commitmentBandMax(commitments.length));
   return (
     <>
       {/* The band, stated as what it does rather than as a number

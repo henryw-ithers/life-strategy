@@ -23,6 +23,8 @@ export {
   commitmentPointValues,
   lifeShare,
   normalizeBand,
+  commitmentBandMax,
+  rebalanceShares,
   taskWeights,
   unitCoverage,
   COMMITMENT_BAND_MAX,

@@ -190,7 +190,9 @@ second one. What separates it is its **band**, not its table
   commitment model** (ADR-0035 §§2–4), so `attended ÷ scheduled` is not
   merely forbidden, it is uncomputable. Keep it that way.
 - **On a day with scheduled commitment work, the commitment band is
-  that share of the whole day** (user-set, 10–60, capped flat at 60),
+  that share of the whole day** (user-set from 10, capped at 60, 70 or
+  80 for one, two or three commitments — `commitmentBandMax`), with each
+  commitment's share a percentage of it,
   paid as the share of today's commitment work done, and ADR-0029's
   whole day — planned 90, unplanned 10, extra runs — is scaled into
   what it leaves. **Commitments are the band, never more**: doing only
