@@ -22,6 +22,7 @@ import {
   homeOnSplit,
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
+import { markGradesStale } from "./settings";
 import { recomputeAllUnitPoints, setTaskUnits } from "./tasks";
 
 const newId = () => Crypto.randomUUID();
@@ -96,6 +97,7 @@ export async function createCommitment(
   });
   // Made split, it starts with its General sub-commitment.
   if (input.usesSubCommitments) await createSubCommitment(id, GENERAL_SUB_NAME);
+  await markGradesStale();
   return id;
 }
 
@@ -201,6 +203,7 @@ export async function updateCommitment(
       await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
     }
   });
+  await markGradesStale();
 }
 
 /**
@@ -480,6 +483,7 @@ export async function createPool(input: CreatePoolInput): Promise<string> {
       input.taskIds.map((taskId, i) => ({ poolId: id, taskId, sortOrder: i })),
     );
   });
+  await markGradesStale();
   return id;
 }
 
@@ -521,6 +525,7 @@ export async function updatePool(
         .where(eq(pool.id, id));
     }
   });
+  await markGradesStale();
 }
 
 /**
@@ -533,6 +538,7 @@ export async function deletePool(id: string): Promise<void> {
     await tx.delete(poolMember).where(eq(poolMember.poolId, id));
     await tx.delete(pool).where(eq(pool.id, id));
   });
+  await markGradesStale();
 }
 
 /** Remove one task from a pool, dissolving the pool if it empties. */
@@ -559,6 +565,7 @@ export async function removeFromPool(
       .set({ plannedCount: sql`min(${pool.plannedCount}, ${left.length})` })
       .where(eq(pool.id, poolId));
   });
+  await markGradesStale();
 }
 
 /** Every pool in one window, with its members. */

@@ -25,7 +25,8 @@ import {
   taskCompletionTag,
   unitWeight,
 } from "./schema";
-import { currentLocalDate, recacheAllDayScores } from "./today";
+import { currentLocalDate } from "../lib/calendar";
+import { recacheAllDayScores } from "./dayGrades";
 import { loadPlan, recomputeAllUnitPoints } from "./tasks";
 
 export interface DiagnosticUnit {

@@ -27,7 +27,7 @@ import { db } from "./client";
 import { lifeArea, lifeUnit, rating, snapshot, unitWeight } from "./schema";
 import { getSetting, setSetting } from "./settings";
 import { recomputeAllUnitPoints } from "./tasks";
-import { recacheAllDayScores } from "./today";
+import { recacheAllDayScores } from "./dayGrades";
 
 /** Manual order, scoped to the snapshot it was made against. A fresh
  *  diagnostic supersedes it — which is the right behaviour: you just

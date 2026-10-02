@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import type { MonthDay } from "../../db/today";
+import type { MonthDay } from "../../db/dayGrades";
 import { spokenDate } from "../../lib/format";
 import { gradeColor, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";

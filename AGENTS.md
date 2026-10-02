@@ -32,12 +32,20 @@ npm workspaces monorepo:
   before writing Expo API code. Database: `expo-sqlite` + Drizzle;
   schema at `src/db/schema.ts`, migrations generated into `drizzle/`
   via `npm run db:generate -w apps/mobile` (never hand-edit or delete
-  past migrations — forward-only, ADR-0002).
+  past migrations — forward-only, ADR-0002). Inside `src/`: `db/` is
+  one module per concern (`today.ts` assembles a day; completions,
+  activities, journal, photos, placements and the stored `dayGrades`
+  each have their own), `hooks/` holds screen state, `lib/` is pure
+  helpers (`calendar.ts` owns "what day is it"), and `components/` is
+  grouped by feature. **The data layer never imports from
+  `components/`**; a rule both need belongs in `@glide/scoring` or
+  `lib/`.
 - `packages/scoring` — the pure scoring engine (`@glide/scoring` — an
   internal name the rename deliberately left alone, see Conventions).
   **No React Native imports allowed here, ever** (ADR-0001).
   All derivation/grading math lives here as pure functions with vitest
-  tests.
+  tests — including which days a task is scheduled on (`schedule.ts`),
+  which the app reads rather than reimplementing.
 - `packages/backup` — the pure backup envelope (`@glide/backup`):
   header encode/decode and the seal/open flow. Same rule — **no React
   Native imports** — so the format is testable off-device. It
@@ -59,11 +67,13 @@ setup that are easy to break; read
 in `patches/`. Backup does not work there either — same native-module
 reason as Expo Go.
 
-Root commands: `npm test` (both packages, plus the pure-logic tests
-under `apps/mobile/src/lib` — ADR-0013 put a vitest runner in the app
-workspace for the crash-log redactor; anything there must stay free of
-React Native imports to be testable), `npm run typecheck` (packages and
-app), `npm run mobile` (Expo dev server).
+Root commands: `npm test` (both packages, plus the app's pure-logic
+tests — every `__tests__` folder under `apps/mobile/src`; ADR-0013 put
+a vitest runner in the app workspace, and anything those tests import
+must stay free of React Native), `npm run typecheck` (packages and
+app), `npm run lint` (ESLint over the app), `npm run mobile` (Expo dev
+server). CI runs test, typecheck and lint on every push and pull
+request (`.github/workflows/ci.yml`).
 
 ## Domain vocabulary
 

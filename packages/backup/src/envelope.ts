@@ -83,6 +83,17 @@ export const DEFAULT_KDF: KdfParams = {
   iterations: 600_000,
 };
 
+/**
+ * The most iterations a header may ask for — about 17× the default.
+ *
+ * The count is read from the header before anything can authenticate
+ * it, and PBKDF2 runs before the tag is checked. Without a ceiling a
+ * damaged or hostile file could ask for four billion rounds and leave
+ * the restore screen hung for hours. Raise it alongside `DEFAULT_KDF`
+ * if the default ever outgrows it.
+ */
+export const MAX_KDF_ITERATIONS = 10_000_000;
+
 export interface KdfParams {
   kind: "pbkdf2-hmac-sha256";
   iterations: number;
@@ -220,7 +231,7 @@ export function readHeader(envelope: Uint8Array): SealedHeader & {
     envelope.byteLength,
   );
   const iterations = view.getUint32(6);
-  if (iterations === 0) {
+  if (iterations === 0 || iterations > MAX_KDF_ITERATIONS) {
     throw new BackupError("not-a-backup", "Backup header is unreadable.");
   }
 

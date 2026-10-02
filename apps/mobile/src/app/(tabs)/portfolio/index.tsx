@@ -16,7 +16,6 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
@@ -28,7 +27,7 @@ import { AppText } from "../../../components/ui/AppText";
 import { Group } from "../../../components/ui/Group";
 import { MonthReview } from "../../../components/log/MonthReview";
 import { loadMonthCheckpoint, type MonthCheckpoint } from "../../../db/log";
-import { currentLocalDate } from "../../../db/today";
+import { currentLocalDate } from "../../../lib/calendar";
 import { SettingsRow } from "../../../components/ui/SettingsRow";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";

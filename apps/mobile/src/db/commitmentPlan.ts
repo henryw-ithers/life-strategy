@@ -7,11 +7,13 @@
  * runner only handles modules free of those imports (ADR-0013). The
  * queries live there; the rules live here.
  */
-import { MAX_COMMITMENTS, type CommitmentDay, type CommitmentGroup } from "@glide/scoring";
-
-import { addDays } from "@glide/scoring";
-
-import { isDueOn } from "../components/plan/planning";
+import {
+  addDays,
+  isDueOn,
+  MAX_COMMITMENTS,
+  type CommitmentDay,
+  type CommitmentGroup,
+} from "@glide/scoring";
 
 /** The commitment fields these rules need. */
 export interface CommitmentUnitRow {

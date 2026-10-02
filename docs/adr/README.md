@@ -1,9 +1,10 @@
 # Architecture Decision Records
 
-Decisions to work through **before writing application code**, roughly
-in dependency order. Each ADR lists the open questions it must answer;
-resolving an ADR means filling in its Decision section and flipping its
-status to *Accepted*.
+Every architecturally significant decision behind the app, numbered in
+the order it was made. The first ten were settled before any
+application code was written; the rest were decided as the app grew.
+Withdrawn and superseded records stay in place, marked as such, so the
+reasoning behind the current design can always be traced.
 
 | # | Title | Status |
 |---|-------|--------|

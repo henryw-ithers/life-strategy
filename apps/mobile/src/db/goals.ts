@@ -6,12 +6,14 @@
  * via `recomputeAllUnitPoints`, which this module reuses rather than
  * re-deriving.
  */
-import type { GoalStatus, MetricKind, Streak } from "@glide/scoring";
 import {
   computeStreak,
   habitRungsReached,
   nextGoalStatus,
   rungReachedOn,
+  type GoalStatus,
+  type MetricKind,
+  type Streak,
   type StreakInput,
 } from "@glide/scoring";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";

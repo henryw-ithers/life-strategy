@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Test, typecheck, lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Expo SDK 54 needs Node 20.19 or later.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `postinstall` applies patches/ (the expo-sqlite web fix).
+      - run: npm ci
+
+      # Includes `content:check`, which fails if the generated content
+      # library has drifted from docs/content/.
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint

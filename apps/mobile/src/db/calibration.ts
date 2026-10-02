@@ -19,7 +19,7 @@ import * as Crypto from "expo-crypto";
 import { db } from "./client";
 import { loadWeekGrade } from "./grades";
 import { calibrationSuggestion, contentmentCheckin, dayGrade } from "./schema";
-import { currentLocalDate } from "./today";
+import { currentLocalDate } from "../lib/calendar";
 
 const ROLLING_WINDOW_WEEKS = 12;
 

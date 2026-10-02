@@ -17,7 +17,8 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { suggestTags } from "../../content/tagKeywords";
-import type { ActivitySize, DayKind } from "../../db/today";
+import type { ActivitySize } from "../../db/activityCredit";
+import type { DayKind } from "../../db/today";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";

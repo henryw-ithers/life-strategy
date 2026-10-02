@@ -135,7 +135,7 @@ export function CommitmentSheet({
           {mode.kind === "commitment" && !asksPercent ? (
             <AppText variant="caption" color={theme.muted}>
               Your only commitment, so it takes all of the commitment band.
-              Add another and you'll choose how they split it.
+              Add another and you’ll choose how they split it.
             </AppText>
           ) : null}
 

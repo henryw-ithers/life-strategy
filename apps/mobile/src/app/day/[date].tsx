@@ -93,14 +93,9 @@ import {
   reorderDayTasks,
   type PlanData,
 } from "../../db/tasks";
-import {
-  currentLocalDate,
-  isPlannable,
-  loadDay,
-  placeTaskForDay,
-  type DayData,
-  type TodayTask,
-} from "../../db/today";
+import { currentLocalDate, isPlannable } from "../../lib/calendar";
+import { loadDay, type DayData, type TodayTask } from "../../db/today";
+import { placeTaskForDay } from "../../db/placements";
 import { getTheme } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 

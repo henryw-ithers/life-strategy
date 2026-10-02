@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { PLANNED_BAND, UNPLANNED_BAND } from "../bands";
 import { UNPLANNED_CAP } from "../constants";
-import { computeDayLoad, isoWeekday, type LoadTask } from "../dayLoad";
+import { computeDayLoad, type LoadTask } from "../dayLoad";
+import { isoWeekday } from "../schedule";
 import {
   aggregateGrade,
   computeDayScore,

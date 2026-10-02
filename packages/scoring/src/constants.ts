@@ -92,9 +92,9 @@ export const REST_DAY_UNPLANNED = 30;
  *   unopened day with exactly 50 asserted the one thing there was no
  *   evidence for.
  *
- * A day with no row is now not a graded day at all. The denominator
- * it used to occupy is gone with it, so `PeriodGrade.gradedDays`
- * carries how many days a period grade stands on — see `periodDays`.
+ * What replaced it has itself moved since: a day with no row briefly
+ * left the period entirely, and now scores zero against a full day
+ * again — see `periodDays` for the current rule and its history.
  *
  * Not a derivation change either way: `FORMULA_VERSION` does not move
  * for this. That stamp records how *weights* were derived; this only

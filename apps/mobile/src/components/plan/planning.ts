@@ -1,19 +1,26 @@
-
 /**
- * Weekday pins and part of day (ADR-0024 §1) — the pure half.
+ * Weekday pins and part of day (ADR-0024 §1) — the planner's pure half:
+ * labels, display order and day ordering.
  *
- * A plan is a weekday and a part of day, never a clock time. There is
- * no time parsing here and no time anywhere in the app, on purpose:
- * nothing consumes one, so it would buy ordering `partOfDay` already
- * provides (ADR-0024 §1, reaffirmed under challenge in ADR-0025 §7).
+ * Which days a task is *scheduled* on is a scoring rule, not a planner
+ * one, so it lives in `@glide/scoring` (`schedule.ts`) and is
+ * re-exported here for the screens that already import it from this
+ * file. Clock times are optional on any task (ADR-0036) and are not
+ * handled here.
  */
 
-import { PART_OF_DAY_BOUNDS, ROLLOVER_HOUR, weekOfFortnight } from "@glide/scoring";
+import {
+  isDueOn,
+  isoWeekday,
+  PART_OF_DAY_BOUNDS,
+  parseWeekdays,
+  ROLLOVER_HOUR,
+  type Weekday,
+} from "@glide/scoring";
 
 import { MIN_TIMES_PER_WEEK } from "./frequency";
 
-/** ISO weekday numbers: Monday is 1, Sunday is 7. */
-export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export { isDueOn, isoWeekday, parseWeekdays, type Weekday } from "@glide/scoring";
 
 export type PartOfDay = "morning" | "afternoon" | "evening";
 
@@ -87,19 +94,6 @@ export function emptyPeriodNote(anyCompletedHere: boolean): string {
   return anyCompletedHere ? ALL_DONE_LABEL : FREE_LABEL;
 }
 
-/** `"1,3,5"` → `[1, 3, 5]`. Tolerates junk rather than throwing: this
- *  parses a free-form text column, and a malformed row should degrade
- *  to "flexible" rather than break the checklist. */
-export function parseWeekdays(stored: string | null | undefined): Weekday[] {
-  if (!stored) return [];
-  const seen = new Set<Weekday>();
-  for (const part of stored.split(",")) {
-    const n = Number(part.trim());
-    if (Number.isInteger(n) && n >= 1 && n <= 7) seen.add(n as Weekday);
-  }
-  return [...seen].sort((a, b) => a - b);
-}
-
 /** `[3, 1, 5]` → `"1,3,5"`. Empty means flexible, which stores as null. */
 export function formatWeekdays(days: readonly Weekday[]): string | null {
   if (days.length === 0) return null;
@@ -158,35 +152,6 @@ export function formatWeekdaySummary(days: readonly Weekday[]): string | null {
 export function isPinnedOn(days: readonly Weekday[], localDate: string): boolean {
   if (days.length === 0) return false;
   return days.includes(isoWeekday(localDate));
-}
-
-/**
- * Whether a pinned task belongs to `localDate`, accounting for
- * fortnightly cadence (ADR-0024 §1 as amended 2026-08-18).
- *
- * A weekly-or-more task is due on any weekday it is pinned to. A
- * **fortnightly** one (`timesPerWeek === 0`) is due on that weekday
- * only in the half of the fortnight it belongs to — "every other
- * Tuesday" rather than every Tuesday. Which half is the task's own
- * `fortnightOffset`, because the date alone cannot say: fortnights are
- * anchored to epoch-even weeks so their boundary never drifts, which
- * leaves the choice to the task and the flip control to the user.
- *
- * Unpinned tasks return false here, as they do from `isPinnedOn` —
- * flexible is not "due today", it is "due some day this week".
- */
-export function isDueOn(
-  task: {
-    plannedWeekdays: string | null;
-    timesPerWeek: number;
-    fortnightOffset?: number;
-  },
-  localDate: string,
-): boolean {
-  const days = parseWeekdays(task.plannedWeekdays);
-  if (!isPinnedOn(days, localDate)) return false;
-  if (task.timesPerWeek !== 0) return true;
-  return weekOfFortnight(localDate) === (task.fortnightOffset ?? 0);
 }
 
 /** The fields any surface needs to sort a day's rows. */
@@ -262,21 +227,6 @@ export function compareForDay(
   const bo = b.dayOrder ?? Number.MAX_SAFE_INTEGER;
   if (ao !== bo) return ao - bo;
   return planRank(a, localDate) - planRank(b, localDate);
-}
-
-/**
- * ISO weekday for a local date string, without constructing a Date in
- * the device timezone — `new Date('2026-08-16')` parses as UTC and can
- * land on the wrong day west of Greenwich, which is exactly the class
- * of bug `local_date` exists to avoid (ADR-0002).
- */
-export function isoWeekday(localDate: string): Weekday {
-  const y = Number(localDate.slice(0, 4));
-  const m = Number(localDate.slice(5, 7));
-  const d = Number(localDate.slice(8, 10));
-  // Zeller-style: Date.UTC is safe because we supply all three parts.
-  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
-  return (day === 0 ? 7 : day) as Weekday;
 }
 
 /**

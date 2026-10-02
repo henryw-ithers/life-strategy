@@ -41,9 +41,10 @@ export {
   plannedDateFor,
   daysLeftInWeek,
   isAnchoredOn,
-  isoWeekday,
   isPinnedElsewhere,
 } from "./dayLoad";
+export type { Weekday } from "./schedule";
+export { isDueOn, isoWeekday, parseWeekdays, pinnedOn } from "./schedule";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
 export type {

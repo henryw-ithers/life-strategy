@@ -45,7 +45,8 @@ import {
 } from "../db/settings";
 import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
-import { currentLocalDate, loadDay } from "../db/today";
+import { currentLocalDate } from "../lib/calendar";
+import { loadDay } from "../db/today";
 import {
   cancelAllNudges,
   getPermissionStatus,

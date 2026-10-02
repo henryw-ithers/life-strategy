@@ -65,7 +65,7 @@ import { LIBRARY } from "../../content/library";
 import { UNIT_INFO } from "../../content/units";
 import { loadCommitmentDay } from "../../db/commitments";
 import { createGoal, loadGoals, setGoalMetric } from "../../db/goals";
-import { currentLocalDate } from "../../db/today";
+import { currentLocalDate } from "../../lib/calendar";
 import {
   addEvent,
   addTask,

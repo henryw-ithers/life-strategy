@@ -10,6 +10,7 @@ import { MAX_COMMITMENTS, normalizeBand } from "@glide/scoring";
 import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
 import { appSetting } from "./schema";
+import type { Tx } from "./tasks";
 
 export async function getSetting(key: string): Promise<string | null> {
   const [row] = await db.select().from(appSetting).where(eq(appSetting.key, key));
@@ -146,11 +147,41 @@ export async function loadCommitmentBand(): Promise<number | null> {
  *  for one, two or three commitments). */
 export async function setCommitmentBand(band: number): Promise<void> {
   await setSetting(KEY_COMMITMENT_BAND, String(normalizeBand(band, MAX_COMMITMENTS)));
+  await markGradesStale();
 }
 
 /** Forget the band entirely — every day goes back to two bands. */
 export async function clearCommitmentBand(): Promise<void> {
   await setSetting(KEY_COMMITMENT_BAND, "");
+  await markGradesStale();
+}
+
+const KEY_GRADES_STALE = "grades.stale";
+
+/**
+ * Note that the plan changed under the stored day grades, so they no
+ * longer match what the days would score now. `refreshStaleGrades` (in
+ * db/dayGrades.ts) re-scores them on the next read. Stored, not held in
+ * memory, so a change made just before the app is closed still lands.
+ */
+export async function markGradesStale(executor: Tx | typeof db = db): Promise<void> {
+  // An upsert, so a pricing pass can mark inside its own transaction.
+  await executor
+    .insert(appSetting)
+    .values({ key: KEY_GRADES_STALE, value: "1" })
+    .onConflictDoUpdate({ target: appSetting.key, set: { value: "1" } });
+}
+
+/** Whether grades are marked stale. */
+export async function gradesAreStale(): Promise<boolean> {
+  return (await getSetting(KEY_GRADES_STALE)) === "1";
+}
+
+/** Whether grades were marked stale, clearing the mark if so. */
+export async function takeGradesStale(): Promise<boolean> {
+  if (!(await gradesAreStale())) return false;
+  await setSetting(KEY_GRADES_STALE, "0");
+  return true;
 }
 
 const KEY_DAY_LAYOUT = "today.layout";

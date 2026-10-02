@@ -58,7 +58,7 @@ import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { loadGraphSnapshots } from "../../db/graph";
 import { loadLog, type LogEntry, type LogMonth } from "../../db/log";
-import { currentLocalDate } from "../../db/today";
+import { currentLocalDate } from "../../lib/calendar";
 import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 

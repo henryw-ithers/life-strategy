@@ -43,7 +43,8 @@
  * `deriveChecklist` uses for banding, so the denominator cannot shift
  * under the user while they are working through the list.
  */
-import { addDays, fortnightStart, weekOfFortnight, weekStart } from "./days";
+import { addDays, fortnightStart, weekStart } from "./days";
+import { pinnedOn } from "./schedule";
 
 export interface LoadTask {
   taskId: string;
@@ -98,15 +99,6 @@ export interface DayLoad {
   flexible: number;
 }
 
-/** ISO weekday for a `YYYY-MM-DD` local date: Monday 1 … Sunday 7. */
-export function isoWeekday(localDate: string): number {
-  const y = Number(localDate.slice(0, 4));
-  const m = Number(localDate.slice(5, 7));
-  const d = Number(localDate.slice(8, 10));
-  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
-  return day === 0 ? 7 : day;
-}
-
 /** How many days of the week remain, counting `date` itself. Weeks open
  *  on Sunday (`weekStart`), so this runs 7 on Sunday down to 1 on
  *  Saturday — the divisor that spreads flexible work evenly. */
@@ -135,10 +127,7 @@ function weeklyGoal(task: LoadTask): number {
 export function isAnchoredOn(task: LoadTask, date: string): boolean {
   if (task.oneOff) return false;
   if (task.timesPerWeek === 7) return true;
-  if (task.pinnedWeekdays.length === 0) return false;
-  if (!task.pinnedWeekdays.includes(isoWeekday(date))) return false;
-  if (task.timesPerWeek !== 0) return true;
-  return weekOfFortnight(date) === (task.fortnightOffset ?? 0);
+  return pinnedOn(task.pinnedWeekdays, task.timesPerWeek, task.fortnightOffset, date);
 }
 
 /** A task with pins, none of which is today. Expected on its own days,

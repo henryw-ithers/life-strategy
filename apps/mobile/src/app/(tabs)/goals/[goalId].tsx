@@ -86,7 +86,7 @@ import {
   type GoalTask,
 } from "../../../db/goals";
 import { addTask, loadPlan } from "../../../db/tasks";
-import { currentLocalDate } from "../../../db/today";
+import { currentLocalDate } from "../../../lib/calendar";
 import type { ThemeTokens } from "../../../theme/colors";
 import { getTheme, SCRIM } from "../../../theme/colors";
 import { radius, space, type as typeScale } from "../../../theme/tokens";

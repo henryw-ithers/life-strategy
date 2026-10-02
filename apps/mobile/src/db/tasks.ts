@@ -39,6 +39,7 @@ import {
   taskUnit,
   unitWeight,
 } from "./schema";
+import { markGradesStale } from "./settings";
 
 export interface PlanTask {
   id: string;
@@ -384,6 +385,7 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       taskId: taskUnit.taskId,
       unitId: taskUnit.unitId,
       rankInUnit: taskUnit.rankInUnit,
+      pointValue: taskUnit.pointValue,
     })
     .from(taskUnit)
     .innerJoin(task, eq(task.id, taskUnit.taskId))
@@ -397,10 +399,13 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       timesPerWeek: task.timesPerWeek,
       unitId: task.unitId,
       oneOffSize: task.oneOffSize,
+      pointValue: task.pointValue,
+      rankInUnit: task.rankInUnit,
     })
     .from(task);
   const oneOffSizeByTask = new Map(taskRows.map((t) => [t.id, t.oneOffSize]));
   const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
+  const taskById = new Map(taskRows.map((t) => [t.id, t]));
 
   // Normalize each unit's ranks to 1..n before pricing, so a gap left
   // by an archive or a unit change never reaches `taskWeights`.
@@ -467,18 +472,19 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
   // transaction, on every add, edit, re-rank and goal change — all of
   // it derivable from `points` and `normalizedRank` without touching
   // the database again.
+  // Rows whose value and rank already match are skipped: a re-rank in
+  // one unit moves a handful of rows, not the whole portfolio.
   const totalByTask = new Map<string, number>();
   for (const m of memberships) {
     const key = `${m.taskId}::${m.unitId}`;
     const value = points.get(key) ?? 0;
+    const rank = normalizedRank.get(key) ?? m.rankInUnit;
+    totalByTask.set(m.taskId, (totalByTask.get(m.taskId) ?? 0) + value);
+    if (value === m.pointValue && rank === m.rankInUnit) continue;
     await tx
       .update(taskUnit)
-      .set({
-        pointValue: value,
-        rankInUnit: normalizedRank.get(key) ?? m.rankInUnit,
-      })
+      .set({ pointValue: value, rankInUnit: rank })
       .where(and(eq(taskUnit.taskId, m.taskId), eq(taskUnit.unitId, m.unitId)));
-    totalByTask.set(m.taskId, (totalByTask.get(m.taskId) ?? 0) + value);
   }
 
   for (const [taskId, total] of totalByTask) {
@@ -486,24 +492,23 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     const homeRank = home
       ? normalizedRank.get(`${taskId}::${home}`)
       : undefined;
+    const current = taskById.get(taskId);
+    if (
+      current &&
+      current.pointValue === total &&
+      (!homeRank || current.rankInUnit === homeRank)
+    ) {
+      continue;
+    }
     await tx
       .update(task)
       .set({ pointValue: total, ...(homeRank ? { rankInUnit: homeRank } : {}) })
       .where(eq(task.id, taskId));
   }
-}
 
-/** `task.point_value` = the sum of its memberships. */
-async function refreshTaskTotal(tx: Tx, taskId: string): Promise<void> {
-  const mine = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
-  const total = mine.reduce((sum, m) => sum + m.pointValue, 0);
-  const home = await tx.select().from(task).where(eq(task.id, taskId));
-  const homeUnitId = home[0]?.unitId;
-  const homeRank = mine.find((m) => m.unitId === homeUnitId)?.rankInUnit;
-  await tx
-    .update(task)
-    .set({ pointValue: total, ...(homeRank ? { rankInUnit: homeRank } : {}) })
-    .where(eq(task.id, taskId));
+  // Every plan change that moves a price passes through here, so this
+  // is the one place stored day grades learn they are out of date.
+  await markGradesStale(tx);
 }
 
 /** Append the task to each unit's ranking, then recompute those units. */
@@ -688,11 +693,11 @@ export async function setTaskUnits(
         .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
     }
     await tx.update(task).set({ unitId: home }).where(eq(task.id, taskId));
+    // One pricing pass either way — `attachUnits` ends in one. It closes
+    // the rank gap in the units the task left, rescales the plan if it
+    // left one of them with nothing, and writes the task's total.
     if (added.length) await attachUnits(tx, taskId, added, undefined, desired);
-    // Closes the rank gap in the units it left, and rescales the plan
-    // if it left one of them with nothing.
-    await recomputeAllUnitPoints(tx);
-    await refreshTaskTotal(tx, taskId);
+    else await recomputeAllUnitPoints(tx);
   });
 }
 
@@ -771,11 +776,12 @@ export async function setTaskFrequency(
 /**
  * Weekday pins and part of day (ADR-0024 §1).
  *
- * Presentation and defaults only — this never reaches the grade.
- * `times_per_week` stays the sole scoring input, so doing three runs on
- * three days you did not plan is a perfect week. Nothing here is read
- * by `computeDayScore`, and no adherence statistic is derived from it
- * anywhere (ADR-0024 §2, which makes that an invariant).
+ * **Pins reach the grade** since formula v9: they decide which days a
+ * task is due on, and so what each day expects (ADR-0029 §1) — which
+ * is why this marks stored grades stale. Part of day stays
+ * presentation. Obligations are still weekly: doing three runs on three
+ * days you did not plan is a perfect week, and no adherence statistic
+ * is derived from pins anywhere (ADR-0029 §3).
  */
 export async function setTaskPlanning(
   taskId: string,
@@ -786,6 +792,7 @@ export async function setTaskPlanning(
     .update(task)
     .set({ plannedWeekdays, partOfDay })
     .where(eq(task.id, taskId));
+  await markGradesStale();
 }
 
 /**
@@ -897,7 +904,7 @@ export async function reorderDayTasks(
 /**
  * Move a task to a different part of the day — permanently.
  *
- * The other half of the same gesture lives in `db/today.ts` as
+ * The other half of the same gesture lives in `db/placements.ts` as
  * `placeTaskForDay`, which changes only the day in front of you. Which
  * one runs is the user's answer to a prompt (Henry, 2026-08-18: "we can
  * have a quick prompt to ask if they want this scheduling to be
@@ -960,6 +967,7 @@ export async function setTaskFortnightOffset(
   offset: 0 | 1,
 ): Promise<void> {
   await db.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId));
+  await markGradesStale();
 }
 
 /**

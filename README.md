@@ -1,81 +1,124 @@
 # Life Strategy
 
-A personal planning and reflection app that aligns daily action with
-what actually matters to you.
+[![CI](https://github.com/henryw-ithers/life-strategy/actions/workflows/ci.yml/badge.svg)](https://github.com/henryw-ithers/life-strategy/actions/workflows/ci.yml)
+
+A personal planning app for iOS that turns a periodic self-assessment
+of what matters into a daily checklist and a score out of 100.
 
 Inspired by Rainer Strack's *Harvard Business Review* work on strategic
-life planning, the app turns a periodic self-assessment into a living
-daily system:
+life planning. Strategy is thoughtful and periodic; execution is a
+checklist and a number.
 
-1. **Diagnose** — rate 18 Strategic Life Units (grouped into 6 Strategic
-   Life Areas) on importance and satisfaction, 1–10 each.
-2. **Derive** — the app converts your ratings into a personal scoring
-   system: 100 points per day, weighted primarily by importance with a
-   boost for units where satisfaction lags.
-3. **Do** — set goals within each unit; goals generate simple daily and
-   weekly tasks (app-recommended or your own). Completing tasks earns
-   points.
-4. **Track** — daily grades roll into weekly and monthly grades. Repeat
-   the diagnostic monthly and watch your portfolio graph shift over
-   time.
-5. **Calibrate** — a weekly one-question check-in ("how content did you
-   feel?") tunes the grading so your score converges with your actual
-   felt experience — not just your completion rate.
+## How it works
 
-## The hierarchy
+1. **Diagnose.** Rate 18 Strategic Life Units (Friendship, Sleep &
+   recovery, Learning & growth, …), grouped into 6 life areas, for
+   priority and satisfaction on a 1–10 scale. Each diagnostic is saved
+   as a snapshot, and the snapshots plot over time as a portfolio
+   bubble chart.
+2. **Derive.** Priority rank becomes each unit's share of 100 daily
+   points. Satisfaction is tracked and plotted, but deliberately does
+   not feed the weights — it measures whether the plan is working
+   ([ADR-0028](docs/adr/0028-priority-is-the-only-input.md)).
+3. **Plan.** Goals and tasks live inside units. A task happens N times
+   a week, optionally pinned to weekdays, a part of the day, or a clock
+   time. A built-in library suggests goals and tasks to start from.
+4. **Do.** Each day's score is the fraction of *that day's* due work
+   you got through: 90 points for planned work, 10 for unplanned
+   activities, with extra runs of your own plan the only way above 100
+   ([ADR-0029](docs/adr/0029-a-day-is-the-fraction-you-got-through.md)).
+5. **Review.** Days roll into weekly and monthly grades, and a weekly
+   one-question contentment check-in calibrates the numbers against how
+   the week actually felt.
 
-    Strategic Life Area → Strategic Life Unit → Goal → Task
+Beyond the core loop:
 
-Strategy is thoughtful and periodic; execution is a checklist and a
-number out of 100.
+- **Commitments** — school, work, a club — get their own band of the
+  day, split into sub-commitments, with events that have real start and
+  end times ([ADR-0032](docs/adr/0032-the-commitment-band.md),
+  [ADR-0035](docs/adr/0035-commitments-are-custom-units.md),
+  [ADR-0038](docs/adr/0038-events.md)).
+- **Windows and pools** — the free gaps between commitments, each
+  holding a small set of interchangeable tasks
+  ([ADR-0033](docs/adr/0033-windows-and-pools.md)).
+- **Rest days** — a day that asks nothing scores 70 automatically, and
+  work done early is paid what its planned day would have paid
+  ([ADR-0037](docs/adr/0037-rest-days.md)).
+- **Partial credit, multi-unit tasks, metric-linked goals, and a daily
+  journal with photos.**
+- **Encrypted backup** using only Apple's CryptoKit and CommonCrypto,
+  which keeps the app exempt from US export-control reporting
+  ([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md)).
 
-## Status
+The product is opinionated about tone: scores are private, framed as
+guidelines, and never used to shame — no streak guilt, leaderboards or
+alarm colours. See [vision.md](vision.md) and [PRODUCT.md](PRODUCT.md).
 
-**Core loop closed; not yet in daily use by anyone but the builder.**
-The design phase (vision + ten accepted ADRs) is complete, and the
-loop runs end to end: diagnostic → derived weights → planned tasks →
-daily checklist and grade → weekly and monthly aggregation →
-contentment check-in → portfolio graph.
-
-The workspace: `apps/mobile` (Expo SDK 54 — pinned, see
-[ADR-0001](docs/adr/0001-platform-and-tech-stack.md) — with
-Drizzle/SQLite), `packages/scoring` (the pure scoring engine, formula
-v3, tested), and `packages/backup` (the backup envelope format).
-
-**iOS only** ([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md)).
-Backup encryption is Apple's CryptoKit and CommonCrypto through a small
-native module, which is what keeps the app clear of US export-control
-paperwork — and which means backup and restore need a development or
-TestFlight build rather than Expo Go.
-
-Onboarding
-([ADR-0011](docs/adr/0011-onboarding-and-first-run.md)) and backup
-([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md))
-are built; backup needs a development or TestFlight build to run, for
-the reason above.
-
-Not built yet: the recommendation library
-([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md) — every
-goal and task is currently hand-entered), the monthly review ritual,
-and any look-back over the life log.
+## Architecture
 
 ```
-npm install          # once
-npm test             # scoring, backup, and the app's pure-logic tests
+apps/mobile          Expo app (React Native, TypeScript, Expo Router)
+  src/app            screens, as file-based routes
+  src/components     UI, grouped by feature (today, plan, goals, …)
+  src/hooks          screen-level state
+  src/db             SQLite via Drizzle: one module per concern
+  src/lib            pure helpers (calendar, formatting, redaction)
+  modules/glide-crypto   Swift native module: Apple's crypto only
+  drizzle/           forward-only schema migrations
+packages/scoring     the scoring engine — pure functions, no React Native
+packages/backup      the backup file format — pure, crypto injected
+docs/adr             34 architecture decision records
+```
+
+The rule that shapes the code: **all scoring arithmetic lives in
+`packages/scoring` as pure, tested functions** with no React Native
+imports ([ADR-0001](docs/adr/0001-platform-and-tech-stack.md)). The app's
+data layer reads rows from SQLite and hands them to the engine; screens
+render what comes back. The backup package follows the same pattern —
+its format logic is pure TypeScript, and the cipher arrives injected, so
+the envelope is tested off-device while the device uses Apple's
+primitives.
+
+Every architecturally significant decision is recorded as an ADR,
+including the ones later withdrawn — see the
+[ADR index](docs/adr/README.md).
+
+## Tech stack
+
+TypeScript · React Native 0.81 · Expo SDK 54 (pinned — see ADR-0001) ·
+Expo Router · SQLite (`expo-sqlite`) with Drizzle ORM · Reanimated and
+Skia for the portfolio graph · Swift for the native crypto module ·
+Vitest · ESLint · GitHub Actions
+
+## Getting started
+
+Requires Node 20.19 or later.
+
+```bash
+npm install          # also applies patches/ via patch-package
+npm test             # content check, engine, backup format, app logic
 npm run typecheck    # all three workspaces
-npm run mobile       # Expo dev server (scan QR with Expo Go)
+npm run lint         # ESLint over the app
+npm run mobile       # Expo dev server
 ```
+
+The app runs in Expo Go on a device, except for backup and restore,
+which need the native crypto module and so a development or TestFlight
+build. It also runs in a browser as a development preview only — see
+[docs/web-preview.md](docs/web-preview.md).
 
 ## Documentation
 
-- [vision.md](vision.md) — the full vision: philosophy, mechanics,
-  scoring design, and sequencing.
-- [docs/adr/](docs/adr/) — architecture decision records. Several
-  foundational ADRs are drafted as open questions to resolve before
-  coding starts; see the [ADR index](docs/adr/README.md).
-- [docs/release.md](docs/release.md) — how builds reach a device that
-  isn't the dev machine: TestFlight, identity, versioning, and the
-  names that must never be renamed.
-- [AGENTS.md](AGENTS.md) — orientation for AI coding agents working in
-  this repo.
+- [vision.md](vision.md) — the product: philosophy, mechanics, scoring.
+- [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) — strategy, tone
+  and the visual system.
+- [docs/adr/](docs/adr/) — architecture decision records.
+- [docs/release.md](docs/release.md) — TestFlight, identity, versioning,
+  and the names that must never be renamed.
 - [docs/backburner.md](docs/backburner.md) — parked ideas and why.
+- [AGENTS.md](AGENTS.md) — orientation for AI coding agents.
+
+## License
+
+Copyright © 2026 Henry Withers. All rights reserved — see
+[LICENSE](LICENSE).

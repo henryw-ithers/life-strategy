@@ -1,11 +1,12 @@
 /**
  * Weekly and monthly grade review (ADR-0004 §5). Reads the same
- * `day_grade.pointsEarned`/`pointsPossible` cache `loadMonthGrades`
- * (db/today.ts) writes for the calendar tint — `cacheDayScore` keeps
+ * `day_grade.pointsEarned`/`pointsPossible` cache `loadCalendarGrades`
+ * (db/dayGrades.ts) reads for the calendar tint — `cacheDayScore` keeps
  * it in sync with the engine after every mutation.
  *
- * A row exists only for a day the user touched, so the stored rows are
- * not the period on their own: `periodDays` fills each elapsed day
+ * A row exists for a day the user touched, and for a recent day scored
+ * by `recordUntouchedDays` before it settled. Older days without one
+ * are not in the stored rows at all: `periodDays` fills each elapsed day
  * that has none with a **zero against a full denominator**, which is
  * what keeps a skipped day costing something instead of silently
  * shrinking the week. A day the user marked off is stored as {0, 0}
@@ -27,7 +28,8 @@ import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
 import { db } from "./client";
 import { dayGrade, lifeUnit, task } from "./schema";
-import { currentLocalDate } from "./today";
+import { currentLocalDate } from "../lib/calendar";
+import { recordUntouchedDays, refreshStaleGrades } from "./dayGrades";
 
 /**
  * The denominator every normal day shares (ADR-0027 §1, formula v7): a
@@ -61,13 +63,17 @@ async function gradingStart(): Promise<string | null> {
 }
 
 async function loadRangeGrade(start: string, end: string): Promise<PeriodGrade> {
-  const [rows, dailyPossible, start0] = await Promise.all([
+  await refreshStaleGrades();
+  // Days that asked nothing get the row they earned before the fill
+  // below can read their silence as a zero (ADR-0037, ADR-0029).
+  const start0 = await gradingStart();
+  if (start0 !== null) await recordUntouchedDays(start0 > start ? start0 : start, end);
+  const [rows, dailyPossible] = await Promise.all([
     db
       .select()
       .from(dayGrade)
       .where(and(gte(dayGrade.localDate, start), lt(dayGrade.localDate, end))),
     standardDayPossible(),
-    gradingStart(),
   ]);
   return aggregateGrade(
     periodDays({

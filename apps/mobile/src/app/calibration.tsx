@@ -20,7 +20,7 @@ import {
   type CalibrationSuggestionRow,
   type CheckinStatus,
 } from "../db/calibration";
-import { currentLocalDate } from "../db/today";
+import { currentLocalDate } from "../lib/calendar";
 import { NumberDial } from "../components/number-dial/NumberDial";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";

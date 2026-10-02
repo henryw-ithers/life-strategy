@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { BackupError } from "../errors";
 import {
+  MAX_KDF_ITERATIONS,
   openBackup,
   readHeader,
   sealBackup,
@@ -215,6 +216,17 @@ describe("backup envelope", () => {
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as BackupError).code).toBe("unsupported-format");
+    }
+  });
+
+  it("refuses an iteration count past the ceiling before deriving a key", async () => {
+    const sealed = await seal();
+    new DataView(sealed.buffer, sealed.byteOffset).setUint32(6, MAX_KDF_ITERATIONS + 1);
+    try {
+      readHeader(sealed);
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect((e as BackupError).code).toBe("not-a-backup");
     }
   });
 

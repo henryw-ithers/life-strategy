@@ -12,10 +12,10 @@ import {
   computeDayLoad,
   daysLeftInWeek,
   isAnchoredOn,
-  isoWeekday,
   isPinnedElsewhere,
   type LoadTask,
 } from "../dayLoad";
+import { isoWeekday } from "../schedule";
 
 // The week opens Sunday 2026-07-12 and closes Saturday 2026-07-18.
 const SUNDAY = "2026-07-12";
