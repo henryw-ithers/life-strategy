@@ -257,6 +257,11 @@ question ADR-0008 asks of days.
 
 ## Action items
 
+> **Not done, and not to be done:** this ADR was withdrawn before it
+> was accepted. The list is kept as the record of what it would have
+> taken.
+
+
 1. [ ] `packages/scoring/src/semester.ts` + tests + export from
        `index.ts`; `SEMESTER_FORMULA_VERSION`.
 2. [ ] `term_result` and its migration; write-once on term end.

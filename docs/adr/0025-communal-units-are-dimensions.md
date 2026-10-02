@@ -532,7 +532,8 @@ Learning & growth; anyone proposes named people (§4) or gives
        fill-first was built and **pulled** (see its note); the
        daily-denominator retune was never decided, so there was nothing
        to build. ADR-0003 §5 amended.
-8. [ ] Open ADR-0015 — its trigger fired in §11.
+8. [x] Open ADR-0015 — its trigger fired in §11. *(Done: ADR-0015
+       is written and accepted.)*
 9. [x] Add a line to ADR-0024 recording that §1 was challenged on
        2026-08-16 and reaffirmed (§7 here).
 10. [x] Update AGENTS.md's SLU vocabulary entry: three units are

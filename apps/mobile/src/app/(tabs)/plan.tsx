@@ -116,7 +116,7 @@ export default function PlanScreen() {
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
   const [plan, setPlan] = useState<PlanData | null>(null);
-  /** Today's commitment day, for the coverage bar's ceiling. */
+  /** Today's commitment day, so the coverage bar can lead with the band. */
   const [commitmentDay, setCommitmentDay] = useState<CommitmentDay | null>(null);
   /** Active goals per unit, for the edit sheet's goal row. */
   const [goalsByUnit, setGoalsByUnit] = useState<
@@ -163,9 +163,9 @@ export default function PlanScreen() {
       loadPlan(),
       loadGoals(),
       latestRatings(),
-      // The bar's number is what *today* can reach, so it needs today's
-      // commitment day — without it a scheduled day is priced as an
-      // ordinary one and the number overstates the life units' share.
+      // The bar draws today's commitment band first when there is one,
+      // so it needs today's commitment day — without it a scheduled day
+      // is drawn as an ordinary one and overstates the life units' share.
       loadCommitmentDay(currentLocalDate()),
     ]);
     setPlan(next);
@@ -204,11 +204,9 @@ export default function PlanScreen() {
    * The number in the right-hand column: the unit's own diagnostic
    * weight, whether or not it currently spends it.
    *
-   * ADR-0027 §2 withdraws the reallocation that used to inflate a
-   * covered unit's number past its own weight — a unit with no daily
-   * task simply cannot earn this, and nobody else receives it either,
-   * so the figure shown here and the figure in the day's ceiling are
-   * the same one.
+   * ADR-0027 §2 withdrew the reallocation that used to inflate a
+   * covered unit's number past its own weight, so the figure shown here
+   * is just the unit's weight — its share of the 100.
    */
   const shownPoints = (unit: PlanUnit): number => unit.weight ?? 0;
 

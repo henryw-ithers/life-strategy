@@ -235,6 +235,11 @@ never found, which makes §5 wrong rather than merely cautious.
 
 ## Action items
 
+> **Not done, and not to be done:** this ADR was withdrawn before it
+> was accepted. The list is kept as the record of what it would have
+> taken.
+
+
 1. [ ] `app_setting` key `mode.schedule`; `loadScheduleMode` /
        `setScheduleMode` in `apps/mobile/src/db/settings.ts`, beside
        the existing notification accessors.

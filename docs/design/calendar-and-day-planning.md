@@ -30,6 +30,23 @@ your 3 runs on entirely different days than planned is a perfect week.
 A missed planned day is rearranged, not failed (gentle by design; no
 schedule-violation mechanics anywhere).
 
+> **Amended 2026-10-02 — pins now reach the grade, in two bounded
+> ways.** "Never the grade" is no longer true as written:
+>
+> - **A pinned day decides what a day asks for**
+>   ([ADR-0029 §3](../adr/0029-a-day-is-the-fraction-you-got-through.md)):
+>   a task pinned to Tuesday is due on Tuesday, so Tuesday's score is
+>   the fraction of *its* work done.
+> - **A pinned day sets what a run pays when it is done on another
+>   day** ([ADR-0037 §3](../adr/0037-rest-days.md)): what its pinned
+>   day would have paid.
+>
+> What survives is the part that mattered: **the plan is still never a
+> debt.** A run on the "wrong" day still counts in full; a missed
+> pinned day still lapses silently and is never mentioned again; no
+> adherence rate or plan-completion figure exists. Read the rest of
+> this note through that.
+
 ## Two planning layers
 
 - **Weekday pinning (recurring):** a task may optionally carry
@@ -85,7 +102,9 @@ markers for special/flagged days.
 - **`planned_occurrence`** — id, task_id, local_date, created_at;
   archived rather than deleted if the task archives. (Phase 3)
 - No changes to scoring tables: grades remain frequency-based
-  (ADR-0004 amendment stands).
+  (ADR-0004 amendment stands). *(Superseded: since ADR-0029 a grade
+  reads what is due each day, pins included — see the amendment under
+  the governing principle.)*
 
 ## ADR touchpoints
 

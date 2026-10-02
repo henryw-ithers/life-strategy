@@ -21,6 +21,10 @@ Constraints already in force:
 - **Intentions, not obligations** (calendar planning note): a
   pinned-day reminder may say "you planned Friendship today," never
   "you missed Monday."
+
+  > **Noted 2026-10-02:** weekday pins landed in ADR-0024, which is the
+  > trigger this section anticipated. It was answered there with **no
+  > change** to this ADR — the rule above already covers a pinned day.
 - **On-device privacy** (ADR-0001/0002): no server, therefore **local
   scheduled notifications only** (`expo-notifications`). Zero
   infrastructure, and the one-sentence privacy story is untouched —

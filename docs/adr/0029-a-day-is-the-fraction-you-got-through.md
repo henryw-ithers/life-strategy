@@ -275,9 +275,11 @@ genuinely confusing in use, in which case the lever is presentation
 4. [ ] The checklist shows a point value per row that now changes with
        the day. Read `components/today/TaskRow.tsx` against §4 and
        decide whether the number or a share reads better.
-5. [ ] `docs/design/calendar-and-day-planning.md` and
+5. [x] `docs/design/calendar-and-day-planning.md` and
        `docs/design/copy-guide.md` describe pins as presentation-only.
-       Both need a pass against §3.
+       Both need a pass against §3. *(Done 2026-10-02: the calendar
+       note carries a dated amendment covering §3 and ADR-0037 §3; the
+       copy guide never described pins and needed nothing.)*
 6. [x] Decide what happens to a week bunched into one day, if it turns
        out to happen. The candidate is to keep grading days with
        nothing due, at full marks — but that pays for silence, so it

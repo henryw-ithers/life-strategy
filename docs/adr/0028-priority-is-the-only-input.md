@@ -311,12 +311,19 @@ starts to feel inconsequential, which is §2's constant.
 3. [x] Amend ADR-0003 §§1/5/6, ADR-0008, ADR-0022 and ADR-0027 §2 with
        pointers here; update the ADR index and AGENTS.md's derivation
        invariant.
-4. [ ] Onboarding's "Why 100 is hard" page now says something that is
+4. [x] Onboarding's "Why 100 is hard" page now says something that is
        exactly true rather than approximately — *"do every daily habit
        and you land around 80"* — but the surrounding copy was written
        against a ceiling that could be lower. Re-read it against §3.
 5. [ ] Decide what calibration adjusts (§4). Trigger: the first time
        divergence exceeds its threshold and there is nothing to offer.
-6. [ ] The Tasks screen's coverage bar now shows a number that no
+6. [x] The Tasks screen's coverage bar now shows a number that no
        longer caps anything. Check that nothing beside it still reads
        as a ceiling.
+
+> **Checked 2026-10-02.** (4) The "Why 100 is hard" page was rewritten
+> with ADR-0029 and now says exactly that: do what the day asks and you
+> land on 90; the last 10 is what you did not plan. (6) Nothing the user
+> sees beside the coverage bar reads as a ceiling; its number is the
+> weight that has something planned in it. Two stale code comments in
+> `plan.tsx` still said "ceiling" and were corrected.

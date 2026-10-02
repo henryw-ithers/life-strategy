@@ -376,20 +376,27 @@ thing nobody finds, which would make §2 punitive by accident.
 
 ## Action items
 
-1. [ ] `packages/scoring`: replace `dayShare` with band allocation;
+1. [x] `packages/scoring`: replace `dayShare` with band allocation;
        `UNPLANNED_CAP` 25 → 20 with planned-first ordering; drop the
        communal path from `computeDayScore` and `effort.ts`;
        `FORMULA_VERSION` 7.
-2. [ ] Withdraw ADR-0003 §5's reallocation in `weights.ts` and
+2. [x] Withdraw ADR-0003 §5's reallocation in `weights.ts` and
        `recomputeAllUnitPoints`; `spendable` collapses into `weight`.
-3. [ ] Communal units hold tasks again: Tasks screen rows restored,
+3. [x] Communal units hold tasks again: Tasks screen rows restored,
        `UnitPicker` offers them, the editorial note shows on add.
-4. [ ] Remove Settings → Recompute past grades.
-5. [ ] Build the exclusion control — `include_in_scoring` is read in
+4. [x] Remove Settings → Recompute past grades.
+5. [x] Build the exclusion control — `include_in_scoring` is read in
        five places and **written by nothing**; no screen has ever set
        it. On the unit, on the Tasks screen, reversible in one tap,
        worded as scope. Weights re-derive at read time; no snapshot is
        written.
-6. [ ] Amend ADR-0003 §5 and ADR-0025 §§1–5 with pointers here.
-7. [ ] Update the ADR index, and note in backburner.md that "The daily
+6. [x] Amend ADR-0003 §5 and ADR-0025 §§1–5 with pointers here.
+7. [x] Update the ADR index, and note in backburner.md that "The daily
        number is too generous" is resolved here.
+
+> **Checked 2026-10-02:** all seven were built — `dayShare` is gone,
+> Settings → Recompute past grades is gone, `setUnitScoring` is the
+> exclusion control on the Tasks screen, communal units are offered in
+> `UnitPicker`, and ADR-0003, ADR-0025 and backburner.md carry their
+> pointers. The boxes had never been ticked. §§1–3 have since been
+> superseded by ADR-0029 regardless.

@@ -538,14 +538,23 @@ ADR-0026's load work needs placement data this ADR chose not to keep.
        created it. What remains of §4 is the *weekly* pass — a
        once-a-week surface over the whole week rather than one day
        at a time.
-4. [ ] Confirm no adherence statistic is computed anywhere — this is
+4. [x] Confirm no adherence statistic is computed anywhere — this is
        the invariant most likely to be violated by a well-meaning
        addition.
-5. [ ] Note in ADR-0010 §1 that the pinned-day trigger fired and was
+5. [x] Note in ADR-0010 §1 that the pinned-day trigger fired and was
        answered here with "no change."
-6. [ ] Update the ADR index: 0024 listed; 0025 and 0026 reserved with
+6. [x] Update the ADR index: 0024 listed; 0025 and 0026 reserved with
        triggers.
-7. [ ] Fold the Lally citation into
+7. [x] Fold the Lally citation into
        [copy-guide.md](../design/copy-guide.md) beside the
        missed-day copy — the research and the tone agree, and that is
        worth recording where the copy decisions live.
+
+> **Checked 2026-10-02.** (4) Nothing computes an adherence rate or a
+> plan-completion percentage. Since ADR-0037 §3 a pinned day's *date*
+> is read — but only to choose which day's price a run pays, never to
+> charge for the day it missed. The one run-length number is ADR-0004
+> §5's streak on every-day tasks, which counts consecutive days done,
+> not days done as planned, so it is not the adherence streak §2 rules
+> out. (5) ADR-0010 carries its note. (6) 0025 and 0026 are long since
+> written. (7) The citation is in copy-guide.md under Streaks.

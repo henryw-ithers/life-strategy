@@ -50,6 +50,7 @@ A streak is **shown, never enforced**. It never touches the grade. The rule that
 - **Never show a past best beside a current run.** "Best: 30 · Now: 1" is the app pointing at the break. A best is shown **only when the current run is the best** — celebration may condition on positive events, and only on those (ADR-0008).
 - **Don't announce small numbers.** On a task row nothing appears below seven days. A row that said "1 day" every time you restarted would be reporting resets.
 - **A declared day off is never a break** (ADR-0004 §3) and is never described as one.
+- **The research agrees with the tone.** Lally et al. (2010) found that **missing one occasion does not materially affect habit formation** (ADR-0024's context). So "never remark on a break" is not only kindness — remarking on it would overstate what a break costs.
 - Habit goals are **never offered completion**. They have no target and are meant to be permanent, so "finish it" is not a state they have.
 
 ## Calibration copy (ADR-0008)
