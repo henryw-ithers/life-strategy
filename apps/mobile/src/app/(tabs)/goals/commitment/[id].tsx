@@ -6,20 +6,21 @@
  * **What it holds depends on whether it is split** (ADR-0035 §1 as
  * amended 2026-10-02). A commitment split into sub-commitments lists
  * them, and holds no events or tasks of its own; one that is not split
- * lists its own. A sub-commitment always lists its own. The switch sits
- * with the name and share, and turning it either way says what moves
- * before it moves anything.
+ * lists its own. A sub-commitment always lists its own. Turning the
+ * split on or off says what moves before it moves anything.
  *
  * **Events and tasks are listed apart** because they are planned apart:
  * an event is a time you turn up for, a task is work you fit in
  * (ADR-0038). Each has its own add row, opening its own sheet.
  *
- * **Two endings, and the screen leads with the right one.** Finishing
- * is what happens to a commitment you actually held — the share returns
- * to the pool, the log keeps the term, and it can come back. Deleting
- * is for the mistyped one, quieter and behind a confirm that says what
- * survives (ADR-0007's deletion amendment). A sub-commitment has only
- * delete: finishing belongs to the commitment as a whole.
+ * **What you do to the whole thing lives behind the options button**
+ * at the top right (Henry, 2026-10-02): using sub-commitments or not,
+ * **archiving** — what happens to a commitment you actually held; the
+ * share returns to the pool, the log keeps the term, and unarchiving
+ * brings it back — and deleting, for the mistyped one, behind a confirm
+ * that says what survives (ADR-0007's deletion amendment). The page
+ * itself is left to what is in it. A sub-commitment's options are
+ * rename and delete: archiving belongs to the commitment as a whole.
  *
  * Every row is a target; there is no row here that looks live and is
  * not.
@@ -34,7 +35,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   useColorScheme,
   View,
 } from "react-native";
@@ -106,6 +106,8 @@ export default function CommitmentScreen() {
     events: number;
     tasks: number;
   } | null>(null);
+  /** The options menu at the top right. */
+  const [optionsOpen, setOptionsOpen] = useState(false);
   /** The sub-commitment whose press-and-hold menu is open. */
   const [subMenu, setSubMenu] = useState<CommitmentUnitScreen["subs"][number] | null>(null);
   /** The sub-commitment being renamed from that menu. */
@@ -170,6 +172,65 @@ export default function CommitmentScreen() {
     }
   };
 
+  /** What the options button offers, for this kind of page. */
+  const optionRows = () => {
+    if (!data) return [];
+    const close = (run: () => void) => () => {
+      setOptionsOpen(false);
+      run();
+    };
+    const del = {
+      label: isSub ? "Delete sub-commitment" : "Delete commitment",
+      destructive: true,
+      onPress: close(() =>
+        setDeleteTarget({
+          id: data.id,
+          name: data.name,
+          sub: isSub,
+          events: data.events.length,
+          tasks: data.tasks.length,
+        }),
+      ),
+    };
+    if (isSub) {
+      return [
+        {
+          label: "Rename",
+          onPress: close(() =>
+            setSheet({ kind: "sub", parentName: data.parent!.name, name: data.name }),
+          ),
+        },
+        del,
+      ];
+    }
+    if (archived) {
+      return [
+        { label: "Unarchive", onPress: close(() => void unarchiveCommitment(data.id).then(reload)) },
+        del,
+      ];
+    }
+    return [
+      {
+        label: data.subsOn ? "Stop using sub-commitments" : "Use sub-commitments",
+        onPress: close(() => toggleSubs(!data.subsOn)),
+      },
+      {
+        label: "Archive",
+        onPress: close(() =>
+          Alert.alert(
+            `Archive ${data.name}?`,
+            "It keeps everything and stops scoring. You can unarchive it from this menu whenever.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Archive", onPress: () => void archiveCommitment(data.id).then(reload) },
+            ],
+          ),
+        ),
+      },
+      del,
+    ];
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(accent)} />
@@ -179,17 +240,33 @@ export default function CommitmentScreen() {
           { paddingTop: insets.top + space.md, paddingBottom: space.xxxl },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ {data?.parent ? data.parent.name : "Commitments"}
-          </AppText>
-        </Pressable>
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={8}
+            style={styles.back}
+          >
+            <AppText variant="label" color={theme.muted}>
+              ‹ {data?.parent ? data.parent.name : "Commitments"}
+            </AppText>
+          </Pressable>
+          {/* What you do to the commitment as a whole — split it,
+              archive it, delete it — lives behind one button, out of
+              the way of what is in it (Henry, 2026-10-02). */}
+          {data ? (
+            <Pressable
+              onPress={() => setOptionsOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Options for ${data.name}`}
+              hitSlop={10}
+              style={({ pressed }) => [styles.options, { opacity: pressed ? 0.5 : 1 }]}
+            >
+              <Ionicons name="ellipsis-horizontal-circle" size={26} color={accent} />
+            </Pressable>
+          ) : null}
+        </View>
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
@@ -202,7 +279,7 @@ export default function CommitmentScreen() {
             </AppText>
             <AppText variant="label" color={accent} style={styles.status}>
               {archived
-                ? "Finished"
+                ? "Archived"
                 : isSub
                   ? `Part of ${data.parent!.name}`
                   : data.others.length > 0
@@ -213,7 +290,8 @@ export default function CommitmentScreen() {
             {archived ? (
               <AppText variant="caption" color={theme.muted} style={styles.bannerNote}>
                 Its tasks are paused and it takes no share of a day. Its
-                history is untouched.
+                history is untouched. Unarchive it from the options at the
+                top right.
               </AppText>
             ) : null}
 
@@ -229,7 +307,7 @@ export default function CommitmentScreen() {
                       : { kind: "commitment", name: data.name, percent: data.sharePercent },
                   )
                 }
-                last={archived || isSub}
+                last={archived || isSub || data.others.length === 0}
               />
               {/* Only worth a row when there is something to share
                   with: a lone commitment takes the whole band. */}
@@ -241,24 +319,8 @@ export default function CommitmentScreen() {
                   onPress={() =>
                     setSheet({ kind: "commitment", name: data.name, percent: data.sharePercent })
                   }
+                  last
                 />
-              ) : null}
-              {!archived && !isSub ? (
-                <View style={styles.row}>
-                  <View style={styles.grow}>
-                    <AppText color={theme.ink}>Sub-commitments</AppText>
-                    <AppText variant="footnote" color={theme.muted}>
-                      Split it into classes, shifts or teams, each with its
-                      own events and tasks.
-                    </AppText>
-                  </View>
-                  <Switch
-                    value={data.subsOn}
-                    onValueChange={toggleSubs}
-                    trackColor={{ true: accent }}
-                    accessibilityLabel="Sub-commitments"
-                  />
-                </View>
               ) : null}
             </Group>
 
@@ -357,45 +419,6 @@ export default function CommitmentScreen() {
                 </Group>
               </>
             )}
-
-            <View style={styles.ending}>
-              {isSub ? null : archived ? (
-                <Button
-                  label="Start it again"
-                  variant="secondary"
-                  onPress={() => void unarchiveCommitment(data.id).then(reload)}
-                  theme={theme}
-                />
-              ) : (
-                <Button
-                  label="Finish"
-                  variant="secondary"
-                  onPress={() => void archiveCommitment(data.id).then(reload)}
-                  theme={theme}
-                />
-              )}
-              {isSub ? null : (
-                <AppText variant="footnote" color={theme.muted}>
-                  {archived
-                    ? "Its tasks come back and it takes a share of your day again."
-                    : "Keeps everything and stops scoring it. You can start it again whenever."}
-                </AppText>
-              )}
-              <Button
-                label={isSub ? "Delete sub-commitment" : "Delete commitment"}
-                variant="quiet"
-                onPress={() =>
-                  setDeleteTarget({
-                    id: data.id,
-                    name: data.name,
-                    sub: isSub,
-                    events: data.events.length,
-                    tasks: data.tasks.length,
-                  })
-                }
-                theme={theme}
-              />
-            </View>
 
             {addingTask ? (
               <AddTaskModal
@@ -521,6 +544,14 @@ export default function CommitmentScreen() {
             ) : null}
 
             <MenuSheet
+              visible={optionsOpen}
+              title={data.name}
+              theme={theme}
+              onClose={() => setOptionsOpen(false)}
+              rows={optionRows()}
+            />
+
+            <MenuSheet
               visible={subMenu !== null}
               title={subMenu?.name}
               theme={theme}
@@ -585,7 +616,7 @@ export default function CommitmentScreen() {
                   <AppText color={theme.muted}>
                     {deleteTarget?.sub
                       ? `It goes for good, with its ${countOf(deleteTarget.events, "event")} and ${countOf(deleteTarget.tasks, "task")}. Days you have already scored keep their grades and everything in your log stays.`
-                      : `It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, finish it instead.`}
+                      : `It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, archive it instead.`}
                   </AppText>
                   <View style={styles.confirmActions}>
                     <View style={styles.grow}>
@@ -705,7 +736,9 @@ function ActionRow({
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
   container: { paddingHorizontal: space.screen },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
+  options: { minWidth: 44, minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   status: { marginTop: space.xs },
   bannerNote: { marginTop: space.sm },
   row: {
@@ -716,7 +749,6 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   grow: { flex: 1 },
-  ending: { gap: space.sm, marginTop: space.xxl },
   confirmBackdrop: {
     flex: 1,
     backgroundColor: SCRIM,

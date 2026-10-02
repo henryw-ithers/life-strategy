@@ -115,8 +115,8 @@ export function CommitmentsList({
       {archived.length > 0 ? (
         <Group
           theme={theme}
-          title="Finished"
-          footnote="Their history stays in your log. Open one to bring it back."
+          title="Archived"
+          footnote="Their history stays in your log. Open one to unarchive it."
           flush
         >
           {archived.map((c, i) => (

@@ -155,7 +155,7 @@ export default function GoalsScreen() {
                A disabled button with no explanation is the version of
                this that makes people tap twice and give up. */
             <AppText variant="caption" color={theme.muted}>
-              Three commitments is the most at once. Finish one to add
+              Three commitments is the most at once. Archive one to add
               another.
             </AppText>
           )}
