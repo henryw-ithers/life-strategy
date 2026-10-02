@@ -76,6 +76,9 @@ export function PlanUnitSection({
   theme: ThemeTokens;
 }) {
   const excluded = !unit.includeInScoring;
+  /** Whether "what this unit covers" is on offer — to the eye only while
+   *  open, but to VoiceOver whenever, since the rotor costs no room. */
+  const hasInfo = !excluded && UNIT_INFO[unit.id] !== undefined;
   const points = unit.weight ?? 0;
   const tasks = tasksOf(unit);
   const events = eventsOf(unit);
@@ -98,6 +101,15 @@ export function PlanUnitSection({
               : `${unit.name}, ${points} points, ${unit.tasks.length} tasks`
         }
         accessibilityHint={open ? "Collapses its tasks" : "Shows its tasks"}
+        // The info button below is nested in this row, and VoiceOver
+        // treats the row as one element and never reaches it — so the
+        // same action is offered on the row itself, in the actions rotor.
+        accessibilityActions={
+          hasInfo ? [{ name: "info", label: `What ${unit.name} covers` }] : undefined
+        }
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === "info") onShowInfo();
+        }}
         style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
       >
         <View style={styles.chev}>
@@ -113,7 +125,7 @@ export function PlanUnitSection({
             asked; only while open. Nested in the row's Pressable on
             purpose: the deepest responder wins, so the row stays one
             large tap target. */}
-        {open && !excluded && UNIT_INFO[unit.id] ? (
+        {open && hasInfo ? (
           <Pressable
             onPress={onShowInfo}
             accessibilityRole="button"

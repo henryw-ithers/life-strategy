@@ -21,7 +21,7 @@
  * not three times.
  */
 import { useCallback, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 
 import { recordProblem } from "../../lib/problemLog";
@@ -35,7 +35,19 @@ interface ScreenLoad {
   error: Error | null;
   /** Run the load again. Safe to hand straight to a button. */
   retry: () => void;
+  /**
+   * Run a write the user asked for, then reload — or run `after`
+   * instead, when the screen is leaving. Fire-and-forget, for handlers.
+   *
+   * A rejected write used to vanish: the tap did nothing, and the only
+   * trace was an unhandled-rejection entry filed as `fatal`. Now it is
+   * recorded as what it was, and the user is told once, plainly.
+   */
+  save: (write: () => Promise<unknown>, after?: () => void) => void;
 }
+
+const asErrorOf = (thrown: unknown): Error =>
+  thrown instanceof Error ? thrown : new Error(String(thrown));
 
 /**
  * Run `load` whenever the screen comes into focus, and keep whatever it
@@ -55,12 +67,31 @@ export function useScreenLoad(load: () => Promise<void>): ScreenLoad {
   const run = useCallback(() => {
     setError(null);
     void load().catch((thrown: unknown) => {
-      const asError =
-        thrown instanceof Error ? thrown : new Error(String(thrown));
+      const asError = asErrorOf(thrown);
       recordProblem(asError, "load");
       setError(asError);
     });
   }, [load]);
+
+  const save = useCallback(
+    (write: () => Promise<unknown>, after: () => void = run) => {
+      // Started inside `then` so a synchronous throw is caught too.
+      // A failure still reloads: the screen should show what is stored.
+      void Promise.resolve()
+        .then(write)
+        .then(after, (thrown: unknown) => {
+          recordProblem(asErrorOf(thrown), "save");
+          // About the app, never the person — and the same words on
+          // every screen.
+          Alert.alert(
+            "That didn’t save",
+            "Nothing else changed. Try again, and if it keeps happening, the problem log in Settings has the details.",
+          );
+          run();
+        });
+    },
+    [run],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -68,7 +99,7 @@ export function useScreenLoad(load: () => Promise<void>): ScreenLoad {
     }, [run]),
   );
 
-  return { error, retry: run };
+  return { error, retry: run, save };
 }
 
 /**

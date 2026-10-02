@@ -78,7 +78,7 @@ export function useGoalDetail(goalId: string) {
     );
   }, [goalId]);
 
-  const { error, retry } = useScreenLoad(reload);
+  const { error, retry, save } = useScreenLoad(reload);
 
-  return { goal, loaded, units, attachable, reload, error, retry };
+  return { goal, loaded, units, attachable, reload, save, error, retry };
 }

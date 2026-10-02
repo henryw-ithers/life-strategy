@@ -15,7 +15,7 @@
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
@@ -79,7 +79,7 @@ export default function PlanScreen() {
    *  collapsed list would strand that intent (ADR-0005 §2). */
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
-  const { plan, commitmentDay, goalsByUnit, ratings, reload, error, retry } = usePlanData();
+  const { plan, commitmentDay, goalsByUnit, ratings, reload, save, error, retry } = usePlanData();
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
@@ -140,7 +140,7 @@ export default function PlanScreen() {
 
   const deleteTask = (t: PlanTask) => {
     setUndo({ id: t.id, title: t.title });
-    void archiveTask(t.id).then(reload);
+    save(() => archiveTask(t.id));
   };
 
   /**
@@ -148,21 +148,35 @@ export default function PlanScreen() {
    * collapse first: both run at 180ms, and measuring mid-transition lands
    * on wherever the row happened to be that frame.
    */
-  const revealUnit = (unitId: string) => {
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-    revealTimer.current = setTimeout(() => {
-      const node = unitRefs.current[unitId];
-      const content = contentRef.current;
-      if (!node || !content) return;
-      node.measureLayout(
-        content,
-        (_x, y) => {
-          scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: !reduceMotion });
-        },
-        () => {},
-      );
-    }, 260);
-  };
+  const revealUnit = useCallback(
+    (unitId: string) => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+      revealTimer.current = setTimeout(() => {
+        const node = unitRefs.current[unitId];
+        const content = contentRef.current;
+        if (!node || !content) return;
+        node.measureLayout(
+          content,
+          (_x, y) => {
+            scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: !reduceMotion });
+          },
+          () => {},
+        );
+      }, 260);
+    },
+    [reduceMotion],
+  );
+
+  /** A tab stays mounted, so the `unit` param only seeds state on the
+   *  first visit. Every later link — from a goal, or the post-diagnostic
+   *  diff — arrives here instead, and must open its unit too. Cleared
+   *  once handled, so a second link to the same unit still changes it. */
+  useEffect(() => {
+    if (!unitParam) return;
+    setOpenUnitId(unitParam);
+    revealUnit(unitParam);
+    router.setParams({ unit: undefined });
+  }, [unitParam, revealUnit]);
 
   /**
    * Something new lands last in its unit, so the screen has to say where
@@ -313,8 +327,8 @@ export default function PlanScreen() {
                         setOpenUnitId((current) => (current === unit.id ? null : unit.id))
                       }
                       onShowInfo={() => setInfoUnit(unit)}
-                      onSetScoring={(include) => void setUnitScoring(unit.id, include).then(reload)}
-                      onReorder={(ids) => void reorderUnitTasks(unit.id, ids).then(reload)}
+                      onSetScoring={(include) => save(() => setUnitScoring(unit.id, include))}
+                      onReorder={(ids) => save(() => reorderUnitTasks(unit.id, ids))}
                       onEditTask={(t) => setEditing({ task: t, unit })}
                       onDeleteTask={deleteTask}
                       onAddTask={() => setAdding({ homeUnit: unit })}
@@ -354,7 +368,7 @@ export default function PlanScreen() {
           onUndo={() => {
             const id = undo.id;
             setUndo(null);
-            void restoreTask(id).then(reload);
+            save(() => restoreTask(id));
           }}
           onDismiss={() => setUndo(null)}
           theme={theme}
@@ -472,26 +486,34 @@ export default function PlanScreen() {
           onAddTask={(t) => {
             const unit = suggestingFor;
             setSuggestingFor(null);
-            void commitTask(t.title, t.timesPerWeek, [unit.id], null, null);
+            // `commitTask` reloads and reveals the row itself.
+            save(
+              () => commitTask(t.title, t.timesPerWeek, [unit.id], null, null),
+              () => {},
+            );
           }}
           onAddGoal={(g) => {
             const unit = suggestingFor;
             setSuggestingFor(null);
-            void (async () => {
-              const id = await createGoal(unit.id, g.title, g.description ?? undefined);
-              // The library's metric arrives with it — a goal stripped of
-              // it would be the least useful half of what was written. A
-              // metric goal has one finish line (ADR-0030 §5).
-              if (g.metric && g.metric.suggestedTarget !== null) {
-                await setGoalMetric(id, {
-                  kind: g.metric.kind,
-                  unit: g.metric.unit,
-                  targetValue: g.metric.suggestedTarget,
-                });
-              }
-              await reload();
-              router.push(`/goals/${id}` as Href);
-            })();
+            let id = "";
+            save(
+              async () => {
+                id = await createGoal(unit.id, g.title, g.description ?? undefined);
+                // The library's metric arrives with it — a goal stripped of
+                // it would be the least useful half of what was written. A
+                // metric goal has one finish line (ADR-0030 §5).
+                if (g.metric && g.metric.suggestedTarget !== null) {
+                  await setGoalMetric(id, {
+                    kind: g.metric.kind,
+                    unit: g.metric.unit,
+                    targetValue: g.metric.suggestedTarget,
+                  });
+                }
+              },
+              // No reload: this screen reloads on focus when it is next
+              // shown.
+              () => router.push(`/goals/${id}` as Href),
+            );
           }}
         />
       ) : null}

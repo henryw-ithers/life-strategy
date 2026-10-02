@@ -63,6 +63,7 @@ const PROBLEM_LABEL: Record<ProblemKind, string> = {
   render: "A screen broke",
   fatal: "Something failed in the background",
   load: "A screen couldn’t load",
+  save: "A change didn’t save",
 };
 
 export default function ProblemLogScreen() {

@@ -12,6 +12,10 @@ import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 
+/** Footnote text is far short of a 44pt target; the slop makes up the
+ *  height without moving anything on screen. */
+const LINK_SLOP = { top: 12, bottom: 12, left: 8, right: 8 };
+
 function statusLabel(status: GoalDetail["status"]): string {
   switch (status) {
     case "active":
@@ -75,6 +79,7 @@ export function GoalHeader({
         <Pressable
           onPress={() => router.push(`/goals/${goal.linkedFromGoalId}` as Href)}
           accessibilityRole="button"
+          hitSlop={LINK_SLOP}
         >
           <AppText variant="footnote" color={theme.muted} style={styles.link}>
             {goal.linkKind === "follow_up" ? "Follows on from" : "Revised from"} an earlier goal
@@ -85,6 +90,7 @@ export function GoalHeader({
         <Pressable
           onPress={() => router.push(`/goals/${goal.successorGoalId}` as Href)}
           accessibilityRole="button"
+          hitSlop={LINK_SLOP}
         >
           <AppText variant="footnote" color={theme.muted} style={styles.link}>
             Continued in a newer goal

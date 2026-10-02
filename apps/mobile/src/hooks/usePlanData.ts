@@ -48,7 +48,7 @@ export function usePlanData() {
     setGoalsByUnit(byUnit);
   }, []);
 
-  const { error, retry } = useScreenLoad(reload);
+  const { error, retry, save } = useScreenLoad(reload);
 
-  return { plan, commitmentDay, goalsByUnit, ratings, reload, error, retry };
+  return { plan, commitmentDay, goalsByUnit, ratings, reload, save, error, retry };
 }

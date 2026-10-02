@@ -25,7 +25,10 @@ export type ProblemKind =
   /** A screen's own data load rejected. The route rendered fine; it has
    *  nothing to show and said so. Separated from `render` because the
    *  fix is almost always in a query, not in a component. */
-  | "load";
+  | "load"
+  /** A write the user asked for rejected — a delete, a reorder, a
+   *  move. The screen said it didn't save; the data is as it was. */
+  | "save";
 
 export interface ProblemEntry {
   /** ISO 8601, device local clock. */

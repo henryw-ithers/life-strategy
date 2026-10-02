@@ -2,7 +2,8 @@
  * "Deleted …  Undo  ✕" — floats above the tab bar after a delete that
  * can be taken back.
  */
-import { Pressable, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
@@ -19,6 +20,12 @@ export function UndoToast({
   onDismiss: () => void;
   theme: ThemeTokens;
 }) {
+  // A toast appears away from VoiceOver's focus, so without this a
+  // screen-reader user never learns the delete can be taken back.
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(`${message}. Undo available.`);
+  }, [message]);
+
   return (
     <View
       style={[

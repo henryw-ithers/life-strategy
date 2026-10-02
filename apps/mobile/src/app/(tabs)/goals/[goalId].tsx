@@ -38,6 +38,7 @@ import { ConditionForm } from "../../../components/goals/ConditionForm";
 import { ConditionGroup } from "../../../components/goals/ConditionGroup";
 import { DeleteGoalModal } from "../../../components/goals/DeleteGoalModal";
 import { GoalHeader } from "../../../components/goals/GoalHeader";
+import { ConditionMenu, fromMenu, GoalTaskMenu } from "../../../components/goals/GoalMenus";
 import { GoalManageGroup } from "../../../components/goals/GoalManageGroup";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
@@ -89,7 +90,7 @@ export default function GoalDetailScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
-  const { goal, loaded, units, attachable, reload, error, retry } = useGoalDetail(goalId);
+  const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
 
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
@@ -122,7 +123,7 @@ export default function GoalDetailScreen() {
     setConditionTitle("");
   };
 
-  const submitCondition = async () => {
+  const submitCondition = () => {
     const title = conditionTitle.trim();
     if (title.length === 0 || !goal) {
       cancelCondition();
@@ -130,32 +131,21 @@ export default function GoalDetailScreen() {
     }
     const editing = editingCondition;
     cancelCondition();
-    if (editing) await renameCondition(editing, title);
-    else await addCondition(goal.id, title);
-    await reload();
+    save(() => (editing ? renameCondition(editing, title) : addCondition(goal.id, title)));
   };
 
   /** Conditions are parallel, so this is arrangement, not precedence —
    *  a menu rather than a drag, because a drag inside a ScrollView fights
    *  the scroll and screen readers cannot use one. */
-  const moveCondition = async (id: string, delta: -1 | 1) => {
+  const moveCondition = (id: string, delta: -1 | 1) => {
     if (!goal) return;
     const ids = goal.conditions.map((c) => c.id);
     const from = ids.indexOf(id);
     const to = from + delta;
     if (from < 0 || to < 0 || to >= ids.length) return;
     ids.splice(to, 0, ...ids.splice(from, 1));
-    await reorderConditions(ids);
-    await reload();
+    save(() => reorderConditions(ids));
   };
-
-  /** Close a menu and act on what it was opened for. */
-  const fromMenu =
-    <T,>(target: T | null, close: () => void, act: (t: T) => void) =>
-    () => {
-      close();
-      if (target) act(target);
-    };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -211,8 +201,8 @@ export default function GoalDetailScreen() {
               goal={goal}
               accent={accent}
               onComplete={() => setCompleting(true)}
-              onResume={() => void resumeGoal(goal.id).then(reload)}
-              onRevive={() => void reviveGoal(goal.id).then(reload)}
+              onResume={() => save(() => resumeGoal(goal.id))}
+              onRevive={() => save(() => reviveGoal(goal.id))}
               theme={theme}
             />
 
@@ -232,10 +222,10 @@ export default function GoalDetailScreen() {
                 onComplete={() => setCompleting(true)}
                 onEdit={() => setEditingMetric(true)}
                 onAdd={(value, note) => {
-                  void addGoalProgress(goal.id, currentLocalDate(), value, note).then(reload);
+                  save(() => addGoalProgress(goal.id, currentLocalDate(), value, note));
                 }}
                 onDelete={(entryId) => {
-                  void deleteGoalProgress(entryId).then(reload);
+                  save(() => deleteGoalProgress(entryId));
                 }}
               />
             ) : editable ? (
@@ -333,7 +323,7 @@ export default function GoalDetailScreen() {
                 value={conditionTitle}
                 onChangeText={setConditionTitle}
                 renaming={editingCondition !== null}
-                onSubmit={() => void submitCondition()}
+                onSubmit={submitCondition}
                 onCancel={cancelCondition}
                 accent={accent}
                 entering={entering}
@@ -353,7 +343,7 @@ export default function GoalDetailScreen() {
             {/* ── Manage ── */}
             <GoalManageGroup
               status={goal.status}
-              onPause={() => void pauseGoal(goal.id).then(reload)}
+              onPause={() => save(() => pauseGoal(goal.id))}
               onRevise={() => setRevising(true)}
               onSetAside={() => setAbandoning(true)}
               onDelete={() => setDeleting(true)}
@@ -380,11 +370,13 @@ export default function GoalDetailScreen() {
                 theme={theme}
                 onClose={() => setEditingMetric(false)}
                 onSave={(metric, targetDate, autocountTaskId) => {
-                  void Promise.all([
-                    setGoalMetric(goal.id, metric),
-                    setGoalTargetDate(goal.id, targetDate),
-                    setGoalAutocountTask(goal.id, autocountTaskId),
-                  ]).then(reload);
+                  save(() =>
+                    Promise.all([
+                      setGoalMetric(goal.id, metric),
+                      setGoalTargetDate(goal.id, targetDate),
+                      setGoalAutocountTask(goal.id, autocountTaskId),
+                    ]),
+                  );
                 }}
               />
             ) : null}
@@ -474,95 +466,28 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            {/* Rename · reorder · remove, held by a long press — the same
-                gesture and card the day record uses. */}
-            <MenuSheet
-              visible={conditionMenu !== null}
-              theme={theme}
+            <ConditionMenu
+              condition={conditionMenu}
+              conditions={goal.conditions}
               onClose={() => setConditionMenu(null)}
-              rows={[
-                {
-                  label: "Rename",
-                  onPress: fromMenu(conditionMenu, () => setConditionMenu(null), (target) => {
-                    setEditingCondition(target.id);
-                    setConditionTitle(target.title);
-                    setComposingCondition(true);
-                  }),
-                },
-                {
-                  label: "Move up",
-                  disabled: goal.conditions[0]?.id === conditionMenu?.id,
-                  onPress: fromMenu(conditionMenu, () => setConditionMenu(null), (target) => {
-                    void moveCondition(target.id, -1);
-                  }),
-                },
-                {
-                  label: "Move down",
-                  disabled: goal.conditions[goal.conditions.length - 1]?.id === conditionMenu?.id,
-                  onPress: fromMenu(conditionMenu, () => setConditionMenu(null), (target) => {
-                    void moveCondition(target.id, 1);
-                  }),
-                },
-                {
-                  // A condition is a grouping, and removing a grouping must
-                  // never delete the work in it (ADR-0030) — said on the
-                  // button, because that is where the decision is made.
-                  label: "Remove condition (keeps its tasks)",
-                  destructive: true,
-                  onPress: fromMenu(conditionMenu, () => setConditionMenu(null), (target) => {
-                    void deleteCondition(target.id).then(reload);
-                  }),
-                },
-              ]}
+              onRename={(c) => {
+                setEditingCondition(c.id);
+                setConditionTitle(c.title);
+                setComposingCondition(true);
+              }}
+              onMove={(c, delta) => moveCondition(c.id, delta)}
+              onRemove={(c) => save(() => deleteCondition(c.id))}
+              theme={theme}
             />
 
-            {/* Everything you might want to do to a task from here. Editing
-                routes to the Plan screen rather than duplicating its edit
-                sheet: task mechanics live in one place. */}
-            <MenuSheet
-              visible={movingTask !== null}
-              theme={theme}
+            <GoalTaskMenu
+              task={movingTask}
+              conditions={goal.conditions}
               onClose={() => setMovingTask(null)}
-              title={movingTask?.title}
-              rows={[
-                {
-                  label: "Edit in your plan",
-                  onPress: fromMenu(movingTask, () => setMovingTask(null), (t) => {
-                    router.push(`/plan?unit=${t.unitId}` as Href);
-                  }),
-                },
-                ...goal.conditions
-                  .filter((c) => c.id !== movingTask?.conditionId)
-                  .map((c) => ({
-                    label: `Move to “${c.title}”`,
-                    onPress: fromMenu(movingTask, () => setMovingTask(null), (t) => {
-                      void setTaskCondition(t.id, c.id).then(reload);
-                    }),
-                  })),
-                ...(movingTask?.conditionId
-                  ? [
-                      {
-                        label: ((title) =>
-                          title ? `Move out of “${title}”` : "Move out of its condition")(
-                          goal.conditions.find((c) => c.id === movingTask.conditionId)?.title,
-                        ),
-                        onPress: fromMenu(movingTask, () => setMovingTask(null), (t) => {
-                          void setTaskCondition(t.id, null).then(reload);
-                        }),
-                      },
-                    ]
-                  : []),
-                {
-                  // Destructive-coloured because it removes something, but
-                  // the task survives — back on its own under its unit,
-                  // still earning.
-                  label: "Remove from this goal",
-                  destructive: true,
-                  onPress: fromMenu(movingTask, () => setMovingTask(null), (t) => {
-                    void detachTaskFromGoal(t.id).then(reload);
-                  }),
-                },
-              ]}
+              onEdit={(t) => router.push(`/plan?unit=${t.unitId}` as Href)}
+              onMoveTo={(t, conditionId) => save(() => setTaskCondition(t.id, conditionId))}
+              onDetach={(t) => save(() => detachTaskFromGoal(t.id))}
+              theme={theme}
             />
 
             {/* "Add task" means two different things, and a person should
@@ -597,7 +522,7 @@ export default function GoalDetailScreen() {
                 onPick={(taskId) => {
                   const where = addingExisting;
                   setAddingExisting(null);
-                  void attachTaskToGoal(taskId, goal.id, where.conditionId).then(reload);
+                  save(() => attachTaskToGoal(taskId, goal.id, where.conditionId));
                 }}
               />
             ) : null}
@@ -608,7 +533,10 @@ export default function GoalDetailScreen() {
               onCancel={() => setDeleting(false)}
               onDelete={() => {
                 setDeleting(false);
-                void deleteGoal(goal.id).then(() => router.back());
+                save(
+                  () => deleteGoal(goal.id),
+                  () => router.back(),
+                );
               }}
               theme={theme}
             />
