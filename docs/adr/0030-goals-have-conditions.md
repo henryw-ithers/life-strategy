@@ -238,9 +238,14 @@ a metric proves unreadable.
        when the shape fits (≤ 8 conditions), or always as a list.
        *(Decided 2026-10-02, Henry: **always a list**, the checklist's
        own shape, at any count. That is how it is built.)*
-7. [ ] Copy pass on "condition" against the Environment area's
+7. [x] Copy pass on "condition" against the Environment area's
        description, and on how a task belonging to another unit is
-       labelled where the goal shows it.
+       labelled where the goal shows it. *(Done 2026-10-02. Environment
+       now reads "Where you live and what surrounds you, and the upkeep
+       that keeps it liveable", so "condition" keeps one meaning. The
+       cross-unit label stays as built, by Henry's call. The goal screen
+       was tidied in the same pass; the rules are in copy-guide.md,
+       "Goal conditions".)*
 8. [ ] **Discoverability is carried by menus, and menus have a ceiling.**
        A task's actions are a flat list that grows with the goal's
        condition count — six conditions makes a nine-row sheet. If real

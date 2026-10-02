@@ -551,7 +551,8 @@ export default function GoalDetailScreen() {
             {goal.tasks.length > 0 || editable ? (
               <Group
                 theme={theme}
-                title={goal.conditions.length > 0 ? "Not under a condition" : "Tasks"}
+                // Named for what the group is, not for what it is not.
+                title={goal.conditions.length > 0 ? "Other tasks" : "Tasks"}
                 flush
               >
                 {goal.tasks.map((t, i) => (
@@ -651,7 +652,7 @@ export default function GoalDetailScreen() {
                     <>
                       <GroupDivider theme={theme} />
                       <AppText variant="caption" color={theme.muted} style={styles.conditionEmpty}>
-                        Named, with nothing doing it yet.
+                        Nothing under this yet.
                       </AppText>
                     </>
                   ) : null}
@@ -699,7 +700,8 @@ export default function GoalDetailScreen() {
                   value={conditionTitle}
                   onChangeText={setConditionTitle}
                   accessibilityLabel="Condition"
-                  placeholder={editingCondition ? "Condition" : "What has to be true?"}
+                  // The same prompt adding or renaming: it is one job.
+                  placeholder="What has to be true?"
                   placeholderTextColor={theme.muted}
                   autoFocus
                   returnKeyType="done"
@@ -961,7 +963,9 @@ export default function GoalDetailScreen() {
                   // The tasks survive: a condition is a grouping, and
                   // removing a grouping must never delete the work in it
                   // (ADR-0030, `deleteCondition`).
-                  label: "Remove condition",
+                  // Said on the button, because the button is the only
+                  // place a person decides whether it is safe to press.
+                  label: "Remove condition (keeps its tasks)",
                   destructive: true,
                   onPress: () => {
                     const target = conditionMenu;
@@ -1004,7 +1008,12 @@ export default function GoalDetailScreen() {
                 ...(movingTask?.conditionId
                   ? [
                       {
-                        label: "Take out of its condition",
+                        // Names the condition, like the "Move to" rows
+                        // beside it.
+                        label: ((title) =>
+                          title ? `Move out of “${title}”` : "Move out of its condition")(
+                          goal.conditions.find((c) => c.id === movingTask.conditionId)?.title,
+                        ),
                         onPress: () => {
                           const t = movingTask;
                           setMovingTask(null);
