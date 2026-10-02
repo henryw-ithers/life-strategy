@@ -60,12 +60,12 @@ npm workspaces monorepo:
 **iOS is the only target** (ADR-0020 amended ADR-0001; Android was
 dropped along with its `android` block and adaptive icons). The app
 also runs in a browser as a **development preview only** — a way to
-look at UI without a device, never a target. It needs three pieces of
-setup that are easy to break; read
-[docs/web-preview.md](docs/web-preview.md) before touching
-`metro.config.js`, `src/db/client.web.ts`, or the `expo-sqlite` patch
-in `patches/`. Backup does not work there either — same native-module
-reason as Expo Go.
+look at UI without a device, never a target. Its setup is easy to
+break; read [docs/web-preview.md](docs/web-preview.md) before touching
+`metro.config.js`, `src/db/client.web.ts`, the `expo-sqlite` patch in
+`patches/`, or the web entry `index.web.js` (which loads Skia's
+WebAssembly build before the router starts). Backup does not work
+there either — same native-module reason as Expo Go.
 
 Root commands: `npm test` (both packages, plus the app's pure-logic
 tests — every `__tests__` folder under `apps/mobile/src`; ADR-0013 put

@@ -63,6 +63,10 @@ scratch/
 apps/mobile/.claude/
 .claude/settings.local.json
 
+# Skia's WebAssembly build for the web preview, copied from
+# node_modules on install (scripts/setup-skia-web.mjs).
+apps/mobile/public/canvaskit.wasm
+
 # Running eas from the repo root scaffolds a stub here and builds the
 # wrong project. The real config is apps/mobile/app.json.
 /app.json

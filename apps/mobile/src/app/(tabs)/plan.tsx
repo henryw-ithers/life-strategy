@@ -7,87 +7,56 @@
  * actually have ("where are my points going?") is answered by seeing
  * several units at once, which a drill-down destroys. Expanding one
  * collapses the rest, so the screen never becomes a wall.
+ *
+ * Composition only: data is `usePlanData`, each unit is a
+ * `PlanUnitSection`, each commitment a `CommitmentTasks`. What stays
+ * here is which sheet is open and what each one commits.
  */
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { unitProfile, type CommitmentDay } from "@glide/scoring";
+import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
-import {
-  router,
-  useLocalSearchParams,
-  type Href,
-} from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  useColorScheme,
-  View,
-} from "react-native";
-import Animated, {
-  FadeIn,
-  LinearTransition,
-  useReducedMotion,
-} from "react-native-reanimated";
+import { router, useLocalSearchParams, type Href } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
-import { EventSheet } from "../../components/plan/EventSheet";
-import { eventWhen, ItemRow } from "../../components/plan/ItemRow";
-import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
 import { applyTaskEdit, editableFrom } from "../../components/plan/applyTaskEdit";
-import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
-import { TaskRow } from "../../components/plan/TaskRow";
-import {
-  type PartOfDay,
-} from "../../components/plan/planning";
+import { CommitmentTasks } from "../../components/plan/CommitmentTasks";
 import { CoverageBar } from "../../components/plan/CoverageBar";
+import { EventSheet } from "../../components/plan/EventSheet";
+import { FirstRunCard } from "../../components/plan/FirstRunCard";
+import { type PartOfDay } from "../../components/plan/planning";
+import { PlanUnitSection } from "../../components/plan/PlanUnitSection";
 import type { OneOffState } from "../../components/plan/SchedulePicker";
-import {
-  COMMITMENT_AREA,
-  pickableUnits,
-} from "../../components/plan/unitSelection";
-import {
-  NO_DETAIL,
-  type TaskDetail,
-} from "../../components/plan/TaskDetailPicker";
-import { ReorderableList } from "../../components/ui/ReorderableList";
+import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
+import { NO_DETAIL, type TaskDetail } from "../../components/plan/TaskDetailPicker";
+import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
 import type { PickableUnit } from "../../components/plan/UnitPicker";
+import { COMMITMENT_AREA, pickableUnits } from "../../components/plan/unitSelection";
 import { AppText } from "../../components/ui/AppText";
-import { Disclosure } from "../../components/ui/Chevron";
-import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { Group } from "../../components/ui/Group";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
-import { LIBRARY } from "../../content/library";
+import { LoadFailure } from "../../components/ui/ScreenLoad";
+import { UndoToast } from "../../components/ui/UndoToast";
 import { UNIT_INFO } from "../../content/units";
-import { loadCommitmentDay } from "../../db/commitments";
-import { createGoal, loadGoals, setGoalMetric } from "../../db/goals";
-import { currentLocalDate } from "../../lib/calendar";
+import { createGoal, setGoalMetric } from "../../db/goals";
 import {
   addEvent,
   addTask,
   archiveTask,
-  latestRatings,
-  loadPlan,
   reorderUnitTasks,
   restoreTask,
   setUnitScoring,
   updateEvent,
-  type PlanData,
   type PlanTask,
   type PlanUnit,
 } from "../../db/tasks";
+import { usePlanData } from "../../hooks/usePlanData";
 import { getTheme } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
-
-/** Uniform, because the drag maths depends on it. Sized for two lines
- *  of body text (24 × 2) plus the row's own padding — titles wrap now,
- *  and a variable-height row would break `ReorderableList`, which
- *  positions every row from its index. */
-const TASK_ROW_HEIGHT = 64;
+import { space } from "../../theme/tokens";
 
 interface EditTarget {
   task: PlanTask;
@@ -95,10 +64,6 @@ interface EditTarget {
    *  Only its id and hue are read. */
   unit: { id: string; areaId: string };
 }
-
-/** A unit's tasks and its events, listed apart (ADR-0038 §4). */
-const unitTasksOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind !== "event");
-const unitEventsOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind === "event");
 
 export default function PlanScreen() {
   const scheme = useColorScheme();
@@ -114,34 +79,21 @@ export default function PlanScreen() {
    *  collapsed list would strand that intent (ADR-0005 §2). */
   const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
 
-  const [plan, setPlan] = useState<PlanData | null>(null);
-  /** Today's commitment day, so the coverage bar can lead with the band. */
-  const [commitmentDay, setCommitmentDay] = useState<CommitmentDay | null>(null);
-  /** Active goals per unit, for the edit sheet's goal row. */
-  const [goalsByUnit, setGoalsByUnit] = useState<
-    Record<string, { id: string; title: string }[]>
-  >({});
+  const { plan, commitmentDay, goalsByUnit, ratings, reload, error, retry } = usePlanData();
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
   const [adding, setAdding] = useState<{ homeUnit: { id: string } | null } | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
-  /** Adding an event (ADR-0038): the unit it starts filed under, chosen
-   *  in the sheet like a task's. */
+  /** Adding an event (ADR-0038). `unitName` is set when added from a
+   *  unit, which then needs no choosing. */
   const [addingEvent, setAddingEvent] = useState<{
     unitIds: string[];
-    /** Set when added from a unit, which then needs no choosing — the
-     *  sheet looks exactly as it does on a commitment's screen. */
     unitName?: string;
   } | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
   const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
-  /** Latest diagnostic ratings, for the unit profile that orders
-   *  those ideas. Empty before the first diagnostic. */
-  const [ratings, setRatings] = useState<
-    Map<string, { importance: number; satisfaction: number }>
-  >(new Map());
   const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
   /** The task just created, tinted until the timer clears it. */
   const [justAdded, setJustAdded] = useState<string | null>(null);
@@ -150,8 +102,8 @@ export default function PlanScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   /** The scroll content, as the frame every unit's offset is measured
-   *  against — `onLayout` only ever reports a position inside its own
-   *  parent, and a unit sits two boxes deep. */
+   *  against — `onLayout` only reports a position inside its own parent,
+   *  and a unit sits two boxes deep. */
   const contentRef = useRef<View>(null);
   const unitRefs = useRef<Record<string, View | null>>({});
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,57 +117,9 @@ export default function PlanScreen() {
     [],
   );
 
-  const reload = useCallback(async () => {
-    const [next, goals, rated, today] = await Promise.all([
-      loadPlan(),
-      loadGoals(),
-      latestRatings(),
-      // The bar draws today's commitment band first when there is one,
-      // so it needs today's commitment day — without it a scheduled day
-      // is drawn as an ordinary one and overstates the life units' share.
-      loadCommitmentDay(currentLocalDate()),
-    ]);
-    setPlan(next);
-    setCommitmentDay(today);
-    setRatings(rated);
-    const byUnit: Record<string, { id: string; title: string }[]> = {};
-    for (const area of goals.areas) {
-      for (const u of area.units) {
-        const active = u.goals.filter((g) => g.status === "active");
-        if (active.length > 0) {
-          byUnit[u.id] = active.map((g) => ({ id: g.id, title: g.title }));
-        }
-      }
-    }
-    setGoalsByUnit(byUnit);
-  }, []);
-
-  const { error, retry } = useScreenLoad(reload);
-
-  /**
-   * Every scoreable unit, communal ones included (ADR-0027 §4). They
-   * hold tasks like any other unit now — the special case was that
-   * they never could, which made the Tasks screen's relationship rows
-   * dead ends: an "Add task" button that opened a sheet with no chip
-   * to file the result under.
-   */
-  /** Commitments and their parts first, then the scored life units —
-   *  one list for every sheet that files a task (see `pickableUnits`). */
+  /** Commitments and their parts first, then the scored life units — one
+   *  list for every sheet that files a task (see `pickableUnits`). */
   const allUnits: PickableUnit[] = useMemo(() => pickableUnits(plan), [plan]);
-
-  const toggleUnit = (unitId: string) => {
-    setOpenUnitId((current) => (current === unitId ? null : unitId));
-  };
-
-  /**
-   * The number in the right-hand column: the unit's own diagnostic
-   * weight, whether or not it currently spends it.
-   *
-   * ADR-0027 §2 withdrew the reallocation that used to inflate a
-   * covered unit's number past its own weight, so the figure shown here
-   * is just the unit's weight — its share of the 100.
-   */
-  const shownPoints = (unit: PlanUnit): number => unit.weight ?? 0;
 
   /** The unit holding the most points, which is where a first task is
    *  worth the most. Onboarding hands the user straight to this screen
@@ -227,9 +131,8 @@ export default function PlanScreen() {
     return scored.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))[0] ?? null;
   }, [plan]);
 
-  /** True on a fresh plan: the diagnostic is done, nothing spends its
-   *  points yet. Also true again if someone clears every task, which is
-   *  the same situation and deserves the same help. */
+  /** A fresh plan, or one cleared of every task — the same situation,
+   *  deserving the same help. */
   const noTasksYet =
     plan !== null &&
     plan.hasSnapshot &&
@@ -242,8 +145,8 @@ export default function PlanScreen() {
 
   /**
    * Scroll a unit to the top of the viewport. Waits out the expand and
-   * collapse first: both run at 180ms, and measuring mid-transition
-   * lands on wherever the row happened to be that frame.
+   * collapse first: both run at 180ms, and measuring mid-transition lands
+   * on wherever the row happened to be that frame.
    */
   const revealUnit = (unitId: string) => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
@@ -254,10 +157,7 @@ export default function PlanScreen() {
       node.measureLayout(
         content,
         (_x, y) => {
-          scrollRef.current?.scrollTo({
-            y: Math.max(0, y - space.lg),
-            animated: !reduceMotion,
-          });
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: !reduceMotion });
         },
         () => {},
       );
@@ -265,11 +165,22 @@ export default function PlanScreen() {
   };
 
   /**
-   * A new task lands last in its unit, so the screen has to say where
+   * Something new lands last in its unit, so the screen has to say where
    * it went: open that unit, bring it into view, and tint the row for
-   * long enough to find it. The drag handle is then right there, which
-   * is where ranking moved to when it left the add sheet.
+   * long enough to find it. The drag handle is then right there.
    */
+  const revealAdded = async (id: string | null, home: string | undefined) => {
+    if (home) setOpenUnitId(home);
+    await reload();
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (home) revealUnit(home);
+    if (id) {
+      setJustAdded(id);
+      if (freshTimer.current) clearTimeout(freshTimer.current);
+      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
+    }
+  };
+
   const commitTask = async (
     title: string,
     timesPerWeek: number,
@@ -290,29 +201,7 @@ export default function PlanScreen() {
       null,
       detail,
     );
-    const home = unitIds[0];
-    if (home) setOpenUnitId(home);
-    await reload();
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (home) revealUnit(home);
-    if (id) {
-      setJustAdded(id);
-      if (freshTimer.current) clearTimeout(freshTimer.current);
-      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
-    }
-  };
-
-  /** An event is added, then revealed like a task. */
-  const afterEventAdded = async (id: string | null, home: string | undefined) => {
-    if (home) setOpenUnitId(home);
-    await reload();
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (home) revealUnit(home);
-    if (id) {
-      setJustAdded(id);
-      if (freshTimer.current) clearTimeout(freshTimer.current);
-      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
-    }
+    await revealAdded(id, unitIds[0]);
   };
 
   return (
@@ -321,21 +210,18 @@ export default function PlanScreen() {
       <ScreenHeader title="Tasks" theme={theme} />
 
       {/* The screen's own thesis, above everything it applies to: how
-          much of your hundred a daily habit currently reaches, and
-          therefore what today can score. Drawn rather than written. */}
+          much of your hundred is in play, and so what today can score. */}
       {plan?.hasSnapshot ? (
         <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
       ) : null}
 
-      {/* Capture, before navigation. Adding a task used to start with
-          finding its unit and expanding it; this opens the same sheet
+      {/* Capture, before navigation: the same sheet as a unit's own add,
           with the unit as a field inside it. Fixed rather than scrolled
-          away with the list — it's furniture, like the header it sits
-          under. */}
+          away — it's furniture, like the header it sits under. Two kinds
+          of thing, two doors (ADR-0038): work you fit in, and a time you
+          turn up for. */}
       {plan?.hasSnapshot && allUnits.length > 0 ? (
-        <View style={[styles.addBar, styles.addBarRow]}>
-          {/* Two kinds of thing, two doors (ADR-0038): work you fit in,
-              and a time you turn up for. */}
+        <View style={styles.addBar}>
           <View style={styles.grow}>
             <Button
               variant="tonal"
@@ -365,14 +251,14 @@ export default function PlanScreen() {
       >
         <View ref={contentRef}>
           {error ? (
-        <LoadFailure error={error} onRetry={retry} theme={theme} />
-      ) : plan === null ? (
-            <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
+            <LoadFailure error={error} onRetry={retry} theme={theme} />
+          ) : plan === null ? (
+            <ActivityIndicator color={theme.muted} style={styles.loading} />
           ) : !plan.hasSnapshot ? (
             <View style={styles.empty}>
               <AppText color={theme.ink} style={styles.centerText}>
-                Your plan starts with a diagnostic. Rate what matters first, and
-                the weights land here.
+                Your plan starts with a diagnostic. Rate what matters first, and the weights land
+                here.
               </AppText>
               <Button
                 label="Run the diagnostic"
@@ -382,477 +268,80 @@ export default function PlanScreen() {
             </View>
           ) : (
             <>
-              {/* Teaches the screen instead of leaving eighteen rows of
-                  zero to be interpreted. Sits above the list rather than
-                  replacing it, so the weights the user just earned are
-                  visible while they read what to do with them. */}
               {noTasksYet ? (
-                <View style={[styles.firstRun, { borderColor: theme.hairline }]}>
-                  <AppText variant="headline" color={theme.ink}>
-                    Your points are all unspent
-                  </AppText>
-                  <AppText color={theme.muted}>
-                    Every part of your life below holds a share of your daily
-                    100. A task earns those points when you tick it off, so
-                    nothing counts until you add some.
-                  </AppText>
-                  {topUnit ? (
-                    <Button
-                      label={`Add a task to ${topUnit.name}`}
-                      onPress={() => {
-                        setOpenUnitId(topUnit.id);
-                        setAdding({ homeUnit: topUnit });
-                      }}
-                      theme={theme}
-                    />
-                  ) : null}
-                  <AppText variant="caption" color={theme.muted}>
-                    {topUnit
-                      ? `${topUnit.name} carries the most points, so it's the best place to start. Any unit works.`
-                      : "Open any unit below to add one."}
-                  </AppText>
-                </View>
+                <FirstRunCard
+                  topUnitName={topUnit?.name ?? null}
+                  onAddToTopUnit={() => {
+                    if (!topUnit) return;
+                    setOpenUnitId(topUnit.id);
+                    setAdding({ homeUnit: topUnit });
+                  }}
+                  theme={theme}
+                />
               ) : null}
 
               {plan.areas.map((area) => (
-              <Group key={area.id} theme={theme}>
-                <View style={styles.groupHeader}>
-                  <View
-                    style={[styles.dot, { backgroundColor: theme.areas[area.id] ?? theme.muted }]}
-                  />
-                  <AppText variant="headline" color={theme.ink} style={styles.grow}>
-                    {area.name}
-                  </AppText>
-                  {/* Puts a number in the right-hand column at every
-                      level of the page, so "where are my points going"
-                      reads down one edge. It's the sum of the numbers
-                      directly beneath it, which is the area's own share
-                      of the 100 — ADR-0027 §2 withdrew the reallocation
-                      that used to make this bigger than the diagnostic's
-                      own number for a covered area. */}
-                  <AppText variant="label" color={theme.muted} tabular style={styles.pts}>
-                    {area.units
-                      .filter((u) => u.includeInScoring)
-                      .reduce((sum, u) => sum + shownPoints(u), 0)}
-                  </AppText>
-                </View>
+                <Group key={area.id} theme={theme}>
+                  <View style={styles.groupHeader}>
+                    <View
+                      style={[styles.dot, { backgroundColor: theme.areas[area.id] ?? theme.muted }]}
+                    />
+                    <AppText variant="headline" color={theme.ink} style={styles.grow}>
+                      {area.name}
+                    </AppText>
+                    {/* A number in the right-hand column at every level, so
+                        "where are my points going" reads down one edge: the
+                        area's own share of the 100. */}
+                    <AppText variant="label" color={theme.muted} tabular style={styles.pts}>
+                      {area.units
+                        .filter((u) => u.includeInScoring)
+                        .reduce((sum, u) => sum + (u.weight ?? 0), 0)}
+                    </AppText>
+                  </View>
 
-                {area.units.map((unit) => {
-                  const excluded = !unit.includeInScoring;
-                  const open = openUnitId === unit.id;
-                  const hue = theme.areas[area.id] ?? theme.accent;
-                  return (
-                    <Animated.View key={unit.id} layout={layout}>
-                      <Pressable
-                        ref={(node) => {
-                          unitRefs.current[unit.id] = node;
-                        }}
-                        // Excluded units open too (ADR-0027 §2): the
-                        // panel is the only way back into the plan, and
-                        // a decision you cannot reverse from where you
-                        // made it is not a scope control.
-                        onPress={() => toggleUnit(unit.id)}
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: open }}
-                        accessibilityLabel={
-                          excluded
-                            ? `${unit.name}, not part of your plan`
-                            : unit.tasks.length === 0
-                              ? `${unit.name}, no tasks, ${unit.weight ?? 0} points not in play`
-                              : `${unit.name}, ${unit.weight ?? 0} points, ${unit.tasks.length} tasks`
-                        }
-                        accessibilityHint={open ? "Collapses its tasks" : "Shows its tasks"}
-                        style={({ pressed }) => [styles.unitRow, { opacity: pressed ? 0.6 : 1 }]}
-                      >
-                        <View style={styles.chev}>
-                          <Disclosure open={open} theme={theme} size={15} />
-                        </View>
-                        {/* Shrinks rather than grows, so the glyph sits
-                            against the end of the name however long the
-                            name is, and a long one truncates instead of
-                            shoving it away. */}
-                        <AppText
-                          color={excluded ? theme.muted : theme.ink}
-                          style={styles.unitName}
-                          numberOfLines={1}
-                        >
-                          {unit.name}
-                        </AppText>
-
-                        {/* What the unit covers, as a glyph rather than
-                            the line of link text this used to be inside
-                            the panel — and beside the name, where the
-                            question "what is this one?" is actually
-                            asked. It shows only while the unit is open:
-                            eighteen of these down a closed list would be
-                            the clutter this pass removed.
-
-                            Nested inside the row's own Pressable on
-                            purpose. React Native's responder system gives
-                            the touch to the deepest view that claims it,
-                            so this wins and the row does not also toggle
-                            — which is what lets the whole row stay one
-                            large tap target instead of shrinking to the
-                            width of the name. */}
-                        {open && !excluded && UNIT_INFO[unit.id] ? (
-                          <Pressable
-                            onPress={() => setInfoUnit(unit)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`What ${unit.name} covers`}
-                            hitSlop={12}
-                            style={({ pressed }) => [
-                              styles.info,
-                              { opacity: pressed ? 0.4 : 1 },
-                            ]}
-                          >
-                            <Ionicons
-                              name="information-circle-outline"
-                              size={17}
-                              color={theme.muted}
-                            />
-                          </Pressable>
-                        ) : null}
-
-                        <View style={styles.grow} />
-
-                        {excluded ? (
-                          <AppText variant="caption" color={theme.muted}>
-                            not scored
-                          </AppText>
-                        ) : (
-                          <>
-                            {/* The count is only useful while the unit is
-                                shut — open, the list is right there, and
-                                the caption would be restating it. */}
-                            {unit.tasks.length === 0 ? (
-                              <AppText variant="caption" color={theme.muted}>
-                                no tasks
-                              </AppText>
-                            ) : open ? null : (
-                              <AppText variant="caption" color={theme.muted}>
-                                {unit.tasks.length}{" "}
-                                {unit.tasks.length === 1 ? "task" : "tasks"}
-                              </AppText>
-                            )}
-                            {/* Muted means "not in play": the number is
-                                what this unit would bring, not what it
-                                currently spends. */}
-                            <AppText
-                              color={unit.tasks.length === 0 ? theme.muted : theme.ink}
-                              tabular
-                              style={styles.pts}
-                            >
-                              {shownPoints(unit)}
-                            </AppText>
-                          </>
-                        )}
-                      </Pressable>
-
-                      {open && excluded ? (
-                        <Animated.View
-                          entering={reduceMotion ? undefined : FadeIn.duration(160)}
-                          layout={layout}
-                          style={[styles.panel, { backgroundColor: theme.surface }]}
-                        >
-                          <AppText variant="caption" color={theme.muted}>
-                            Outside your 100 — your other units share its
-                            points.
-                          </AppText>
-                          <Pressable
-                            onPress={() => {
-                              void setUnitScoring(unit.id, true).then(reload);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Put ${unit.name} back in my plan`}
-                            style={({ pressed }) => [
-                              styles.addRow,
-                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
-                            ]}
-                          >
-                            <AppText variant="label" color={theme.accent}>
-                              Put back in my plan
-                            </AppText>
-                          </Pressable>
-                        </Animated.View>
-                      ) : null}
-
-                      {open && !excluded ? (
-                        <Animated.View
-                          entering={reduceMotion ? undefined : FadeIn.duration(160)}
-                          layout={layout}
-                          style={[styles.panel, { backgroundColor: theme.surface }]}
-                        >
-                          {/* Three blocks of prose used to open this
-                              panel: a "What this covers" link, the
-                              communal note, and a line about unearned
-                              points. All three are gone.
-
-                              The link is the glyph on the row above. The
-                              communal note belongs where a task is
-                              actually being *filed* — the add dialog and
-                              the edit sheet, which is what ADR-0027 §4
-                              asks for; repeating it on a panel you opened
-                              to look at a list was the app explaining
-                              itself to someone who had not asked. And the
-                              empty line restated the "no tasks" caption
-                              two rows above it, while claiming the points
-                              "go unearned" — which stopped being true at
-                              ADR-0029: a unit holding no work is not in
-                              play at all, and the units that do hold work
-                              share the band between them. */}
-                          {unitTasksOf(unit).length === 0 ? null : (
-                            // Rank is the thing you most often want to
-                            // change while looking at the list, so the
-                            // grip is here rather than two taps away in
-                            // the edit sheet.
-                            <ReorderableList
-                              items={unitTasksOf(unit).map((t) => ({ id: t.id, label: t.title }))}
-                              rowHeight={TASK_ROW_HEIGHT}
-                              scrollable={false}
-                              onDragStateChange={setDraggingTask}
-                              // Events are listed apart and rank after the
-                              // unit's tasks, so a reorder keeps them there.
-                              onReorder={(ids) => {
-                                void reorderUnitTasks(unit.id, [
-                                  ...ids,
-                                  ...unitEventsOf(unit).map((e) => e.id),
-                                ]).then(reload);
-                              }}
-                              renderItem={(item) => {
-                                const t = unit.tasks.find((x) => x.id === item.id);
-                                if (!t) return null;
-                                return (
-                                  <TaskRow
-                                    title={t.title}
-                                    timesPerWeek={t.timesPerWeek}
-                                    pointValue={t.pointValue}
-                                    otherUnitNames={t.otherUnitNames}
-                                    plannedWeekdays={t.plannedWeekdays}
-                                    partOfDay={t.partOfDay}
-                                    accent={hue}
-                                    theme={theme}
-                                    highlight={t.id === justAdded}
-                                    onDelete={() => deleteTask(t)}
-                                    onEdit={() => setEditing({ task: t, unit })}
-                                  />
-                                );
-                              }}
-                              theme={theme}
-                            />
-                          )}
-
-                          {/* Bordered, so the one action in the panel
-                              reads as a control instead of a third line
-                              of left-aligned text under the list. */}
-                          <Pressable
-                            onPress={() => setAdding({ homeUnit: unit })}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Add a task to ${unit.name}`}
-                            style={({ pressed }) => [
-                              styles.addRow,
-                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
-                            ]}
-                          >
-                            {/* Same words as the bar at the top of the
-                                screen: one action, named once. */}
-                            <AppText variant="label" color={theme.accent}>
-                              + Add task
-                            </AppText>
-                          </Pressable>
-                          {/* Events apart from tasks, drawn as a
-                              commitment draws them (ADR-0038 §4): when
-                              and where, opening the event sheet. */}
-                          {unitEventsOf(unit).length > 0 ? (
-                            <View style={styles.eventsBlock}>
-                              <AppText variant="caption" color={theme.muted}>
-                                Events
-                              </AppText>
-                              {unitEventsOf(unit).map((e, i, all) => (
-                                <ItemRow
-                                  key={e.id}
-                                  item={e}
-                                  detail={eventWhen(e)}
-                                  theme={theme}
-                                  last={i === all.length - 1}
-                                  onPress={() => setEditing({ task: e, unit })}
-                                />
-                              ))}
-                            </View>
-                          ) : null}
-                          <Pressable
-                            onPress={() =>
-                              setAddingEvent({ unitIds: [unit.id], unitName: unit.name })
-                            }
-                            accessibilityRole="button"
-                            accessibilityLabel={`Add an event to ${unit.name}`}
-                            style={({ pressed }) => [
-                              styles.addRow,
-                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
-                            ]}
-                          >
-                            <AppText variant="label" color={theme.accent}>
-                              + Add event
-                            </AppText>
-                          </Pressable>
-
-                          {/* Both tertiary actions on one line, at
-                              opposite ends. Stacked, they were a third
-                              and a fourth left-aligned muted line under
-                              the add row — which read as a list of things
-                              to consider rather than two controls. The
-                              library (ADR-0006 §3) sits left because it
-                              is the one you might want; the exclusion
-                              valve (ADR-0027 §2) sits right, away from
-                              it, worded as scope and never as giving
-                              up. */}
-                          <View style={styles.panelFoot}>
-                            {LIBRARY[unit.id] ? (
-                              <Pressable
-                                onPress={() => setSuggestingFor(unit)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Ideas for ${unit.name}`}
-                                style={({ pressed }) => [
-                                  styles.footAction,
-                                  { opacity: pressed ? 0.5 : 1 },
-                                ]}
-                              >
-                                <AppText variant="caption" color={theme.muted}>
-                                  Need ideas?
-                                </AppText>
-                              </Pressable>
-                            ) : (
-                              <View />
-                            )}
-                            <Pressable
-                              onPress={() => {
-                                void setUnitScoring(unit.id, false).then(reload);
-                              }}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Take ${unit.name} out of my plan for now`}
-                              accessibilityHint="One tap puts it back"
-                              style={({ pressed }) => [
-                                styles.footAction,
-                                { opacity: pressed ? 0.5 : 1 },
-                              ]}
-                            >
-                              <AppText variant="caption" color={theme.muted}>
-                                Not in my plan
-                              </AppText>
-                            </Pressable>
-                          </View>
-                        </Animated.View>
-                      ) : null}
-                    </Animated.View>
-                  );
-                })}
-              </Group>
+                  {area.units.map((unit) => (
+                    <PlanUnitSection
+                      key={unit.id}
+                      unit={unit}
+                      hue={theme.areas[area.id] ?? theme.accent}
+                      open={openUnitId === unit.id}
+                      rowRef={(node) => {
+                        unitRefs.current[unit.id] = node;
+                      }}
+                      justAdded={justAdded}
+                      onToggle={() =>
+                        setOpenUnitId((current) => (current === unit.id ? null : unit.id))
+                      }
+                      onShowInfo={() => setInfoUnit(unit)}
+                      onSetScoring={(include) => void setUnitScoring(unit.id, include).then(reload)}
+                      onReorder={(ids) => void reorderUnitTasks(unit.id, ids).then(reload)}
+                      onEditTask={(t) => setEditing({ task: t, unit })}
+                      onDeleteTask={deleteTask}
+                      onAddTask={() => setAdding({ homeUnit: unit })}
+                      onAddEvent={() => setAddingEvent({ unitIds: [unit.id], unitName: unit.name })}
+                      onSuggest={() => setSuggestingFor(unit)}
+                      onDragStateChange={setDraggingTask}
+                      layout={layout}
+                      reduceMotion={reduceMotion}
+                      theme={theme}
+                    />
+                  ))}
+                </Group>
               ))}
 
-              {/* Commitments, after the 18 rather than among them. They
-                  are not a share of your hundred — they are paid from
-                  their own band on the days they have work (ADR-0032) —
-                  and listing School as one more unit is what invited
-                  the "put it back in my plan" offer that would have
-                  made it one. Rows edit and swipe-delete exactly like
-                  every other task on this screen. */}
-              {(plan?.commitments ?? []).map((c) => (
-                <Group
+              {plan.commitments.map((c) => (
+                <CommitmentTasks
                   key={c.id}
-                  theme={theme}
-                  title={c.name}
-                  footnote={
-                    c.tasks.length === 0
-                      ? "Classes, shifts, assignments — anything scheduled that belongs to this."
-                      : "Worth a share of the day each one is scheduled on, so the number changes with the day."
+                  commitment={c}
+                  justAdded={justAdded}
+                  onEditTask={(t) =>
+                    setEditing({ task: t, unit: { id: t.homeUnitId, areaId: COMMITMENT_AREA } })
                   }
-                >
-                  {c.tasks.filter((t) => t.kind !== "event").map((t) => (
-                    <View key={t.id} style={{ height: TASK_ROW_HEIGHT }}>
-                      <TaskRow
-                        context={t.homeUnitId === c.id ? null : t.homeName}
-                        title={t.title}
-                        timesPerWeek={t.timesPerWeek}
-                        pointValue={null}
-                        otherUnitNames={t.otherUnitNames}
-                        plannedWeekdays={t.plannedWeekdays}
-                        partOfDay={t.partOfDay}
-                        accent={theme.areas[COMMITMENT_AREA] ?? theme.accent}
-                        theme={theme}
-                        highlight={t.id === justAdded}
-                        onDelete={() => deleteTask(t)}
-                        onEdit={() =>
-                          setEditing({
-                            task: t,
-                            unit: { id: t.homeUnitId, areaId: COMMITMENT_AREA },
-                          })
-                        }
-                      />
-                    </View>
-                  ))}
-                  {/* Events apart, drawn as everywhere else (ADR-0038 §4). */}
-                  {c.tasks.some((t) => t.kind === "event") ? (
-                    <View style={styles.eventsBlock}>
-                      <AppText variant="caption" color={theme.muted}>
-                        Events
-                      </AppText>
-                      {c.tasks
-                        .filter((t) => t.kind === "event")
-                        .map((e, i, all) => (
-                          <ItemRow
-                            key={e.id}
-                            item={e}
-                            detail={[e.homeUnitId === c.id ? null : e.homeName, eventWhen(e)]
-                              .filter(Boolean)
-                              .join(" · ")}
-                            theme={theme}
-                            last={i === all.length - 1}
-                            onPress={() =>
-                              setEditing({
-                                task: e,
-                                unit: { id: e.homeUnitId, areaId: COMMITMENT_AREA },
-                              })
-                            }
-                          />
-                        ))}
-                    </View>
-                  ) : null}
-                  <Pressable
-                    // A split commitment's work goes in a sub-commitment,
-                    // so this opens the commitment to choose one.
-                    onPress={() =>
-                      c.split
-                        ? router.push(`/goals/commitment/${c.id}` as Href)
-                        : setAdding({ homeUnit: { id: c.id } })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      c.split ? `Open ${c.name} to add to a sub-commitment` : `Add a task to ${c.name}`
-                    }
-                    style={({ pressed }) => [
-                      styles.addRow,
-                      { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <AppText variant="label" color={theme.accent}>
-                      {c.split ? "Add in a sub-commitment ›" : "+ Add task"}
-                    </AppText>
-                  </Pressable>
-                  {c.split ? null : (
-                    <Pressable
-                      onPress={() => setAddingEvent({ unitIds: [c.id], unitName: c.name })}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Add an event to ${c.name}`}
-                      style={({ pressed }) => [
-                        styles.addRow,
-                        { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
-                      ]}
-                    >
-                      <AppText variant="label" color={theme.accent}>
-                        + Add event
-                      </AppText>
-                    </Pressable>
-                  )}
-                </Group>
+                  onDeleteTask={deleteTask}
+                  onAddTask={() => setAdding({ homeUnit: { id: c.id } })}
+                  onAddEvent={() => setAddingEvent({ unitIds: [c.id], unitName: c.name })}
+                  theme={theme}
+                />
               ))}
             </>
           )}
@@ -860,47 +349,16 @@ export default function PlanScreen() {
       </ScrollView>
 
       {undo ? (
-        <View
-          style={[
-            styles.undo,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.hairline,
-              // Sits above the tab bar, which already clears the home
-              // indicator — adding the inset again would hide it behind.
-              bottom: space.lg,
-            },
-          ]}
-        >
-          <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
-            Deleted “{undo.title}”
-          </AppText>
-          <Pressable
-            onPress={() => {
-              const id = undo.id;
-              setUndo(null);
-              void restoreTask(id).then(reload);
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <AppText variant="label" color={theme.accent}>
-              Undo
-            </AppText>
-          </Pressable>
-          <Pressable
-            onPress={() => setUndo(null)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <AppText variant="label" color={theme.muted}>
-              ✕
-            </AppText>
-          </Pressable>
-        </View>
+        <UndoToast
+          message={`Deleted “${undo.title}”`}
+          onUndo={() => {
+            const id = undo.id;
+            setUndo(null);
+            void restoreTask(id).then(reload);
+          }}
+          onDismiss={() => setUndo(null)}
+          theme={theme}
+        />
       ) : null}
 
       {adding ? (
@@ -936,7 +394,7 @@ export default function PlanScreen() {
             const unitIds = addingEvent.unitIds;
             setAddingEvent(null);
             const id = await addEvent(unitIds, input);
-            await afterEventAdded(id, unitIds[0]);
+            await revealAdded(id, unitIds[0]);
           }}
         />
       ) : null}
@@ -964,10 +422,10 @@ export default function PlanScreen() {
             await updateEvent(id, input);
             await reload();
           }}
-          onDelete={async () => {
+          onDelete={() => {
             const t = editing.task;
             setEditing(null);
-            await deleteTask(t);
+            deleteTask(t);
           }}
         />
       ) : null}
@@ -996,8 +454,8 @@ export default function PlanScreen() {
           unitId={suggestingFor.id}
           unitName={suggestingFor.name}
           profile={
-            // Null before the first diagnostic: nothing has a weight or
-            // a rating yet, so there is no situation to read.
+            // Null before the first diagnostic: nothing has a weight or a
+            // rating yet, so there is no situation to read.
             suggestingFor.weight !== null && ratings.has(suggestingFor.id)
               ? unitProfile({
                   weight: suggestingFor.weight,
@@ -1007,9 +465,7 @@ export default function PlanScreen() {
               : null
           }
           existingTaskTitles={suggestingFor.tasks.map((t) => t.title)}
-          existingGoalTitles={(goalsByUnit[suggestingFor.id] ?? []).map(
-            (g) => g.title,
-          )}
+          existingGoalTitles={(goalsByUnit[suggestingFor.id] ?? []).map((g) => g.title)}
           accent={theme.areas[suggestingFor.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setSuggestingFor(null)}
@@ -1022,16 +478,10 @@ export default function PlanScreen() {
             const unit = suggestingFor;
             setSuggestingFor(null);
             void (async () => {
-              const id = await createGoal(
-                unit.id,
-                g.title,
-                g.description ?? undefined,
-              );
-              // The library's metric arrives with it — a goal stripped
-              // of it would be the title only, which is the least useful
-              // half of what was written. Its rungs are gone with the
-              // milestone concept (ADR-0030 §5); a habit's ladder is
-              // computed, and a metric goal has one finish line.
+              const id = await createGoal(unit.id, g.title, g.description ?? undefined);
+              // The library's metric arrives with it — a goal stripped of
+              // it would be the least useful half of what was written. A
+              // metric goal has one finish line (ADR-0030 §5).
               if (g.metric && g.metric.suggestedTarget !== null) {
                 await setGoalMetric(id, {
                   kind: g.metric.kind,
@@ -1062,31 +512,22 @@ export default function PlanScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  /** Takes the space between the fixed header and the tab bar; the
-   *  unit list scrolls inside it while both stay put. */
+  /** Takes the space between the fixed header and the tab bar; the unit
+   *  list scrolls inside it while both stay put. */
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl },
-  /** Tight under the header, loose above the list: the button belongs
-   *  to the furniture, not to the first area. */
+  loading: { marginTop: space.xxl },
+  /** Tight under the header, loose above the list: the buttons belong to
+   *  the furniture, not to the first area. */
   addBar: {
+    flexDirection: "row",
+    gap: space.sm,
     paddingHorizontal: space.screen,
     paddingTop: space.md,
     paddingBottom: space.sm,
   },
-  addBarRow: { flexDirection: "row", gap: space.sm },
-  eventsBlock: { marginTop: space.md },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
-  /** Outlined rather than surface-filled: `Group` below owns the filled
-   *  look, and a filled block above filled blocks reads as a nested
-   *  card. */
-  firstRun: {
-    marginTop: space.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: space.lg,
-    gap: space.sm,
-  },
   // Areas breathe more than the rows inside them — the rhythm is what
   // separates six groups without six heavy dividers.
   groupHeader: {
@@ -1098,65 +539,6 @@ const styles = StyleSheet.create({
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   grow: { flex: 1 },
-  unitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    minHeight: 46,
-    paddingLeft: space.sm,
-  },
-  /** Shrinks, never grows: a spacer after the info glyph does the
-   *  pushing, so the glyph stays against the name. */
-  unitName: { flexShrink: 1 },
-  chev: { width: 14 },
-  /** Quieter than the add row above it: scope is a rarer decision than
-   *  adding a task, and shouldn't compete with it. */
   /** One right-hand column for every number on the page. */
   pts: { minWidth: 30, textAlign: "right" },
-  /** The open unit is the only surface on the screen, which is what
-   *  makes it read as the thing being worked on. Only one opens at a
-   *  time, so this never becomes a grid of cards. */
-  panel: {
-    gap: space.sm,
-    borderRadius: radius.md,
-    padding: space.lg,
-    marginTop: space.xs,
-    marginBottom: space.sm,
-  },
-  /** The glyph that replaced the panel's "What this covers" line. The
-   *  negative inset pulls it against the name, inside the row's own
-   *  `gap`, so it reads as part of the title rather than the next item
-   *  in a row of things. */
-  info: {
-    minHeight: 28,
-    marginLeft: -space.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  panelFoot: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  footAction: { minHeight: 44, justifyContent: "center" },
-  addRow: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: space.xs,
-  },
-  undo: {
-    position: "absolute",
-    left: space.screen,
-    right: space.screen,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    minHeight: 52,
-    paddingHorizontal: space.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
 });

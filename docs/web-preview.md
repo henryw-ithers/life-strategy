@@ -90,6 +90,29 @@ there is no version to move to while the SDK stays pinned to 54 (see
 the root `AGENTS.md`) — hence the patch. Delete it once the SDK moves
 and upstream has fixed the framing.
 
+## Skia needs its own entry
+
+The portfolio graph draws with Skia, which in a browser is CanvasKit —
+a WebAssembly build that has to be fetched and initialised before any
+Skia module is evaluated. Skia's web module reads the `CanvasKit`
+global at import time, so loading it later (from a component, or the
+root layout) leaves Skia bound to nothing, and the graph throws
+`CanvasKit is not defined` or `reading 'PictureRecorder'`.
+
+Two pieces make it work, and both are web-only:
+
+- **`apps/mobile/index.web.js`** is the web entry (`"main": "index"`
+  in the app's `package.json`; Metro picks the `.web.js` file for web,
+  and native gets `index.js`, which is Expo Router's standard entry).
+  It loads CanvasKit, then requires the router. A failed load is
+  logged and the app starts anyway — every screen but the graph works.
+- **`apps/mobile/public/canvaskit.wasm`** is copied from
+  `node_modules/canvaskit-wasm` on install by
+  `scripts/setup-skia-web.mjs` (the root `postinstall`), and served
+  from the site root. It is ~8 MB and reproducible, so it is
+  gitignored rather than committed. If the graph is blank with a 404
+  for it in the network tab, run `node scripts/setup-skia-web.mjs`.
+
 ## Known gaps on web
 
 These are expected, and are not worth fixing unless web stops being a

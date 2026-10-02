@@ -14,7 +14,7 @@
     "react-native-safe-area-context": "~5.6.0"
   },
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && node scripts/setup-skia-web.mjs",
     "content:build": "node scripts/content/build.mjs",
     "content:check": "node scripts/content/build.mjs --check",
     "test": "npm run content:check && npm run test -w packages/scoring && npm run test -w packages/backup && npm run test -w apps/mobile",
