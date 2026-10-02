@@ -62,7 +62,7 @@ import {
   LoadFailure,
   useScreenLoad,
 } from "../../../../components/ui/ScreenLoad";
-import { generalSubName } from "../../../../db/commitmentPlan";
+import { GENERAL_SUB_NAME } from "../../../../db/commitmentPlan";
 import {
   loadCommitmentUnit,
   type CommitmentUnitScreen,
@@ -149,8 +149,8 @@ export default function CommitmentScreen() {
       const general =
         own > 0
           ? data.archivedSubCount > 0
-            ? `Anything added since goes into “${generalSubName(data.name)}”.`
-            : `Its ${countOf(own, "event or task", "events and tasks")} move into a new sub-commitment, “${generalSubName(data.name)}”, which you can rename.`
+            ? `Anything added since goes into “${GENERAL_SUB_NAME}”.`
+            : `Its ${countOf(own, "event or task", "events and tasks")} move into its “${GENERAL_SUB_NAME}” sub-commitment, which you can rename or delete.`
           : "";
       Alert.alert("Split into sub-commitments?", `${restoring}${general}`.trim(), [
         { text: "Cancel", style: "cancel" },

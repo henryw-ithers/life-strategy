@@ -116,15 +116,19 @@ destroyed data.
 > backfill). The "task directly on a commitment *beside* its
 > sub-commitments" case above is withdrawn. Turning the switch:
 >
-> - **on** moves any work the commitment holds into a new
->   sub-commitment, "School general" (Henry's choice);
+> - **on** moves any work the commitment holds into its sub-commitment
+>   called **General** — every split commitment has one by default,
+>   made when it is split and reused if it is still there, and
+>   renamable or deletable like any other (Henry: *"by default, there
+>   should be a sub commitment titled general that can be deleted or
+>   renamed"*);
 > - **off** moves every sub-commitment's work up onto the commitment and
 >   **archives** the sub-commitments, so nothing is lost. Each task
 >   remembers which sub-commitment it came from
 >   (`task.moved_from_unit_id`);
 > - **on again** restores the archived sub-commitments and sends each
 >   task back where it came from (`homeOnSplit`); only work added while
->   the commitment was unsplit goes to "School general" (Henry: *"turning
+>   the commitment was unsplit goes to General (Henry: *"turning
 >   the switch on should auto restore archived sub commitments"*).
 >
 > Holding a sub-commitment's row opens Open · Rename · Delete — the

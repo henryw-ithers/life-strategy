@@ -204,10 +204,25 @@ export function homeOnSplit(
   return movedFromUnitId !== null && liveSubIds.has(movedFromUnitId) ? movedFromUnitId : null;
 }
 
-/** The name given to the sub-commitment that collects a commitment's
- *  own work when it is split: "School general". */
-export function generalSubName(commitmentName: string): string {
-  return `${commitmentName.trim()} general`;
+/**
+ * Every split commitment starts with a sub-commitment called **General**
+ * (Henry, 2026-10-02: "by default, there should be a sub commitment
+ * titled general that can be deleted or renamed"). It is where work
+ * with no other home goes, and is otherwise a sub-commitment like any
+ * other.
+ */
+export const GENERAL_SUB_NAME = "General";
+
+/**
+ * The live sub-commitment that is the General one, if there is still
+ * one by that name — so splitting again reuses it rather than adding a
+ * second. Renamed, it is just a sub-commitment, and a new General is
+ * made next time one is needed.
+ */
+export function findGeneral(subs: readonly { id: string; name: string }[]): string | null {
+  return (
+    subs.find((s) => s.name.trim().toLowerCase() === GENERAL_SUB_NAME.toLowerCase())?.id ?? null
+  );
 }
 
 export function isCommitmentUnit(u: {

@@ -17,7 +17,8 @@ import {
   canAddCommitment,
   MAX_POOL_MEMBERS,
   type PoolValidationInput,
-  generalSubName,
+  findGeneral,
+  GENERAL_SUB_NAME,
   homeOnSplit,
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
@@ -93,6 +94,8 @@ export async function createCommitment(
       await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
     }
   });
+  // Made split, it starts with its General sub-commitment.
+  if (input.usesSubCommitments) await createSubCommitment(id, GENERAL_SUB_NAME);
   return id;
 }
 
@@ -205,8 +208,8 @@ export async function updateCommitment(
  * (ADR-0035 §1 as amended 2026-10-02). The work always survives:
  *
  * - **On:** the commitment holds no work of its own while split, so any
- *   it has moves into a new sub-commitment, "School general" (Henry's
- *   choice), which can be renamed or emptied like any other.
+ *   it has moves into its sub-commitment called General, made if it is
+ *   not there, which can be renamed or deleted like any other.
  * - **Off:** every live sub-commitment's work moves up onto the
  *   commitment, remembering where it came from, and the sub-commitments
  *   are **archived**, not deleted.
@@ -235,24 +238,22 @@ export async function setUsesSubCommitments(id: string, on: boolean): Promise<vo
         .where(and(eq(lifeUnit.parentUnitId, id), isNotNull(lifeUnit.archivedAt)));
     }
     const live = await db
-      .select({ id: lifeUnit.id })
+      .select({ id: lifeUnit.id, name: lifeUnit.name })
       .from(lifeUnit)
       .where(and(eq(lifeUnit.parentUnitId, id), isNull(lifeUnit.archivedAt)));
     const liveIds = new Set(live.map((s) => s.id));
+    // A split commitment always has its General (reused if it is still
+    // there), which is where work with no other home goes.
+    const general = findGeneral(live) ?? (await createSubCommitment(id, GENERAL_SUB_NAME));
 
     // Each task goes back where it came from; anything added while the
-    // commitment was unsplit goes to "School general".
+    // commitment was unsplit goes to General.
     const own = await db
       .select({ id: task.id, movedFrom: task.movedFromUnitId })
       .from(task)
       .where(and(eq(task.unitId, id), eq(task.active, true)));
-    let general: string | null = null;
     for (const t of own) {
-      let to = homeOnSplit(t.movedFrom, liveIds);
-      if (to === null) {
-        general ??= await createSubCommitment(id, generalSubName(row.name));
-        to = general;
-      }
+      const to = homeOnSplit(t.movedFrom, liveIds) ?? general;
       await rehomeTask(t.id, id, to);
       await db.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id));
     }

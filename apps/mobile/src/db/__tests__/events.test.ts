@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { eventProblem, eventTimesPerWeek, optionalText } from "../events";
-import { generalSubName, homeOnSplit, subCommitmentsOn } from "../commitmentPlan";
+import { findGeneral, GENERAL_SUB_NAME, homeOnSplit, subCommitmentsOn } from "../commitmentPlan";
 
 const lecture = {
   title: "COMP2521 lecture",
@@ -61,8 +61,21 @@ describe("subCommitmentsOn", () => {
     expect(subCommitmentsOn({ usesSubCommitments: false }, 2)).toBe(true);
   });
 
-  it("names the sub-commitment that collects a commitment's own work", () => {
-    expect(generalSubName(" School ")).toBe("School general");
+  it("calls the default sub-commitment General", () => {
+    expect(GENERAL_SUB_NAME).toBe("General");
+  });
+
+  it("finds the General sub-commitment, so splitting again reuses it", () => {
+    const subs = [
+      { id: "a", name: "COMP2521" },
+      { id: "b", name: " general " },
+    ];
+    expect(findGeneral(subs)).toBe("b");
+  });
+
+  it("finds none once it has been renamed or deleted", () => {
+    expect(findGeneral([{ id: "a", name: "Admin" }])).toBeNull();
+    expect(findGeneral([])).toBeNull();
   });
 });
 
