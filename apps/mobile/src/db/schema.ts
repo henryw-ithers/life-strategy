@@ -503,6 +503,13 @@ export const task = sqliteTable("task", {
   /** Where an event happens — a room, an address. Free text,
    *  optional, shown with it (ADR-0038). Null on ordinary tasks. */
   location: text("location"),
+  /**
+   * The sub-commitment this task lived in before its commitment stopped
+   * using sub-commitments, so turning them back on puts it home again
+   * (ADR-0035 §1 as amended 2026-10-02). Null otherwise, and cleared
+   * once it has gone back.
+   */
+  movedFromUnitId: text("moved_from_unit_id"),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),

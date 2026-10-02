@@ -351,6 +351,9 @@ export interface CommitmentUnitScreen {
   /** Split into sub-commitments (ADR-0035 §1). Commitments only. */
   subsOn: boolean;
   subs: { id: string; name: string; eventCount: number; taskCount: number }[];
+  /** Sub-commitments put away by turning the switch off — restored when
+   *  it goes back on. */
+  archivedSubCount: number;
   /** What this unit holds directly. Empty on a split commitment. */
   events: UnitItem[];
   tasks: UnitItem[];
@@ -423,6 +426,8 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
           taskCount: rows.filter((t) => t.unitId === s.id && t.kind !== "event").length,
         }))
       : [],
+    archivedSubCount: units.filter((u) => u.parentUnitId === id && u.archivedAt !== null)
+      .length,
     events: own.filter((t) => t.kind === "event").sort(byStart),
     tasks: own.filter((t) => t.kind !== "event"),
   };

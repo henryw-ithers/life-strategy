@@ -34,6 +34,7 @@ import Animated, {
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
 import { EventSheet } from "../../components/plan/EventSheet";
+import { eventWhen, ItemRow } from "../../components/plan/ItemRow";
 import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
 import { applyTaskEdit, editableFrom } from "../../components/plan/applyTaskEdit";
 import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
@@ -95,6 +96,10 @@ interface EditTarget {
   unit: { id: string; areaId: string };
 }
 
+/** A unit's tasks and its events, listed apart (ADR-0038 §4). */
+const unitTasksOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind !== "event");
+const unitEventsOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind === "event");
+
 export default function PlanScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
@@ -123,7 +128,12 @@ export default function PlanScreen() {
   const [editing, setEditing] = useState<EditTarget | null>(null);
   /** Adding an event (ADR-0038): the unit it starts filed under, chosen
    *  in the sheet like a task's. */
-  const [addingEvent, setAddingEvent] = useState<{ unitIds: string[] } | null>(null);
+  const [addingEvent, setAddingEvent] = useState<{
+    unitIds: string[];
+    /** Set when added from a unit, which then needs no choosing — the
+     *  sheet looks exactly as it does on a commitment's screen. */
+    unitName?: string;
+  } | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
   const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
@@ -590,18 +600,23 @@ export default function PlanScreen() {
                               ADR-0029: a unit holding no work is not in
                               play at all, and the units that do hold work
                               share the band between them. */}
-                          {unit.tasks.length === 0 ? null : (
+                          {unitTasksOf(unit).length === 0 ? null : (
                             // Rank is the thing you most often want to
                             // change while looking at the list, so the
                             // grip is here rather than two taps away in
                             // the edit sheet.
                             <ReorderableList
-                              items={unit.tasks.map((t) => ({ id: t.id, label: t.title }))}
+                              items={unitTasksOf(unit).map((t) => ({ id: t.id, label: t.title }))}
                               rowHeight={TASK_ROW_HEIGHT}
                               scrollable={false}
                               onDragStateChange={setDraggingTask}
+                              // Events are listed apart and rank after the
+                              // unit's tasks, so a reorder keeps them there.
                               onReorder={(ids) => {
-                                void reorderUnitTasks(unit.id, ids).then(reload);
+                                void reorderUnitTasks(unit.id, [
+                                  ...ids,
+                                  ...unitEventsOf(unit).map((e) => e.id),
+                                ]).then(reload);
                               }}
                               renderItem={(item) => {
                                 const t = unit.tasks.find((x) => x.id === item.id);
@@ -644,8 +659,30 @@ export default function PlanScreen() {
                               + Add task
                             </AppText>
                           </Pressable>
+                          {/* Events apart from tasks, drawn as a
+                              commitment draws them (ADR-0038 §4): when
+                              and where, opening the event sheet. */}
+                          {unitEventsOf(unit).length > 0 ? (
+                            <View style={styles.eventsBlock}>
+                              <AppText variant="caption" color={theme.muted}>
+                                Events
+                              </AppText>
+                              {unitEventsOf(unit).map((e, i, all) => (
+                                <ItemRow
+                                  key={e.id}
+                                  item={e}
+                                  detail={eventWhen(e)}
+                                  theme={theme}
+                                  last={i === all.length - 1}
+                                  onPress={() => setEditing({ task: e, unit })}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
                           <Pressable
-                            onPress={() => setAddingEvent({ unitIds: [unit.id] })}
+                            onPress={() =>
+                              setAddingEvent({ unitIds: [unit.id], unitName: unit.name })
+                            }
                             accessibilityRole="button"
                             accessibilityLabel={`Add an event to ${unit.name}`}
                             style={({ pressed }) => [
@@ -729,7 +766,7 @@ export default function PlanScreen() {
                       : "Worth a share of the day each one is scheduled on, so the number changes with the day."
                   }
                 >
-                  {c.tasks.map((t) => (
+                  {c.tasks.filter((t) => t.kind !== "event").map((t) => (
                     <View key={t.id} style={{ height: TASK_ROW_HEIGHT }}>
                       <TaskRow
                         context={t.homeUnitId === c.id ? null : t.homeName}
@@ -752,6 +789,33 @@ export default function PlanScreen() {
                       />
                     </View>
                   ))}
+                  {/* Events apart, drawn as everywhere else (ADR-0038 §4). */}
+                  {c.tasks.some((t) => t.kind === "event") ? (
+                    <View style={styles.eventsBlock}>
+                      <AppText variant="caption" color={theme.muted}>
+                        Events
+                      </AppText>
+                      {c.tasks
+                        .filter((t) => t.kind === "event")
+                        .map((e, i, all) => (
+                          <ItemRow
+                            key={e.id}
+                            item={e}
+                            detail={[e.homeUnitId === c.id ? null : e.homeName, eventWhen(e)]
+                              .filter(Boolean)
+                              .join(" · ")}
+                            theme={theme}
+                            last={i === all.length - 1}
+                            onPress={() =>
+                              setEditing({
+                                task: e,
+                                unit: { id: e.homeUnitId, areaId: COMMITMENT_AREA },
+                              })
+                            }
+                          />
+                        ))}
+                    </View>
+                  ) : null}
                   <Pressable
                     // A split commitment's work goes in a sub-commitment,
                     // so this opens the commitment to choose one.
@@ -773,6 +837,21 @@ export default function PlanScreen() {
                       {c.split ? "Add in a sub-commitment ›" : "+ Add task"}
                     </AppText>
                   </Pressable>
+                  {c.split ? null : (
+                    <Pressable
+                      onPress={() => setAddingEvent({ unitIds: [c.id], unitName: c.name })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add an event to ${c.name}`}
+                      style={({ pressed }) => [
+                        styles.addRow,
+                        { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                      ]}
+                    >
+                      <AppText variant="label" color={theme.accent}>
+                        + Add event
+                      </AppText>
+                    </Pressable>
+                  )}
                 </Group>
               ))}
             </>
@@ -839,12 +918,17 @@ export default function PlanScreen() {
       {addingEvent ? (
         <EventSheet
           visible
-          unitChoice={{
-            units: allUnits,
-            value: addingEvent.unitIds,
-            onChange: (unitIds) => setAddingEvent({ unitIds }),
-            areaColors: theme.areas,
-          }}
+          unitName={addingEvent.unitName}
+          unitChoice={
+            addingEvent.unitName
+              ? undefined
+              : {
+                  units: allUnits,
+                  value: addingEvent.unitIds,
+                  onChange: (unitIds) => setAddingEvent({ unitIds }),
+                  areaColors: theme.areas,
+                }
+          }
           accent={theme.accent}
           theme={theme}
           onClose={() => setAddingEvent(null)}
@@ -990,6 +1074,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.sm,
   },
   addBarRow: { flexDirection: "row", gap: space.sm },
+  eventsBlock: { marginTop: space.md },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   /** Outlined rather than surface-filled: `Group` below owns the filled

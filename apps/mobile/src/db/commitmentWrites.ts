@@ -8,7 +8,7 @@
  * write goes through it rather than touching the tables directly.
  */
 import { rebalanceShares } from "@glide/scoring";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
@@ -18,6 +18,7 @@ import {
   MAX_POOL_MEMBERS,
   type PoolValidationInput,
   generalSubName,
+  homeOnSplit,
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
 import { recomputeAllUnitPoints, setTaskUnits } from "./tasks";
@@ -207,8 +208,10 @@ export async function updateCommitment(
  *   it has moves into a new sub-commitment, "School general" (Henry's
  *   choice), which can be renamed or emptied like any other.
  * - **Off:** every live sub-commitment's work moves up onto the
- *   commitment, and the sub-commitments are **archived**, not deleted,
- *   so nothing about them is lost.
+ *   commitment, remembering where it came from, and the sub-commitments
+ *   are **archived**, not deleted.
+ * - **On again** restores them and sends each task back to the one it
+ *   came from.
  *
  * A task keeps every tag it had; only its home changes.
  */
@@ -220,10 +223,38 @@ export async function setUsesSubCommitments(id: string, on: boolean): Promise<vo
   }
 
   if (on) {
-    const own = await activeTaskIdsIn(id);
-    if (own.length > 0) {
-      const general = await createSubCommitment(id, generalSubName(row.name));
-      for (const taskId of own) await rehomeTask(taskId, id, general);
+    // Bring back the sub-commitments the switch put away (Henry,
+    // 2026-10-02: "turning the switch on should auto restore archived
+    // sub commitments"). A live commitment's archived sub-commitments
+    // can only have been archived by the switch — finishing archives
+    // the commitment with them, and starting it again restores both.
+    if (row.archivedAt === null) {
+      await db
+        .update(lifeUnit)
+        .set({ archivedAt: null })
+        .where(and(eq(lifeUnit.parentUnitId, id), isNotNull(lifeUnit.archivedAt)));
+    }
+    const live = await db
+      .select({ id: lifeUnit.id })
+      .from(lifeUnit)
+      .where(and(eq(lifeUnit.parentUnitId, id), isNull(lifeUnit.archivedAt)));
+    const liveIds = new Set(live.map((s) => s.id));
+
+    // Each task goes back where it came from; anything added while the
+    // commitment was unsplit goes to "School general".
+    const own = await db
+      .select({ id: task.id, movedFrom: task.movedFromUnitId })
+      .from(task)
+      .where(and(eq(task.unitId, id), eq(task.active, true)));
+    let general: string | null = null;
+    for (const t of own) {
+      let to = homeOnSplit(t.movedFrom, liveIds);
+      if (to === null) {
+        general ??= await createSubCommitment(id, generalSubName(row.name));
+        to = general;
+      }
+      await rehomeTask(t.id, id, to);
+      await db.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id));
     }
     await db.update(lifeUnit).set({ usesSubCommitments: true }).where(eq(lifeUnit.id, id));
     return;
@@ -236,6 +267,8 @@ export async function setUsesSubCommitments(id: string, on: boolean): Promise<vo
   for (const sub of subs) {
     for (const taskId of await activeTaskIdsIn(sub.id)) {
       await rehomeTask(taskId, sub.id, id);
+      // Remembered, so turning sub-commitments back on returns it.
+      await db.update(task).set({ movedFromUnitId: sub.id }).where(eq(task.id, taskId));
     }
   }
   const now = new Date().toISOString();

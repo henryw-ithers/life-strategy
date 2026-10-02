@@ -191,6 +191,19 @@ export function subCommitmentsOn(
   return unit.usesSubCommitments || liveSubCount > 0;
 }
 
+/**
+ * Where a commitment's own task goes when it is split again: back to
+ * the sub-commitment it came from, if that is live again, or null for
+ * "the general one" — work added while the commitment was unsplit has
+ * no sub-commitment of its own to return to.
+ */
+export function homeOnSplit(
+  movedFromUnitId: string | null,
+  liveSubIds: ReadonlySet<string>,
+): string | null {
+  return movedFromUnitId !== null && liveSubIds.has(movedFromUnitId) ? movedFromUnitId : null;
+}
+
 /** The name given to the sub-commitment that collects a commitment's
  *  own work when it is split: "School general". */
 export function generalSubName(commitmentName: string): string {

@@ -73,6 +73,15 @@ visit, a booked session). Henry's call.
   one time on this date — then a required start and end, then location
   and notes. No size and no part credit: an event is ticked whole.
 - **The task sheet** is unchanged.
+- **An event looks and works the same wherever it is filed** (Henry:
+  *"why would the shape or functionality of events change based on if
+  it's in a commitment or not?"*). Every unit on the Tasks tab lists its
+  events apart from its tasks, in rows shared with the commitment
+  screens (`ItemRow`: name, then "Mon, Wed · 09:00–11:00 · Room 101"),
+  and adding one from a unit opens the same sheet a commitment does,
+  with no unit to choose. Only the Tasks tab's top *Add event*, which
+  has no unit yet, asks where it belongs. In a life unit, events rank
+  after the unit's tasks.
 - **A commitment's screen lists Events and Tasks as separate
   sections**, each with its own add row. The Tasks tab offers *Add
   task* and *Add event* side by side, and in each unit; tapping an

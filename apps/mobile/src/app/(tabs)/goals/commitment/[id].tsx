@@ -25,7 +25,6 @@
  * not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { formatMinutes } from "@glide/scoring";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -49,11 +48,7 @@ import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
 import { TaskEditSheet } from "../../../../components/plan/TaskEditSheet";
-import { formatFrequencyShort } from "../../../../components/plan/frequency";
-import {
-  formatWeekdaySummary,
-  parseWeekdays,
-} from "../../../../components/plan/planning";
+import { eventWhen, ItemRow, taskWhen } from "../../../../components/plan/ItemRow";
 import {
   pickableUnits,
   type PickableUnit,
@@ -62,6 +57,7 @@ import { AppText } from "../../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../../components/ui/Backdrop";
 import { Button } from "../../../../components/ui/Button";
 import { Group } from "../../../../components/ui/Group";
+import { MenuSheet } from "../../../../components/ui/MenuSheet";
 import {
   LoadFailure,
   useScreenLoad,
@@ -89,7 +85,6 @@ import {
   type PlanData,
   type PlanTask,
 } from "../../../../db/tasks";
-import { spokenDate } from "../../../../lib/format";
 import { getTheme, SCRIM } from "../../../../theme/colors";
 import { radius, space } from "../../../../theme/tokens";
 
@@ -102,7 +97,19 @@ export default function CommitmentScreen() {
 
   const [data, setData] = useState<CommitmentUnitScreen | null>(null);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  /** What the delete confirm is about: this screen's own unit, or one
+   *  of its sub-commitments, from the press-and-hold menu. */
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    sub: boolean;
+    events: number;
+    tasks: number;
+  } | null>(null);
+  /** The sub-commitment whose press-and-hold menu is open. */
+  const [subMenu, setSubMenu] = useState<CommitmentUnitScreen["subs"][number] | null>(null);
+  /** The sub-commitment being renamed from that menu. */
+  const [renamingSubId, setRenamingSubId] = useState<string | null>(null);
   const [addingTask, setAddingTask] = useState(false);
   /** null closed; "new" adding; an item editing it. */
   const [eventSheet, setEventSheet] = useState<"new" | UnitItem | null>(null);
@@ -134,19 +141,25 @@ export default function CommitmentScreen() {
     const own = data.events.length + data.tasks.length;
     const subCount = data.subs.length;
     const apply = () => void setUsesSubCommitments(data.id, on).then(reload);
-    if (on && own > 0) {
-      Alert.alert(
-        "Split into sub-commitments?",
-        `Its ${countOf(own, "event or task", "events and tasks")} move into a new sub-commitment, “${generalSubName(data.name)}”, which you can rename.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Split", onPress: apply },
-        ],
-      );
+    if (on && (own > 0 || data.archivedSubCount > 0)) {
+      const restoring =
+        data.archivedSubCount > 0
+          ? `Its ${countOf(data.archivedSubCount, "sub-commitment")} come back, and everything goes back where it was. `
+          : "";
+      const general =
+        own > 0
+          ? data.archivedSubCount > 0
+            ? `Anything added since goes into “${generalSubName(data.name)}”.`
+            : `Its ${countOf(own, "event or task", "events and tasks")} move into a new sub-commitment, “${generalSubName(data.name)}”, which you can rename.`
+          : "";
+      Alert.alert("Split into sub-commitments?", `${restoring}${general}`.trim(), [
+        { text: "Cancel", style: "cancel" },
+        { text: "Split", onPress: apply },
+      ]);
     } else if (!on && subCount > 0) {
       Alert.alert(
         "Stop using sub-commitments?",
-        `Everything in its ${countOf(subCount, "sub-commitment")} moves onto ${data.name} itself, and the sub-commitments are archived, not deleted.`,
+        `Everything in its ${countOf(subCount, "sub-commitment")} moves onto ${data.name} itself. The sub-commitments are put away, and come back — with their work — if you turn this on again.`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Move everything up", onPress: apply },
@@ -263,6 +276,8 @@ export default function CommitmentScreen() {
                     value={summaryOf(sub.eventCount, sub.taskCount)}
                     theme={theme}
                     onPress={() => router.push(`/goals/commitment/${sub.id}` as Href)}
+                    // Rename and delete, one hold away (Henry, 2026-10-02).
+                    onLongPress={archived ? undefined : () => setSubMenu(sub)}
                     last={archived && i === data.subs.length - 1}
                   />
                 ))}
@@ -369,7 +384,15 @@ export default function CommitmentScreen() {
               <Button
                 label={isSub ? "Delete sub-commitment" : "Delete commitment"}
                 variant="quiet"
-                onPress={() => setDeleting(true)}
+                onPress={() =>
+                  setDeleteTarget({
+                    id: data.id,
+                    name: data.name,
+                    sub: isSub,
+                    events: data.events.length,
+                    tasks: data.tasks.length,
+                  })
+                }
                 theme={theme}
               />
             </View>
@@ -476,29 +499,78 @@ export default function CommitmentScreen() {
                 mode={sheet}
                 others={data.others}
                 theme={theme}
-                onClose={() => setSheet(null)}
+                onClose={() => {
+                  setSheet(null);
+                  setRenamingSubId(null);
+                }}
                 onSave={async ({ name, percent }) => {
                   if (sheet.kind === "commitment") {
                     await updateCommitment(data.id, { name, percent });
+                  } else if (renamingSubId !== null) {
+                    await updateCommitment(renamingSubId, { name });
                   } else if (sheet.name !== undefined) {
                     await updateCommitment(data.id, { name });
                   } else {
                     await createSubCommitment(data.id, name);
                   }
                   setSheet(null);
+                  setRenamingSubId(null);
                   await reload();
                 }}
               />
             ) : null}
 
+            <MenuSheet
+              visible={subMenu !== null}
+              title={subMenu?.name}
+              theme={theme}
+              onClose={() => setSubMenu(null)}
+              rows={[
+                {
+                  label: "Open",
+                  onPress: () => {
+                    const target = subMenu;
+                    setSubMenu(null);
+                    if (target) router.push(`/goals/commitment/${target.id}` as Href);
+                  },
+                },
+                {
+                  label: "Rename",
+                  onPress: () => {
+                    const target = subMenu;
+                    setSubMenu(null);
+                    if (!target) return;
+                    setRenamingSubId(target.id);
+                    setSheet({ kind: "sub", parentName: data.name, name: target.name });
+                  },
+                },
+                {
+                  label: "Delete",
+                  destructive: true,
+                  onPress: () => {
+                    const target = subMenu;
+                    setSubMenu(null);
+                    if (!target) return;
+                    setDeleteTarget({
+                      id: target.id,
+                      name: target.name,
+                      sub: true,
+                      events: target.eventCount,
+                      tasks: target.taskCount,
+                    });
+                  },
+                },
+              ]}
+            />
+
             {/* The one irreversible act here, so the one that asks —
                 and the copy says what survives. */}
             <Modal
-              visible={deleting}
+              visible={deleteTarget !== null}
               transparent
               statusBarTranslucent
               animationType="fade"
-              onRequestClose={() => setDeleting(false)}
+              onRequestClose={() => setDeleteTarget(null)}
             >
               <View style={styles.confirmBackdrop}>
                 <View
@@ -508,11 +580,11 @@ export default function CommitmentScreen() {
                   ]}
                 >
                   <AppText variant="title" color={theme.ink}>
-                    Delete {data.name}?
+                    Delete {deleteTarget?.name}?
                   </AppText>
                   <AppText color={theme.muted}>
-                    {isSub
-                      ? `It goes for good, with its ${countOf(data.events.length, "event")} and ${countOf(data.tasks.length, "task")}. Days you have already scored keep their grades and everything in your log stays.`
+                    {deleteTarget?.sub
+                      ? `It goes for good, with its ${countOf(deleteTarget.events, "event")} and ${countOf(deleteTarget.tasks, "task")}. Days you have already scored keep their grades and everything in your log stays.`
                       : `It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, finish it instead.`}
                   </AppText>
                   <View style={styles.confirmActions}>
@@ -520,7 +592,7 @@ export default function CommitmentScreen() {
                       <Button
                         label="Cancel"
                         variant="quiet"
-                        onPress={() => setDeleting(false)}
+                        onPress={() => setDeleteTarget(null)}
                         theme={theme}
                       />
                     </View>
@@ -529,8 +601,12 @@ export default function CommitmentScreen() {
                         label="Delete"
                         color={theme.danger}
                         onPress={() => {
-                          setDeleting(false);
-                          void deleteCommitment(data.id).then(() => router.back());
+                          const target = deleteTarget;
+                          setDeleteTarget(null);
+                          if (!target) return;
+                          void deleteCommitment(target.id).then(() =>
+                            target.id === data.id ? router.back() : reload(),
+                          );
                         }}
                         theme={theme}
                       />
@@ -560,72 +636,11 @@ function summaryOf(events: number, tasks: number): string {
   return parts.length > 0 ? parts.join(" · ") : "Empty";
 }
 
-/** "Mon, Wed · 9:00–11:00", or "Tuesday, 4 November · 9:00–11:00". */
-function eventWhen(e: UnitItem): string {
-  const day = e.oneOffDate
-    ? spokenDate(e.oneOffDate)
-    : (formatWeekdaySummary(parseWeekdays(e.plannedWeekdays)) ?? "");
-  const time =
-    e.startMinute !== null && e.endMinute !== null
-      ? `${formatMinutes(e.startMinute)}–${formatMinutes(e.endMinute)}`
-      : "";
-  return [day, time].filter(Boolean).join(" · ");
-}
-
-/** "3×/wk", "Mon, Thu", or a one-off's date. */
-function taskWhen(t: UnitItem): string {
-  if (t.oneOffSize !== null) return t.oneOffDate ? spokenDate(t.oneOffDate) : "Any day";
-  return formatWeekdaySummary(parseWeekdays(t.plannedWeekdays)) ?? formatFrequencyShort(t.timesPerWeek);
-}
-
-/** A listed event or task: its name, when, and where. */
-function ItemRow({
-  item,
-  detail,
-  onPress,
-  theme,
-}: {
-  item: UnitItem;
-  detail: string;
-  onPress?: () => void;
-  theme: ReturnType<typeof getTheme>;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [
-        styles.row,
-        { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.hairline },
-        { opacity: pressed ? 0.6 : 1 },
-      ]}
-      accessibilityRole={onPress ? "button" : "text"}
-      accessibilityLabel={[item.title, detail, item.location].filter(Boolean).join(", ")}
-    >
-      <View style={styles.grow}>
-        <AppText color={theme.ink} numberOfLines={1}>
-          {item.title}
-        </AppText>
-        <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
-          {[detail, item.location].filter(Boolean).join(" · ")}
-        </AppText>
-      </View>
-      {onPress ? (
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={theme.muted}
-          importantForAccessibility="no"
-        />
-      ) : null}
-    </Pressable>
-  );
-}
-
 function ActionRow({
   label,
   value,
   onPress,
+  onLongPress,
   theme,
   last,
   accent,
@@ -634,6 +649,7 @@ function ActionRow({
   label: string;
   value?: string;
   onPress: () => void;
+  onLongPress?: () => void;
   theme: ReturnType<typeof getTheme>;
   last?: boolean;
   accent?: string;
@@ -642,6 +658,8 @@ function ActionRow({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={350}
       style={({ pressed }) => [
         styles.row,
         last === true

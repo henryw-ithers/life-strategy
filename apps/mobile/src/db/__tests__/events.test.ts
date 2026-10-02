@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { eventProblem, eventTimesPerWeek, optionalText } from "../events";
-import { generalSubName, subCommitmentsOn } from "../commitmentPlan";
+import { generalSubName, homeOnSplit, subCommitmentsOn } from "../commitmentPlan";
 
 const lecture = {
   title: "COMP2521 lecture",
@@ -71,5 +71,21 @@ describe("optionalText", () => {
     expect(optionalText("  Room 101 ")).toBe("Room 101");
     expect(optionalText("   ")).toBeNull();
     expect(optionalText(undefined)).toBeNull();
+  });
+});
+
+describe("homeOnSplit — turning sub-commitments back on", () => {
+  const live = new Set(["comp2521", "math1231"]);
+
+  it("sends a task back to the sub-commitment it came from", () => {
+    expect(homeOnSplit("comp2521", live)).toBe("comp2521");
+  });
+
+  it("sends work added while unsplit to the general one", () => {
+    expect(homeOnSplit(null, live)).toBeNull();
+  });
+
+  it("sends a task whose old home is gone to the general one", () => {
+    expect(homeOnSplit("deleted-class", live)).toBeNull();
   });
 });

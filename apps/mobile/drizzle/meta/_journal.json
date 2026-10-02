@@ -120,6 +120,13 @@
       "when": 1790975021301,
       "tag": "0016_chief_mister_fear",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790976033523,
+      "tag": "0017_aberrant_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }
