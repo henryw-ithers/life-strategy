@@ -37,9 +37,10 @@ status to *Accepted*.
 | [0032](0032-the-commitment-band.md) | The commitment band | Accepted; rebuilt on 0029 (formula v10) |
 | [0033](0033-windows-and-pools.md) | Windows and pools | Accepted |
 | [0034](0034-schedule-mode.md) | Schedule mode | **Withdrawn** |
-| [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted |
-| [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted |
+| [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted; §1 and §4 amended 2026-10-02 (0038) |
+| [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted; events excepted by 0038 |
 | [0037](0037-rest-days.md) | Rest days | Accepted |
+| [0038](0038-events.md) | Events | Accepted |
 
 All foundational ADRs are **accepted** — implementation can begin.
 Amendments are noted inline in each ADR; the data model in 0002

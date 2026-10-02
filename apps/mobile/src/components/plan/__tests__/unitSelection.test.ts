@@ -97,11 +97,35 @@ describe("needsDays", () => {
 });
 
 describe("pickableUnits", () => {
+  it("offers a split commitment's sub-commitments, never the commitment itself", () => {
+    // ADR-0035 §1, amended 2026-10-02: a split commitment holds no work.
+    const picked = pickableUnits({
+      hasSnapshot: true,
+      commitments: [
+        {
+          id: "school",
+          name: "School",
+          parts: [{ id: "comp2521", name: "COMP2521" }],
+          split: true,
+          tasks: [],
+        },
+      ],
+      areas: [],
+    });
+    expect(picked.map((u) => u.id)).toEqual(["comp2521"]);
+  });
+
   it("leads with commitments and their parts, then scored life units", () => {
     const picked = pickableUnits({
       hasSnapshot: true,
       commitments: [
-        { id: "school", name: "School", parts: [{ id: "comp2521", name: "COMP2521" }], tasks: [] },
+        {
+          id: "school",
+          name: "School",
+          parts: [{ id: "comp2521", name: "COMP2521" }],
+          split: false,
+          tasks: [],
+        },
       ],
       areas: [
         {

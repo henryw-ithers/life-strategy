@@ -156,7 +156,7 @@ function Row({
   // are folded into the total rather than listed separately — the
   // distinction matters to the scorer, not to someone scanning.
   const detail = [
-    subs > 0 ? `${subs} ${subs === 1 ? "part" : "parts"}` : null,
+    subs > 0 ? `${subs} ${subs === 1 ? "sub-commitment" : "sub-commitments"}` : null,
     commitment.taskCount > 0
       ? `${commitment.taskCount} ${commitment.taskCount === 1 ? "task" : "tasks"}`
       : "No tasks yet",

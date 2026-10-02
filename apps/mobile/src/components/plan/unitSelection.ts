@@ -94,7 +94,9 @@ export function needsDays(input: {
 export function pickableUnits(plan: PlanData | null): PickableUnit[] {
   if (plan === null) return [];
   const commitments = plan.commitments.flatMap((c) => [
-    { id: c.id, name: c.name, areaId: COMMITMENT_AREA, commitment: true },
+    // A split commitment holds nothing itself — its work goes in a
+    // sub-commitment (ADR-0035 §1) — so only those are offered.
+    ...(c.split ? [] : [{ id: c.id, name: c.name, areaId: COMMITMENT_AREA, commitment: true }]),
     ...c.parts.map((p) => ({
       id: p.id,
       name: p.name,

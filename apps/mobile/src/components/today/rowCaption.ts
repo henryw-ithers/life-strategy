@@ -15,6 +15,7 @@
  * Ahead of all of them, a session **done ahead** says when — it is the
  * one thing about that row that is not obvious from a tick.
  */
+import { formatMinutes } from "@glide/scoring";
 
 /** The row fields the caption reads. */
 export interface CaptionTask {
@@ -32,6 +33,26 @@ export interface CaptionTask {
   commitment: boolean;
   /** The earlier day this session was done on, if it was done ahead. */
   doneAheadOn: string | null;
+  /** `event` for a time you attend (ADR-0038). */
+  kind?: "task" | "event";
+  startMinute?: number | null;
+  endMinute?: number | null;
+  location?: string | null;
+}
+
+/**
+ * An event's line: its time and, if it has one, its place —
+ * "9:00–11:00 · Room 101". What you need to turn up, and nothing that
+ * counts.
+ */
+export function eventCaption(task: CaptionTask): string | null {
+  if (task.kind !== "event") return null;
+  const time =
+    task.startMinute != null && task.endMinute != null
+      ? `${formatMinutes(task.startMinute)}–${formatMinutes(task.endMinute)}`
+      : null;
+  const parts = [time, task.location ?? null].filter((p): p is string => !!p);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -124,5 +145,7 @@ function countCaption(task: CaptionTask): string | null {
 export function rowCaption(task: CaptionTask): string | null {
   if (task.doneAheadOn !== null) return doneAheadLabel(task.doneAheadOn);
   if (task.progress > 0 && task.progress < 1) return progressLabel(task.progress);
+  // An event is a time, not a count: its line says when and where.
+  if (task.kind === "event") return eventCaption(task);
   return countCaption(task) ?? streakCaption(task);
 }

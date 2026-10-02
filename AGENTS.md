@@ -82,7 +82,8 @@ Use these terms consistently in code, docs, and UI copy:
 | **Milestone** | A checkpoint inside a larger goal |
 | **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight |
 | **Commitment** | A custom `life_unit` (`is_custom`) holding tasks and **sub-commitments** — School, Work, Basketball Club. At most three. Scored from its **own band**, not the 18 units' pool (ADR-0035, ADR-0032) |
-| **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing** — the band divides across eligible *tasks* |
+| **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing** — the band divides across eligible *tasks*. A commitment is either **split** into sub-commitments (`uses_sub_commitments`) and holds no work itself, or holds its own work and has none. Each opens its own screen (ADR-0035 §1 as amended) |
+| **Event** | A time you attend — a class, a shift, a doctor's visit. A task with `kind = 'event'`, a **required** start and end, and an optional location; ticked and paid like any task. "Event" in code and on screen (ADR-0038) |
 | **Window** | A stretch of the day work is placed into: the gaps between commitments where there are any, morning/afternoon/evening where there are not. Gaps under 30 min are *buffer*, not free time. Unfinished work **carries forward** to the window open now — a display rule, never a write; clock-timed tasks stay put (ADR-0033) |
 | **Pool** | Up to three equal-priced candidate tasks in a window, any of which satisfies it. Carries a *planned count* that sets the day's ceiling (ADR-0033) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |
@@ -178,7 +179,8 @@ second one. What separates it is its **band**, not its table
   user re-rank, re-weight, or reorder *areas* into a stored value; that
   has been built once and it destroyed data.
 - **Clock times are permitted on any task, and required on none**
-  (ADR-0036, superseding ADR-0024 §1). `anytime` and part-of-day remain
+  (ADR-0036, superseding ADR-0024 §1) — **except an event**, whose
+  start and end are what it is (ADR-0038). `anytime` and part-of-day remain
   the **defaults**, and that is now the only place the product's
   opinion about granularity lives — do not let a flow default to a
   time, and do not make one a required field.
@@ -186,9 +188,12 @@ second one. What separates it is its **band**, not its table
   may tag one, and that `task_unit` row must be `membership = 'note'`
   (ADR-0035 §3). A `scoring` row would double-pay across two bands,
   which is the one route to inflating a day.
-- **There is no mark, grade, result or absence record anywhere in the
-  commitment model** (ADR-0035 §§2–4), so `attended ÷ scheduled` is not
-  merely forbidden, it is uncomputable. Keep it that way.
+- **There is no mark, grade or result anywhere in the commitment
+  model** (ADR-0035 §§2–4). **Events are ticked when attended**
+  (ADR-0038), so `attended ÷ scheduled` is now computable — and it is
+  **never computed, stored or shown**: no attendance rate, no count of
+  missed events, nothing derived from events not ticked, and a missed
+  event is never mentioned.
 - **On a day with scheduled commitment work, the commitment band is
   that share of the whole day** (user-set from 10, capped at 60, 70 or
   80 for one, two or three commitments — `commitmentBandMax`), with each

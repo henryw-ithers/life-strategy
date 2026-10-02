@@ -89,13 +89,26 @@ export const lifeUnit = sqliteTable("life_unit", {
    * Relative, not a percentage: shares are normalised at read time
    * across the commitments that actually hold work on the day being
    * scored, so a Monday with only School gives School the whole band
-   * rather than leaving the others' shares dead. They are deliberately
-   * **not** required to sum to anything.
+   * rather than leaving the others' shares dead. Since 2026-10-02 the
+   * app writes them as whole percentages summing to 100
+   * (`rebalanceShares`); the engine still reads them only relative to
+   * one another, so older rows that sum to anything keep working.
    *
    * The band's own size is a single number and lives in `app_setting`
    * under `commitment.band` — see `db/settings.ts`.
    */
   commitmentShare: real("commitment_share"),
+  /**
+   * Whether a commitment is split into sub-commitments (ADR-0035 §1 as
+   * amended 2026-10-02). On, its work lives in its sub-commitments and
+   * the commitment holds none directly; off, it holds its own work and
+   * has no sub-commitments. Meaningful only on a commitment. A
+   * commitment with live sub-commitments reads as on whatever this
+   * says, so rows written before the column existed need no backfill.
+   */
+  usesSubCommitments: integer("uses_sub_commitments", { mode: "boolean" })
+    .notNull()
+    .default(false),
   archivedAt: text("archived_at"),
   ...timestamps,
 });
@@ -480,6 +493,16 @@ export const task = sqliteTable("task", {
   allowsPartial: integer("allows_partial", { mode: "boolean" })
     .notNull()
     .default(false),
+  /**
+   * `task` or `event` (ADR-0038). An event is a window of
+   * time you attend — a class, a shift — and so always carries a start
+   * and an end; otherwise it is a task in every way, ticked and paid
+   * like one.
+   */
+  kind: text("kind", { enum: ["task", "event"] }).notNull().default("task"),
+  /** Where an event happens — a room, an address. Free text,
+   *  optional, shown with it (ADR-0038). Null on ordinary tasks. */
+  location: text("location"),
   pointValue: integer("point_value").notNull(),
   /** Beli-style rank; point values derive from rank shares (ADR-0003 §5). */
   rankInUnit: integer("rank_in_unit").notNull(),

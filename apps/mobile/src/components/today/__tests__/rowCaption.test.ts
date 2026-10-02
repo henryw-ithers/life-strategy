@@ -115,3 +115,26 @@ describe("a session done ahead (ADR-0032 §4)", () => {
     expect(doneAheadLabel("2026-10-04")).not.toMatch(/late|missed|overdue/i);
   });
 });
+
+describe("events (ADR-0038)", () => {
+  const event = (over: Partial<CaptionTask> = {}) =>
+    weekly({
+      kind: "event",
+      startMinute: 9 * 60,
+      endMinute: 11 * 60,
+      location: "Room 101",
+      ...over,
+    });
+
+  it("says when and where, not a count", () => {
+    expect(rowCaption(event())).toBe("09:00–11:00 · Room 101");
+  });
+
+  it("says just when, with no place", () => {
+    expect(rowCaption(event({ location: null }))).toBe("09:00–11:00");
+  });
+
+  it("still leads with done ahead, which is the less obvious fact", () => {
+    expect(rowCaption(event({ doneAheadOn: "2026-09-28" }))).toMatch(/Done ahead/);
+  });
+});

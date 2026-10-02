@@ -33,6 +33,7 @@ import Animated, {
 
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
+import { EventSheet } from "../../components/plan/EventSheet";
 import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
 import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
@@ -64,6 +65,7 @@ import { loadCommitmentDay } from "../../db/commitments";
 import { createGoal, loadGoals, setGoalMetric } from "../../db/goals";
 import { currentLocalDate } from "../../db/today";
 import {
+  addEvent,
   addTask,
   archiveTask,
   latestRatings,
@@ -81,6 +83,7 @@ import {
   setTaskPlanning,
   setTaskUnits,
   setUnitScoring,
+  updateEvent,
   type PlanData,
   type PlanTask,
   type PlanUnit,
@@ -127,6 +130,9 @@ export default function PlanScreen() {
    *  sheet opens with no unit chosen and asks for one. */
   const [adding, setAdding] = useState<{ homeUnit: { id: string } | null } | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
+  /** Adding an event (ADR-0038): the unit it starts filed under, chosen
+   *  in the sheet like a task's. */
+  const [addingEvent, setAddingEvent] = useState<{ unitIds: string[] } | null>(null);
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
   const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
@@ -295,6 +301,19 @@ export default function PlanScreen() {
     }
   };
 
+  /** An event is added, then revealed like a task. */
+  const afterEventAdded = async (id: string | null, home: string | undefined) => {
+    if (home) setOpenUnitId(home);
+    await reload();
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (home) revealUnit(home);
+    if (id) {
+      setJustAdded(id);
+      if (freshTimer.current) clearTimeout(freshTimer.current);
+      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
+    }
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
@@ -313,14 +332,27 @@ export default function PlanScreen() {
           away with the list — it's furniture, like the header it sits
           under. */}
       {plan?.hasSnapshot && allUnits.length > 0 ? (
-        <View style={styles.addBar}>
-          <Button
-            variant="tonal"
-            icon="add"
-            label="Add task"
-            onPress={() => setAdding({ homeUnit: null })}
-            theme={theme}
-          />
+        <View style={[styles.addBar, styles.addBarRow]}>
+          {/* Two kinds of thing, two doors (ADR-0038): work you fit in,
+              and a time you turn up for. */}
+          <View style={styles.grow}>
+            <Button
+              variant="tonal"
+              icon="add"
+              label="Add task"
+              onPress={() => setAdding({ homeUnit: null })}
+              theme={theme}
+            />
+          </View>
+          <View style={styles.grow}>
+            <Button
+              variant="tonal"
+              icon="calendar-outline"
+              label="Add event"
+              onPress={() => setAddingEvent({ unitIds: [] })}
+              theme={theme}
+            />
+          </View>
         </View>
       ) : null}
 
@@ -621,6 +653,19 @@ export default function PlanScreen() {
                               + Add task
                             </AppText>
                           </Pressable>
+                          <Pressable
+                            onPress={() => setAddingEvent({ unitIds: [unit.id] })}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add an event to ${unit.name}`}
+                            style={({ pressed }) => [
+                              styles.addRow,
+                              { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
+                            ]}
+                          >
+                            <AppText variant="label" color={theme.accent}>
+                              + Add event
+                            </AppText>
+                          </Pressable>
 
                           {/* Both tertiary actions on one line, at
                               opposite ends. Stacked, they were a third
@@ -717,16 +762,24 @@ export default function PlanScreen() {
                     </View>
                   ))}
                   <Pressable
-                    onPress={() => setAdding({ homeUnit: { id: c.id } })}
+                    // A split commitment's work goes in a sub-commitment,
+                    // so this opens the commitment to choose one.
+                    onPress={() =>
+                      c.split
+                        ? router.push(`/goals/commitment/${c.id}` as Href)
+                        : setAdding({ homeUnit: { id: c.id } })
+                    }
                     accessibilityRole="button"
-                    accessibilityLabel={`Add a task to ${c.name}`}
+                    accessibilityLabel={
+                      c.split ? `Open ${c.name} to add to a sub-commitment` : `Add a task to ${c.name}`
+                    }
                     style={({ pressed }) => [
                       styles.addRow,
                       { borderColor: theme.hairline, opacity: pressed ? 0.5 : 1 },
                     ]}
                   >
                     <AppText variant="label" color={theme.accent}>
-                      + Add task
+                      {c.split ? "Add in a sub-commitment ›" : "+ Add task"}
                     </AppText>
                   </Pressable>
                 </Group>
@@ -792,7 +845,59 @@ export default function PlanScreen() {
         />
       ) : null}
 
-      {editing ? (
+      {addingEvent ? (
+        <EventSheet
+          visible
+          unitChoice={{
+            units: allUnits,
+            value: addingEvent.unitIds,
+            onChange: (unitIds) => setAddingEvent({ unitIds }),
+            areaColors: theme.areas,
+          }}
+          accent={theme.accent}
+          theme={theme}
+          onClose={() => setAddingEvent(null)}
+          onSave={async (input) => {
+            const unitIds = addingEvent.unitIds;
+            setAddingEvent(null);
+            const id = await addEvent(unitIds, input);
+            await afterEventAdded(id, unitIds[0]);
+          }}
+        />
+      ) : null}
+
+      {/* An event opens its own sheet, not the task editor — it is
+          planned by when, not by how often (ADR-0038). */}
+      {editing && editing.task.kind === "event" ? (
+        <EventSheet
+          visible
+          initial={{
+            title: editing.task.title,
+            plannedWeekdays: editing.task.plannedWeekdays,
+            oneOffDate: editing.task.oneOffDate,
+            startMinute: editing.task.startMinute,
+            endMinute: editing.task.endMinute,
+            location: editing.task.location,
+            notes: editing.task.description,
+          }}
+          accent={theme.areas[editing.unit.areaId] ?? theme.accent}
+          theme={theme}
+          onClose={() => setEditing(null)}
+          onSave={async (input) => {
+            const id = editing.task.id;
+            setEditing(null);
+            await updateEvent(id, input);
+            await reload();
+          }}
+          onDelete={async () => {
+            const t = editing.task;
+            setEditing(null);
+            await deleteTask(t);
+          }}
+        />
+      ) : null}
+
+      {editing && editing.task.kind !== "event" ? (
         <TaskEditSheet
           visible
           task={
@@ -967,6 +1072,7 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingBottom: space.sm,
   },
+  addBarRow: { flexDirection: "row", gap: space.sm },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   /** Outlined rather than surface-filled: `Group` below owns the filled

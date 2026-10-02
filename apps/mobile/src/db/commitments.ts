@@ -17,6 +17,7 @@ import {
   doneAheadOn,
   eligibleTaskIds,
   groupCommitments,
+  subCommitmentsOn,
 } from "./commitmentPlan";
 import { completionDatesAround } from "./sessionCoverage";
 import { lifeUnit, pool, poolMember, task } from "./schema";
@@ -316,5 +317,113 @@ export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
     commitments: live,
     archived: parents.filter((p) => p.archivedAt !== null).map(detail),
     canAddMore: live.length < MAX_COMMITMENTS,
+  };
+}
+
+// ── One commitment or sub-commitment, as its own screen ─────────────
+
+/** A task or event as the commitment screens list it. */
+export interface UnitItem {
+  id: string;
+  title: string;
+  kind: "task" | "event";
+  timesPerWeek: number;
+  plannedWeekdays: string | null;
+  startMinute: number | null;
+  endMinute: number | null;
+  /** A one-off's planned day; null for a repeating item. */
+  oneOffDate: string | null;
+  oneOffSize: "quick" | "normal" | "big" | null;
+  location: string | null;
+  notes: string | null;
+}
+
+export interface CommitmentUnitScreen {
+  id: string;
+  name: string;
+  archivedAt: string | null;
+  /** The commitment this belongs to, for a sub-commitment; else null. */
+  parent: { id: string; name: string } | null;
+  /** This commitment's share as a percent of the band. Commitments only. */
+  sharePercent: number;
+  /** The other live commitments, for the share question. */
+  others: { id: string; name: string; percent: number }[];
+  /** Split into sub-commitments (ADR-0035 §1). Commitments only. */
+  subsOn: boolean;
+  subs: { id: string; name: string; eventCount: number; taskCount: number }[];
+  /** What this unit holds directly. Empty on a split commitment. */
+  events: UnitItem[];
+  tasks: UnitItem[];
+}
+
+/**
+ * Everything one commitment screen needs — the commitment itself or one
+ * of its sub-commitments, which open their own screen (Henry,
+ * 2026-10-02). Events and tasks are listed separately because they are
+ * different kinds of thing to plan: one is a time you turn up for, the
+ * other is work you fit in.
+ */
+export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScreen | null> {
+  const units = await db.select().from(lifeUnit).where(eq(lifeUnit.isCustom, true));
+  const row = units.find((u) => u.id === id);
+  if (!row) return null;
+  const parentRow = row.parentUnitId
+    ? (units.find((u) => u.id === row.parentUnitId) ?? null)
+    : null;
+
+  const liveSubs = units.filter((u) => u.parentUnitId === id && u.archivedAt === null);
+  const subsOn = parentRow === null && subCommitmentsOn(row, liveSubs.length);
+
+  const holderIds = [id, ...liveSubs.map((s) => s.id)];
+  const rows = await db
+    .select()
+    .from(task)
+    .where(and(inArray(task.unitId, holderIds), eq(task.active, true)));
+  const item = (t: (typeof rows)[number]): UnitItem => ({
+    id: t.id,
+    title: t.title,
+    kind: t.kind,
+    timesPerWeek: t.timesPerWeek,
+    plannedWeekdays: t.plannedWeekdays,
+    startMinute: t.startMinute,
+    endMinute: t.endMinute,
+    oneOffDate: t.oneOffDate,
+    oneOffSize: t.oneOffSize,
+    location: t.location,
+    notes: t.description,
+  });
+  const own = subsOn ? [] : rows.filter((t) => t.unitId === id).map(item);
+  const byStart = (a: UnitItem, b: UnitItem) =>
+    (a.startMinute ?? 0) - (b.startMinute ?? 0) || a.title.localeCompare(b.title);
+
+  const parents = units.filter(
+    (u) => u.parentUnitId === null && u.commitmentShare !== null && u.archivedAt === null,
+  );
+  const total = parents.reduce((a, p) => a + (p.commitmentShare ?? 0), 0);
+  const percentOf = (share: number | null) =>
+    total > 0 ? Math.round(((share ?? 0) / total) * 100) : 0;
+
+  return {
+    id,
+    name: row.name,
+    archivedAt: row.archivedAt,
+    parent: parentRow ? { id: parentRow.id, name: parentRow.name } : null,
+    sharePercent: parentRow ? 0 : percentOf(row.commitmentShare),
+    others: parentRow
+      ? []
+      : parents
+          .filter((p) => p.id !== id)
+          .map((p) => ({ id: p.id, name: p.name, percent: percentOf(p.commitmentShare) })),
+    subsOn,
+    subs: subsOn
+      ? liveSubs.map((s) => ({
+          id: s.id,
+          name: s.name,
+          eventCount: rows.filter((t) => t.unitId === s.id && t.kind === "event").length,
+          taskCount: rows.filter((t) => t.unitId === s.id && t.kind !== "event").length,
+        }))
+      : [],
+    events: own.filter((t) => t.kind === "event").sort(byStart),
+    tasks: own.filter((t) => t.kind !== "event"),
   };
 }

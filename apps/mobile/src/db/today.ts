@@ -166,6 +166,10 @@ export interface TodayTask {
   endMinute: number | null;
   /** Effort size, or null for unsized (ADR-0026 §1). */
   size: "quick" | "normal" | "big" | null;
+  /** `event` for a time you attend (ADR-0038); otherwise `task`. */
+  kind: "task" | "event";
+  /** Where an event happens; null otherwise. */
+  location: string | null;
 }
 
 export interface TodayActivity {
@@ -956,6 +960,8 @@ export async function loadDay(
       startMinute: t.startMinute,
       endMinute: t.endMinute,
       size: t.size,
+      kind: t.kind,
+      location: t.location,
     };
   });
 

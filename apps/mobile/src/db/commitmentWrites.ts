@@ -17,9 +17,10 @@ import {
   canAddCommitment,
   MAX_POOL_MEMBERS,
   type PoolValidationInput,
+  generalSubName,
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
-import { recomputeAllUnitPoints } from "./tasks";
+import { recomputeAllUnitPoints, setTaskUnits } from "./tasks";
 
 const newId = () => Crypto.randomUUID();
 
@@ -41,6 +42,8 @@ export interface CreateCommitmentInput {
    * Ignored for a first commitment, which takes all of it.
    */
   percent?: number;
+  /** Split into sub-commitments from the start (ADR-0035 §1). */
+  usesSubCommitments?: boolean;
 }
 
 /**
@@ -83,6 +86,7 @@ export async function createCommitment(
       // pool, so it takes no share of the diagnostic's 100.
       includeInScoring: false,
       commitmentShare: shares.self,
+      usesSubCommitments: input.usesSubCommitments ?? false,
     });
     for (const o of shares.others) {
       await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
@@ -111,6 +115,15 @@ export async function createSubCommitment(
       `Commitments are two levels only (ADR-0035 §1): ` +
         `"${parent.name}" is already a sub-commitment.`,
     );
+  }
+
+  // Adding a sub-commitment is splitting the commitment, whatever the
+  // switch said before.
+  if (!parent.usesSubCommitments) {
+    await db
+      .update(lifeUnit)
+      .set({ usesSubCommitments: true })
+      .where(eq(lifeUnit.id, parentId));
   }
 
   const id = newId();
@@ -184,6 +197,76 @@ export async function updateCommitment(
       await tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id));
     }
   });
+}
+
+/**
+ * Split a commitment into sub-commitments, or fold them back in
+ * (ADR-0035 §1 as amended 2026-10-02). The work always survives:
+ *
+ * - **On:** the commitment holds no work of its own while split, so any
+ *   it has moves into a new sub-commitment, "School general" (Henry's
+ *   choice), which can be renamed or emptied like any other.
+ * - **Off:** every live sub-commitment's work moves up onto the
+ *   commitment, and the sub-commitments are **archived**, not deleted,
+ *   so nothing about them is lost.
+ *
+ * A task keeps every tag it had; only its home changes.
+ */
+export async function setUsesSubCommitments(id: string, on: boolean): Promise<void> {
+  const [row] = await db.select().from(lifeUnit).where(eq(lifeUnit.id, id));
+  if (!row) throw new Error(`No such commitment: ${id}`);
+  if (row.parentUnitId !== null) {
+    throw new Error("A sub-commitment cannot be split again (ADR-0035 §1).");
+  }
+
+  if (on) {
+    const own = await activeTaskIdsIn(id);
+    if (own.length > 0) {
+      const general = await createSubCommitment(id, generalSubName(row.name));
+      for (const taskId of own) await rehomeTask(taskId, id, general);
+    }
+    await db.update(lifeUnit).set({ usesSubCommitments: true }).where(eq(lifeUnit.id, id));
+    return;
+  }
+
+  const subs = await db
+    .select({ id: lifeUnit.id })
+    .from(lifeUnit)
+    .where(and(eq(lifeUnit.parentUnitId, id), isNull(lifeUnit.archivedAt)));
+  for (const sub of subs) {
+    for (const taskId of await activeTaskIdsIn(sub.id)) {
+      await rehomeTask(taskId, sub.id, id);
+    }
+  }
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    if (subs.length > 0) {
+      await tx
+        .update(lifeUnit)
+        .set({ archivedAt: now })
+        .where(inArray(lifeUnit.id, subs.map((s) => s.id)));
+    }
+    await tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, id));
+  });
+}
+
+/** Active tasks homed in a unit. */
+async function activeTaskIdsIn(unitId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: task.id })
+    .from(task)
+    .where(and(eq(task.unitId, unitId), eq(task.active, true)));
+  return rows.map((r) => r.id);
+}
+
+/** Move a task's home from one unit to another, keeping its tags. */
+async function rehomeTask(taskId: string, from: string, to: string): Promise<void> {
+  const memberships = await db
+    .select({ unitId: taskUnit.unitId })
+    .from(taskUnit)
+    .where(eq(taskUnit.taskId, taskId));
+  const tags = memberships.map((m) => m.unitId).filter((u) => u !== from && u !== to);
+  await setTaskUnits(taskId, [to, ...tags]);
 }
 
 /**

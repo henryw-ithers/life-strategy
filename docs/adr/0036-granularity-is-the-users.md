@@ -81,6 +81,11 @@ This is PRODUCT.md principle 6, added the same day:
 > precision is offered while none is required. The opinion lives in the
 > defaults; the ceiling belongs to the user.
 
+> **Amended 2026-10-02 by [ADR-0038](0038-events.md) §2.** An *event*
+> — a time you attend — always has a start and an end; that is what it
+> is. Everything above stays true of **tasks**: a time permitted on any,
+> required on none, and no flow defaults to one.
+
 ### 2. The defaults protect the research, and are load-bearing
 
 `anytime` and part-of-day remain the **defaults**, and a task is never

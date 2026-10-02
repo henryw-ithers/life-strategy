@@ -1,32 +1,41 @@
 /**
- * One commitment: what is inside it, and how it ends.
+ * One commitment — or one of its sub-commitments, which open the same
+ * screen (Henry, 2026-10-02: "you should be able to click on a sub
+ * commitment to open its own window").
+ *
+ * **What it holds depends on whether it is split** (ADR-0035 §1 as
+ * amended 2026-10-02). A commitment split into sub-commitments lists
+ * them, and holds no events or tasks of its own; one that is not split
+ * lists its own. A sub-commitment always lists its own. The switch sits
+ * with the name and share, and turning it either way says what moves
+ * before it moves anything.
+ *
+ * **Events and tasks are listed apart** because they are planned apart:
+ * an event is a time you turn up for, a task is work you fit in
+ * (ADR-0038). Each has its own add row, opening its own sheet.
  *
  * **Two endings, and the screen leads with the right one.** Finishing
  * is what happens to a commitment you actually held — the share returns
  * to the pool, the log keeps the term, and it can come back. Deleting
- * is for the mistyped one, and it sits last, quieter than everything
- * above it, behind a confirm that says what survives rather than only
- * what goes. That is the shape ADR-0007's deletion amendment settled
- * for goals, and a commitment holds more than a goal does, so it
- * matters more here.
+ * is for the mistyped one, quieter and behind a confirm that says what
+ * survives (ADR-0007's deletion amendment). A sub-commitment has only
+ * delete: finishing belongs to the commitment as a whole.
  *
- * Laid out as the goal detail screen is — a back control, the name in
- * Display, then grouped rows — because it is the same kind of object
- * reached the same way, and a pushed screen that frames itself
- * differently reads as a different app.
- *
- * Every row is a target. Tapping a part renames it; tapping the share
- * opens the weight; there is no row here that looks live and is not.
+ * Every row is a target; there is no row here that looks live and is
+ * not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { formatMinutes } from "@glide/scoring";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   useColorScheme,
   View,
 } from "react-native";
@@ -37,6 +46,12 @@ import {
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
+import { EventSheet } from "../../../../components/plan/EventSheet";
+import { formatFrequencyShort } from "../../../../components/plan/frequency";
+import {
+  formatWeekdaySummary,
+  parseWeekdays,
+} from "../../../../components/plan/planning";
 import {
   pickableUnits,
   type PickableUnit,
@@ -49,18 +64,28 @@ import {
   LoadFailure,
   useScreenLoad,
 } from "../../../../components/ui/ScreenLoad";
+import { generalSubName } from "../../../../db/commitmentPlan";
 import {
-  loadCommitmentsScreen,
-  type CommitmentDetail,
+  loadCommitmentUnit,
+  type CommitmentUnitScreen,
+  type UnitItem,
 } from "../../../../db/commitments";
 import {
   archiveCommitment,
   createSubCommitment,
   deleteCommitment,
+  setUsesSubCommitments,
   unarchiveCommitment,
   updateCommitment,
 } from "../../../../db/commitmentWrites";
-import { addTask, loadPlan } from "../../../../db/tasks";
+import {
+  addEvent,
+  addTask,
+  archiveTask,
+  loadPlan,
+  updateEvent,
+} from "../../../../db/tasks";
+import { spokenDate } from "../../../../lib/format";
 import { getTheme, SCRIM } from "../../../../theme/colors";
 import { radius, space } from "../../../../theme/tokens";
 
@@ -71,30 +96,53 @@ export default function CommitmentScreen() {
   const insets = useSafeAreaInsets();
   const accent = theme.areas["work-money"] ?? theme.accent;
 
-  const [data, setData] = useState<CommitmentDetail | null>(null);
-  /** The other live commitments, for the share question. */
-  const [others, setOthers] = useState<{ id: string; name: string; percent: number }[]>([]);
+  const [data, setData] = useState<CommitmentUnitScreen | null>(null);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
-  const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
+  /** null closed; "new" adding; an item editing it. */
+  const [eventSheet, setEventSheet] = useState<"new" | UnitItem | null>(null);
   /** Everything a task can be filed under, for the add sheet. */
   const [units, setUnits] = useState<PickableUnit[]>([]);
 
   const reload = useCallback(async () => {
-    const [screen, plan] = await Promise.all([loadCommitmentsScreen(), loadPlan()]);
-    const all = [...screen.commitments, ...screen.archived];
-    setData(all.find((c) => c.id === id) ?? null);
-    setOthers(
-      screen.commitments
-        .filter((c) => c.id !== id)
-        .map((c) => ({ id: c.id, name: c.name, percent: c.sharePercent })),
-    );
+    const [screen, plan] = await Promise.all([loadCommitmentUnit(id), loadPlan()]);
+    setData(screen);
     setUnits(pickableUnits(plan));
   }, [id]);
 
   const { error, retry } = useScreenLoad(reload);
   const archived = data !== null && data.archivedAt !== null;
+  const isSub = data?.parent != null;
+
+  /** Turning the switch says what will move, then moves it. */
+  const toggleSubs = (on: boolean) => {
+    if (!data) return;
+    const own = data.events.length + data.tasks.length;
+    const subCount = data.subs.length;
+    const apply = () => void setUsesSubCommitments(data.id, on).then(reload);
+    if (on && own > 0) {
+      Alert.alert(
+        "Split into sub-commitments?",
+        `Its ${countOf(own, "event or task", "events and tasks")} move into a new sub-commitment, “${generalSubName(data.name)}”, which you can rename.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Split", onPress: apply },
+        ],
+      );
+    } else if (!on && subCount > 0) {
+      Alert.alert(
+        "Stop using sub-commitments?",
+        `Everything in its ${countOf(subCount, "sub-commitment")} moves onto ${data.name} itself, and the sub-commitments are archived, not deleted.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Move everything up", onPress: apply },
+        ],
+      );
+    } else {
+      apply();
+    }
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -102,9 +150,6 @@ export default function CommitmentScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          // Pushed inside the Goals tab, so the bar still owns the
-          // bottom inset and Back stays — a detail screen, not a
-          // destination.
           { paddingTop: insets.top + space.md, paddingBottom: space.xxxl },
         ]}
       >
@@ -116,17 +161,14 @@ export default function CommitmentScreen() {
           style={styles.back}
         >
           <AppText variant="label" color={theme.muted}>
-            ‹ Commitments
+            ‹ {data?.parent ? data.parent.name : "Commitments"}
           </AppText>
         </Pressable>
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : data === null ? (
-          <ActivityIndicator
-            color={theme.muted}
-            style={{ marginTop: space.xxl }}
-          />
+          <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           <>
             <AppText variant="display" color={theme.ink}>
@@ -135,15 +177,15 @@ export default function CommitmentScreen() {
             <AppText variant="label" color={accent} style={styles.status}>
               {archived
                 ? "Finished"
-                : `${data.sharePercent}% of what commitments are worth`}
+                : isSub
+                  ? `Part of ${data.parent!.name}`
+                  : data.others.length > 0
+                    ? `${data.sharePercent}% of commitment points`
+                    : "Takes all of the commitment band"}
             </AppText>
 
             {archived ? (
-              <AppText
-                variant="caption"
-                color={theme.muted}
-                style={styles.bannerNote}
-              >
+              <AppText variant="caption" color={theme.muted} style={styles.bannerNote}>
                 Its tasks are paused and it takes no share of a day. Its
                 history is untouched.
               </AppText>
@@ -155,130 +197,135 @@ export default function CommitmentScreen() {
                 value={data.name}
                 theme={theme}
                 onPress={() =>
-                  setSheet({
-                    kind: "commitment",
-                    name: data.name,
-                    percent: data.sharePercent,
-                  })
+                  setSheet(
+                    isSub
+                      ? { kind: "sub", parentName: data.parent!.name, name: data.name }
+                      : { kind: "commitment", name: data.name, percent: data.sharePercent },
+                  )
                 }
-                last={archived}
+                last={archived || isSub}
               />
-              {/* Only worth a row when there is something to share with:
-                  a lone commitment takes the whole band, and a row that
-                  opened onto a question with one answer is a dead end. */}
-              {!archived && others.length > 0 ? (
+              {/* Only worth a row when there is something to share
+                  with: a lone commitment takes the whole band. */}
+              {!archived && !isSub && data.others.length > 0 ? (
                 <ActionRow
                   label="Share"
                   value={`${data.sharePercent}% of commitment points`}
                   theme={theme}
                   onPress={() =>
-                    setSheet({
-                      kind: "commitment",
-                      name: data.name,
-                      percent: data.sharePercent,
-                    })
+                    setSheet({ kind: "commitment", name: data.name, percent: data.sharePercent })
                   }
-                  last
                 />
               ) : null}
-            </Group>
-
-            <Group
-              theme={theme}
-              title="Parts"
-              footnote={
-                data.subCommitments.length === 0
-                  ? "Classes, shifts, teams — whatever this splits into. They group your work; they do not change what it is worth."
-                  : "They group your work. The day's share is split across your tasks, not across these."
-              }
-              flush
-            >
-              {data.subCommitments.length === 0 && archived ? (
-                <View style={styles.emptyRow}>
-                  <AppText variant="caption" color={theme.muted}>
-                    Nothing inside it.
-                  </AppText>
+              {!archived && !isSub ? (
+                <View style={styles.row}>
+                  <View style={styles.grow}>
+                    <AppText color={theme.ink}>Sub-commitments</AppText>
+                    <AppText variant="footnote" color={theme.muted}>
+                      Split it into classes, shifts or teams, each with its
+                      own events and tasks.
+                    </AppText>
+                  </View>
+                  <Switch
+                    value={data.subsOn}
+                    onValueChange={toggleSubs}
+                    trackColor={{ true: accent }}
+                    accessibilityLabel="Sub-commitments"
+                  />
                 </View>
               ) : null}
-              {data.subCommitments.map((sub, i) => (
-                <ActionRow
-                  key={sub.id}
-                  label={sub.name}
-                  value={
-                    sub.taskCount > 0
-                      ? `${sub.taskCount} ${sub.taskCount === 1 ? "task" : "tasks"}`
-                      : "No tasks"
-                  }
-                  theme={theme}
-                  onPress={() => {
-                    setEditingSubId(sub.id);
-                    setSheet({
-                      kind: "sub",
-                      parentName: data.name,
-                      name: sub.name,
-                    });
-                  }}
-                  last={archived && i === data.subCommitments.length - 1}
-                />
-              ))}
-              {!archived ? (
-                <ActionRow
-                  label="Add a part"
-                  theme={theme}
-                  accent={accent}
-                  icon="add"
-                  onPress={() => {
-                    setEditingSubId(null);
-                    setSheet({ kind: "sub", parentName: data.name });
-                  }}
-                  last
-                />
-              ) : null}
             </Group>
 
-            {/* The way in that was missing: until this, a commitment
-                could hold parts but there was nowhere in the app to put
-                a single task in one. */}
-            {!archived ? (
+            {data.subsOn ? (
               <Group
                 theme={theme}
-                title="Tasks"
-                footnote="Anything that repeats needs its days. It is paid from this share on the days it is scheduled."
+                title="Sub-commitments"
+                footnote="Each holds its own events and tasks. The day's share is split across those, not across these."
                 flush
               >
-                {data.taskCount > 0 ? (
+                {data.subs.map((sub, i) => (
                   <ActionRow
-                    label="See its tasks"
-                    value={`${data.taskCount} ${data.taskCount === 1 ? "task" : "tasks"}`}
+                    key={sub.id}
+                    label={sub.name}
+                    value={summaryOf(sub.eventCount, sub.taskCount)}
                     theme={theme}
-                    onPress={() => router.push("/plan" as Href)}
+                    onPress={() => router.push(`/goals/commitment/${sub.id}` as Href)}
+                    last={archived && i === data.subs.length - 1}
+                  />
+                ))}
+                {!archived ? (
+                  <ActionRow
+                    label="Add a sub-commitment"
+                    theme={theme}
+                    accent={accent}
+                    icon="add"
+                    onPress={() => setSheet({ kind: "sub", parentName: data.name })}
+                    last
                   />
                 ) : null}
-                <ActionRow
-                  label="Add a task"
-                  theme={theme}
-                  accent={accent}
-                  icon="add"
-                  onPress={() => setAddingTask(true)}
-                  last
-                />
               </Group>
-            ) : null}
+            ) : (
+              <>
+                <Group
+                  theme={theme}
+                  title="Events"
+                  footnote="Times you turn up for — a lecture, a shift. Tick one when you have been."
+                  flush
+                >
+                  {data.events.map((e) => (
+                    <ItemRow
+                      key={e.id}
+                      item={e}
+                      detail={eventWhen(e)}
+                      theme={theme}
+                      onPress={archived ? undefined : () => setEventSheet(e)}
+                    />
+                  ))}
+                  {!archived ? (
+                    <ActionRow
+                      label="Add an event"
+                      theme={theme}
+                      accent={accent}
+                      icon="add"
+                      onPress={() => setEventSheet("new")}
+                      last
+                    />
+                  ) : null}
+                </Group>
 
-            {data.directTaskCount > 0 ? (
-              <AppText
-                variant="footnote"
-                color={theme.muted}
-                style={styles.aside}
-              >
-                {data.directTaskCount}{" "}
-                {data.directTaskCount === 1 ? "task sits" : "tasks sit"} on{" "}
-                {data.name} itself, outside any part.
-              </AppText>
-            ) : null}
+                <Group
+                  theme={theme}
+                  title="Tasks"
+                  footnote="Work you fit in around them. Paid from this share on the days it is scheduled."
+                  flush
+                >
+                  {data.tasks.map((t) => (
+                    <ItemRow
+                      key={t.id}
+                      item={t}
+                      detail={taskWhen(t)}
+                      theme={theme}
+                      onPress={
+                        archived ? undefined : () => router.push(`/plan?unit=${data.id}` as Href)
+                      }
+                    />
+                  ))}
+                  {!archived ? (
+                    <ActionRow
+                      label="Add a task"
+                      theme={theme}
+                      accent={accent}
+                      icon="add"
+                      onPress={() => setAddingTask(true)}
+                      last
+                    />
+                  ) : null}
+                </Group>
+              </>
+            )}
 
             <View style={styles.ending}>
-              {archived ? (
+              {isSub ? null : archived ? (
                 <Button
                   label="Start it again"
                   variant="secondary"
@@ -293,17 +340,15 @@ export default function CommitmentScreen() {
                   theme={theme}
                 />
               )}
-              <AppText variant="footnote" color={theme.muted}>
-                {archived
-                  ? "Its tasks come back and it takes a share of your day again."
-                  : "Keeps everything and stops scoring it. You can start it again whenever."}
-              </AppText>
-
-              {/* Quieter than finishing, because for a commitment you
-                  actually held, finishing is the honest end and this is
-                  not. This is for the one you mistyped. */}
+              {isSub ? null : (
+                <AppText variant="footnote" color={theme.muted}>
+                  {archived
+                    ? "Its tasks come back and it takes a share of your day again."
+                    : "Keeps everything and stops scoring it. You can start it again whenever."}
+                </AppText>
+              )}
               <Button
-                label="Delete commitment"
+                label={isSub ? "Delete sub-commitment" : "Delete commitment"}
                 variant="quiet"
                 onPress={() => setDeleting(true)}
                 theme={theme}
@@ -343,34 +388,67 @@ export default function CommitmentScreen() {
               />
             ) : null}
 
+            {eventSheet !== null ? (
+              <EventSheet
+                visible
+                unitName={data.name}
+                initial={
+                  eventSheet === "new"
+                    ? undefined
+                    : {
+                        title: eventSheet.title,
+                        plannedWeekdays: eventSheet.plannedWeekdays,
+                        oneOffDate: eventSheet.oneOffDate,
+                        startMinute: eventSheet.startMinute,
+                        endMinute: eventSheet.endMinute,
+                        location: eventSheet.location,
+                        notes: eventSheet.notes,
+                      }
+                }
+                accent={accent}
+                theme={theme}
+                onClose={() => setEventSheet(null)}
+                onSave={async (input) => {
+                  if (eventSheet === "new") await addEvent([data.id], input);
+                  else await updateEvent(eventSheet.id, input);
+                  setEventSheet(null);
+                  await reload();
+                }}
+                onDelete={
+                  eventSheet === "new"
+                    ? undefined
+                    : async () => {
+                        await archiveTask(eventSheet.id);
+                        setEventSheet(null);
+                        await reload();
+                      }
+                }
+              />
+            ) : null}
+
             {sheet !== null ? (
               <CommitmentSheet
                 visible
                 mode={sheet}
-                others={others}
+                others={data.others}
                 theme={theme}
-                onClose={() => {
-                  setSheet(null);
-                  setEditingSubId(null);
-                }}
+                onClose={() => setSheet(null)}
                 onSave={async ({ name, percent }) => {
                   if (sheet.kind === "commitment") {
                     await updateCommitment(data.id, { name, percent });
-                  } else if (editingSubId !== null) {
-                    await updateCommitment(editingSubId, { name });
+                  } else if (sheet.name !== undefined) {
+                    await updateCommitment(data.id, { name });
                   } else {
                     await createSubCommitment(data.id, name);
                   }
                   setSheet(null);
-                  setEditingSubId(null);
                   await reload();
                 }}
               />
             ) : null}
 
             {/* The one irreversible act here, so the one that asks —
-                and the copy says what survives, since a month of scored
-                days is the thing a person is actually afraid for. */}
+                and the copy says what survives. */}
             <Modal
               visible={deleting}
               transparent
@@ -382,21 +460,16 @@ export default function CommitmentScreen() {
                 <View
                   style={[
                     styles.confirmCard,
-                    {
-                      backgroundColor: theme.canvas,
-                      borderColor: theme.hairline,
-                    },
+                    { backgroundColor: theme.canvas, borderColor: theme.hairline },
                   ]}
                 >
                   <AppText variant="title" color={theme.ink}>
                     Delete {data.name}?
                   </AppText>
                   <AppText color={theme.muted}>
-                    It goes for good, with its{" "}
-                    {countOf(data.subCommitments.length, "part")} and{" "}
-                    {countOf(data.taskCount, "task")}. Days you have already
-                    scored keep their grades and everything in your log stays.
-                    To keep it and stop scoring it, finish it instead.
+                    {isSub
+                      ? `It goes for good, with its ${countOf(data.events.length, "event")} and ${countOf(data.tasks.length, "task")}. Days you have already scored keep their grades and everything in your log stays.`
+                      : `It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, finish it instead.`}
                   </AppText>
                   <View style={styles.confirmActions}>
                     <View style={styles.grow}>
@@ -413,9 +486,7 @@ export default function CommitmentScreen() {
                         color={theme.danger}
                         onPress={() => {
                           setDeleting(false);
-                          void deleteCommitment(data.id).then(() =>
-                            router.back(),
-                          );
+                          void deleteCommitment(data.id).then(() => router.back());
                         }}
                         theme={theme}
                       />
@@ -431,9 +502,80 @@ export default function CommitmentScreen() {
   );
 }
 
-/** "3 parts", "1 task" — plural agreement in one place. */
-function countOf(n: number, noun: string): string {
-  return `${n} ${n === 1 ? noun : `${noun}s`}`;
+/** "3 tasks", "1 task" — plural agreement in one place. */
+function countOf(n: number, noun: string, plural = `${noun}s`): string {
+  return `${n} ${n === 1 ? noun : plural}`;
+}
+
+/** "2 events · 3 tasks", or "Empty". */
+function summaryOf(events: number, tasks: number): string {
+  const parts = [
+    events > 0 ? countOf(events, "event") : null,
+    tasks > 0 ? countOf(tasks, "task") : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "Empty";
+}
+
+/** "Mon, Wed · 9:00–11:00", or "Tuesday, 4 November · 9:00–11:00". */
+function eventWhen(e: UnitItem): string {
+  const day = e.oneOffDate
+    ? spokenDate(e.oneOffDate)
+    : (formatWeekdaySummary(parseWeekdays(e.plannedWeekdays)) ?? "");
+  const time =
+    e.startMinute !== null && e.endMinute !== null
+      ? `${formatMinutes(e.startMinute)}–${formatMinutes(e.endMinute)}`
+      : "";
+  return [day, time].filter(Boolean).join(" · ");
+}
+
+/** "3×/wk", "Mon, Thu", or a one-off's date. */
+function taskWhen(t: UnitItem): string {
+  if (t.oneOffSize !== null) return t.oneOffDate ? spokenDate(t.oneOffDate) : "Any day";
+  return formatWeekdaySummary(parseWeekdays(t.plannedWeekdays)) ?? formatFrequencyShort(t.timesPerWeek);
+}
+
+/** A listed event or task: its name, when, and where. */
+function ItemRow({
+  item,
+  detail,
+  onPress,
+  theme,
+}: {
+  item: UnitItem;
+  detail: string;
+  onPress?: () => void;
+  theme: ReturnType<typeof getTheme>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.hairline },
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+      accessibilityRole={onPress ? "button" : "text"}
+      accessibilityLabel={[item.title, detail, item.location].filter(Boolean).join(", ")}
+    >
+      <View style={styles.grow}>
+        <AppText color={theme.ink} numberOfLines={1}>
+          {item.title}
+        </AppText>
+        <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
+          {[detail, item.location].filter(Boolean).join(" · ")}
+        </AppText>
+      </View>
+      {onPress ? (
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={theme.muted}
+          importantForAccessibility="no"
+        />
+      ) : null}
+    </Pressable>
+  );
 }
 
 function ActionRow({
@@ -460,10 +602,7 @@ function ActionRow({
         styles.row,
         last === true
           ? null
-          : {
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: theme.hairline,
-            },
+          : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.hairline },
         { opacity: pressed ? 0.6 : 1 },
       ]}
       accessibilityRole="button"
@@ -514,9 +653,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 52,
   },
-  emptyRow: { paddingVertical: space.md, minHeight: 52, justifyContent: "center" },
   grow: { flex: 1 },
-  aside: { marginTop: space.md },
   ending: { gap: space.sm, marginTop: space.xxl },
   confirmBackdrop: {
     flex: 1,

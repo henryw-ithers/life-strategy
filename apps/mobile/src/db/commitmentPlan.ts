@@ -179,6 +179,24 @@ export function assertPoolSize(input: PoolValidationInput): void {
  * from the 18's weights like any other. A commitment carries a share;
  * a part carries a parent.
  */
+/**
+ * Whether a commitment is split into sub-commitments (ADR-0035 §1 as
+ * amended 2026-10-02). The stored switch, or — for rows written before
+ * it existed — having any live sub-commitments at all.
+ */
+export function subCommitmentsOn(
+  unit: { usesSubCommitments: boolean },
+  liveSubCount: number,
+): boolean {
+  return unit.usesSubCommitments || liveSubCount > 0;
+}
+
+/** The name given to the sub-commitment that collects a commitment's
+ *  own work when it is split: "School general". */
+export function generalSubName(commitmentName: string): string {
+  return `${commitmentName.trim()} general`;
+}
+
 export function isCommitmentUnit(u: {
   isCustom: boolean;
   parentUnitId: string | null;

@@ -105,6 +105,27 @@ from a life unit is its band (ADR-0032), not its table.**
 ADR-0021 forbids an area carrying weight and records that building one
 destroyed data.
 
+> **Amended 2026-10-02: splitting is a switch.** Henry: a commitment
+> has *"the option to toggle sub-commitments … if you turn that option
+> on, it shouldn't show tasks for the big commitment. You should also be
+> able to click on a sub-commitment to open its own window."* So a
+> commitment is either **split** — its work lives in sub-commitments and
+> it holds none directly — or not, holding its own work and no
+> sub-commitments (`life_unit.uses_sub_commitments`; a commitment with
+> live sub-commitments reads as split regardless, so older rows need no
+> backfill). The "task directly on a commitment *beside* its
+> sub-commitments" case above is withdrawn. Turning the switch:
+>
+> - **on** moves any work the commitment holds into a new
+>   sub-commitment, "School general" (Henry's choice);
+> - **off** moves every sub-commitment's work up onto the commitment and
+>   **archives** the sub-commitments, so nothing is lost.
+>
+> A task keeps its tags either way; only its home moves. Each
+> sub-commitment opens its own screen, with its own events and tasks
+> (ADR-0038). "Parts", the old on-screen name, is gone: they are
+> sub-commitments everywhere.
+
 ### 2. Commitments are weighted, not diagnosed
 
 The diagnostic keeps rating the **18 life dimensions** on importance
@@ -153,6 +174,14 @@ kept as properties of the model rather than of a score:
   still-open action item 4 rather than reopening it.
 - **No adherence statistic** (ADR-0024 §2), restated because a
   timetable makes one look computable for the first time.
+
+> **Amended 2026-10-02 by [ADR-0038](0038-events.md) §5.** Events — a
+> class, a shift — are ticked when attended, so a record of attendance
+> now exists and `attended ÷ scheduled` is computable. The bullet above
+> no longer holds *structurally*; it holds as a rule. **Nothing
+> computes, stores or shows an attendance rate, a count of missed
+> events, or anything derived from events not ticked**, and a missed
+> event is never mentioned. Henry chose ticked, paid events knowingly.
 
 ## Consequences
 

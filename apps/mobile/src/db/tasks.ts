@@ -19,7 +19,14 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import {
+  eventProblem,
+  eventTimesPerWeek,
+  optionalText,
+  type EventInput,
+} from "./events";
+import {
   isCommitmentUnit,
+  subCommitmentsOn,
   membershipsFor,
   type Membership,
 } from "./commitmentPlan";
@@ -63,6 +70,10 @@ export interface PlanTask {
   oneOffDate: string | null;
   /** Its deadline, or null. */
   oneOffDue: string | null;
+  /** `event` for a time you attend (ADR-0038); otherwise `task`. */
+  kind: "task" | "event";
+  /** Where an event happens; null otherwise. */
+  location: string | null;
   /** Minutes from local midnight, or null for no clock time
    *  (ADR-0036 §1). Presentation and fit only; never scored. */
   startMinute: number | null;
@@ -119,6 +130,9 @@ export interface PlanCommitment {
   id: string;
   name: string;
   parts: { id: string; name: string }[];
+  /** Split into sub-commitments (ADR-0035 §1): its work lives in them,
+   *  never on the commitment itself. */
+  split: boolean;
   /** Every active task whose home is this commitment or one of its parts. */
   tasks: (PlanTask & { homeUnitId: string; homeName: string })[];
 }
@@ -248,6 +262,8 @@ export async function loadPlan(): Promise<PlanData> {
       endMinute: t.endMinute,
       size: t.size,
       allowsPartial: t.allowsPartial,
+      kind: t.kind,
+      location: t.location,
       goalId: t.goalId,
       pointValue: t.pointValue,
       rankInUnit: rank,
@@ -270,6 +286,7 @@ export async function loadPlan(): Promise<PlanData> {
         id: c.id,
         name: c.name,
         parts: parts.map((u) => ({ id: u.id, name: u.name })),
+        split: subCommitmentsOn(c, parts.length),
         tasks: tasks
           .filter((t) => homes.has(t.unitId))
           .map((t) => ({
@@ -561,6 +578,8 @@ export interface TaskDetail {
   endMinute: number | null;
   size: "quick" | "normal" | "big" | null;
   allowsPartial: boolean;
+  /** `event` for a window of time you attend (ADR-0038). */
+  kind?: "task" | "event";
 }
 
 export interface OneOff {
@@ -622,6 +641,7 @@ export async function addTask(
       // it, `size` is what the day's load and a window's capacity read.
       size: oneOff?.size ?? detail?.size ?? null,
       allowsPartial: detail?.allowsPartial ?? false,
+      kind: detail?.kind ?? "task",
       pointValue: 0,
       rankInUnit: siblings.length + 1,
     });
@@ -1021,4 +1041,79 @@ export async function setTaskAllowsPartial(
   allowsPartial: boolean,
 ): Promise<void> {
   await db.update(task).set({ allowsPartial }).where(eq(task.id, taskId));
+}
+
+// ── Events (ADR-0038) ─────────────────────────────────────────
+
+/**
+ * Add an event — a window of time you attend. Stored as a task
+ * with `kind = 'event'` and a required start and end, so it is
+ * ticked and paid exactly as a task is. Repeating on the days picked,
+ * or once, on `date`, as a one-off. Refused if `eventProblem`
+ * finds anything wrong, so no half-made event is written.
+ */
+export async function addEvent(
+  unitIds: string[],
+  input: EventInput,
+): Promise<string | null> {
+  const problem = eventProblem(input);
+  if (problem) throw new Error(problem);
+  const repeating = input.weekdays.length > 0;
+  const id = await addTask(
+    unitIds,
+    input.title.trim(),
+    repeating ? eventTimesPerWeek(input.weekdays) : 1,
+    repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
+    null,
+    null,
+    repeating ? null : { size: "normal", date: input.date, due: null },
+    null,
+    {
+      startMinute: input.startMinute,
+      endMinute: input.endMinute,
+      size: null,
+      allowsPartial: false,
+      kind: "event",
+    },
+  );
+  if (id) {
+    await db
+      .update(task)
+      .set({ location: optionalText(input.location), description: optionalText(input.notes) })
+      .where(eq(task.id, id));
+  }
+  return id;
+}
+
+/**
+ * Change an event's name, days or date, and time. Switching
+ * between repeating and one-time is allowed: a one-time event is
+ * a one-off underneath, and the pricing pass is re-run either way.
+ */
+export async function updateEvent(
+  taskId: string,
+  input: EventInput,
+): Promise<void> {
+  const problem = eventProblem(input);
+  if (problem) throw new Error(problem);
+  const repeating = input.weekdays.length > 0;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(task)
+      .set({
+        title: input.title.trim(),
+        timesPerWeek: repeating ? eventTimesPerWeek(input.weekdays) : 1,
+        plannedWeekdays: repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
+        oneOffSize: repeating ? null : "normal",
+        size: repeating ? null : "normal",
+        oneOffDate: repeating ? null : input.date,
+        oneOffDue: null,
+        ...clockTimes(input.startMinute, input.endMinute),
+        kind: "event",
+        location: optionalText(input.location),
+        description: optionalText(input.notes),
+      })
+      .where(eq(task.id, taskId));
+    await recomputeAllUnitPoints(tx);
+  });
 }

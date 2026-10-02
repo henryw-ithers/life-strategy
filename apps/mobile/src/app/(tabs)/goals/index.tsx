@@ -320,8 +320,8 @@ export default function GoalsScreen() {
           }))}
           theme={theme}
           onClose={() => setSheetMode(null)}
-          onSave={async ({ name, percent }) => {
-            await createCommitment({ name, percent });
+          onSave={async ({ name, percent, usesSubCommitments }) => {
+            await createCommitment({ name, percent, usesSubCommitments });
             setSheetMode(null);
             await reload();
           }}

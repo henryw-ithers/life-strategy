@@ -21,7 +21,7 @@
  */
 import { rebalanceShares } from "@glide/scoring";
 import { useState } from "react";
-import { Modal, StyleSheet, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Switch, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
@@ -40,7 +40,7 @@ interface CommitmentSheetProps {
   /** The other live commitments and the percent each takes now. */
   others?: { id: string; name: string; percent: number }[];
   onClose: () => void;
-  onSave: (input: { name: string; percent?: number }) => void;
+  onSave: (input: { name: string; percent?: number; usesSubCommitments?: boolean }) => void;
   theme: ThemeTokens;
 }
 
@@ -76,6 +76,9 @@ export function CommitmentSheet({
 
   const canSave =
     name.trim().length > 0 && (!asksPercent || percentValid);
+  /** Asked only when making a commitment; afterwards it is a switch on
+   *  the commitment's own screen. */
+  const [split, setSplit] = useState(false);
 
   return (
     <Modal
@@ -106,7 +109,7 @@ export function CommitmentSheet({
             <AppText variant="body" color={theme.muted}>
               {mode.kind === "commitment"
                 ? "Something with a schedule that takes up part of your week — a course, a job, a club."
-                : "A part of it that holds its own work — a class, a shift pattern, a team."}
+                : "A sub-commitment holds its own events and tasks — a class, a shift pattern, a team."}
             </AppText>
           ) : null}
 
@@ -187,12 +190,32 @@ export function CommitmentSheet({
             </View>
           ) : null}
 
+          {mode.kind === "commitment" && !editing ? (
+            <View style={styles.shareRow}>
+              <View style={styles.grow}>
+                <AppText variant="label" color={theme.ink}>
+                  Sub-commitments
+                </AppText>
+                <AppText variant="caption" color={theme.muted}>
+                  Split it into classes, shifts or teams, each with its own
+                  events and tasks. You can change this later.
+                </AppText>
+              </View>
+              <Switch
+                value={split}
+                onValueChange={setSplit}
+                accessibilityLabel="Sub-commitments"
+              />
+            </View>
+          ) : null}
+
           <Button
             label={editing ? "Save" : "Add"}
             onPress={() =>
               onSave({
                 name: name.trim(),
                 ...(asksPercent ? { percent: percentNum } : {}),
+                ...(mode.kind === "commitment" && !editing ? { usesSubCommitments: split } : {}),
               })
             }
             disabled={!canSave}
