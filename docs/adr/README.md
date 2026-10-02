@@ -157,7 +157,12 @@ here so they stop being invisible.
   `goals.ts` and the data reset. Design principle 5 ("the log is a
   record of a life") has no surface yet, and the look-back views that
   memory flags and special days feed do not exist.
-- **The calendar tint for untouched past days is undecided.** ADR-0004's
+- ~~**The calendar tint for untouched past days is undecided.**~~
+  **Decided 2026-10-02: leave it as it is.** Henry, looking at it:
+  untouched past days "look fine right now — they don't need a decision
+  or a change." Rest days (ADR-0037) also narrowed it: an empty past day
+  that was ever opened now reads 70 or more. The original wording
+  follows. **The calendar tint for untouched past days is undecided.** ADR-0004's
   2026-07-26 amendment left it open on purpose: a past day with no row
   renders blank rather than as its half credit, so a week can read below
   100% with no visibly imperfect day behind it. Rendering twenty skipped
