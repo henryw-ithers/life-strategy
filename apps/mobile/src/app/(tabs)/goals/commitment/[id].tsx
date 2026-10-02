@@ -46,7 +46,9 @@ import {
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
+import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
+import { TaskEditSheet } from "../../../../components/plan/TaskEditSheet";
 import { formatFrequencyShort } from "../../../../components/plan/frequency";
 import {
   formatWeekdaySummary,
@@ -84,6 +86,8 @@ import {
   archiveTask,
   loadPlan,
   updateEvent,
+  type PlanData,
+  type PlanTask,
 } from "../../../../db/tasks";
 import { spokenDate } from "../../../../lib/format";
 import { getTheme, SCRIM } from "../../../../theme/colors";
@@ -104,12 +108,21 @@ export default function CommitmentScreen() {
   const [eventSheet, setEventSheet] = useState<"new" | UnitItem | null>(null);
   /** Everything a task can be filed under, for the add sheet. */
   const [units, setUnits] = useState<PickableUnit[]>([]);
+  /** The plan, for the task being edited here — the same row the Tasks
+   *  tab edits, so the same sheet and the same save apply. */
+  const [plan, setPlan] = useState<PlanData | null>(null);
+  const [editingTask, setEditingTask] = useState<PlanTask | null>(null);
 
   const reload = useCallback(async () => {
-    const [screen, plan] = await Promise.all([loadCommitmentUnit(id), loadPlan()]);
+    const [screen, next] = await Promise.all([loadCommitmentUnit(id), loadPlan()]);
     setData(screen);
-    setUnits(pickableUnits(plan));
+    setPlan(next);
+    setUnits(pickableUnits(next));
   }, [id]);
+
+  /** A task on this screen, as the plan holds it. */
+  const planTask = (taskId: string): PlanTask | null =>
+    plan?.commitments.flatMap((c) => c.tasks).find((t) => t.id === taskId) ?? null;
 
   const { error, retry } = useScreenLoad(reload);
   const archived = data !== null && data.archivedAt !== null;
@@ -305,8 +318,14 @@ export default function CommitmentScreen() {
                       item={t}
                       detail={taskWhen(t)}
                       theme={theme}
+                      // Edited here, in place (Henry, 2026-10-02).
                       onPress={
-                        archived ? undefined : () => router.push(`/plan?unit=${data.id}` as Href)
+                        archived
+                          ? undefined
+                          : () => {
+                              const found = planTask(t.id);
+                              if (found) setEditingTask(found);
+                            }
                       }
                     />
                   ))}
@@ -383,6 +402,31 @@ export default function CommitmentScreen() {
                     null,
                     detail,
                   );
+                  await reload();
+                }}
+              />
+            ) : null}
+
+            {editingTask !== null ? (
+              <TaskEditSheet
+                visible
+                task={editableFrom(editingTask)}
+                units={units}
+                goals={[]}
+                areaColors={theme.areas}
+                accent={accent}
+                theme={theme}
+                onClose={() => setEditingTask(null)}
+                onSave={async (next) => {
+                  const t = editingTask;
+                  setEditingTask(null);
+                  await applyTaskEdit(t, next);
+                  await reload();
+                }}
+                onDelete={async () => {
+                  const t = editingTask;
+                  setEditingTask(null);
+                  await archiveTask(t.id);
                   await reload();
                 }}
               />

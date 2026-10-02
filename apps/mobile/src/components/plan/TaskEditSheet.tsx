@@ -79,6 +79,20 @@ export interface EditableTask {
   allowsPartial: boolean;
 }
 
+/** What the sheet hands back on save — applied by `applyTaskEdit`. */
+export interface TaskEditResult {
+  title: string;
+  timesPerWeek: number;
+  unitIds: string[];
+  plannedWeekdays: string | null;
+  partOfDay: PartOfDay | null;
+  goalId: string | null;
+  fortnightOffset: number;
+  /** Null when the task is not a one-off; unchanged cadence either way. */
+  oneOff: OneOffState | null;
+  detail: TaskDetail;
+}
+
 interface TaskEditSheetProps {
   visible: boolean;
   task: EditableTask;
@@ -90,18 +104,7 @@ interface TaskEditSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
-  onSave: (next: {
-    title: string;
-    timesPerWeek: number;
-    unitIds: string[];
-    plannedWeekdays: string | null;
-    partOfDay: PartOfDay | null;
-    goalId: string | null;
-    fortnightOffset: number;
-    /** Null when the task is not a one-off; unchanged cadence either way. */
-    oneOff: OneOffState | null;
-    detail: TaskDetail;
-  }) => void;
+  onSave: (next: TaskEditResult) => void;
   onDelete: () => void;
 }
 

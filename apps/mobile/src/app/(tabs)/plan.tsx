@@ -34,7 +34,8 @@ import Animated, {
 import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
 import { EventSheet } from "../../components/plan/EventSheet";
-import { TaskEditSheet, type EditableTask } from "../../components/plan/TaskEditSheet";
+import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
+import { applyTaskEdit, editableFrom } from "../../components/plan/applyTaskEdit";
 import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
 import { TaskRow } from "../../components/plan/TaskRow";
 import {
@@ -72,16 +73,6 @@ import {
   loadPlan,
   reorderUnitTasks,
   restoreTask,
-  setTaskAllowsPartial,
-  setTaskDetails,
-  setTaskFortnightOffset,
-  setTaskOneOff,
-  setTaskSize,
-  setTaskTime,
-  setTaskFrequency,
-  setTaskGoal,
-  setTaskPlanning,
-  setTaskUnits,
   setUnitScoring,
   updateEvent,
   type PlanData,
@@ -900,25 +891,7 @@ export default function PlanScreen() {
       {editing && editing.task.kind !== "event" ? (
         <TaskEditSheet
           visible
-          task={
-            {
-              id: editing.task.id,
-              title: editing.task.title,
-              timesPerWeek: editing.task.timesPerWeek,
-              unitIds: editing.task.unitIds,
-              plannedWeekdays: editing.task.plannedWeekdays,
-              partOfDay: editing.task.partOfDay,
-              goalId: editing.task.goalId,
-              fortnightOffset: editing.task.fortnightOffset,
-              oneOffSize: editing.task.oneOffSize,
-              oneOffDate: editing.task.oneOffDate,
-              oneOffDue: editing.task.oneOffDue,
-              startMinute: editing.task.startMinute,
-              endMinute: editing.task.endMinute,
-              size: editing.task.size,
-              allowsPartial: editing.task.allowsPartial,
-            } satisfies EditableTask
-          }
+          task={editableFrom(editing.task)}
           units={allUnits}
           goals={goalsByUnit[editing.unit.id] ?? []}
           areaColors={theme.areas}
@@ -926,63 +899,7 @@ export default function PlanScreen() {
           theme={theme}
           onClose={() => setEditing(null)}
           onSave={async (next) => {
-            const t = editing.task;
-            // The description field is gone from the sheet (2026-08-18)
-            // but the column stays, so this preserves whatever was
-            // already written rather than clearing it on the next save.
-            if (next.title !== t.title) {
-              await setTaskDetails(t.id, next.title, t.description);
-            }
-            if (next.timesPerWeek !== t.timesPerWeek) {
-              await setTaskFrequency(t.id, next.timesPerWeek);
-            }
-            if (next.unitIds.join("|") !== t.unitIds.join("|")) {
-              await setTaskUnits(t.id, next.unitIds);
-            }
-            if (
-              next.plannedWeekdays !== t.plannedWeekdays ||
-              next.partOfDay !== t.partOfDay
-            ) {
-              await setTaskPlanning(t.id, next.plannedWeekdays, next.partOfDay);
-            }
-            if (next.goalId !== t.goalId) {
-              await setTaskGoal(t.id, next.goalId);
-            }
-            if (next.fortnightOffset !== t.fortnightOffset) {
-              await setTaskFortnightOffset(
-                t.id,
-                next.fortnightOffset === 1 ? 1 : 0,
-              );
-            }
-            if (
-              next.oneOff &&
-              (next.oneOff.size !== t.oneOffSize ||
-                next.oneOff.date !== t.oneOffDate ||
-                next.oneOff.due !== t.oneOffDue)
-            ) {
-              await setTaskOneOff(
-                t.id,
-                next.oneOff.size,
-                next.oneOff.date,
-                next.oneOff.due,
-              );
-            }
-            if (
-              next.detail.startMinute !== t.startMinute ||
-              next.detail.endMinute !== t.endMinute
-            ) {
-              await setTaskTime(
-                t.id,
-                next.detail.startMinute,
-                next.detail.endMinute,
-              );
-            }
-            if (next.detail.size !== t.size) {
-              await setTaskSize(t.id, next.detail.size);
-            }
-            if (next.detail.allowsPartial !== t.allowsPartial) {
-              await setTaskAllowsPartial(t.id, next.detail.allowsPartial);
-            }
+            await applyTaskEdit(editing.task, next);
             await reload();
           }}
           onDelete={() => deleteTask(editing.task)}
