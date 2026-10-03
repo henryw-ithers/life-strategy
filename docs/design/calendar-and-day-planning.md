@@ -1,5 +1,9 @@
 # Planning Note — Calendar & Day Planning
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+
 > Status: planned, not built (2026-07-17). Written ahead of the daily
 > checklist build so its decisions anticipate this. No schema changes
 > yet; additions listed at the bottom land when their phase builds.

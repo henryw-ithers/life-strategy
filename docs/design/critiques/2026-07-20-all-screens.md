@@ -8,6 +8,10 @@ slug: apps-mobile-src-app
 ---
 # Critique — all screens (apps/mobile/src/app)
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../../README.md).
+
 Method: dual-agent (A: design review · B: detector/browser evidence)
 
 ## Design Health Score

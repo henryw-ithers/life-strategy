@@ -1,5 +1,9 @@
 # Workshop Note — Scheduling, Duration, and the Motivation Theory
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+
 > Status: **workshop** (2026-08-16). Superseded in part the same day —
 > the scheduling half is now
 > [ADR-0024](../adr/0024-day-planning-is-intention.md) and the

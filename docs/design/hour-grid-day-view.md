@@ -1,5 +1,9 @@
 # Planning Note — The hour grid
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+
 > Status: planned, not built. Rewritten 2026-09-11 — the first draft
 > (2026-09-08) described a grid gated behind a schedule mode, with
 > `fixed_commitment` rows and a courses module behind it. None of that

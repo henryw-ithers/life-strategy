@@ -1,5 +1,12 @@
 # Design Brief — Task Setup (Plan screen)
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+> Since this brief: the Plan screen became one screen (`(tabs)/plan.tsx`)
+> with units that expand in place, and tasks are ordered by dragging
+> rather than by side-by-side comparison.
+
 > Shaped and confirmed 2026-07-17 via /impeccable shape. Implemented as
 > `apps/mobile/src/app/plan/` (index + [unitId]) with
 > `src/components/plan/AddTaskModal.tsx`; data layer `src/db/tasks.ts`.

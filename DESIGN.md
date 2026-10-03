@@ -163,7 +163,7 @@ decoration or softened truth.
 - Pure canvas (true white / true near-black), brand carried entirely in hue, never in surface tint
 - One signature backdrop motif (bubble constellation / hue wash) present on every screen
 - Flat by default; the one shadow tier is reserved for sheets and overlays that must read as lifted
-- Seven-step system-font type scale, negative tracking on display sizes, tabular numerals wherever figures align
+- Eight-step type scale in Manrope, negative tracking on the large sizes, tabular numerals wherever figures align
 - A single deliberate exception to "no alarm colors": the six-band grade ramp, scoped only to the calendar grid
 
 ## 2. Colors
@@ -182,11 +182,9 @@ Six categorical hues, one per Strategic Life Area, each lifted in lightness (not
 - **Green** (`#4a925c` / `#6fc082`) — Physical Health
 - **Teal** (`#007a80` / `#3ebfc6`) — Mental Wellbeing (= accent)
 - **Blue** (`#3d73b6` / `#64a1ee`) — Work & Money
-- **Amber** (`#b8892d` / `#e3ad4b`) — Environment (token ids keep the
-  `home-environment` slug throughout; ADR-0002 never re-keys taxonomy
-  rows, so a rename is a label change and the hue travels with it. The
-  label has been *Home & environment*, then *Wellness*, and since
-  2026-08-26 *Environment* again — the slug was right all along)
+- **Amber** (`#b8892d` / `#e3ad4b`) — Environment. The token id is
+  `home-environment`, from the area's original name. Taxonomy ids are
+  never re-keyed (ADR-0002), so renaming an area changes only its label.
 - **Violet** (`#7d5fad` / `#ab8be3`) — Leisure & Creativity
 
 **Area hues are identity, not text, and not a fill behind text.** They
@@ -202,7 +200,7 @@ Measured, light theme, hue as small text or as a solid fill behind
 | Blue (Work & money) | 4.85 ✅ | 4.27 ❌ |
 | Rose (Relationships) | 4.57 ✅ | 4.03 ❌ |
 | Green (Physical health) | 3.78 ❌ | 3.33 ❌ |
-| Amber (Wellness) | 3.16 ❌ | 2.78 ❌ |
+| Amber (Environment) | 3.16 ❌ | 2.78 ❌ |
 
 Dark theme clears AA on all six (6.6:1 and up), so this is a
 light-theme constraint only.
@@ -224,24 +222,23 @@ theme and returns the hue untouched in dark.
 | Green (Physical health) | `#4a925c` | `#36804a` | 4.83 |
 | Teal (Mental wellbeing) | `#007a80` | unchanged | 5.13 |
 | Blue (Work & money) | `#3d73b6` | unchanged | 4.85 |
-| Amber (Wellness) | `#b8892d` | `#966a04` | 4.81 |
+| Amber (Environment) | `#b8892d` | `#966a04` | 4.81 |
 | Violet (Leisure) | `#7d5fad` | unchanged | 5.11 |
 
 Same OKLCH hue and chroma, L lowered until white clears **4.8:1**. Four
 of the six are visually unchanged; only the two that failed move
-materially, and Wellness reads as deep ochre when filled because an
+materially, and Environment reads as deep ochre when filled because an
 amber that carries white text *is* ochre. The deep set is for fills
 behind text and nothing else — bubbles, pips, borders, washes and the
 graph all keep the drawn hues.
 
-> **Resolved 2026-08-17.** This replaces the recorded gap where
-> `Button`'s primary variant rendered `onAccent` on whatever fill it
-> was given (3.78:1 on Green, 3.16:1 on Wellness, across thirteen call
-> sites). The two options named at the time were restricting fills to
-> the accent or giving the variant a wash; Henry chose a third — keep
-> the hue, take it down to where the label passes — so callers still
-> pass the hue their action belongs to and the resolution lives in one
-> function rather than thirteen screens.
+> **Why this exists (2026-08-17).** The primary button used to put a
+> white label on whatever colour it was given, which measured 3.78:1 on
+> green and 3.16:1 on amber across thirteen call sites. Restricting
+> buttons to the accent, or switching them to a wash, would both have
+> fixed it. Instead each hue is darkened just enough for the label to
+> pass, so callers still pass the colour their action belongs to and
+> the fix lives in one function rather than thirteen screens.
 
 ### Neutral
 - **Canvas** (`#ffffff` / `#070707`): the base screen fill. Pure white or pure near-black — never tinted toward any hue.
@@ -274,14 +271,14 @@ graph all keep the drawn hues.
 ### Named Rules
 **The One Text Rule.** `AppText` is the only text component in the app; every string picks a variant from this scale and an explicit color. No inline font sizes, no unthemed text color.
 
-**The Family-Always Rule.** The handful of places that legitimately sit outside `AppText` — `TextInput`, and the NumberDial and FrequencyPicker whose sizes are tuned to their controls — must still take `fontFamily` from `tokens.fonts`. A custom family is not inherited: a raw size with no family silently falls back to the system face and puts two typefaces on one screen. Never pair `fontFamily` with `fontWeight`; React Native does not synthesize weights for a bundled family, and Android will fake-bold an already-bold file.
+**The Family-Always Rule.** The handful of places that legitimately sit outside `AppText` — `TextInput`, and the NumberDial and FrequencyPicker whose sizes are tuned to their controls — must still take `fontFamily` from `tokens.fonts`. A custom family is not inherited: a raw size with no family silently falls back to the system face and puts two typefaces on one screen. Never pair `fontFamily` with `fontWeight`; React Native does not synthesize weights for a bundled family.
 
 ## 4. Elevation
 
 Flat by default: canvas and surface differ only by tonal fill, never by shadow, across every component read in the codebase today (buttons, cards, the NumberDial track, the bubble backdrop). One shadow tier is planned, reserved specifically for surfaces that must read as lifted above the rest of the screen — sheets and modal-style overlays (e.g. `UnitInfoSheet`) — not for buttons, cards, or the dial, which stay flat and rely on surface-fill contrast alone.
 
 ### Shadow Vocabulary
-- **Sheet** (`0px 4px 12px rgba(0, 0, 0, 0.08)` — RN: `shadowOffset: {width: 0, height: 4}, shadowRadius: 12, shadowOpacity: 0.08, shadowColor: "#000000"`, Android `elevation: 4`): reserved for sheet/overlay surfaces lifting off the canvas. On the dark canvas this shadow reads faint by design; surface-fill contrast (not the shadow) does the primary work of separating a dark-mode sheet from the canvas behind it.
+- **Sheet** (`0px 4px 12px rgba(0, 0, 0, 0.08)` — RN: `shadowOffset: {width: 0, height: 4}, shadowRadius: 12, shadowOpacity: 0.08, shadowColor: "#000000"`): reserved for sheet/overlay surfaces lifting off the canvas. On the dark canvas this shadow reads faint by design; surface-fill contrast (not the shadow) does the primary work of separating a dark-mode sheet from the canvas behind it.
 
 ### Named Rules
 **The Lifted-Not-Raised Rule.** Only sheets and overlays get a shadow. A card or button that wants to feel "important" gets stronger color or type weight, never a shadow — shadow means "this surface is temporarily on top of the screen," not "this is emphasized."
@@ -309,7 +306,7 @@ The app's one rating control: a looping 1–10 carousel scroll-snapped on a `sur
 The app's identity element: soft, oversized circles in Strategic Life Area hues bleeding off the canvas edges, rendered as the first child of a container with `overflow: hidden`, alpha always in the ~2–10% range (hex `05`–`1a`). Two modes: **Constellation** — all six area hues at varied sizes, for landing/overview moments (home, diagnostic intro), with a `faint` variant that halves presence for content-heavy screens; **Hue Wash** — a single area's hue washing a focused screen, one per diagnostic area step. Never rendered behind dense data — the portfolio graph canvas itself always stays clean of it.
 
 ### Navigation
-**Bottom tab bar**, five destinations: Goals · Tasks · Home · Portfolio · Settings. Home sits centre, with the screens you edit to its left and the ones you review to its right. Icons (Ionicons, outline at rest and solid when selected) carry it; only the **active** tab shows its name, under a filled `accent` pill. Icon-only bars are the least learnable option and both HIG and Material spec labelled destinations, so naming just the selected one keeps the bar quiet without ever leaving the screen unnamed — screen readers get all five names regardless. Opaque `surface` fill with a hairline top edge, never a blur.
+**Bottom tab bar**, five destinations: Goals · Tasks · Home · Portfolio · Log. Home sits centre, with the screens you edit to its left and the ones you review to its right. Icons (Ionicons, outline at rest and solid when selected) carry it; only the **active** tab shows its name, under a filled `accent` pill. Icon-only bars are the least learnable option and both HIG and Material spec labelled destinations, so naming just the selected one keeps the bar quiet without ever leaving the screen unnamed — screen readers get all five names regardless. Opaque `surface` fill with a hairline top edge, never a blur.
 
 Focused tasks — diagnostic, calibration, backup, onboarding — are pushed by the root stack and cover the bar rather than sitting beside it. A goal's detail screen pushes *inside* the Goals tab, so the bar stays put.
 

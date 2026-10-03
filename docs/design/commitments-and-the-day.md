@@ -1,5 +1,9 @@
 # Working Note — Commitments, windows, and the third band
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+
 > **Status: working note. The decisions now live in ADRs**
 > (2026-09-11), **accepted 2026-10-01** with dated amendments from
 > building them.

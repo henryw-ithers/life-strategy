@@ -1,214 +1,110 @@
 # Architecture Decision Records
 
-Every architecturally significant decision behind the app, numbered in
-the order it was made. The first ten were settled before any
-application code was written; the rest were decided as the app grew.
-Withdrawn and superseded records stay in place, marked as such, so the
-reasoning behind the current design can always be traced.
+Each significant decision behind the app is written up as an ADR:
+the problem, the options considered, what was chosen, and the evidence
+for it. They are numbered in the order they were made. The first ten
+were settled before any application code was written; the rest came up
+as the app was built and used.
 
-| # | Title | Status |
-|---|-------|--------|
-| [0001](0001-platform-and-tech-stack.md) | Platform and tech stack | Accepted |
-| [0002](0002-data-model-and-persistence.md) | Data model and persistence | Accepted |
-| [0003](0003-scoring-and-weight-derivation.md) | Scoring and weight derivation | Accepted |
-| [0004](0004-grade-lifecycle-and-aggregation.md) | Grade lifecycle and aggregation | §2 superseded by 0014 |
-| [0005](0005-diagnostic-snapshots-and-history.md) | Diagnostic snapshots and portfolio history | Accepted |
-| [0006](0006-task-and-goal-recommendations.md) | Task and goal recommendation source | Accepted |
-| [0007](0007-goal-lifecycle.md) | Goal lifecycle and milestones | Accepted |
-| [0008](0008-contentment-calibration.md) | Contentment calibration and sensitive data | Accepted |
-| [0009](0009-spontaneous-activities.md) | Spontaneous activities and bonus credit | Accepted |
-| [0010](0010-notifications-and-reminders.md) | Notifications and reminders | Accepted |
-| [0011](0011-onboarding-and-first-run.md) | Onboarding and first run | Accepted |
-| [0013](0013-crash-reporting-and-telemetry.md) | Crash reporting and telemetry | Accepted |
-| [0014](0014-partial-credit.md) | Partial credit | Accepted |
-| [0015](0015-metric-linked-goals.md) | Metric-linked goals | Accepted |
-| [0019](0019-multi-unit-tasks.md) | Tasks that serve more than one unit | Accepted |
-| [0020](0020-backup-cryptography-and-export-exemption.md) | Backup cryptography and export exemption | Accepted |
-| [0021](0021-areas-are-presentational.md) | Strategic Life Areas are presentational | Accepted |
-| [0022](0022-satisfaction-is-rated-not-ranked.md) | Satisfaction is rated, not ranked | Accepted |
-| [0023](0023-planned-work-is-what-pays.md) | Planned work is what pays | Accepted |
-| [0024](0024-day-planning-is-intention.md) | Day planning is intention, not obligation | §2 withdrawn by 0029; amended by 0026, 0036, 0032 |
-| [0025](0025-communal-units-are-dimensions.md) | Communal units are dimensions, not containers | Amended by 0027 |
-| [0026](0026-task-size-and-day-load.md) | Task size and day load | Accepted |
-| [0027](0027-coverage-decides-the-ceiling.md) | Coverage decides the ceiling | §§1–3 superseded by 0029; extended by 0032 |
-| [0028](0028-priority-is-the-only-input.md) | Priority is the only input | §3 superseded by 0029 |
-| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is the fraction of itself you got through | Accepted; extended by 0032, 0037 |
-| [0030](0030-goals-have-conditions.md) | Goals have conditions | Accepted |
-| [0031](0031-the-semester-score.md) | The semester score | **Withdrawn** |
-| [0032](0032-the-commitment-band.md) | The commitment band | Accepted; rebuilt on 0029 (formula v10) |
-| [0033](0033-windows-and-pools.md) | Windows and pools | Accepted |
-| [0034](0034-schedule-mode.md) | Schedule mode | **Withdrawn** |
-| [0035](0035-commitments-are-custom-units.md) | Commitments are custom units | Accepted; §1 and §4 amended 2026-10-02 (0038) |
-| [0036](0036-granularity-is-the-users.md) | Granularity is the user's | Accepted; events excepted by 0038 |
-| [0037](0037-rest-days.md) | Rest days | Accepted |
-| [0038](0038-events.md) | Events | Accepted |
+ADRs are dated records and are not rewritten after acceptance. When a
+later decision changes an earlier one, the earlier ADR gets a dated
+amendment note and the status column below says what replaced it.
+Withdrawn ADRs keep their full text so the reasoning can still be
+traced. Copy [template.md](template.md) to write a new one.
 
-All foundational ADRs are **accepted** — implementation can begin.
-Amendments are noted inline in each ADR; the data model in 0002
-carries the accumulated schema amendments from 0003–0009.
+## Index
 
-**0027, 0028 and 0029 are the scoring rewrite** (formulas v7, v8 and
-v9), and they have to be read as a sequence. **0029 is the one in
-force**; read it first and read the other two for why.
+| # | Decision | Status |
+|---|----------|--------|
+| [0001](0001-platform-and-tech-stack.md) | Expo (React Native) and TypeScript, chosen over a web app, Flutter, or native Swift and Kotlin | Accepted |
+| [0002](0002-data-model-and-persistence.md) | Local SQLite schema for the taxonomy, diagnostics, goals, tasks and grades | Accepted |
+| [0003](0003-scoring-and-weight-derivation.md) | First weight formula, rounding, overrides, and pricing tasks by rank | Accepted; §1 amended by 0028 |
+| [0004](0004-grade-lifecycle-and-aggregation.md) | When a day closes, day kinds, and weekly and monthly totals | Accepted; §2 superseded by 0014 |
+| [0005](0005-diagnostic-snapshots-and-history.md) | Monthly diagnostic, snapshots that never destroy data, measured bubble size | Accepted |
+| [0006](0006-task-and-goal-recommendations.md) | Suggestions come from a curated library shipped with the app | Accepted |
+| [0007](0007-goal-lifecycle.md) | Goal states, the three ways to complete a goal, achievements | Accepted |
+| [0008](0008-contentment-calibration.md) | Weekly contentment check-in; suggestions apply only when confirmed | Accepted |
+| [0009](0009-spontaneous-activities.md) | Logging unplanned activities and how they are credited | Accepted; §3 amended by 0023 |
+| [0010](0010-notifications-and-reminders.md) | One daily reminder, generic copy, nothing personal on the lock screen | Accepted |
+| [0011](0011-onboarding-and-first-run.md) | The first-run flow; the first diagnostic is required | Accepted |
+| [0013](0013-crash-reporting-and-telemetry.md) | No telemetry; crashes are logged on the device and sent only by the user | Accepted |
+| [0014](0014-partial-credit.md) | Tasks can opt in to partial completion in 25% steps | Accepted |
+| [0015](0015-metric-linked-goals.md) | Goals that track a number or a habit streak | Accepted |
+| [0019](0019-multi-unit-tasks.md) | One task can serve up to three units | Accepted |
+| [0020](0020-backup-cryptography-and-export-exemption.md) | Backups use only Apple's cryptography, which keeps the app export-exempt; iOS only | Accepted |
+| [0021](0021-areas-are-presentational.md) | Life areas affect colour and grouping, never scores | Accepted |
+| [0022](0022-satisfaction-is-rated-not-ranked.md) | Priority is ranked; satisfaction is rated 1–10 | Accepted |
+| [0023](0023-planned-work-is-what-pays.md) | Unplanned credit is capped; only your own plan pays above 100 | Accepted |
+| [0024](0024-day-planning-is-intention.md) | Planning a task onto a day is an intention, not an obligation | Accepted; §1 reopened by 0036, §2 withdrawn by 0029 |
+| [0025](0025-communal-units-are-dimensions.md) | The three Relationships units are tagged onto other work, not given tasks | Accepted; amended by 0027 |
+| [0026](0026-task-size-and-day-load.md) | Optional task sizes, used for planning and never for pricing | Accepted |
+| [0027](0027-coverage-decides-the-ceiling.md) | Two scoring bands; units can be taken out of the plan | §§1–3 superseded by 0029 |
+| [0028](0028-priority-is-the-only-input.md) | Weights come from priority alone, flattened to a 2:1 spread | Accepted; §3 superseded by 0029 |
+| [0029](0029-a-day-is-the-fraction-you-got-through.md) | A day is scored on the fraction of its due work done (90 planned + 10 unplanned) | Accepted; **current scoring model** |
+| [0030](0030-goals-have-conditions.md) | Goals can list parallel conditions, each with its own tasks | Accepted |
+| [0031](0031-the-semester-score.md) | A term-length score for school | **Withdrawn** |
+| [0032](0032-the-commitment-band.md) | On days with commitment work, commitments get their own share of the day | Accepted; rebuilt on 0029 |
+| [0033](0033-windows-and-pools.md) | The day is divided into windows; unfinished work carries forward | Accepted |
+| [0034](0034-schedule-mode.md) | A separate "schedule mode" for students | **Withdrawn** |
+| [0035](0035-commitments-are-custom-units.md) | Commitments (school, work, a club) are custom units with sub-commitments | Accepted; amended by 0038 |
+| [0036](0036-granularity-is-the-users.md) | Any task may have a clock time; none requires one | Accepted; events excepted by 0038 |
+| [0037](0037-rest-days.md) | A day with nothing due becomes a rest day worth 70 | Accepted |
+| [0038](0038-events.md) | Events: timed tasks such as classes and shifts | Accepted |
 
-- **0027** fixed a day that could score 112, with two bands allocated
-  separately and a constant denominator of 100. It also made a plan's
-  coverage decide its ceiling.
-- **0028** withdrew that ceiling — every daily task done pays 80 at any
-  coverage — removed satisfaction from weight derivation, and flattened
-  the spread between units to 2:1. **§§1–2 are still in force**; §3 is
-  not.
-- **0029** replaced the line between the bands. It ran between *daily*
-  and *weekly*, which made a genuinely weekly commitment worth a
-  fraction of a daily one; it now runs between *planned* and
-  *unplanned*, at 90 / 10, and a day is scored on the fraction of its
-  actually-due work that got done. It is the first of the three to say
-  what a day *is* rather than how its points are divided, and the only
-  one that withdraws ADR-0024 §2 so the grade can see a weekday pin.
+## Reading guide
 
-Between them they amend ADR-0003 §§1/5/6, ADR-0008 §1, ADR-0022 §1,
-ADR-0023 §1, ADR-0024 §2 and ADR-0025 §§1–5. Read 0029 before touching
-anything that prices a task or grades a day. 0027 takes 0026's number
-out of order because the 112-point day would not wait for the load
-meter.
+**Start with 0029 for scoring.** 0027, 0028 and 0029 rewrote the scoring
+engine in sequence (formula versions 7, 8 and 9), and each changed the
+one before:
 
-**Four formulas in nine days is more churn than this engine should
-take.** v7 landed on the 18th; v8 and v9 both landed on the 26th, out
-of one conversation. 0029's Consequences commits to the obvious
-correction: **the next change to this engine waits for a fortnight of
-use.** No window in the calibration experiment (ADR-0008) currently
-spans a single formula.
+- **0027** fixed a bug where a day could score 112, and made a unit with
+  no tasks leave its points unearned.
+- **0028** removed satisfaction from the weight formula and narrowed the
+  gap between the highest and lowest unit to 2:1. Its §§1–2 still apply.
+- **0029** replaced the split between daily and weekly work with a split
+  between planned (90) and unplanned (10) work, and scored each day on
+  the work actually due that day. It is the model in force.
 
-**0014, 0026 and 0031–0036 are the commitments work**, drafted
-together across one long session on 2026-09-08..11, built over the
-following three weeks, and **accepted 2026-10-01**. It was built on a
-branch beside the scoring rewrite above and met it the same day: its
-own three ADRs numbered 0028–0030 collided with main's and were
-renumbered **0034, 0035 and 0036** (schedule mode, commitments are
-custom units, granularity is the user's) — a file rename and nothing
-else; the bodies are as accepted. Its formulas, numbered v8–v11 on the
-branch, became one: **formula v10**, the commitment band on v9's day. Several carry
-dated amendments from that building — the code showed where the
-decision as written was incomplete or wrong — so read each through to
-its action items. Read them in this order:
+Three formula changes in nine days was too much churn for an engine
+that is meant to be calibrated against real use, so 0029 commits to
+leaving the formula alone for at least a fortnight of use before the
+next change.
 
-1. **[0035](0035-commitments-are-custom-units.md)** — a commitment is a
-   custom `life_unit` in two levels, not a goal and not a parallel
-   model. It also carries the measured finding that forced the whole
-   design: thirteen non-daily tasks in a weight-12 unit price at
-   `1,1,1,1,1,1,1,1,0,0,0,0,0` — **five worth literally zero** — which
-   is the edge ADR-0027 named and parked.
-2. **[0032](0032-the-commitment-band.md)** — on days with scheduled
-   commitment work, the band (10–60) is that share of the whole day
-   and ADR-0029's 90/10 is scaled into the rest. The first
-   date-dependent split in the app's history. **Formula v10** (v8–v11
-   in its own text, which predates the merge): off-schedule commitment
-   work pays its scheduled-day worth, uncapped, and an early session
-   stands in for the next one. Read ADR-0029 first.
-3. **[0033](0033-windows-and-pools.md)** — the day divides into
-   windows, work carries forward, and a window may hold a pool of up to
-   three equal-priced options.
-4. **[0036](0036-granularity-is-the-users.md)** — **the reopening
-   ADR-0024 §1 demands.** Any task may carry a clock time; part-of-day
-   stays the default, and that default is now load-bearing.
-5. **[0026](0026-task-size-and-day-load.md)** and
-   **[0014](0014-partial-credit.md)** — two reserved slots, both
-   filled ahead of their stated triggers because this design needed
-   them. Each records that, and why it proceeded anyway. **A third
-   would be a signal.**
+**Then the commitments work, in this order:** 0035 (the data model),
+0032 (scoring, formula v10), 0033 (windows), 0036 (clock times), then
+0026 and 0014. These were drafted together in September 2026 and
+accepted on 2026-10-01. They were written on a branch alongside the
+scoring rewrite, so three of them were renumbered to 0034–0036 when the
+branch merged; only the file names changed. 0035 contains the
+measurement that motivated the design: thirteen non-daily tasks in a
+unit worth 12 points priced at `1,1,1,1,1,1,1,1,0,0,0,0,0`, so five
+were worth nothing.
 
-**[0034](0034-schedule-mode.md) and [0031](0031-the-semester-score.md)
-are withdrawn**, never accepted — the first because generalising
-commitments left nothing school-shaped to hide behind a mode, the
-second because a term-length score needed a term and terms did not
-survive generalisation. Both keep their bodies as the record.
+**Withdrawn:** 0034 (schedule mode) became unnecessary once commitments
+were generalised beyond school, and 0031 (the semester score) needed a
+school term, which the general model does not have. Neither was ever
+accepted.
 
-The working-out, including what is measured against the engine versus
-hand-computed, is in
+The design notes behind the commitments work, including which numbers
+were measured against the engine and which were worked out by hand,
+are in
 [design/commitments-and-the-day.md](../design/commitments-and-the-day.md).
-The surface detail is in
-[design/hour-grid-day-view.md](../design/hour-grid-day-view.md).
-
-## Work not tracked by any action item
-
-Each ADR's own action items are the checklist for that decision. These
-three gaps are **accepted decisions with no unchecked box anywhere**,
-because they surfaced as parentheticals inside completed items. Recorded
-here so they stop being invisible.
-
-- ~~**The monthly review ritual is unbuilt.**~~ **Built 2026-08-19 as a
-  checkpoint rather than a ceremony** (ADR-0002 decision 5, amended).
-  Portfolio carries the month's grade, the days behind it, and what the
-  month held, above the diagnostic's re-run entry — which until then
-  existed only behind an empty state, so the loop could not be run
-  twice. `loadMonthGrade` has its first caller. The original wording
-  follows, for the record: ADR-0002 decision 5 (as
-  amended by ADR-0005) defines it as one ceremony: diagnostic → new
-  weights beside old overrides → settle goal statuses → adjust tasks →
-  monthly grade and achievements. Every piece it needs exists and
-  `loadMonthGrade` still has no caller. It is the single largest unbuilt
-  thing in the product, and it is the landing place ADR-0003 §2's
-  "unearnable points" nudge and ADR-0005 §2's carry-over prompts were
-  both designed to appear in.
-- ~~**Nothing reads the life log back.**~~ **Built 2026-08-19**: `db/log.ts`
-  is the query side, and Log replaced Settings in the tab bar. Journals,
-  photos, achievements and flagged days now come back, grouped by month,
-  memories ahead of metrics. The original wording follows: `journal_entry`, `photo`, and
-  `achievement` rows are written and never queried outside the day they
-  belong to — `achievement` is insert-only, touched by nothing but
-  `goals.ts` and the data reset. Design principle 5 ("the log is a
-  record of a life") has no surface yet, and the look-back views that
-  memory flags and special days feed do not exist.
-- ~~**The calendar tint for untouched past days is undecided.**~~
-  **Decided 2026-10-02: leave it as it is.** Henry, looking at it:
-  untouched past days "look fine right now — they don't need a decision
-  or a change." Rest days (ADR-0037) also narrowed it: an empty past day
-  that was ever opened now reads 70 or more. The original wording
-  follows. **The calendar tint for untouched past days is undecided.** ADR-0004's
-  2026-07-26 amendment left it open on purpose: a past day with no row
-  renders blank rather than as its half credit, so a week can read below
-  100% with no visibly imperfect day behind it. Rendering twenty skipped
-  days as a wall of red is the presentation this product avoids, so it
-  needs deciding rather than defaulting — when the monthly review gets
-  built.
 
 ## Planned ADRs
 
-Decisions we know are coming, with the trigger that opens each one.
-Numbers are reserved; write the ADR (copy [template.md](template.md))
-when its trigger fires, not before. None of these blocks starting to
-code.
+Decisions known to be coming. Each number is reserved and gets written
+when its trigger happens.
 
-| # | Title | Trigger — open this ADR when… | Decides |
-|---|-------|-------------------------------|---------|
-| 0012 | Backup service and identity | …cloud backup is being enabled in a real build (ADR-0002 specified the crypto, not the service) | Storage provider for ciphertext, anonymous account/restore model, passphrase-recovery UX, photo-payload handling, retention and cost |
-| 0016 | Live multi-device sync | …a second device becomes a real need (deferred in ADR-0001/0002; UUIDs and soft deletes are the pre-payment) | Sync layer (Turso / PowerSync / snapshot-based), conflict policy, key distribution across devices |
-| 0017 | LLM personalization opt-in | …the curated library starts feeling generic (the signal named in ADR-0006) | Provider, disclosure copy, what's redacted, cost; must re-confirm ADR-0008's contentment-data exclusion |
-| 0018 | Templates and sharing | …the core loop is stable and the vision's extension phase begins | Package format (goals + tasks + guidance), import/export, attribution — and whether a marketplace is still worth it |
+| # | Title | Write it when… | Decides |
+|---|-------|----------------|---------|
+| 0012 | Backup service and identity | cloud backup is enabled in a real build | Where encrypted backups are stored, how restore works without an account, passphrase recovery, cost |
+| 0016 | Multi-device sync | a second device becomes a real need | Sync approach, conflict handling, sharing keys between devices. Since 0020 made the app iOS-only, any second platform would lose the export exemption |
+| 0017 | Opt-in AI personalisation | the curated library starts to feel generic | Provider, disclosure, what is redacted, cost; must keep contentment data excluded (0008) |
+| 0018 | Templates and sharing | the core loop is stable | Package format, import and export, attribution |
 
-**0019–0022 were written ahead of the reserved numbers.** The
-remaining reserved slots stay reserved for the triggers listed above;
-multi-unit tasks, the crypto swap, and the two 2026-08-02 diagnostic
-decisions simply came up first, and renumbering reserved slots to keep
-the sequence tidy would break every reference already pointing at them.
-(0011 and 0013 have since been written — both triggers fired when the
-app went to friends. **0015 followed on 2026-08-16**, its trigger fired
-from an unexpected direction: not manual completion chafing, but a
-request for rough deadlines and retroactive milestones.) **0024–0026
-continue past the reserved block** for the same reason: the 2026-08-16
-scheduling workshop split into three decisions with different evidence
-and different triggers. 0024 and 0025 were accepted that day; 0026
-was filled ahead of its trigger on 2026-09-11 and accepted with the
-commitments work. **Read 0024 first** — 0025 argues that 0024's
-uniform rule is wrong for three of the eighteen units, so it only makes
-sense afterwards.
+**Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
+0038 were written as other decisions came up first; renumbering to fill
+the gaps would break every existing link to them.
 
-**0016's trigger changed.** Multi-device sync was already deferred;
-[ADR-0020](0020-backup-cryptography-and-export-exemption.md) makes the
-app iOS-only, so if that ADR is ever opened it inherits an
-Apple-frameworks-only crypto stack and an export exemption that a
-second platform would forfeit.
-
-Deliberately **not** ADRs: release operations (EAS/TestFlight/store
-listings), testing conventions, and code style — those live in repo
-docs and CLAUDE.md once scaffolding exists.
+**Not ADRs:** release operations ([release.md](../release.md)), testing
+conventions and code style ([AGENTS.md](../../AGENTS.md)).

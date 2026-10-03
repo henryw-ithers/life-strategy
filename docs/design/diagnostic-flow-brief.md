@@ -1,5 +1,9 @@
 # Design Brief — Diagnostic Flow
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+
 > Shaped and confirmed 2026-07-16 via /impeccable shape. Implemented as
 > `apps/mobile/src/app/diagnostic.tsx` with `src/components/number-dial/`
 > and `src/components/diagnostic/`; data layer in `src/db/diagnostic.ts`

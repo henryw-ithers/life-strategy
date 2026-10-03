@@ -1,5 +1,11 @@
 # Design Brief — PortfolioGraph
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../README.md).
+> Since this brief: the taxonomy grew from 16 units to 18, and the areas
+> were renamed (see [vision.md](../../vision.md)).
+
 > Shaped and confirmed 2026-07-16 via /impeccable shape. Implemented as
 > `apps/mobile/src/components/portfolio-graph/` with the dev spike
 > route `src/app/dev/graph.tsx`.

@@ -173,9 +173,9 @@ Steps 1–2 are external and block everything else.
 7. Once approved, enable the **public link** and send it to testers.
    They need the TestFlight app and an Apple ID; nothing else.
 
-Submit an installable build for review early — before onboarding and
-the starter plan are finished. The first build only has to pass review,
-and later builds inherit the approval.
+Submit an installable build for review early, before every feature is
+finished. The first build only has to pass review, and later builds
+inherit the approval.
 
 Credentials: EAS can manage signing automatically. The app schedules
 **local** notifications only, so no APNs push key is needed.

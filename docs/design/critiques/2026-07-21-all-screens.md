@@ -8,6 +8,10 @@ slug: apps-mobile-src-app
 ---
 # Critique — all screens (apps/mobile/src/app), re-run after fixes
 
+> **Design history.** A record of how this was worked out, kept for the
+> reasoning. Some details have changed since; where it disagrees with an
+> ADR, the ADR is correct. See the [documentation map](../../README.md).
+
 ⚠️ DEGRADED: single-context (both sub-agent assessments failed on an API usage-limit error mid-run; re-run performed inline by the primary agent, which authored the six fixes being evaluated — treat this pass as verification-of-fixes rather than a fully independent second opinion)
 
 ## Design Health Score
