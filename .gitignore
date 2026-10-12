@@ -62,6 +62,8 @@ scratch/
 .impeccable/
 apps/mobile/.claude/
 .claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
 
 # Skia's WebAssembly build for the web preview, copied from
 # node_modules on install (scripts/setup-skia-web.mjs).
