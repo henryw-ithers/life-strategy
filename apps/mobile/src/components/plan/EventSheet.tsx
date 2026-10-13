@@ -12,18 +12,17 @@
  * What is stopping a save is said in words under the button rather
  * than left as a greyed button that explains nothing.
  */
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { formatMinutes } from "@glide/scoring";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { eventProblem, type EventInput } from "../../db/events";
-import { spokenDate } from "../../lib/format";
+import { currentLocalDate } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { DayField, TimeField } from "../ui/DateTimeField";
 import { SheetFrame } from "../ui/SheetFrame";
 import { parseWeekdays, type Weekday } from "./planning";
 import { Segmented } from "./Segmented";
@@ -90,7 +89,6 @@ export function EventSheet({
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [picking, setPicking] = useState<"date" | "start" | "end" | null>(null);
 
   const input: EventInput = {
     title,
@@ -104,11 +102,13 @@ export function EventSheet({
     eventProblem(input) ??
     (unitChoice && unitChoice.value.length === 0 ? "Choose where it belongs." : null);
 
-  /** Moving the start keeps the length, as every calendar does. */
+  /** Moving the start keeps the length, as every calendar does. A
+   *  first start brings an hour-long end with it, unless an end was
+   *  already chosen. */
   const pickStart = (m: number) => {
-    const span = start !== null && end !== null ? end - start : 60;
     setStart(m);
-    setEnd(Math.min(1439, m + span));
+    if (start !== null && end !== null) setEnd(Math.min(1439, m + (end - start)));
+    else if (end === null) setEnd(Math.min(1439, m + 60));
   };
 
   return (
@@ -155,28 +155,37 @@ export function EventSheet({
               {repeat === "weekly" ? (
                 <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
               ) : (
-                <TimeRow
+                <PickRow
                   label="Date"
-                  value={date ? spokenDate(date) : null}
                   empty="Pick a day"
-                  onPress={() => setPicking("date")}
+                  onSet={() => setDate(currentLocalDate())}
                   theme={theme}
-                />
+                >
+                  {date !== null ? (
+                    <DayField date={date} onChange={setDate} label="Date" accent={accent} theme={theme} />
+                  ) : null}
+                </PickRow>
               )}
-              <TimeRow
+              <PickRow
                 label="Starts"
-                value={start !== null ? formatMinutes(start) : null}
                 empty="Pick a time"
-                onPress={() => setPicking("start")}
+                onSet={() => pickStart(9 * 60)}
                 theme={theme}
-              />
-              <TimeRow
+              >
+                {start !== null ? (
+                  <TimeField minutes={start} onChange={pickStart} label="Starts" accent={accent} theme={theme} />
+                ) : null}
+              </PickRow>
+              <PickRow
                 label="Ends"
-                value={end !== null ? formatMinutes(end) : null}
                 empty="Pick a time"
-                onPress={() => setPicking("end")}
+                onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
                 theme={theme}
-              />
+              >
+                {end !== null ? (
+                  <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
+                ) : null}
+              </PickRow>
             </View>
 
             <TextInput
@@ -221,82 +230,51 @@ export function EventSheet({
           ) : null}
           <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
 
-          {picking !== null ? (
-            <DateTimePicker
-              value={
-                picking === "date"
-                  ? date
-                    ? new Date(`${date}T12:00:00`)
-                    : new Date()
-                  : minutesToDate(
-                      (picking === "start" ? start : end) ??
-                        (picking === "start" ? 9 * 60 : (start ?? 9 * 60) + 60),
-                    )
-              }
-              mode={picking === "date" ? "date" : "time"}
-              display="spinner"
-              minuteInterval={5}
-              onChange={(_event, next) => {
-                const which = picking;
-                setPicking(null);
-                if (!next || which === null) return;
-                if (which === "date") {
-                  setDate(toLocalDate(next));
-                  return;
-                }
-                const m = next.getHours() * 60 + next.getMinutes();
-                if (which === "start") pickStart(m);
-                else setEnd(m);
-              }}
-            />
-          ) : null}
         </View>
       </SheetFrame>
     </Modal>
   );
 }
 
-/** One "label · value" row that opens a picker. */
-function TimeRow({
+/**
+ * One "label · picker" row. Until it is set, the picker's place holds a
+ * prompt that sets it, because a picker can't show "not chosen yet" and
+ * an event's times are never filled in for you.
+ */
+function PickRow({
   label,
-  value,
   empty,
-  onPress,
+  onSet,
   theme,
+  children,
 }: {
   label: string;
-  value: string | null;
   empty: string;
-  onPress: () => void;
+  onSet: () => void;
   theme: ThemeTokens;
+  /** The picker, or null while unset. */
+  children: React.ReactNode;
 }) {
+  const set = children !== null && children !== undefined;
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${value ?? empty}`}
-      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
-    >
+    <View style={styles.row}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
-      <AppText color={value ? theme.ink : theme.muted} tabular>
-        {value ?? empty}
-      </AppText>
-    </Pressable>
+      {set ? (
+        children
+      ) : (
+        <Pressable
+          onPress={onSet}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${empty}`}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 44, justifyContent: "center" })}
+        >
+          <AppText color={theme.muted}>{empty}</AppText>
+        </Pressable>
+      )}
+    </View>
   );
-}
-
-function minutesToDate(minutes: number): Date {
-  const at = new Date();
-  at.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return at;
-}
-
-function toLocalDate(at: Date): string {
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(
-    at.getDate(),
-  ).padStart(2, "0")}`;
 }
 
 const styles = StyleSheet.create({
