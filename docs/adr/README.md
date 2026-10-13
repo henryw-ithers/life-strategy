@@ -53,7 +53,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0039](0039-work-windows-come-from-your-hours.md) | Windows come from your working hours; suggestions are live and pins are yours | Proposed |
 | [0040](0040-schedules-can-end-skip-and-clear.md) | Repeats can end and skip weeks; Clear today and Away; event location removed | Proposed |
 | [0041](0041-priorities-are-tiers.md) | Priorities are four tiers; satisfaction and the portfolio graph go | Proposed |
-| [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; conditions retired | Proposed |
+| [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; existing goals erased; templates replace the goal library | Proposed |
 | [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Proposed |
 | [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Proposed |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Proposed |

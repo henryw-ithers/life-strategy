@@ -56,12 +56,21 @@ rules out, while a running total of points doesn't.
 
 ### 1. Four kinds of goal
 
-| Kind | Example | Counted from |
-|---|---|---|
-| Times done | Run 30 times by December | Ticks on the linked tasks |
-| Time spent | 40 h of study this term | Each tick's size in hours (0.5, 1, 2), or the time entered with "Took about…" |
-| Points earned | Earn 300 Exercise points this term | A running total of points earned in the unit |
-| Streak | Meditate every day | Days in a row, from `computeStreak` |
+| Kind | Example | What counts | Counted as |
+|---|---|---|---|
+| Times done | Run 30 times by December | One or more tasks you choose | Ticks |
+| Time spent | 40 h of study this term | Tasks you choose, or every task in the unit or commitment | Each tick's size in hours (0.5, 1, 2), or the time entered with "Took about…" |
+| Points earned | Earn 300 Exercise points this term | The whole unit, always | A running total of points earned |
+| Streak | Meditate every day | Exactly one every-day task | Days in a row, from `computeStreak` |
+
+Which tasks count depends on the kind of goal (Henry, 2026-10-13). The
+sheet asks only the question that kind needs. A points goal asks no
+task question at all, and a streak asks for a single task.
+
+A tick counts if its task was linked to the goal when it was ticked.
+Each counted tick is kept as an entry, so unlinking a task later
+doesn't rewrite the goal's history (the reason behind ADR-0015 §2).
+"Every task in the unit" includes tasks added later.
 
 A goal belongs to one unit or commitment and has an optional end date.
 The first three kinds have a target. A streak has none.
@@ -105,60 +114,76 @@ A long press on a done task records how long it took
 (`task_completion.actual_minutes`). Only time goals read it. It never
 changes points.
 
-### 6. Conditions are retired
+### 6. Existing goals are erased
 
-Retired the same way milestones were: the table stays and nothing new
-is written to it. A condition's tasks become the goal's linked tasks,
-and each condition's title is added to the goal's notes, so no text is
-lost.
+Henry, 2026-10-13: goals should "only take the new shape … nobody is
+using the app so I don't care about existing goals, they should be
+erased."
+
+The migration that introduces the four kinds deletes every existing
+goal, along with its progress entries, conditions, milestones and the
+achievements that point at it. Tasks are kept: their `goal_id` and
+`condition_id` are cleared, so they carry on as ordinary unit tasks.
+Restoring an older backup runs the same migration, so its goals are
+erased too.
+
+This knowingly breaks ADR-0002's rule that history isn't destroyed,
+once, because the app has no users whose data it would lose. The
+`goal_condition` and `milestone` tables are dropped rather than
+retired, and the metric kinds `cumulative` and `target`, with manual
+progress entries, go with them.
+
+### 7. Templates replace the goal library
+
+There are only four kinds of goal now, so the curated goal library
+(ADR-0006) is replaced by templates covering them (Henry, 2026-10-13:
+"the library should be replaced by one that has all possible templates
+essentially").
+
+For each unit, and for each kind of commitment, the library offers one
+template per kind that makes sense there. For Exercise, for example:
+
+- Times done: Work out [30] times by [date]
+- Time spent: [20] hours of training by [date]
+- Points earned: Earn [300] Exercise points by [date]
+- Streak: Stretch every day
+
+Each template fills in the kind, the unit and a suggested target. It
+also suggests the tasks that count, taken from the task library, which
+stays as it is. Everything can be changed before saving. "Start from
+scratch" is the same sheet, empty.
 
 ## Consequences
 
 - **Easier.** Every goal shows real progress without typing anything
   in. Goals connect to the weekly plan through suggestions.
 - **Harder.** Goals that track something outside the app (a weight, a
-  savings balance) can't be made as new goals. Counting several tasks,
-  or every task in a unit, reverses ADR-0015 §2's one-task rule (Q2).
+  savings balance) can't be made at all. Existing goals are lost, which
+  is acceptable only because nobody uses the app yet. The goal library
+  has to be rewritten as templates.
 - **Revisit when** people ask for goals the app can't count.
 
 **Amends, on acceptance:**
 
 | ADR | What changes |
 |---|---|
-| ADR-0015 | §1 kinds become the four above. §2 auto-counting widens (Q2) and new manual-entry goals stop (Q3) |
-| ADR-0030 | Conditions retired |
-| ADR-0007 | §1 a plain goal with no measure can no longer be created |
-
-## Still to decide before acceptance
-
-These are left open on purpose, as the new-adr rules ask:
-
-- **Q2. Which tasks count?** ADR-0015 §2 allowed one nominated task, so
-  that changing a goal's task list couldn't silently rewrite its
-  history. The spec lets you pick several tasks, or every task in the
-  unit.
-  - Recommendation: allow several tasks chosen by name, plus "every
-    task in this unit" as an explicit choice. Record each counted tick
-    as a visible entry, as now, so history doesn't change when the list
-    does.
-- **Q3. Existing goals.** Some existing goals track a number you type
-  in, a target reading, or nothing at all.
-  - Recommendation: they keep working as they are, but new goals can
-    only be the four kinds. A plain goal shows "Add a measure" on its
-    screen, with no other prompt.
-- **Library goals.** About 110 goals in the content library use rungs
-  ("Run 1k → 3k → 5k") or manual numbers. Each one needs mapping to a
-  kind, or removing.
-  - Recommendation: map them during the build and drop any that don't
-    fit.
+| ADR-0015 | §1 the kinds become the four above. §2 counting follows the goal's kind, and manual progress entries go |
+| ADR-0030 | Conditions removed |
+| ADR-0007 | §1 a goal must be one of the four kinds. §3 milestones removed |
+| ADR-0006 | §1 the goal half of the library becomes templates. The task library stays |
+| ADR-0002 | Existing goals are deleted once, by migration |
 
 ## Action items
 
 1. [ ] Goal kinds and progress functions in `packages/scoring/src/goals.ts`,
        with tests (EC-36, EC-37, EC-41, EC-51).
-2. [ ] Schema: goal kind and target fields, the goal–task links, and
-       `task_completion.actual_minutes`. Migrate conditions.
-3. [ ] The New goal sheet and goal screen. Remove the condition UI.
-4. [ ] Map or remove the library goals.
+2. [ ] Schema: goal kind, scope and target fields, the goal–task
+       links, and `task_completion.actual_minutes`. A migration erases
+       existing goals and drops `goal_condition`, `milestone` and
+       manual progress entries.
+3. [ ] The New goal sheet (templates, then the questions for that
+       kind) and the goal screen. Remove the condition UI.
+4. [ ] Rewrite the goal library as templates in `docs/content/`, and
+       regenerate it with `npm run content:build`.
 5. [ ] Amend ADR-0007, 0015 and 0030. Update vision.md (Goals) and
        AGENTS.md (Goal, Milestone).

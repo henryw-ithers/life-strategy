@@ -90,7 +90,8 @@ checks this (INV-1).
 | Diagnostic (rank and rate) | Priorities (tiers) | Satisfaction is no longer asked. Old ratings stay in the database |
 | Portfolio graph | Removed | Life shows where your effort went instead (§5.4) |
 | Pool | "Do N of these" on a window | Same scoring rule as ADR-0033 §3 |
-| Goal conditions | Removed | A goal links to tasks directly |
+| Goal conditions, milestones, manual goal metrics | Removed | Existing goals are erased. A goal is one of four types and links to tasks directly |
+| Goal library | Goal templates | One template per goal type for each unit and kind of commitment |
 | Parts of the day as plan slots | Windows | Morning/afternoon/evening stays as a task preference |
 | List / Hours toggle | Removed | Home has one layout |
 | Event location | Removed | Column dropped |
@@ -802,16 +803,26 @@ Weeks that have started can't be skipped (EC-25).
 Goals are optional. Each one has to be built on something the app can
 count:
 
-| Type | Example | Counted from |
-|---|---|---|
-| Times done | Run 30 times by December | Ticks on the linked tasks |
-| Time spent | 40 h of study this term | Each tick's size, or the time you entered when ticking (§5.7) |
-| Points earned | Earn 300 Exercise points this term | A running total of points earned in the unit, never a percentage of the points on offer |
-| Streak | Meditate every day | Days in a row, using the existing `streak.ts` (ADR-0004 §5) |
+| Type | Example | What counts | Counted as |
+|---|---|---|---|
+| Times done | Run 30 times by December | One or more tasks you choose | Ticks |
+| Time spent | 40 h of study this term | Tasks you choose, or every task in the unit or commitment | Each tick's size, or the time you entered when ticking (§5.7) |
+| Points earned | Earn 300 Exercise points this term | The whole unit, always | A running total, never a percentage of the points on offer |
+| Streak | Meditate every day | Exactly one every-day task | Days in a row, using the existing `streak.ts` (ADR-0004 §5) |
 
-For a Times, Time or Points goal you then choose a target, an optional
-end date, the unit or commitment, and which tasks count (existing
-ones, new ones, or every task in the unit).
+Which tasks count depends on the kind of goal, so the sheet asks only
+what that kind needs. A tick counts if its task was linked when it was
+ticked, and each counted tick is kept, so unlinking a task later
+doesn't change past progress.
+
+Making a goal starts from a template. For each unit and each kind of
+commitment, the library has one template per goal type that makes
+sense there (for Exercise: "Work out [30] times by [date]", "[20] hours
+of training", "Earn [300] Exercise points", "Stretch every day"). A
+template fills in the type, unit, a suggested target and the tasks
+that count, all editable. "Start from scratch" is the same sheet,
+empty. These templates replace the old goal library; the task library
+stays.
 
 Streak goals follow the existing streak rules:
 
@@ -837,8 +848,10 @@ Other goal rules:
   summary, not the daily grade.
 - An active goal moves its tasks up slightly in suggestions (§4.3).
 - Goals can be paused, finished early or revised (ADR-0007).
-- Goal conditions are retired. Their tasks become the goal's linked
-  tasks, and their text is added to the goal's notes.
+- Existing goals are erased by the migration, along with their
+  conditions, milestones, progress entries and goal achievements. Their
+  tasks stay as ordinary unit tasks. Nobody uses the app yet, so
+  nothing real is lost (Henry, 2026-10-13).
 
 ### 5.7 New and edit task
 
@@ -1050,7 +1063,7 @@ the phone.
 
 | ID | Case | Behaviour | Test |
 |---|---|---|---|
-| EC-42 | Restoring a backup from before the migration | Old placements and pools are copied to the new tables. Past grades don't change | D + M |
+| EC-42 | Restoring a backup from before the migration | Old placements and pools are copied to the new tables, and the backup's goals are erased. Past grades don't change | D + M |
 | EC-43 | App closed during the weekly pass | Each pin was saved as it was made. The pass starts again at step 1 | M |
 | EC-44 | Clock or time zone changes while the app is open | "Now" is worked out again when the app comes back to the front | M |
 | EC-45 | Reduce Transparency or Increase Contrast | Glass becomes solid and higher-contrast colours are used | M |

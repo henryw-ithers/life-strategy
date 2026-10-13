@@ -60,7 +60,11 @@ matters here.
    each Top unit, plus "Add your own". Nothing is selected for you.
    Not now units are skipped.
 6. **Your first week.** The suggested week. "This is a suggestion. Pin
-   what you want to keep. The rest updates as you go."
+   what you want to keep. The rest updates as you go." One more line
+   explains the score: "You'll get a score out of 100 for how much of
+   each day's plan you do." The score breakdown sheet on Home explains
+   the rest the first time it's opened. This replaces the old method,
+   weights and rhythm screens (Henry, 2026-10-13).
 7. **Notifications.** An optional morning summary, explained before the
    system prompt (ADR-0010). The same screen ends with the one line
    about Support Resources (ADR-0011 §4, ADR-0008). Then Home, at the
@@ -81,8 +85,10 @@ can be skipped, Priorities included.
 - **Easier.** A new user's first Home has real windows and real tasks.
 - **Harder.** The flow now writes commitments, events and hours as
   well as a snapshot, so a partly finished onboarding has more to
-  resume. The method, weights and rhythm screens go, which brings back
-  the problem the 2026-08-18 amendment fixed unless Q3 below covers it.
+  resume. The method, weights and rhythm screens go. Whether one line
+  plus the breakdown sheet explains the score well enough is the thing
+  to watch, since the 2026-08-18 amendment found people lost without an
+  explanation.
 
 **Amends, on acceptance:**
 
@@ -90,19 +96,11 @@ can be skipped, Priorities included.
 |---|---|
 | ADR-0011 | §1 the flow is replaced. §2 the required step becomes Priorities. §3 starter tasks return as tap-to-add chips. §4 and §6 are kept: the privacy and Support Resources lines stay, and a re-run forces nothing |
 
-## Still to decide before acceptance
-
-- **Q3. Explaining the score.** The old method, weights and rhythm
-  screens explained how points work.
-  - Recommendation: one short line on the first-week screen ("You'll
-    get a score out of 100 for how much of each day's plan you do"),
-    and let the score breakdown sheet on Home teach the rest when it's
-    first opened, instead of separate screens.
-
 ## Action items
 
 1. [ ] Rebuild `app/onboarding.tsx` around the seven steps.
 2. [ ] Templates for Student, 9–5 and Shift work: default hours and
        event defaults.
 3. [ ] Starter tasks per unit from the content library.
-4. [ ] Amend ADR-0011.
+4. [ ] A first-open explanation on the score breakdown sheet.
+5. [ ] Amend ADR-0011.
