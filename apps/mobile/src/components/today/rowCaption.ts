@@ -37,22 +37,17 @@ export interface CaptionTask {
   kind?: "task" | "event";
   startMinute?: number | null;
   endMinute?: number | null;
-  location?: string | null;
 }
 
 /**
- * An event's line: its time and, if it has one, its place —
- * "9:00–11:00 · Room 101". What you need to turn up, and nothing that
- * counts.
+ * An event's line: its time, "9:00–11:00". What you need to turn up,
+ * and nothing that counts. Events have no place since ADR-0040 §7.
  */
 export function eventCaption(task: CaptionTask): string | null {
   if (task.kind !== "event") return null;
-  const time =
-    task.startMinute != null && task.endMinute != null
-      ? `${formatMinutes(task.startMinute)}–${formatMinutes(task.endMinute)}`
-      : null;
-  const parts = [time, task.location ?? null].filter((p): p is string => !!p);
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return task.startMinute != null && task.endMinute != null
+    ? `${formatMinutes(task.startMinute)}–${formatMinutes(task.endMinute)}`
+    : null;
 }
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;

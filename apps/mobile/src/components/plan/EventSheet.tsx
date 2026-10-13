@@ -37,7 +37,6 @@ export interface EventSheetValue {
   oneOffDate: string | null;
   startMinute: number | null;
   endMinute: number | null;
-  location: string | null;
   notes: string | null;
 }
 
@@ -90,7 +89,6 @@ export function EventSheet({
   const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
-  const [location, setLocation] = useState(initial?.location ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [picking, setPicking] = useState<"date" | "start" | "end" | null>(null);
 
@@ -100,7 +98,6 @@ export function EventSheet({
     date: repeat === "once" ? date : null,
     startMinute: start,
     endMinute: end,
-    location,
     notes,
   };
   const problem =
@@ -182,14 +179,6 @@ export function EventSheet({
               />
             </View>
 
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor={theme.muted}
-              accessibilityLabel="Location"
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body }]}
-            />
             <TextInput
               value={notes}
               onChangeText={setNotes}

@@ -73,8 +73,6 @@ export interface PlanTask {
   oneOffDue: string | null;
   /** `event` for a time you attend (ADR-0038); otherwise `task`. */
   kind: "task" | "event";
-  /** Where an event happens; null otherwise. */
-  location: string | null;
   /** Minutes from local midnight, or null for no clock time
    *  (ADR-0036 §1). Presentation and fit only; never scored. */
   startMinute: number | null;
@@ -264,7 +262,6 @@ export async function loadPlan(): Promise<PlanData> {
       size: t.size,
       allowsPartial: t.allowsPartial,
       kind: t.kind,
-      location: t.location,
       goalId: t.goalId,
       pointValue: t.pointValue,
       rankInUnit: rank,
@@ -1087,7 +1084,7 @@ export async function addEvent(
   if (id) {
     await db
       .update(task)
-      .set({ location: optionalText(input.location), description: optionalText(input.notes) })
+      .set({ description: optionalText(input.notes) })
       .where(eq(task.id, id));
   }
   return id;
@@ -1118,7 +1115,6 @@ export async function updateEvent(
         oneOffDue: null,
         ...clockTimes(input.startMinute, input.endMinute),
         kind: "event",
-        location: optionalText(input.location),
         description: optionalText(input.notes),
       })
       .where(eq(task.id, taskId));

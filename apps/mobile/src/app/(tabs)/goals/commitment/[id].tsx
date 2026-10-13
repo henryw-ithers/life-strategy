@@ -491,7 +491,6 @@ export default function CommitmentScreen() {
                         oneOffDate: eventSheet.oneOffDate,
                         startMinute: eventSheet.startMinute,
                         endMinute: eventSheet.endMinute,
-                        location: eventSheet.location,
                         notes: eventSheet.notes,
                       }
                 }

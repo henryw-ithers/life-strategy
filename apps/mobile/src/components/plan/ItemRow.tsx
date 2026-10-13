@@ -28,7 +28,6 @@ export interface ListedItem {
   endMinute: number | null;
   oneOffDate: string | null;
   oneOffSize: string | null;
-  location: string | null;
 }
 
 /** "Mon, Wed · 09:00–11:00", or "Tuesday, 4 November · 09:00–11:00". */
@@ -80,14 +79,14 @@ export function ItemRow({
         { opacity: pressed ? 0.6 : 1 },
       ]}
       accessibilityRole={onPress ? "button" : "text"}
-      accessibilityLabel={[item.title, detail, item.location].filter(Boolean).join(", ")}
+      accessibilityLabel={[item.title, detail].filter(Boolean).join(", ")}
     >
       <View style={styles.grow}>
         <AppText color={theme.ink} numberOfLines={1}>
           {item.title}
         </AppText>
         <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
-          {[detail, item.location].filter(Boolean).join(" · ")}
+          {detail}
         </AppText>
       </View>
       {onPress ? (

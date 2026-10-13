@@ -122,16 +122,11 @@ describe("events (ADR-0038)", () => {
       kind: "event",
       startMinute: 9 * 60,
       endMinute: 11 * 60,
-      location: "Room 101",
       ...over,
     });
 
-  it("says when and where, not a count", () => {
-    expect(rowCaption(event())).toBe("09:00–11:00 · Room 101");
-  });
-
-  it("says just when, with no place", () => {
-    expect(rowCaption(event({ location: null }))).toBe("09:00–11:00");
+  it("says when, not a count", () => {
+    expect(rowCaption(event())).toBe("09:00–11:00");
   });
 
   it("still leads with done ahead, which is the less obvious fact", () => {

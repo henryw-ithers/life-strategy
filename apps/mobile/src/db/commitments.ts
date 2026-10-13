@@ -334,7 +334,6 @@ export interface UnitItem {
   /** A one-off's planned day; null for a repeating item. */
   oneOffDate: string | null;
   oneOffSize: "quick" | "normal" | "big" | null;
-  location: string | null;
   notes: string | null;
 }
 
@@ -392,7 +391,6 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
     endMinute: t.endMinute,
     oneOffDate: t.oneOffDate,
     oneOffSize: t.oneOffSize,
-    location: t.location,
     notes: t.description,
   });
   const own = subsOn ? [] : rows.filter((t) => t.unitId === id).map(item);
