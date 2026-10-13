@@ -50,6 +50,13 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0036](0036-granularity-is-the-users.md) | Any task may have a clock time; none requires one | Accepted; events excepted by 0038 |
 | [0037](0037-rest-days.md) | A day with nothing due becomes a rest day worth 70 | Accepted |
 | [0038](0038-events.md) | Events: timed tasks such as classes and shifts | Accepted |
+| [0039](0039-work-windows-come-from-your-hours.md) | Windows come from your working hours; suggestions are live and pins are yours | Proposed |
+| [0040](0040-schedules-can-end-skip-and-clear.md) | Repeats can end and skip weeks; Clear today and Away; event location removed | Proposed |
+| [0041](0041-priorities-are-tiers.md) | Priorities are four tiers; satisfaction and the portfolio graph go | Proposed |
+| [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; conditions retired | Proposed |
+| [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Proposed |
+| [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Proposed |
+| [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Proposed |
 
 ## Reading guide
 
@@ -102,8 +109,12 @@ when its trigger happens.
 | 0017 | Opt-in AI personalisation | the curated library starts to feel generic | Provider, disclosure, what is redacted, cost; must keep contentment data excluded (0008) |
 | 0018 | Templates and sharing | the core loop is stable | Package format, import and export, attribution |
 
+**The windows redesign (October 2026)** is 0039–0045, written from
+[design/redesign-spec.md](../design/redesign-spec.md). Read 0039 first;
+0041 and 0044 together make formula v11.
+
 **Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
-0038 were written as other decisions came up first; renumbering to fill
+0045 were written as other decisions came up first; renumbering to fill
 the gaps would break every existing link to them.
 
 **Not ADRs:** release operations ([release.md](../release.md)), testing

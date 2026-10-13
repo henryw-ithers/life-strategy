@@ -379,10 +379,11 @@ its window or day ends, or on a day you clear, moves on:
 - A finished window collapses to what was done: "✓ 2 done".
 
 A carried task is paid on the day you do it, at what its original day
-would have paid, uncapped (ADR-0037 §3, ADR-0032 §4). Carrying is only
-about where the task appears. Nothing is saved, the original day's
-grade doesn't change, and nothing counts how much was carried
-(ADR-0033 §2, P7, P8).
+would have paid. That pay sits outside the 100 cap, as early work does
+(ADR-0037 §3), and the task isn't added to the later day's load, so it
+can't count twice. Carrying is only about where the task appears.
+Nothing is saved, the original day's grade doesn't change, and nothing
+counts how much was carried (ADR-0033 §2, P7, P8).
 
 Where carrying stops:
 
@@ -391,6 +392,7 @@ Where carrying stops:
 - Repeating tasks move forward until the end of the week. A task meant
   to happen 3 times a week starts at 0 of 3 again next week, and last
   week's leftovers don't follow it (ADR-0029 §3).
+- Tasks with a clock time carry like any other task.
 - Events don't carry. They happen at a set time.
 
 A pin holds a task in its window while that window is current or
@@ -420,7 +422,7 @@ Events still show above the list in time order.
 | Rest day | Automatic when nothing is due (ADR-0037) | Shown | None due | 70 plus activities |
 | Special | You set it, before or after | Shown | Shown | Yes, with the special-day bonus |
 | Day off | You set it, before or after | Hidden | Hidden | No |
-| Cleared | Home ••• → Clear today | Hidden | Skipped | Yes |
+| Cleared | Home ••• → Clear today | Hidden | Skipped | Yes, unless nothing is left due; then no |
 | Away | Settings → Time away | Hidden | Not due | No |
 
 **Clear today.** Home ••• → Clear today opens a sheet:
@@ -444,8 +446,10 @@ What clearing does:
   points. If none was ticked, there's no commitment share today.
 - Life work due today is still due, and the day is graded as a normal
   day.
-- If nothing is left due, the day becomes an automatic rest day (70)
-  under ADR-0037 (EC-29).
+- If nothing is left due, the day isn't graded, like a day off. It
+  never becomes a rest day: a rest day needs a day that had nothing due
+  when it started, so emptying a day can't score 70 (EC-29). The same
+  goes for skipping today's last event on the day.
 - A cleared day still counts as one of the days the week's flexible
   work is spread across.
 - The words "cleared", "sick" and "bad day" don't appear in the app.
@@ -811,7 +815,9 @@ ones, new ones, or every task in the unit).
 
 Streak goals follow the existing streak rules:
 
-- Only every-day tasks can have one. A task done 3 times a week has no
+- Only every-day tasks can have one, never events, since a run ending
+  on an unticked event would count events not attended (ADR-0038). A
+  task done 3 times a week has no
   days in a row, and counting weeks in a row would compare what you did
   with what you planned.
 - One missed day ends the run. Days off and Away days are skipped, and
@@ -1007,7 +1013,7 @@ the phone.
 | EC-21 | "For 12 weeks" starting mid-week | The first partial week is week 1. The series ends after week 12 | U |
 | EC-22 | Ticking early the week before a skipped week | The tick takes the value of the next real session | U |
 | EC-23 | A fortnightly life task in a skipped commitment week | Unaffected. Commitment skips cover that commitment's events and tasks only | U |
-| EC-24 | A skip leaves a day with nothing due | That day can become an automatic rest day | U |
+| EC-24 | A skip leaves a day with nothing due | Skipped ahead of time: the day can be a rest day. Skipped on the day: the day isn't graded | U |
 | EC-25 | Skipping a week that has started | Not allowed for the whole week. Single events from today on can still be skipped | D |
 | EC-26 | A series whose end date has passed | Keeps its history and is archived the next day | D |
 | EC-27 | "This and following" on a series with skips | Skips from that date on move to the new series | D |
@@ -1017,7 +1023,7 @@ the phone.
 | ID | Case | Behaviour | Test |
 |---|---|---|---|
 | EC-28 | Clear today, then Undo | Everything comes back. Ticks made in between stay | D |
-| EC-29 | Clearing after ticking an event, or clearing a day with only commitment work | Ticked commitment work keeps its share and points. With nothing left due, the day is an automatic rest day (70) | U |
+| EC-29 | Clearing after ticking an event, or clearing a day with only commitment work | Ticked commitment work keeps its share and points. With nothing left due, the day isn't graded and never becomes a rest day | U |
 | EC-30 | Away for part of a week | Flexible runs are spread over the other days. If none are left, they lapse | U |
 | EC-31 | Away from today after ticking things | Today is still graded and away starts tomorrow. The form defaults to tomorrow | D |
 | EC-32 | Editing an away range later | Past away days can be changed back within 14 days | D |
@@ -1066,7 +1072,11 @@ the phone.
 | INV-7 | Goal progress never feeds a daily grade |
 | INV-8 | The commitment share uses only the day's working hours as they stood at the start of the day, plus its commitment events and commitment task sizes. It is fixed once the day's grade settles |
 
-### 8.2 Changes (formula v11)
+### 8.2 Changes (the next formula version)
+
+`FORMULA_VERSION` is 10 in the code. ADR-0032 §4's 2026-10-01
+amendment names a version 11 that hasn't shipped, so this is 11 or 12,
+whichever ships second.
 
 **Tier weights.** Each tier has a base value. Within a tier, the
 first unit gets ×1.1 and the last ×0.9, with a single unit at ×1.0.
@@ -1080,12 +1090,16 @@ plan.
 | Background | 0.6 | about 3.9% |
 | Not now | 0 | 0 (out of the plan, §5.4.1) |
 
-This replaces the rank flattening in ADR-0028 (`WEIGHT_SPREAD`). The
-spread is wider because tiers are coarser than a full ranking.
-`WEIGHT_SPREAD` existed so no unit was too small to hold a worthwhile
-task. Background is now the smallest at about 3.9%, close to the
-current bottom unit's 4. If every unit is put in Not now, Priorities
-won't save and says "Keep at least one unit in your plan".
+The table shows tier averages. The last Background unit in that
+example gets about 3.5%. This replaces the rank flattening in ADR-0028
+(`WEIGHT_SPREAD`), and the spread is wider than its 2:1, about 3:1
+here. With most units in Top, a Background unit can drop to about 2.3%.
+Henry chose no floor (2026-10-13). If every unit is put in Not now,
+Priorities won't save and says "Keep at least one unit in your plan".
+
+A snapshot is saved when you tap Done on Priorities, not on each drag.
+Overrides are kept, and a short review lists any whose recommended
+value changed.
 
 **Retiring satisfaction.** The ADR has to cover three things.
 `unitProfile` reads satisfaction to choose suggestions and will use
@@ -1099,6 +1113,8 @@ whether the plan is working.
     band    = Σ share_c, kept between 10% and commitmentBandMax, proportions kept
     no working hours that day → band = commitmentBandMax
     an override replaces share_c with the user's figure
+    "scheduled" tasks are due today by their own schedule; pins and
+    carried tasks never count
 
 This fits the existing commitment model (ADR-0032, ADR-0035).
 Commitment tasks are paid from the commitment's own pool, not from the
@@ -1107,21 +1123,26 @@ weight", meaning no weight in the units' pool; that wording will be
 made clearer with the ADRs. What's new is that working hours and task
 sizes now set the size of the pool.
 
-Unchanged: the 90/10 split, the unplanned cap, rest days, extra runs,
-and paying early or late work what its planned day would have paid.
+Unchanged: the 90/10 split, the unplanned cap and extra runs. Rest
+days change only in that a day emptied on the day itself isn't one
+(§4.7). Late work is now paid the way early work already was (§4.5).
 
 ## 9. ADRs needed
 
 | ADR | Topic | Supersedes or amends |
 |---|---|---|
-| 0039 | Work windows, suggestions and day edits | Supersedes 0033 §§1, 2, 4, 5. Amends 0024 (§3 grouping, §4 planning pass), 0026 §3 (fitting is now used), 0036 (a pin isn't a clock time) |
-| 0040 | Repeat bounds, skips, carrying forward, Clear today, Away | Amends 0029 §3 (display only), 0032 §1, 0037 §1 |
-| 0041 | Priorities as tiers (formula v11) | Amends 0022 (satisfaction no longer asked), 0027 §2 (Not now), 0028 |
-| 0042 | Measurable goals | Amends 0030 (conditions retired), 0015, 0007 |
-| 0043 | Navigation, Liquid Glass and the Prism style | Amends 0021 (user colours), DESIGN.md, the tab bar |
-| 0044 | Commitment share from working hours (formula v11) | Amends 0032 |
-| — | Event location removed | Amends 0038 §1 |
-| — | Onboarding | Amends 0011 |
+Drafted on 2026-10-13 as Proposed. Each ADR lists exactly what it
+amends.
+
+| ADR | Topic |
+|---|---|
+| [0039](../adr/0039-work-windows-come-from-your-hours.md) | Work windows, suggestions, pins, day edits, carrying forward, the weekly pass |
+| [0040](../adr/0040-schedules-can-end-skip-and-clear.md) | Repeat bounds, skipped weeks, Clear today, Away, event location removed |
+| [0041](../adr/0041-priorities-are-tiers.md) | Priorities as tiers; satisfaction and the graph removed |
+| [0042](../adr/0042-goals-are-measured-by-the-app.md) | Goals the app can count, including streaks; conditions retired |
+| [0043](../adr/0043-the-app-uses-native-ios-controls.md) | Native controls, Liquid Glass, Prism, user colours, EAS builds |
+| [0044](../adr/0044-a-commitment-share-comes-from-your-day.md) | A commitment's share from your working day, with an override |
+| [0045](../adr/0045-onboarding-builds-a-first-week.md) | Onboarding that sets up a first week |
 
 ## 10. Open questions
 
