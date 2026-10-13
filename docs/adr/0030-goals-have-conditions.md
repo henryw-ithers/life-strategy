@@ -54,6 +54,10 @@ a time (ADR-0007 §3, ADR-0015 §5).
 
 ## Decision
 
+> **Superseded 2026-10-13 by
+> [ADR-0042](0042-goals-are-measured-by-the-app.md).** Conditions are
+> removed and the table is dropped. A goal links to its tasks directly.
+
 ### 1. A condition is a goal's parallel prerequisite
 
 `goal_condition` is a new table: `id`, `goal_id`, `title`, `sort_order`,

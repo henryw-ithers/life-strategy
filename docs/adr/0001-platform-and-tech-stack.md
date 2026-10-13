@@ -72,6 +72,11 @@ constraint.
 
 ## Decision
 
+> **Amended 2026-10-13 by
+> [ADR-0043](0043-the-app-uses-native-ios-controls.md).** The app no
+> longer runs in Expo Go. It is still Expo and React Native, built as an
+> EAS development build for testing and as before for TestFlight.
+
 **Expo (React Native) with TypeScript**, ~~targeting iOS and Android
 from one codebase~~ **targeting iOS only** — amended by
 [ADR-0020](0020-backup-cryptography-and-export-exemption.md)

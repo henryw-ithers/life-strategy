@@ -1,6 +1,6 @@
 # ADR-0039: Work windows come from your hours
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -75,9 +75,7 @@ Sheeran, 2006). The full behaviour is in
   was rejected: it moves things people placed, and it needs durations
   and deadlines up front (X1 and X3 in the brief).
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Working hours are a weekly template
 

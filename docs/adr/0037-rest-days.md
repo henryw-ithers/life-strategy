@@ -61,6 +61,11 @@ Henry, 2026-10-01:
 
 ### 1. Automatic, and only on a day that asks nothing
 
+> **Amended 2026-10-13 by
+> [ADR-0040](0040-schedules-can-end-skip-and-clear.md).** A rest day
+> needs a day that had nothing due when it started. A day emptied on the
+> day itself is ungraded instead.
+
 A day **asks nothing** when, measured from the days before it like the
 load itself:
 
@@ -112,6 +117,11 @@ activities is 100; one with work done ahead can pass 100, as a day with
 extra runs can.
 
 ### 3. Early work pays what its planned day would have
+
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md) §8.** Late work
+> is paid the same way: what its planned day would have paid, outside
+> the cap.
 
 Every piece of early work is worth **what it would have paid on the day
 it was planned for**, priced as that day stands before today — the task

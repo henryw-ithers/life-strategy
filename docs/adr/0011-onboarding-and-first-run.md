@@ -82,6 +82,13 @@ care about it, and adds a screen between install and payoff.
 
 ## Decision
 
+> **Amended 2026-10-13 by
+> [ADR-0045](0045-onboarding-builds-a-first-week.md).** The flow is
+> replaced by seven steps: welcome, Priorities (required), commitments,
+> working hours, a few tasks, the first week, notifications. Starter
+> tasks return as tap-to-add chips. §4's privacy and Support Resources
+> lines and §6's re-run rules are kept.
+
 ### 1. The flow
 
     welcome (2 screens) → diagnostic → first tasks → notification ask → done

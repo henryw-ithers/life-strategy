@@ -193,6 +193,11 @@ mechanic to arrive by accident.
 
 ### 3. The checklist regroups by part of day
 
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md).** Windows
+> replace part-of-day grouping. Part of day stays as a task's
+> preference.
+
 Sections become **Morning · Afternoon · Evening · Anytime**, replacing
 "Every day" and "This week." Rules:
 
@@ -306,6 +311,11 @@ Sections become **Morning · Afternoon · Evening · Anytime**, replacing
 > needs.
 
 ### 4. The weekly planning pass is where planning happens
+
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md) §11,** which
+> defines the pass: three steps, offered from a time you choose, never
+> mentioned if skipped.
 
 Planning is a **once-a-week surface**, not a per-task interaction
 scattered through the week. It offers the week's outstanding runs and

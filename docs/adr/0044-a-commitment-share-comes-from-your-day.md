@@ -1,6 +1,6 @@
 # ADR-0044: A commitment's share comes from your day
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -53,9 +53,7 @@ commitment's own share.
 - **The commitment's time as a share of your own working day** (chosen).
   It follows the hours you set and counts both events and tasks.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. The default share
 
@@ -123,6 +121,15 @@ This is the next formula version, together with ADR-0041's tier
 weights (see ADR-0041 §2 on whether that is 11 or 12). History is not
 restated, as with every earlier formula change.
 
+### 7. Sub-commitments without a switch
+
+Decided in the design review (2026-10-12: "keep, simplify UI"). The
+split switch (`uses_sub_commitments`) leaves the screen. Adding the
+first sub-commitment splits the commitment, and its own events and
+tasks move into a sub-commitment called General, which can be renamed.
+Removing the last one puts the work back, using the restore rule ADR-0035
+§1 already has. Sub-commitments still price nothing.
+
 ## Consequences
 
 - **Easier.** A new user never has to choose a number. The share
@@ -141,6 +148,7 @@ restated, as with every earlier formula change.
 | ADR-0032 | §1 the share is worked out per day. §2 the user-set size becomes an override. §3 shares between commitments come from time, unless overridden |
 | ADR-0026 | §2 a commitment task's size sets the size of its commitment's share, though never its value against other tasks |
 | ADR-0029 | §2 for commitments only: how much work a day schedules changes how big the commitment's share is. The 18 units are unaffected |
+| ADR-0035 | §1 the split switch is removed; adding or removing sub-commitments splits and un-splits |
 | AGENTS.md | The commitment band invariant is reworded: an automatic share with an override, and "no weight" clarified as no weight in the units' 100 |
 
 ## Action items

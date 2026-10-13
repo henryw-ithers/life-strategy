@@ -20,6 +20,15 @@ grade, and materializing anything a formula produces.
 
 ## Decisions on the open questions
 
+> **Amended 2026-10-13.** Three changes to this ADR's rules, each made
+> once and on purpose. Decision 4: saving priorities keeps weight
+> overrides and lists any whose recommended value changed, instead of
+> resetting them ([ADR-0041](0041-priorities-are-tiers.md) §5). Existing
+> goals are deleted by migration, because nobody used the app yet
+> ([ADR-0042](0042-goals-are-measured-by-the-app.md) §6). The
+> `task.location` column is dropped in a forward migration
+> ([ADR-0040](0040-schedules-can-end-skip-and-clear.md) §7).
+
 1. **Goal-less habit tasks: goals are optional on tasks.** Every task
    requires an SLU; `goal_id` is a nullable foreign key. Habits are
    unit-level maintenance; goals add focus when a finish line exists.

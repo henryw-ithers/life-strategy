@@ -1,6 +1,6 @@
 # ADR-0042: Goals are measured by the app
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -50,9 +50,7 @@ rules out, while a running total of points doesn't.
 - **Goals built on something the app counts** (chosen in the design
   review): times done, time spent, points earned, streak.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Four kinds of goal
 

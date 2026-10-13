@@ -1,6 +1,6 @@
 # ADR-0043: The app uses native iOS controls
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -54,9 +54,7 @@ rules are in [redesign-spec.md](../design/redesign-spec.md) §2.
   rebuilding everything, including the scoring engine. Henry chose to
   keep React Native.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Native where iOS has it
 

@@ -1,6 +1,6 @@
 # ADR-0041: Priorities are tiers
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -51,9 +51,7 @@ the spread can be wider.
 - **Four tiers, with order inside a tier as a fine adjustment** (chosen
   in the design review). About 30 seconds, with every unit placed.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Four tiers
 

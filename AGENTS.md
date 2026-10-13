@@ -21,13 +21,24 @@ cover, check the Planned-ADRs table in the
 [ADR index](docs/adr/README.md) and surface the question rather than
 silently picking an answer.
 
+**The windows redesign is accepted and being built** (ADRs 0039–0045,
+accepted 2026-10-13). The behaviour is specified in
+[docs/design/redesign-spec.md](docs/design/redesign-spec.md), and the
+build runs in phases: Expo upgrade, fixes, native shell, scoring
+engine, data layer, then the screens. The vocabulary and invariants
+below describe the accepted design. Where a phase hasn't landed yet,
+the code still follows the older rule its ADR amends. Change it in the
+phase that owns it, not along the way.
+
 ## Repository layout
 
 npm workspaces monorepo:
 
 - `apps/mobile` — the Expo app (TypeScript, Expo Router, `src/app/`
-  file-based routes). **Expo SDK 54, deliberately pinned** — not the
-  latest; the test iPhone's Expo Go caps there, so check
+  file-based routes). **Expo SDK 54, pinned until Phase 0** of the
+  redesign. The pin existed because the test iPhone's Expo Go capped
+  there; ADR-0043 drops Expo Go for EAS development builds, and Phase 0
+  upgrades the SDK. Until then, check
   [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md) and read the v54 docs
   before writing Expo API code. Database: `expo-sqlite` + Drizzle;
   schema at `src/db/schema.ts`, migrations generated into `drizzle/`
@@ -82,23 +93,27 @@ Use these terms consistently in code, docs, and UI copy:
 | Term | Meaning |
 |------|---------|
 | **SLA** — Strategic Life Area | One of 6 top-level life areas (e.g., Relationships) |
-| **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of diagnosis and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted. **Three of the 18 are diagnosed and *dimensioned* rather than scored directly** — see Motivation kind |
-| **Motivation kind** | `instrumental` or `communal` (ADR-0025 §1). The three Relationships units — Significant other, Family, Friendship — are **communal**: dimensions, not containers. They hold no tasks and cannot be a task's home unit; anything may *tag* them instead, per completion, by press-and-hold. "Autotelic" is editorial only — guidance copy, never a stored value, the same demotion ADR-0021 gave areas |
-| **Diagnostic** | The periodic assessment: a priority **ranking** of all 18 SLUs (stored as a 10…1 `importance` score by `rankToScore`) and a satisfaction **rating** (1–10) per SLU (ADR-0022). **User-facing copy always says "Priority," never "Importance"** — everything on the list is important; the ranking is relative standing. Schema, scoring engine, and formulas keep `importance` as the domain term |
-| **Snapshot** | One saved diagnostic; snapshots form the portfolio history |
-| **Portfolio graph** | Bubble chart: importance (y) × satisfaction (x), bubble size = effort invested |
-| **Weight** | An SLU's share of the 100 daily points, derived from the diagnostic |
-| **Goal** | A specific, measurable, temporary objective within an SLU |
-| **Milestone** | A checkpoint inside a larger goal |
+| **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of priority and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted |
+| **Motivation kind** | `instrumental` or `communal` (ADR-0025 §1). Since ADR-0027 §4 the three Relationships units are ordinary units: they hold tasks and are planned like any other. `motivation_kind` is editorial context only, and tagging a completion with them no longer pays. "Autotelic" is editorial only too |
+| **Priorities** | Where the user sorts the 18 SLUs into four tiers (Top, Important, Background, Not now) and orders them within each (ADR-0041). Replaced the diagnostic's ranking and satisfaction rating; satisfaction is no longer asked. **User-facing copy says "Priority," never "Importance"**; schema and engine keep `importance` as the domain term. Not now is out of the plan: no weight, no tasks |
+| **Snapshot** | One saved set of priorities, written when the user taps Done on Priorities; snapshots form the history |
+| **Effort share** | Each unit's share of all completed work over the last 4 weeks, shown on Life with no target. Replaced the portfolio graph (ADR-0041) |
+| **Weight** | An SLU's share of the 100 daily points, derived from its tier and its order within the tier |
+| **Goal** | Optional. One of four types the app can count: times done, time spent, points earned (a running total) or streak (ADR-0042). Which tasks count depends on the type. Made from templates |
+| **Goal template** | A ready-made goal of one type for a unit or kind of commitment; the goal library is made of these (ADR-0042 §7) |
 | **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight |
-| **Commitment** | A custom `life_unit` (`is_custom`) holding tasks and **sub-commitments** — School, Work, Basketball Club. At most three. Scored from its **own band**, not the 18 units' pool (ADR-0035, ADR-0032) |
-| **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing** — the band divides across eligible *tasks*. A commitment is either **split** into sub-commitments (`uses_sub_commitments`) and holds no work itself, or holds its own work and has none. A split commitment starts with a sub-commitment called **General**, renamable and deletable like any other. Each opens its own screen; hold its row to rename or delete it. Turning the switch off archives them, remembering each task's place; turning it on restores them and puts the work back (ADR-0035 §1 as amended) |
-| **Event** | A time you attend — a class, a shift, a doctor's visit. A task with `kind = 'event'`, a **required** start and end, and an optional location; ticked and paid like any task. "Event" in code and on screen (ADR-0038) |
-| **Window** | A stretch of the day work is placed into: the gaps between commitments where there are any, morning/afternoon/evening where there are not. Gaps under 30 min are *buffer*, not free time. Unfinished work **carries forward** to the window open now — a display rule, never a write; clock-timed tasks stay put (ADR-0033) |
-| **Pool** | Up to three equal-priced candidate tasks in a window, any of which satisfies it. Carries a *planned count* that sets the day's ceiling (ADR-0033) |
+| **Commitment** | A custom `life_unit` (`is_custom`) holding tasks, events and **sub-commitments**: School, Work, Basketball Club. At most three. Scored from its **own share of the day**, not the 18 units' 100 (ADR-0035, ADR-0032, ADR-0044) |
+| **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing**: the share divides across eligible *tasks*. A commitment either holds sub-commitments and no work of its own, or holds its own work and has none. There is no switch: adding the first sub-commitment splits the commitment and moves its work into one called **General**; removing the last one puts the work back (ADR-0035 §1, ADR-0044 §7). Tap a title to rename it |
+| **Event** | A time you attend: a class, a shift, a doctor's visit. A task with `kind = 'event'` and a **required** start and end; ticked and paid like any task. A repeating event can run for N weeks or until a date, and weeks can be skipped (ADR-0038, ADR-0040). No location |
+| **Working hours** | The weekly template of when the user is free to work, set like iOS Sleep schedules: groups of days, each with time ranges (ADR-0039 §1) |
+| **Window** | A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039) |
+| **Gap** | Time between two windows. Implicit, and may be given a name ("Lunch"). Not the same as a rest day |
+| **Suggestion / pin** | Suggestions fill windows live and are never stored. A pin is a task the user placed in a window; the app never moves it while that window is current or upcoming (ADR-0039 §§5–6) |
+| **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3) |
+| **Clear today / Away** | Clear today sets aside today's windows and unticked events; the day is still graded, or ungraded if nothing is left due. Away is a date range of days off (ADR-0040) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |
 | **Grade** | Points earned out of 100 (daily), aggregated weekly/monthly |
-| **Achievement** | Generated by completing a goal/milestone; feeds monthly summaries, never daily grades |
+| **Achievement** | Generated by reaching a goal's target and completing it; feeds monthly summaries, never daily grades |
 | **Contentment check-in** | Weekly 1–10 "how content did you feel?" question used to calibrate grading |
 | **Memory flag** | User mark on a day or activity meaning "worth remembering"; feeds look-back views. Journal entries, photos, and flags stay addable after a grade settles, and since 2026-08-13 notes are editable and deletable and photos removable (ADR-0002 amendment; press and hold in the day record) |
 
@@ -114,13 +129,13 @@ second one. What separates it is its **band**, not its table
 ## Product invariants — do not violate
 
 - Active SLU weights always sum to exactly **100**.
-- Weight derivation reads **priority rank and nothing else**
-  (ADR-0028 §1, formula v8). ADR-0003 §1's satisfaction-gap boost is
-  withdrawn and `GAP_COEFFICIENT` retired. Satisfaction is still
-  diagnosed, stored, plotted, and read by `unitProfile` — it is the
-  measure of whether the plan is working, never an input to it. The
-  rank score is flattened to `WEIGHT_SPREAD` (2) before normalizing, so
-  no unit in the portfolio is too small to hold a task worth having.
+- Weight derivation reads **tier and order within the tier, and
+  nothing else** (ADR-0041). Top, Important and Background have bases
+  of 1.6, 1.0 and 0.6, adjusted from ×1.1 to ×0.9 by order, then scaled
+  to 100. Not now is out of the plan: zero weight, no tasks. There is no
+  floor (Henry, 2026-10-13). Satisfaction is no longer asked; old
+  ratings stay in their snapshots, read-only, and the weekly
+  contentment question is the only check on whether the plan works.
 - Every derived value is user-overridable, and every override still
   displays the recommended value beside it.
 - Daily grades measure consistency, never one-time achievements;
@@ -145,15 +160,20 @@ second one. What separates it is its **band**, not its table
   lapses silently and never returns as a debt; no adherence rate,
   streak, or plan-completion percentage is computed, stored, or
   derivable. Adding one would be the schedule-violation mechanic
-  ADR-0024 §2 existed to prevent.
+  ADR-0024 §2 existed to prevent. Unfinished work is *shown* again
+  later in the same week as "Still open" (ADR-0039 §8); that is a
+  display rule, it is never counted as owed, and repeating tasks stop
+  carrying at the week's end. One-offs carry until done.
 - **Planned work is what pays** (ADR-0023). At most `UNPLANNED_CAP`
   points of a day may come from anything the user didn't plan —
   activity credit and the special-day rating bonus share that one
   pool (scaled with the life share on a commitment day). Two routes sit outside it, deliberately, and both are your own
   plan: extra runs of planned tasks, and work done off the day it was
-  planned for — commitment work (ADR-0032 §4) and runs pinned to another
-  day (ADR-0037 §3) — paid what that day would have paid. Those are the
-  only uncapped routes above 100. Do not add a new
+  planned for — commitment work (ADR-0032 §4), runs pinned to another
+  day done early (ADR-0037 §3), and carried work done late (ADR-0039
+  §8) — paid what that day would have paid. A carried task is never
+  added to the later day's load. Those are the only uncapped routes
+  above 100. Do not add a new
   credit source without deciding which side of that line it falls on.
 - **A day that asks nothing becomes a rest day automatically**
   (ADR-0037, `isRestDay`): no life work due, no commitment work
@@ -167,6 +187,10 @@ second one. What separates it is its **band**, not its table
   one-offs only when opened (`loadPlannedAhead`). It is
   never offered or chosen and is not a day kind; a day off stays
   ungraded. An empty day with work open and none done is ungraded.
+  **A rest day needs a day that had nothing due when it started**
+  (ADR-0040): a day emptied on the day itself, by Clear today or a
+  same-day skip, is ungraded instead, so emptying a day can never
+  score 70.
 - Daily grades are **private by default**. Never add leaderboards,
   score comparisons, or competitive rankings — these are excluded by
   design, not omitted by accident.
@@ -205,21 +229,35 @@ second one. What separates it is its **band**, not its table
   missed events, nothing derived from events not ticked, and a missed
   event is never mentioned.
 - **On a day with scheduled commitment work, the commitment band is
-  that share of the whole day** (user-set from 10, capped at 60, 70 or
-  80 for one, two or three commitments — `commitmentBandMax`), with each
-  commitment's share a percentage of it,
+  that share of the whole day.** By default each commitment's share is
+  its time that day (event hours plus the size-hours of its tasks
+  scheduled that day; pins and carried tasks never count) divided by
+  the day's working hours as they stood at the start of the day
+  (ADR-0044). The total is kept between 10 and `commitmentBandMax` (60,
+  70 or 80 for one, two or three commitments), and a user-set share
+  overrides the automatic one. It is
   paid as the share of today's commitment work done, and ADR-0029's
   whole day — planned 90, unplanned 10, extra runs — is scaled into
   what it leaves. **Commitments are the band, never more**: doing only
   the commitment work scores the band, and a day with no life work due
   tops out there. Every other day is ADR-0029's day exactly
-  (ADR-0032 as amended 2026-10-01). Commitment tasks have **no weight**
-  and are never in the day's load. Commitment work is **scheduled, not
+  (ADR-0032 as amended 2026-10-01). Commitment tasks have **no weight
+  in the 18 units' 100** and are never in the day's load; they are paid
+  from the commitment's own share. Commitment work is **scheduled, not
   counted**: it pays its scheduled-day value on its day, the same
   value uncapped on any other, and never an extra-run rate. **An early
   session is the next session done early** — it takes that session's
   value, and that session is then done on its own day — so each
   session pays once. Formula v10.
+- **Windows never change a score** (ADR-0039 §12). Windows, pins,
+  suggestions, refilling, carrying forward and sort order never change
+  what is due or any `DayScore`. The two exceptions are a user-saved
+  "Do N of these" choice and the working hours that size the
+  commitment share. **Points are never used to rank suggestions.**
+- **Goals never grade a day** (ADR-0042). Goal progress is a running
+  total with no pace line. A points goal is a running total, never a
+  percentage of the points on offer. Streak goals follow the streak
+  copy rules and never count events.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
 - **All cryptography is Apple's, and adding any bundled crypto library

@@ -95,6 +95,10 @@ Constraints already in force:
 
 ### 1. A day expects what is actually due, by two rules
 
+> **Amended 2026-10-13 by
+> [ADR-0040](0040-schedules-can-end-skip-and-clear.md).** A task outside
+> its repeat dates, or in a skipped week, is not due.
+
 **Anchored work is expected in full, on its own day.** An every-day
 task is due every day. A task pinned to Monday, Wednesday and Friday is
 due — completely, not fractionally — on each of those, and not at all
@@ -151,6 +155,12 @@ A unit divides its weight across its tasks by rank; one task carrying
 done.
 
 ### 3. Obligations are weekly, so the wrong day costs nothing
+
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md) §8.** A missed
+> run is shown again later in the same week as "Still open", and is paid
+> what its planned day would have paid. It is never counted as owed, and
+> at the week's end it lapses as before.
 
 **This withdraws [ADR-0024](0024-day-planning-is-intention.md) §2**,
 which said `times_per_week` is "the sole scoring source of truth" and

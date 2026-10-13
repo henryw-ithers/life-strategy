@@ -135,6 +135,22 @@ components:
 
 # Design System: Life Strategy
 
+> **Being replaced (2026-10-13).** [ADR-0043](docs/adr/0043-the-app-uses-native-ios-controls.md)
+> moves the app to native iOS 26 controls and the Prism style:
+>
+> - native tabs (Home, Plan, Life, Log) in place of the custom tab bar,
+>   so the "Bottom tab bar" rules below no longer apply
+> - native sheets, menus, alerts and pickers, with Liquid Glass on
+>   controls only
+> - system backgrounds in light and dark mode, colour carried by units,
+>   and the label colour as the accent in place of teal
+> - SF in place of Manrope
+> - a palette of 12 colours that users can give units and commitments
+> - the bubble backdrop, which stays
+>
+> This document is rewritten with the real tokens in Phase 3 of the
+> redesign. Until then, the sections below describe the current build.
+
 ## 1. Overview
 
 **Creative North Star: "The Strategy Board"**

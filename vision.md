@@ -16,18 +16,20 @@ are with it, and plot the result as a portfolio chart that shows where
 your attention should go.
 
 In the article this is an occasional, reflective exercise. This app
-keeps the exercise and adds what comes after it: the ratings become a
-daily plan with a score out of 100, and both the ratings and the scores
-are kept so you can see how they change over months and years.
+keeps the exercise in a quicker form (sorting units into tiers) and
+adds what comes after it: the priorities become a daily plan with a
+score out of 100, and both are kept so you can see how they change over
+months and years.
 
 ## The core loop
 
-1. **Diagnose.** Rank the 18 units by priority and rate your
-   satisfaction with each from 1 to 10.
-2. **Derive.** The priority ranking becomes each unit's share of 100
-   daily points.
-3. **Plan.** Add goals and tasks to the units.
-4. **Do.** Tick tasks off each day and get a score out of 100.
+1. **Prioritise.** Sort the 18 units into tiers: Top, Important,
+   Background and Not now.
+2. **Derive.** The tiers become each unit's share of 100 daily points.
+3. **Plan.** Add tasks to the units, set your working hours, and let
+   the app fill your free time with them. Goals are optional.
+4. **Do.** Work through the window you're in and tick tasks off. Each
+   day gets a score out of 100.
 5. **Review.** Days roll up into weekly and monthly grades. A weekly
    question, "how content did you feel this week?", is recorded beside
    them so the two can be compared over time.
@@ -60,68 +62,56 @@ Each unit has a short description and some general guidelines,
 reachable from an info button wherever the unit appears. They are
 written as information you can weigh, not instructions.
 
-**The three Relationships units work differently.** Significant other,
-Family and Friendship are diagnosed like any other unit, but they hold
-no tasks of their own. Instead, any completed task or activity can be
-tagged as having involved one of them. Time with people usually happens
-inside something else (a run with a friend, dinner with family), and
-filing it under one unit hid the other
-([ADR-0025](docs/adr/0025-communal-units-are-dimensions.md)).
+**The three Relationships units** (Significant other, Family and
+Friendship) are planned like any other unit and hold tasks. For a while
+they were tag-only, since time with people usually happens inside
+something else, but a unit that earned its share from a tag didn't fit
+the scoring
+([ADR-0025](docs/adr/0025-communal-units-are-dimensions.md), amended by
+[ADR-0027](docs/adr/0027-coverage-decides-the-ceiling.md) §4).
 
-A unit can be taken out of the plan ("Not in my plan") and put back
-with one tap; its points go to the other units while it is out
-([ADR-0027](docs/adr/0027-coverage-decides-the-ceiling.md) §2).
+Putting a unit in the **Not now** tier takes it out of the plan: it has
+no weight and holds no tasks, and its points go to the other units.
+Moving a unit with tasks into Not now pauses those tasks, and moving it
+back restores them
+([ADR-0041](docs/adr/0041-priorities-are-tiers.md)).
 
-## The diagnostic
+## Priorities
 
-The diagnostic asks two different kinds of question, so it uses two
-different controls
-([ADR-0022](docs/adr/0022-satisfaction-is-rated-not-ranked.md)):
+You sort the 18 units into four tiers (Top, Important, Background and
+Not now) and put them in order within each tier. It takes about 30
+seconds. The tiers set each unit's weight, and the order inside a tier
+adjusts it slightly
+([ADR-0041](docs/adr/0041-priorities-are-tiers.md)).
 
-- **Priority is ranked.** You put all 18 units in order. When people
-  rated importance on a 1–10 scale, almost everything landed between 6
-  and 10, because almost everything on the list matters. A ranking
-  forces a spread. The app calls this "Priority" rather than
-  "Importance" for the same reason: the question is where each unit
-  stands right now, not whether it matters.
-- **Satisfaction is rated** from 1 to 10. It is a judgement about each
-  unit on its own. Ranking it as well made the chart's x-axis a
-  reshuffle of the same values every time, so real improvement could
-  never show up as movement to the right.
+The app used to ask for a full ranking of all 18 units and a 1–10
+satisfaction rating for each, and drew both on Strack's portfolio
+chart. For a new user that was several minutes before anything useful
+happened, so satisfaction is no longer asked and the chart is gone.
+Ratings already given stay in their snapshots. Life shows each unit's
+share of the work you completed in the last 4 weeks instead, and the
+weekly contentment question is how the app checks whether the plan is
+working.
 
-The app prompts for a diagnostic once a month and allows one at any
-time ([ADR-0005](docs/adr/0005-diagnostic-snapshots-and-history.md)).
-Running it again never deletes anything: goals and tasks carry over,
-point values update from the new ranking, and the app points out only
-the units whose weight actually changed.
-
-### The portfolio graph
-
-Each diagnostic is saved as a snapshot and drawn as Strack's chart:
-
-- **y-axis:** priority
-- **x-axis:** satisfaction
-- **bubble size:** effort, measured from the tasks and activities you
-  actually logged rather than estimated
-
-Snapshots are kept, so the chart can show units moving over time.
+Saving your tiers keeps a snapshot, so history is kept. The first
+weekly pass of each month offers a look at your tiers, and Priorities
+is always available from the Life tab.
 
 ## Scoring
 
 ### Unit weights
 
-Each unit's share of the 100 comes from its priority rank and nothing
-else ([ADR-0028](docs/adr/0028-priority-is-the-only-input.md)). The
-ranking is mapped onto a narrow range before the shares are worked out,
-so the top unit gets about 7 points and the bottom about 4. That keeps
-every unit large enough for a task to be worth doing.
+Each unit's share of the 100 comes from its tier and its place in the
+tier, and nothing else
+([ADR-0041](docs/adr/0041-priorities-are-tiers.md)). With a typical
+split, a Top unit gets about 10 points, an Important one about 6 and a
+Background one about 4. Not now units get nothing.
 
-Satisfaction used to add extra weight to units where it lagged behind
-priority. That was withdrawn: using one set of answers both to build
-the plan and to judge whether the plan was working made the second
-measurement meaningless. Satisfaction is still recorded, plotted and
-used to choose which suggestions to show. It just no longer changes any
-points.
+Satisfaction once added weight to units where it lagged behind
+priority. That was withdrawn
+([ADR-0028](docs/adr/0028-priority-is-the-only-input.md)): using one
+set of answers both to build the plan and to judge whether it was
+working made the second measurement meaningless.
 
 ### A day's score
 
@@ -166,8 +156,8 @@ example "92 +6"), and the only uncapped ways above 100 are doing more
 of your own plan
 ([ADR-0023](docs/adr/0023-planned-work-is-what-pays.md)).
 
-Activities are still worth logging: they feed the effort measurement
-on the portfolio graph.
+Activities are still worth logging: they count toward the effort
+shares on the Life tab.
 
 ### Commitments
 
@@ -177,9 +167,13 @@ shift) and can be split into sub-commitments (School → individual
 courses).
 
 On a day with commitment work scheduled, commitments get their own
-share of the day, which you set (from 10, up to a cap of 60–80
-depending on how many you have). The usual 90/10 day is scaled into
-whatever is left. Commitments never compete with the 18 units for
+share of the day. By default it's the commitment's time that day (its
+events plus its scheduled tasks) as a part of your working hours, so a
+day that's mostly School is mostly scored as School. You can set a
+fixed share instead, such as School at 60%. The share is kept between
+10% and a cap of 60–80% depending on how many commitments you have,
+and the usual 90/10 day is scaled into whatever is left
+([ADR-0044](docs/adr/0044-a-commitment-share-comes-from-your-day.md)). Commitments never compete with the 18 units for
 weight, and the app never computes a mark, grade or attendance rate
 for them
 ([ADR-0032](docs/adr/0032-the-commitment-band.md),
@@ -191,31 +185,32 @@ for them
 Everything the app derives is a recommendation. The data model stores
 an override beside each derived weight, and wherever an override is
 shown, the recommended value is shown next to it
-([ADR-0002](docs/adr/0002-data-model-and-persistence.md) §3). There is
-no screen for editing unit weights yet.
+([ADR-0002](docs/adr/0002-data-model-and-persistence.md) §3). Unit
+weights are overridden on the Priorities screen, and a commitment's
+share on its own screen.
 
 ## Goals
 
     Area → Unit → Goal → Task
 
-A goal is a specific, measurable objective inside a unit, with a clear
-finish line. Goals end; the units they serve do not.
+Goals are optional. Each goal is built on something the app can count
+([ADR-0042](docs/adr/0042-goals-are-measured-by-the-app.md)):
 
-- **Conditions.** A goal can list the things that have to be true for
-  it to happen, each with its own tasks. A condition can pull in a task
-  from any unit; the task is still paid from its own unit
-  ([ADR-0030](docs/adr/0030-goals-have-conditions.md)).
-- **Measures.** A goal can track a number (books read, a target
-  weight) or a habit streak, with milestones along the way
-  ([ADR-0015](docs/adr/0015-metric-linked-goals.md)).
-- **Lifecycle.** A goal can be active, paused, revised, set aside or
-  completed. Setting aside and revising are normal outcomes, not
-  failures. Completing a goal offers three paths: archive its tasks,
-  start a follow-up goal, or keep its habits going as maintenance work
-  ([ADR-0007](docs/adr/0007-goal-lifecycle.md)).
-- **Achievements.** Completing a goal or milestone records an
-  achievement. Achievements appear in monthly summaries and never in a
-  daily grade, which measures consistency.
+- **Times done:** "Run 30 times by December", counting ticks on the
+  tasks you choose.
+- **Time spent:** "40 hours of study this term", counting each tick's
+  size, or the time you entered when ticking.
+- **Points earned:** "Earn 300 Exercise points", a running total in the
+  unit.
+- **Streak:** "Meditate every day", counting days in a row.
+
+Goals start from templates, one per type for each unit. Progress is a
+running total with no pace line. An active goal moves its tasks up a
+little when the app suggests what to do, and never changes points.
+Reaching a target is an achievement: it appears in monthly summaries
+and never in a daily grade, which measures consistency. Goals can be
+paused, revised or set aside
+([ADR-0007](docs/adr/0007-goal-lifecycle.md)).
 
 ## Tasks
 
@@ -228,8 +223,10 @@ the day, or a clock time; none of these is required
   are dragged into order and their share of the unit's weight follows
   from that order. Nobody enters a point value.
 - **Suggestions.** Each unit has a "Need ideas?" link to a built-in
-  library of goals and tasks, chosen to fit the unit's priority and
-  satisfaction ([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md)).
+  library of tasks and goal templates, chosen to fit the unit's tier
+  ([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md)).
+  Tasks are sized quick, normal or big, which is how the app knows
+  what fits in a window.
   The library ships with the app; nothing is sent anywhere.
 - **Partial credit, multiple units, and sizes.** A task can be set to
   accept partial completion in steps of 25%
@@ -240,6 +237,30 @@ the day, or a clock time; none of these is required
 
 Opening the app should feel like opening a checklist. The planning
 detail is there for anyone who wants it, but the defaults stay light.
+
+## Windows and your week
+
+You set your **working hours** once, the way iOS sets a sleep
+schedule: groups of days, each with time ranges. Your events (classes,
+shifts) are cut out of them, and what's left are your **windows**, the
+free time you have to get things done. The gaps between windows are
+breaks, and you can name them. You can add, move or remove a window
+for any day from Home or Plan
+([ADR-0039](docs/adr/0039-work-windows-come-from-your-hours.md)).
+
+The app fills each window with a few tasks that fit, based on their
+size and the time available. You can pin your own choices instead,
+once a week in the weekly pass or whenever you like, and the app never
+moves what you pinned. Unfinished work moves on to the next window and
+the next day, labelled "Still open". Repeating tasks stop at the end of
+the week, and their count starts again. Windows decide where tasks
+appear, not what they're worth.
+
+Repeating events can run for a set number of weeks, and single weeks
+(reading week) can be skipped. On a bad day, **Clear today** sets
+aside today's windows and events. **Time away** turns a date range into
+days off
+([ADR-0040](docs/adr/0040-schedules-can-end-skip-and-clear.md)).
 
 ## Grades and the log
 
@@ -270,9 +291,10 @@ anything if you confirm them
 
 ## Principles
 
-- **Strategy before execution.** Tasks exist because the diagnostic
+- **Strategy before execution.** Tasks exist because your priorities
   said their unit matters.
-- **Simple every day.** The daily screen is a checklist and a number.
+- **Simple every day.** The daily screen is the window you're in, a
+  short list, and a number.
 - **Strong defaults, full control.** Derived values are recommendations.
 - **No shame.** Scores are guidelines, and the app says so wherever a
   grade appears. Encouragement reads the same on a good week and a bad

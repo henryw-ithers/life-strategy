@@ -1,6 +1,6 @@
 # ADR-0045: Onboarding builds a first week
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -40,9 +40,7 @@ matters here.
 - **Minimal: hours only, then guided prompts in the app.** Least up
   front, but the first Home would be mostly empty.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Seven steps
 

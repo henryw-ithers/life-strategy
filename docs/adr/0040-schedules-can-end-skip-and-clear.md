@@ -1,6 +1,6 @@
 # ADR-0040: Schedules can end, skip a week, or be cleared
 
-> **Status:** Proposed\
+> **Status:** Accepted\
 > **Date:** 2026-10-13\
 > **Deciders:** Henry
 
@@ -53,9 +53,7 @@ The behaviour is in [redesign-spec.md](../design/redesign-spec.md)
 - **A commitment-wide break.** Kept as well: "Skip a week…" on a
   commitment skips all of its events that week.
 
-## Proposed decision
-
-*Becomes the Decision when accepted.*
+## Decision
 
 ### 1. Repeats can end
 

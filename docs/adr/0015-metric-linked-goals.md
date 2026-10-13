@@ -68,6 +68,12 @@ Constraints in force:
 
 ## Decision
 
+> **Amended 2026-10-13 by
+> [ADR-0042](0042-goals-are-measured-by-the-app.md).** The metric kinds
+> become times done, time spent, points earned and streak. Which tasks
+> count depends on the type. Manual progress entries, `cumulative` and
+> `target` are removed, and existing goals are erased.
+
 > **Amended 2026-08-16: a third kind, `habit`.** Decided during the
 > content-library session and built the same day. A habit goal is a run
 > of consecutive days with **no target at all**, because it is meant to

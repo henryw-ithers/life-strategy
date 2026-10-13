@@ -71,6 +71,11 @@ quantities actually are.
 
 ### 1. Priority is ranked. Satisfaction is rated 1–10.
 
+> **Amended 2026-10-13 by [ADR-0041](0041-priorities-are-tiers.md).**
+> Satisfaction is no longer asked, and priority is set by tiers rather
+> than a full ranking. Ratings already given stay in their snapshots,
+> read-only. §4's rating screens go.
+
 > **Still true, and now the end of the story**
 > ([ADR-0028](0028-priority-is-the-only-input.md) §1, 2026-08-26).
 > This ADR fixed *how* satisfaction is measured so the gap term would

@@ -66,6 +66,11 @@ Constraints already in force:
 
 ## Decision
 
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md).** Pinning a
+> task into a window is a placement, not a clock time. Clock times stay
+> optional.
+
 ### 1. Any task may carry an explicit time. Nothing requires one.
 
 There is no closed list and no per-object rule. A task may be placed at

@@ -52,6 +52,11 @@ recurring tasks are not.
 
 ### 1. Size is `quick | normal | big`, optional, and never minutes
 
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md).** Sizes have
+> hour values for fitting tasks into windows (quick 0.5, normal 1, big
+> 2), and new tasks default to Normal rather than unset.
+
 Same three values, same `ONE_OFF_SIZE_RATE` ratios, same meaning
 everywhere — one effort vocabulary across activities, one-offs and now
 recurring tasks.
@@ -68,6 +73,12 @@ today.
 
 ### 2. Size does not change what a recurring task is worth
 
+> **Amended 2026-10-13 by
+> [ADR-0044](0044-a-commitment-share-comes-from-your-day.md).** One
+> exception: a commitment task's size sets how big its commitment's
+> share of the day is. It still never sets one task's value against
+> another.
+
 Deliberately narrow. Rank already prices tasks within a unit
 (ADR-0003 §5), and letting size price them too would give one job two
 mechanisms that can disagree — a `big` task ranked last, or a `quick`
@@ -82,6 +93,11 @@ genuinely large work, size-weighted allocation is a formula change to
 be argued then, not smuggled in here.
 
 ### 3. Day load is shown, never warned about
+
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md).** Fitting is
+> now used to choose suggestions. There are still no warnings about
+> load.
 
 A day's load is the sum of its sized tasks, displayed as a quiet
 indicator on the planning surface.

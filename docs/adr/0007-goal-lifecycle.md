@@ -34,6 +34,11 @@ don't — so the lifecycle must answer what a goal leaves behind.
 
 ### 1. States and transitions
 
+> **Amended 2026-10-13 by
+> [ADR-0042](0042-goals-are-measured-by-the-app.md).** Every goal is one
+> of four types: times done, time spent, points earned or streak. A goal
+> with no measure can no longer be made.
+
     active ⇄ paused
     active | paused → abandoned → active (revival allowed)
     active → revised   (terminal; spawns a linked successor)
@@ -116,6 +121,10 @@ silent completion would either skip it or pick for them. "I benched 225
 once" and "I am now a person who benches 225" are different claims.
 
 ### 3. Milestones: flat, ordered, one in focus
+
+> **Amended 2026-10-13 by
+> [ADR-0042](0042-goals-are-measured-by-the-app.md).** Milestones are
+> removed, and the table is dropped.
 
 - An ordered list of checkpoints inside a goal; statuses
   `pending | current | completed`. Exactly one is `current`;

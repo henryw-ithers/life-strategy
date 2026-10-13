@@ -99,6 +99,13 @@ Constraints already in force:
 
 ### 1. Three bands, on days with scheduled commitment work
 
+> **Amended 2026-10-13 by
+> [ADR-0044](0044-a-commitment-share-comes-from-your-day.md) and
+> [ADR-0040](0040-schedules-can-end-skip-and-clear.md).** The share is
+> worked out each day from the commitment's events and scheduled tasks
+> as a part of your working hours, with your figure as an override. A
+> day whose commitment work was skipped or cleared may have no share.
+
     commitment band   — user-set, 10–60 in steps of 5
     routine band      — 80% of what remains
     variable band     — 20% of what remains

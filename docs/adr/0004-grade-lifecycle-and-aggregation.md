@@ -18,6 +18,12 @@ should be able to say what they were, not just what they scored.
 
 ### 1. Day lifecycle: 3 AM rollover, week-aligned edit window
 
+> **Amended 2026-10-13 by
+> [ADR-0040](0040-schedules-can-end-skip-and-clear.md).** Away days are
+> days off. A day emptied on the day itself, by Clear today or a
+> same-day skip, is ungraded like a day off. An Away range can't reach a
+> day whose grade has settled.
+
 - The day rolls over at **3:00 AM local time** (configurable) — a
   late night still belongs to the day it felt like.
 - **The editable past is the current week and the week before**
