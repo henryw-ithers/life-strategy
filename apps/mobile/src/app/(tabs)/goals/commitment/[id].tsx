@@ -172,6 +172,17 @@ export default function CommitmentScreen() {
     }
   };
 
+  /** Tapping the title, the Name row and the menu's Rename all open
+   *  this (ADR-0043 §5). */
+  const openRename = () => {
+    if (!data) return;
+    setSheet(
+      isSub
+        ? { kind: "sub", parentName: data.parent!.name, name: data.name }
+        : { kind: "commitment", name: data.name, percent: data.sharePercent },
+    );
+  };
+
   /** What the options button offers, for this kind of page. */
   const optionRows = () => {
     if (!data) return [];
@@ -179,6 +190,7 @@ export default function CommitmentScreen() {
       setOptionsOpen(false);
       run();
     };
+    const rename = { label: "Rename", onPress: close(openRename) };
     const del = {
       label: isSub ? "Delete sub-commitment" : "Delete commitment",
       destructive: true,
@@ -192,24 +204,16 @@ export default function CommitmentScreen() {
         }),
       ),
     };
-    if (isSub) {
-      return [
-        {
-          label: "Rename",
-          onPress: close(() =>
-            setSheet({ kind: "sub", parentName: data.parent!.name, name: data.name }),
-          ),
-        },
-        del,
-      ];
-    }
+    if (isSub) return [rename, del];
     if (archived) {
       return [
+        rename,
         { label: "Unarchive", onPress: close(() => void unarchiveCommitment(data.id).then(reload)) },
         del,
       ];
     }
     return [
+      rename,
       {
         label: data.subsOn ? "Stop using sub-commitments" : "Use sub-commitments",
         onPress: close(() => toggleSubs(!data.subsOn)),
@@ -274,9 +278,17 @@ export default function CommitmentScreen() {
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           <>
-            <AppText variant="display" color={theme.ink}>
-              {data.name}
-            </AppText>
+            <Pressable
+              onPress={openRename}
+              accessibilityRole="button"
+              accessibilityLabel={data.name}
+              accessibilityHint="Renames it"
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <AppText variant="display" color={theme.ink}>
+                {data.name}
+              </AppText>
+            </Pressable>
             <AppText variant="label" color={accent} style={styles.status}>
               {archived
                 ? "Archived"
@@ -300,13 +312,7 @@ export default function CommitmentScreen() {
                 label="Name"
                 value={data.name}
                 theme={theme}
-                onPress={() =>
-                  setSheet(
-                    isSub
-                      ? { kind: "sub", parentName: data.parent!.name, name: data.name }
-                      : { kind: "commitment", name: data.name, percent: data.sharePercent },
-                  )
-                }
+                onPress={openRename}
                 last={archived || isSub || data.others.length === 0}
               />
               {/* Only worth a row when there is something to share

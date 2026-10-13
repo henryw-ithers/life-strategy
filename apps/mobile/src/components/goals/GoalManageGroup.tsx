@@ -1,6 +1,6 @@
 /**
- * Things you do *to* a goal (ADR-0007): pause, revise, set aside,
- * delete. A quiet group at the foot of the screen, where the settings
+ * Things you do *to* a goal (ADR-0007): rename, pause, revise, set
+ * aside, delete. A quiet group at the foot of the screen, where the settings
  * screen keeps its own equivalents, so the substance of the goal opens
  * above the fold.
  */
@@ -11,6 +11,7 @@ import { SettingsRow } from "../ui/SettingsRow";
 
 export function GoalManageGroup({
   status,
+  onRename,
   onPause,
   onRevise,
   onSetAside,
@@ -18,6 +19,8 @@ export function GoalManageGroup({
   theme,
 }: {
   status: GoalDetail["status"];
+  /** The same as tapping the title, for anyone who doesn't know that. */
+  onRename: () => void;
   onPause: () => void;
   onRevise: () => void;
   onSetAside: () => void;
@@ -34,6 +37,13 @@ export function GoalManageGroup({
   );
   return (
     <Group theme={theme} title="Manage" flush>
+      <SettingsRow
+        label="Rename"
+        detail="Changes its name only."
+        onPress={onRename}
+        theme={theme}
+      />
+      <GroupDivider theme={theme} />
       {status === "active" ? (
         <>
           <SettingsRow
