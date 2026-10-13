@@ -177,7 +177,9 @@ export async function restoreBackup(
 
   const rescue = new File(`${dbPath}.pre-restore`);
   if (rescue.exists) rescue.delete();
-  if (live.exists) live.copy(rescue);
+  // `copy()` became async in Expo SDK 56. Without the await, the live
+  // database could be deleted below before its rescue copy is written.
+  if (live.exists) await live.copy(rescue);
 
   await sqlite.closeAsync();
 

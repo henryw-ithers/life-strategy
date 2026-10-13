@@ -19,6 +19,12 @@ project rules in AGENTS.md, not here, so every coding agent sees them.
   `typescript-reviewer`, `react-reviewer`, `silent-failure-hunter`,
   `type-design-analyzer`, `pr-test-analyzer`. They know nothing of
   this app; where they disagree with AGENTS.md or an ADR, those win.
-  ECC's rule packs and hooks are deliberately not installed.
+  ECC's rule packs are deliberately not used.
+- The ECC plugin is installed (2026-10-13) for its commands, used by
+  the redesign runbook: `/ecc:plan`, `/ecc:build-fix`,
+  `/ecc:tdd-workflow`, `/ecc:refactor-clean`, `/ecc:test-coverage`,
+  `/ecc:update-docs`. Its hooks are meant to stay off. If GateGuard
+  asks for "facts" before a command, it is still on: run with
+  `ECC_GATEGUARD=off` or add its hook to `ECC_DISABLED_HOOKS`.
 - When compacting, keep the list of files changed and which of
   `npm test`, `npm run typecheck` and `npm run lint` have passed.

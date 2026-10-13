@@ -14,7 +14,7 @@
  * a five-tab bar reads as an *action* (compose, capture); every one of
  * these is a destination, so none of them gets that treatment.
  */
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
 /* The single family, not the `@expo/vector-icons` barrel — that pulls
  * every icon font in the package into the bundle. */
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: radius.pill,
   },
   icon: { position: "absolute" },

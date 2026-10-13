@@ -35,12 +35,10 @@ phase that owns it, not along the way.
 npm workspaces monorepo:
 
 - `apps/mobile` — the Expo app (TypeScript, Expo Router, `src/app/`
-  file-based routes). **Expo SDK 54, pinned until Phase 0** of the
-  redesign. The pin existed because the test iPhone's Expo Go capped
-  there; ADR-0043 drops Expo Go for EAS development builds, and Phase 0
-  upgrades the SDK. Until then, check
-  [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md) and read the v54 docs
-  before writing Expo API code. Database: `expo-sqlite` + Drizzle;
+  file-based routes). **Expo SDK 57** (React Native 0.86, React
+  19.2), run on the iPhone as an **EAS development build**, not Expo
+  Go (ADR-0043). Read the v57 docs before writing Expo API code; see
+  [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md). Database: `expo-sqlite` + Drizzle;
   schema at `src/db/schema.ts`, migrations generated into `drizzle/`
   via `npm run db:generate -w apps/mobile` (never hand-edit or delete
   past migrations — forward-only, ADR-0002). Inside `src/`: `db/` is
@@ -65,8 +63,8 @@ npm workspaces monorepo:
   share sheet, file picker) stays in `apps/mobile/src/backup/`.
 - `apps/mobile/modules/glide-crypto` — a local Expo module wrapping
   **Apple's** CryptoKit and CommonCrypto. Swift, iOS-only, deliberately
-  thin. Because it is custom native code, **backup and restore do not
-  work in Expo Go** — they need a development or TestFlight build.
+  thin. It is custom native code, so it only runs in a development or
+  TestFlight build, which is how the app is run anyway.
 
 **iOS is the only target** (ADR-0020 amended ADR-0001; Android was
 dropped along with its `android` block and adaptive icons). The app
@@ -76,7 +74,7 @@ break; read [docs/web-preview.md](docs/web-preview.md) before touching
 `metro.config.js`, `src/db/client.web.ts`, the `expo-sqlite` patch in
 `patches/`, or the web entry `index.web.js` (which loads Skia's
 WebAssembly build before the router starts). Backup does not work
-there either — same native-module reason as Expo Go.
+there: a browser can't run the native crypto module.
 
 Root commands: `npm test` (both packages, plus the app's pure-logic
 tests — every `__tests__` folder under `apps/mobile/src`; ADR-0013 put
@@ -297,15 +295,15 @@ second one. What separates it is its **band**, not its table
   `docs/adr/` using [template.md](docs/adr/template.md), numbered
   sequentially, and a line in the ADR index.
 - Keep documents wrapped at ~72–80 columns to match existing files.
-- **Never run `npm audit fix --force`.** `npm audit` reports ~21
-  findings (down from ~39 since ADR-0020 dropped `@noble`); they
-  collapse to a handful of CVEs (brace-expansion, postcss ×3, uuid,
-  esbuild) and npm's stated fix for all but one is
-  `expo@57.0.8` — it would silently undo the SDK 54 pin. Every one of
-  them is in build tooling (dev server, PostCSS, CLI globbing), not in
-  anything that ships in the app, and nothing here is
-  network-exposed in production. The esbuild advisory (a website can
-  reach the dev server) is the only one worth thinking about, and only
-  while `npm run mobile` is running on an untrusted network. Clear
-  them when the Expo Go constraint lifts and the SDK moves — not
-  before, and not one dependency at a time.
+- **Never run `npm audit fix --force`.** After the SDK 57 upgrade
+  (2026-10-13) `npm audit` reports about 83 findings. They come from
+  seven advisory packages (braces, decode-uri-component, esbuild,
+  node-forge, tinypool, uuid, `@vitest/mocker`), all in build and dev
+  tooling: the Expo CLI, the test runner and file globbing. The count
+  is high because each one is listed again under every Expo package
+  that depends on it. Nothing that ships in the app is affected and
+  nothing here is network-exposed in production. The esbuild advisory
+  (a website can reach the dev server) matters only while
+  `npm run mobile` runs on an untrusted network. `--force` would pull
+  mismatched versions out from under the Expo SDK; take fixes through
+  Expo SDK patch releases (`npx expo install expo@latest --fix`).

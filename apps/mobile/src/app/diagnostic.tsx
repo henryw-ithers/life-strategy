@@ -20,7 +20,7 @@
  * and portfolio graph have always consumed. The area ranking seeds the
  * unit list's opening order; the unit list is what scores.
  */
-import { useNavigation, usePreventRemove } from "@react-navigation/native";
+import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { router, type Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
