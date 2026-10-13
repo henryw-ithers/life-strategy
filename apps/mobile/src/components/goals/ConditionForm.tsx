@@ -3,12 +3,13 @@
  * The same prompt either way: it is one job.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Pressable, StyleSheet, TextInput } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import Animated, { type FadeIn } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { TextField } from "../ui/TextField";
 
 export function ConditionForm({
   value,
@@ -32,16 +33,16 @@ export function ConditionForm({
 }) {
   return (
     <Animated.View entering={entering} style={styles.form}>
-      <TextInput
+      <TextField
+        theme={theme}
         value={value}
         onChangeText={onChangeText}
         accessibilityLabel="Condition"
         placeholder="What has to be true?"
-        placeholderTextColor={theme.muted}
         autoFocus
         returnKeyType="done"
         onSubmitEditing={onSubmit}
-        style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+        style={styles.input}
       />
       <Pressable
         onPress={onSubmit}

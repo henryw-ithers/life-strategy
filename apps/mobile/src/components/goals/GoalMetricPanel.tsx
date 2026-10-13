@@ -9,7 +9,7 @@
  * all. This panel lives where you came to look at it.
  */
 import { useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import {
   barFraction,
@@ -23,6 +23,7 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { TextField } from "../ui/TextField";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -236,21 +237,18 @@ export function GoalMetricPanel({
 
       {editable && !isHabit ? (
         <View style={styles.addRow}>
-          <TextInput
+          <TextField
+            theme={theme}
             value={draft}
             onChangeText={setDraft}
             placeholder={kind === "cumulative" ? "Add" : "Latest"}
-            placeholderTextColor={theme.muted}
             keyboardType="numeric"
             returnKeyType="done"
             onSubmitEditing={add}
             accessibilityLabel={
               kind === "cumulative" ? "How much to add" : "Your latest reading"
             }
-            style={[
-              styles.input,
-              { backgroundColor: theme.surface, color: theme.ink },
-            ]}
+            style={styles.input}
           />
           <Pressable
             onPress={add}

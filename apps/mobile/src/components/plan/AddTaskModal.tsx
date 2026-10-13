@@ -16,7 +16,10 @@
  * to the bottom stopped the sheet jumping, but keeping the avoider
  * meant it still folded: the frame shortened and the scroller
  * concertinaed five fields into what was left. The sheet now holds
- * still and the keyboard covers the lower part of it.
+ * still and the keyboard covers the lower part of it. Since 2026-10-13
+ * the scroller adds the keyboard's height below the fields, so
+ * everything under the keyboard can still be scrolled into view
+ * (ADR-0043 §5).
  *
  * **The plan is made here, not afterwards** (ADR-0024 §1 as amended
  * 2026-08-17). The order is the order a person thinks in: what, how
@@ -56,21 +59,16 @@
  * behaviour.
  */
 import { useState } from "react";
-import {
-  Keyboard,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import {
   formatWeekdays,
@@ -214,15 +212,11 @@ export function AddTaskModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      {/* No keyboard avoidance, deliberately. `behavior="padding"`
-          shortens the frame, which makes the sheet fold: the scroller
-          collapses and five fields concertina into whatever is left.
-          The name field is the first thing in the sheet and the only
-          thing that takes typing, so it is never behind the keyboard
-          anyway — letting the keyboard sit over the lower half leaves
-          the layout still and the field in view, which is what a person
-          expects when they tap into a form. Return dismisses it. */}
-      <SheetFrame onClose={close}>
+      {/* No keyboard avoidance, deliberately: `behavior="padding"`
+          shortened the frame and folded the sheet. The keyboard sits
+          over the lower half and `KeyboardScroll` keeps what's under it
+          reachable. */}
+      <SheetFrame onClose={close} typing="field" theme={theme}>
         <View
           style={[
             styles.sheet,
@@ -244,35 +238,26 @@ export function AddTaskModal({
               the same reason: five fields no longer fit a short screen
               with the keyboard up, and cramming them would cost touch
               targets on a row of seven chips. */}
-          <ScrollView
+          <KeyboardScroll
             style={styles.scroller}
             contentContainerStyle={styles.scrollBody}
-            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
           <View style={styles.field}>
-            <TextInput
+            <TextField
+              theme={theme}
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. 30 minutes of movement"
-              placeholderTextColor={theme.muted}
               maxLength={TASK_TITLE_MAX}
-              // Return dismisses the keyboard; it does **not** commit.
-              // It used to, back when the name and the unit were the
-              // whole sheet — with the schedule below the fold, a
-              // Return that files the task takes away the three
-              // questions the user came here to answer, and does it at
-              // the exact moment they were reaching for them.
-              returnKeyType="done"
-              onSubmitEditing={() => Keyboard.dismiss()}
+              // Return dismisses the keyboard (TextField's default); it
+              // does **not** commit. It used to, back when the name and
+              // the unit were the whole sheet — with the schedule below
+              // the fold, a Return that files the task takes away the
+              // three questions the user came here to answer, and does
+              // it at the exact moment they were reaching for them.
               accessibilityLabel="Task name"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.surface,
-                  color: theme.ink,
-                },
-              ]}
+              style={styles.input}
             />
             {/* Silent until the cap is in sight — a counter on a
                 five-word title is noise. */}
@@ -312,7 +297,7 @@ export function AddTaskModal({
             accent={accent}
             theme={theme}
           />
-          </ScrollView>
+          </KeyboardScroll>
 
           {/* Why Add is unavailable, beside the button that is — the
               days row that asks may be scrolled out of sight, and a

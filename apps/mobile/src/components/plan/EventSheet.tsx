@@ -13,17 +13,19 @@
  * than left as a greyed button that explains nothing.
  */
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { eventProblem, type EventInput } from "../../db/events";
 import { currentLocalDate } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
-import { radius, space, type as typeScale } from "../../theme/tokens";
+import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { DayField, TimeField } from "../ui/DateTimeField";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { parseWeekdays, type Weekday } from "./planning";
 import { Segmented } from "./Segmented";
 import { UnitPicker } from "./UnitPicker";
@@ -113,14 +115,14 @@ export function EventSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing="fields" theme={theme}>
         <View
           style={[
             styles.sheet,
             { backgroundColor: theme.canvas, paddingBottom: insets.bottom + space.lg },
           ]}
         >
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <KeyboardScroll contentContainerStyle={styles.body}>
             <View>
               <AppText variant="title" color={theme.ink}>
                 {initial ? "Edit event" : "New event"}
@@ -132,14 +134,14 @@ export function EventSheet({
               </AppText>
             </View>
 
-            <TextInput
+            <TextField
+              theme={theme}
               value={title}
               onChangeText={setTitle}
               placeholder="COMP2521 lecture"
-              placeholderTextColor={theme.muted}
               autoFocus={!initial}
               accessibilityLabel="Name"
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body }]}
+              style={styles.input}
             />
 
             {/* When comes first: an event is defined by it. */}
@@ -188,18 +190,13 @@ export function EventSheet({
               </PickRow>
             </View>
 
-            <TextInput
+            <TextField
+              theme={theme}
               value={notes}
               onChangeText={setNotes}
               placeholder="Notes (optional)"
-              placeholderTextColor={theme.muted}
               accessibilityLabel="Notes"
               multiline
-              style={[
-                styles.input,
-                styles.notes,
-                { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body },
-              ]}
             />
 
             {unitChoice ? (
@@ -211,7 +208,7 @@ export function EventSheet({
                 areaColors={unitChoice.areaColors}
               />
             ) : null}
-          </ScrollView>
+          </KeyboardScroll>
 
           <Button
             label={initial ? "Save" : "Add event"}
@@ -293,7 +290,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 52,
   },
-  notes: { minHeight: 88, textAlignVertical: "top" },
   card: { borderRadius: radius.lg, padding: space.md, gap: space.sm },
   row: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: space.md },
   grow: { flex: 1 },

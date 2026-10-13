@@ -23,10 +23,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Share,
   StyleSheet,
-  TextInput,
   useColorScheme,
   View,
 } from "react-native";
@@ -35,6 +33,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { KeyboardBar, KeyboardScroll } from "../components/ui/KeyboardBar";
+import { TextField } from "../components/ui/TextField";
 import {
   clearFeedbackDraft,
   loadFeedbackDraft,
@@ -166,7 +166,7 @@ export default function FeedbackScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(theme.accent)} />
-      <ScrollView
+      <KeyboardScroll
         contentContainerStyle={[
           styles.container,
           {
@@ -174,7 +174,6 @@ export default function FeedbackScreen() {
             paddingBottom: insets.bottom + space.xl,
           },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
         <Pressable
           onPress={() => router.back()}
@@ -275,23 +274,15 @@ export default function FeedbackScreen() {
             </View>
 
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-              <TextInput
+              <TextField
+                theme={theme}
                 value={text}
                 onChangeText={setText}
                 placeholder="What would make this better?"
-                placeholderTextColor={theme.muted}
                 accessibilityLabel="Your feedback"
                 multiline
-                textAlignVertical="top"
                 maxLength={MAX_FEEDBACK_LENGTH}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: theme.hairline,
-                    color: theme.ink,
-                    backgroundColor: theme.surface,
-                  },
-                ]}
+                style={[styles.input, { borderColor: theme.hairline }]}
               />
               {/* Only near the ceiling. A counter that watches every
                *  character makes a comment box feel like an exam. */}
@@ -334,7 +325,8 @@ export default function FeedbackScreen() {
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </KeyboardScroll>
+      <KeyboardBar theme={theme} />
     </View>
   );
 }

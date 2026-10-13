@@ -17,6 +17,7 @@ import {
   type ErrorUtils as RNErrorUtils,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import migrations from "../../drizzle/migrations";
 import { AppText } from "../components/ui/AppText";
@@ -187,8 +188,12 @@ function MigrationGate() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <RouteWitness />
-      <Stack screenOptions={{ headerShown: false }} />
+      {/* Every text field's scrolling and the bar above the keyboard
+          read from this (ADR-0043 §5). */}
+      <KeyboardProvider>
+        <RouteWitness />
+        <Stack screenOptions={{ headerShown: false }} />
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

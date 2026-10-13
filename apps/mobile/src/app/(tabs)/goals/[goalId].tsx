@@ -23,9 +23,9 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { FadeIn, LinearTransition, useReducedMotion } from "react-native-reanimated";
@@ -49,6 +49,7 @@ import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group, GroupDivider } from "../../../components/ui/Group";
+import { KeyboardBar, KeyboardScroll } from "../../../components/ui/KeyboardBar";
 import { MenuSheet } from "../../../components/ui/MenuSheet";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
 import {
@@ -92,6 +93,8 @@ export default function GoalDetailScreen() {
   const reduceMotion = useReducedMotion();
   const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
 
+  const { height: windowHeight } = useWindowDimensions();
+  const [tabBarGap, setTabBarGap] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [revising, setRevising] = useState(false);
@@ -148,16 +151,22 @@ export default function GoalDetailScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+    <View
+      style={[styles.root, { backgroundColor: theme.canvas }]}
+      // The screen ends at the tab bar; the keyboard bar needs to know
+      // by how much (see KeyboardBar).
+      onLayout={(e) =>
+        setTabBarGap(Math.max(0, windowHeight - e.nativeEvent.layout.y - e.nativeEvent.layout.height))
+      }
+    >
       <Backdrop circles={hueWash(accent)} />
-      <ScrollView
+      <KeyboardScroll
         contentContainerStyle={[
           styles.container,
           // Pushed inside the Goals tab, so the bar is still on screen and
           // owns the bottom inset. Back stays — this is a detail screen.
           { paddingTop: insets.top + space.md, paddingBottom: space.xxxl },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
         <Pressable
           onPress={() => router.back()}
@@ -542,7 +551,8 @@ export default function GoalDetailScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </KeyboardScroll>
+      <KeyboardBar aboveScreenBottom={tabBarGap} theme={theme} />
     </View>
   );
 }

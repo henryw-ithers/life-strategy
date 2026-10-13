@@ -13,9 +13,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
-  TextInput,
   useColorScheme,
   View,
 } from "react-native";
@@ -32,6 +30,8 @@ import {
 import { AppText } from "../components/ui/AppText";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { KeyboardBar, KeyboardScroll } from "../components/ui/KeyboardBar";
+import { TextField } from "../components/ui/TextField";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space, type as typeScale } from "../theme/tokens";
 
@@ -139,7 +139,7 @@ export default function BackupScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(theme.accent)} />
-      <ScrollView
+      <KeyboardScroll
         contentContainerStyle={[
           styles.container,
           {
@@ -147,7 +147,6 @@ export default function BackupScreen() {
             paddingBottom: insets.bottom + space.xl,
           },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
         <Pressable
           onPress={() => router.back()}
@@ -307,7 +306,8 @@ export default function BackupScreen() {
             <Button label="Cancel" variant="quiet" onPress={reset} theme={theme} />
           </View>
         ) : null}
-      </ScrollView>
+      </KeyboardScroll>
+      <KeyboardBar arrows theme={theme} />
     </View>
   );
 }
@@ -326,20 +326,17 @@ function Field({
   autoFocus?: boolean;
 }) {
   return (
-    <TextInput
+    <TextField
+      theme={theme}
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
-      placeholderTextColor={theme.muted}
       secureTextEntry
       autoCapitalize="none"
       autoCorrect={false}
       autoFocus={autoFocus}
       accessibilityLabel={placeholder}
-      style={[
-        styles.input,
-        { borderColor: theme.hairline, color: theme.ink, backgroundColor: theme.surface },
-      ]}
+      style={[styles.input, { borderColor: theme.hairline }]}
     />
   );
 }

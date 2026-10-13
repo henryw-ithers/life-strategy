@@ -20,6 +20,12 @@
  * padding, and their own content; they just stop re-deriving where it
  * sits.
  *
+ * **Keyboard (2026-10-13).** It used to wrap typing sheets in a
+ * `KeyboardAvoidingView`, which shrank every sheet that took typing
+ * (ADR-0043). Now a typing sheet scrolls its body in a `KeyboardScroll`
+ * and the frame adds the bar above the keyboard. The sheet keeps its
+ * height either way.
+ *
  * Three details are load-bearing:
  *
  * - **`flex: 1` on the frame**, so a percentage cap on the child
@@ -30,24 +36,29 @@
  * - **An absolutely positioned scrim**, so it fills the modal without
  *   taking part in the layout that positions the sheet.
  */
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { SCRIM } from "../../theme/colors";
+import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { KeyboardBar } from "./KeyboardBar";
 
-interface SheetFrameProps {
+type SheetFrameProps = {
   /** Tapping the scrim runs this, as the platform expects. */
   onClose: () => void;
-  /**
-   * Set when the sheet holds a text input. Adds the
-   * `KeyboardAvoidingView` so the sheet rises by the keyboard's height;
-   * omit it and the frame is a plain view, which is one fewer layout
-   * pass for the sheets that never take typing.
-   */
-  avoidsKeyboard?: boolean;
   children: React.ReactNode;
-}
+} & (
+  | {
+      /**
+       * Set when the sheet holds a text field: adds the bar above the
+       * keyboard. `"fields"` adds ‹ › too, for sheets with more than
+       * one. The sheet's body should be a `KeyboardScroll`.
+       */
+      typing: "field" | "fields";
+      theme: ThemeTokens;
+    }
+  | { typing?: undefined; theme?: undefined }
+);
 
-export function SheetFrame({ onClose, avoidsKeyboard, children }: SheetFrameProps) {
+export function SheetFrame({ onClose, typing, theme, children }: SheetFrameProps) {
   return (
     <>
       <Pressable
@@ -56,19 +67,12 @@ export function SheetFrame({ onClose, avoidsKeyboard, children }: SheetFrameProp
         accessibilityRole="button"
         accessibilityLabel="Close"
       />
-      {avoidsKeyboard === true ? (
-        <KeyboardAvoidingView
-          style={styles.frame}
-          pointerEvents="box-none"
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          {children}
-        </KeyboardAvoidingView>
-      ) : (
-        <View style={styles.frame} pointerEvents="box-none">
-          {children}
-        </View>
-      )}
+      <View style={styles.frame} pointerEvents="box-none">
+        {children}
+      </View>
+      {typing !== undefined && theme !== undefined ? (
+        <KeyboardBar arrows={typing === "fields"} theme={theme} />
+      ) : null}
     </>
   );
 }

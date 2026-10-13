@@ -21,14 +21,16 @@
  */
 import { rebalanceShares } from "@glide/scoring";
 import { useState } from "react";
-import { Modal, StyleSheet, Switch, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 export type CommitmentSheetMode =
   | { kind: "commitment"; name?: string; percent?: number }
@@ -87,7 +89,7 @@ export function CommitmentSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing="fields" theme={theme}>
         <View
           style={[
             styles.sheet,
@@ -113,22 +115,16 @@ export function CommitmentSheet({
             </AppText>
           ) : null}
 
-          <TextInput
+          <KeyboardScroll contentContainerStyle={styles.body}>
+          <TextField
+            theme={theme}
             value={name}
             onChangeText={setName}
             placeholder={
               mode.kind === "commitment" ? "School" : "COMP2521"
             }
-            placeholderTextColor={theme.muted}
             autoFocus
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                color: theme.ink,
-                ...typeScale.body,
-              },
-            ]}
+            style={styles.input}
             accessibilityLabel="Name"
           />
 
@@ -145,19 +141,13 @@ export function CommitmentSheet({
                 <AppText variant="label" color={theme.ink} style={styles.grow}>
                   Share of commitment points
                 </AppText>
-                <TextInput
+                <TextField
+                  theme={theme}
                   value={percentText}
                   onChangeText={(t) => setPercentText(t.replace(/[^0-9]/g, ""))}
                   keyboardType="number-pad"
                   maxLength={2}
-                  style={[
-                    styles.shareInput,
-                    {
-                      backgroundColor: theme.surface,
-                      color: theme.ink,
-                      ...typeScale.headline,
-                    },
-                  ]}
+                  style={[styles.shareInput, typeScale.headline]}
                   accessibilityLabel="Percent of commitment points from this commitment"
                 />
                 <AppText variant="headline" color={theme.ink}>
@@ -208,6 +198,7 @@ export function CommitmentSheet({
               />
             </View>
           ) : null}
+          </KeyboardScroll>
 
           <Button
             label={editing ? "Save" : "Add"}
@@ -234,7 +225,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.screen,
     paddingTop: space.xl,
     gap: space.md,
+    maxHeight: "92%",
   },
+  body: { gap: space.md },
   input: {
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
