@@ -2,7 +2,8 @@
 
 The app runs in a browser so UI changes can be looked at without a
 physical device. **Web is a development surface, not a target.** The
-product ships to iOS via Expo Go / TestFlight; nothing here implies a
+product ships to iOS via TestFlight, and day-to-day testing uses an
+EAS development build; nothing here implies a
 supported web build, and no product decision should be made to
 accommodate a browser.
 
@@ -18,7 +19,8 @@ npm run start -w apps/mobile -- --web
 ```
 
 Or start the `expo-web` configuration in `.claude/launch.json`, which
-runs on port **8090** so a web preview and an Expo Go server (8081) can
+runs on port **8090** so a web preview and the development-build
+server (8081) can
 be up at the same time.
 
 ## Why it needs three pieces of setup
@@ -35,6 +37,20 @@ and all three are load-bearing.
 `SharedArrayBuffer` only exists in a cross-origin-isolated page, and
 adds `wasm` to `resolver.assetExts` so Metro will serve
 `wa-sqlite.wasm`. Confirm with `window.crossOriginIsolated === true`.
+
+**The headers are added to every response the dev server writes.**
+Since SDK 56 the Expo CLI serves the HTML page from its own middleware,
+registered before Metro's, so wrapping Metro's middleware (what this
+file did up to SDK 54) only reached the bundles and the page was left
+un-isolated. The config now patches `ServerResponse.writeHead` the first
+time the dev server calls `enhanceMiddleware`, which only happens in the
+dev server. If `crossOriginIsolated` is ever `false` again, check the
+page's own response headers first.
+
+**Web output is `single`, not `static`** (`app.json` → `web.output`).
+With `static`, the dev server renders each page on the server first,
+and from SDK 57 that step fails with "Worker chunk not found" for
+expo-sqlite's web worker. The preview doesn't need server rendering.
 
 ### 2. The database opens asynchronously on web
 
@@ -66,7 +82,7 @@ not have helped.
 
 ### 3. A patched `expo-sqlite`
 
-`patches/expo-sqlite+16.0.10.patch` fixes one line in
+`patches/expo-sqlite+57.0.4.patch` fixes one line in
 `web/WorkerChannel.ts`, applied automatically by `patch-package` from
 the root `postinstall`.
 
@@ -85,10 +101,11 @@ string. A result that is an exact multiple of 256 produced
 `Unexpected end of JSON input`.
 
 Because drizzle is sync-only, this made the web path fail on any
-non-trivial query. 16.0.10 is the newest release in the 16.x line, so
-there is no version to move to while the SDK stays pinned to 54 (see
-the root `AGENTS.md`) — hence the patch. Delete it once the SDK moves
-and upstream has fixed the framing.
+non-trivial query. The bug was still upstream in 57.0.4, the version
+SDK 57 ships (checked 2026-10-13), so the patch was carried over from
+16.0.10. When the SDK moves, check `web/WorkerChannel.ts` again and
+delete the patch once upstream writes the length as a real 32-bit
+value.
 
 ## Skia needs its own entry
 

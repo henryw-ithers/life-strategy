@@ -140,15 +140,29 @@ part of how this happened. The npm scripts sidestep it entirely.
 | `preview` | Internal distribution; iOS simulator build for a quick check on the Mac. |
 | `production` | Store build; what goes to TestFlight. Auto-increments. |
 
-**Expo Go is still the day-to-day workflow, but it no longer covers
-everything.** The SDK 54 pin keeps it working
-([ADR-0001](adr/0001-platform-and-tech-stack.md)) and `npm run mobile`
-remains the default loop. What changed is that
-[ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md) put
-the backup cryptography in a native module, and Expo Go cannot load
-custom native code — so **backup and restore only work in a
-`development`, `preview`, or TestFlight build.** The screen says so
-rather than failing at the passphrase prompt.
+**The day-to-day workflow is a development build**
+([ADR-0043](adr/0043-the-app-uses-native-ios-controls.md)). Expo Go
+can't run the app: the backup cryptography is a native module
+([ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md)), and
+from SDK 56 Expo Go isn't on the App Store anyway. The development
+build is the app with Expo's developer menu added. Install it once,
+then `npm run mobile` loads your current code into it over Wi-Fi, the
+same way Expo Go did. A new build is only needed when a native
+package or the app config changes.
+
+**Setting it up (once per phone):**
+
+1. Register the iPhone with your Apple developer account, from
+   `apps/mobile`: `npx eas-cli@latest device:create`, then open the link
+   it gives you on the phone and install the profile.
+2. Build: `npm run eas:dev -w apps/mobile`. EAS builds it in the cloud
+   (no Xcode needed on the Mac) and gives a link and QR code.
+3. Open the link on the phone and install the build. On iOS 16 and
+   later, turn on Settings → Privacy & Security → Developer Mode the
+   first time.
+4. Run `npm run mobile` on the Mac and open the project from the
+   development build. The phone and the Mac must be on the same Wi-Fi,
+   or use `npx expo start --dev-client --tunnel`.
 
 Anything touching `packages/backup`, `src/backup/`, or
 `modules/glide-crypto` therefore needs a dev client to verify. That

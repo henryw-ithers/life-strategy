@@ -81,6 +81,12 @@ Constraints already in force:
 
 ### 1. A commitment is a custom `life_unit`, in two levels
 
+> **Amended 2026-10-13 by
+> [ADR-0044](0044-a-commitment-share-comes-from-your-day.md) §7.** The
+> split switch is removed: adding the first sub-commitment splits the
+> commitment, and removing the last one un-splits it. Each
+> commitment's share of the day is now worked out from your hours.
+
 A **commitment** — School, Work, Basketball Club — is a `life_unit`
 with `is_custom = true`, carrying its own weight and holding its own
 tasks. Inside it sit **sub-commitments** (School → COMP2521,

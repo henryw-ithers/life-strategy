@@ -133,6 +133,10 @@ measure that is not downstream of its own input.
 
 ### 2. The spread is flattened to `WEIGHT_SPREAD`, and it is 2
 
+> **Amended 2026-10-13 by [ADR-0041](0041-priorities-are-tiers.md).**
+> Tiers replace `WEIGHT_SPREAD`. The spread is wider, and Not now
+> (`include_in_scoring = false`) is a tier with no weight and no tasks.
+
 Rank scores are mapped onto a narrow band before normalizing:
 
     raw(u) = 1 + (WEIGHT_SPREAD − 1) × (importance − 1) / 9

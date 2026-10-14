@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
    *  surface is never visible around its edges. */
   root: { flex: 1, overflow: "hidden", borderRadius: radius.sm },
   backing: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "flex-end",
     justifyContent: "center",
     paddingRight: space.lg,

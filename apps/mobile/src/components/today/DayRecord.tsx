@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   photoRow: { flexDirection: "row", gap: space.sm },
   photoThumb: { width: 110, height: 110, borderRadius: radius.lg },
   photoMissing: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,
     alignItems: "center",

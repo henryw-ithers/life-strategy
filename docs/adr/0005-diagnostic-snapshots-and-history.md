@@ -17,6 +17,12 @@ visualizations, and how the graph survives taxonomy edits.
 
 ### 1. Cadence: monthly prompt, available anytime, always full
 
+> **Amended 2026-10-13 by [ADR-0041](0041-priorities-are-tiers.md).**
+> The monthly prompt becomes an optional step in the first weekly pass
+> of each month. A snapshot is also saved whenever you tap Done on
+> Priorities, so a full diagnostic is no longer the only way to save
+> one.
+
 - The app prompts a diagnostic **monthly**, as the opening act of the
   monthly review (amends ADR-0002 decision 5: diagnostic + goal/task
   review + monthly grade + achievements are one ritual).
@@ -46,6 +52,10 @@ rebuild:
 - Accepting the defaults with zero edits is a first-class path.
 
 ### 3. Bubble size: measured effort, frozen per snapshot
+
+> **Amended 2026-10-13 by [ADR-0041](0041-priorities-are-tiers.md).**
+> The portfolio graph is removed, and with it §§3–4. Life shows each
+> unit's share of the last 4 weeks' completed work instead.
 
 - Bubble size = **points earned per unit over the trailing 28 days**
   — task completions plus activity credit (ADR-0009), normalized

@@ -74,6 +74,6 @@ export function SheetFrame({ onClose, avoidsKeyboard, children }: SheetFrameProp
 }
 
 const styles = StyleSheet.create({
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: SCRIM },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: SCRIM },
   frame: { flex: 1, justifyContent: "flex-end" },
 });

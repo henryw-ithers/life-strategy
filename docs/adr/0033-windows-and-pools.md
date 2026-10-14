@@ -42,6 +42,10 @@ Constraints already in force:
 
 ### 1. The day is always divided into windows
 
+> **Superseded 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md).** Windows come
+> from your working hours, minus events and gaps.
+
 A **window** is a stretch of the day work can be placed into.
 
 - **With commitments**, windows are the **gaps between them** — 30
@@ -61,6 +65,11 @@ define the sections** — twelve lectures a week become the shape of the
 day rather than twelve more checkboxes.
 
 ### 2. Work carries forward to the next window
+
+> **Amended 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md) §8.** Carrying
+> stops at the end of the week for repeating tasks, clock-timed tasks
+> carry too, and a carried row says "Still open".
 
 Unfinished work appears in the next window — that evening, or the next
 day.
@@ -135,6 +144,10 @@ See the 2026-09-11 addendum in
 three is safe on choice-overload grounds, and framing is the lever.
 
 ### 4. The grid draws the span of the day's windows
+
+> **Superseded 2026-10-13 by
+> [ADR-0039](0039-work-windows-come-from-your-hours.md) §10.** There is
+> no hour grid; Home has one layout.
 
 Not a fixed range, and not just the blocks:
 

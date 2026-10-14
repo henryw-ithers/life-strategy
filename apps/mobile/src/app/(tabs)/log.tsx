@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   },
   photoFill: { width: "100%", height: "100%" },
   photoMissing: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
     alignItems: "center",

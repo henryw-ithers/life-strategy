@@ -42,6 +42,11 @@ and on the name, *"just make it event everywhere."*
 
 ### 1. An event is a task with `kind = 'event'`
 
+> **Amended 2026-10-13 by
+> [ADR-0040](0040-schedules-can-end-skip-and-clear.md).** `location` is
+> removed. Repeating events can end after a number of weeks or on a
+> date, and weeks can be skipped.
+
 Stored on `task`, with a new `kind` column (`task` | `event`, default
 `task`) and an optional `location`. Its notes are the task's existing
 `description`. It is ticked and paid exactly as a task is — from its

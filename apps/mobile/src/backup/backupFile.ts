@@ -121,9 +121,12 @@ export interface BackupPreview {
  * picker was dismissed.
  */
 export async function pickBackup(): Promise<BackupPreview | null> {
+  // Since SDK 57 this returns `{ canceled, result }` rather than the
+  // File itself. Reading `.uri` off the wrapper gave undefined, so every
+  // pick looked like a cancel and restore silently did nothing.
   const picked = await File.pickFileAsync();
-  const uri = (Array.isArray(picked) ? picked[0] : picked)?.uri;
-  if (!uri) return null;
+  if (picked.canceled) return null;
+  const uri = picked.result.uri;
 
   const header = readHeader(await new File(uri).bytes());
   return {
@@ -177,7 +180,9 @@ export async function restoreBackup(
 
   const rescue = new File(`${dbPath}.pre-restore`);
   if (rescue.exists) rescue.delete();
-  if (live.exists) live.copy(rescue);
+  // `copy()` became async in Expo SDK 56. Without the await, the live
+  // database could be deleted below before its rescue copy is written.
+  if (live.exists) await live.copy(rescue);
 
   await sqlite.closeAsync();
 

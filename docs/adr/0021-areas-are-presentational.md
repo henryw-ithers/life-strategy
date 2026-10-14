@@ -81,6 +81,12 @@ presentation depends on the area a unit belonged to.
 
 ### 2. What areas keep doing
 
+> **Amended 2026-10-13 by
+> [ADR-0043](0043-the-app-uses-native-ios-controls.md).** Area colours
+> are no longer the only colours. A unit or commitment can take any of
+> 12 palette colours, and falls back to its area's. §1 still holds:
+> colour never affects weight, rank or order.
+
 - **Colour.** The six-hue palette is an area-keyed system and remains
   the app's only carrier of categorical identity (DESIGN.md).
 - **Grouping.** Plan, Goals, the diagnostic diff, and the weight summary

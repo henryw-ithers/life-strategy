@@ -19,6 +19,11 @@ only ever suggest *what*, never *how much*.
 
 ### 1. Source: curated on-device library (v1); LLM later, opt-in
 
+> **Amended 2026-10-13 by
+> [ADR-0042](0042-goals-are-measured-by-the-app.md).** The goal half of
+> the library is replaced by templates for the four goal types, one per
+> type that fits each unit. The task library is unchanged.
+
 A hand-curated **content package ships inside the app** — no network,
 no per-user cost, no diagnostic data leaving the device:
 
