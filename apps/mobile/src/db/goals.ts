@@ -19,6 +19,7 @@ import {
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
+import { habitRungTitle, rungDaysOf } from "../lib/habitRungs";
 import { db } from "./client";
 import { recomputeAllUnitPoints, type Tx } from "./tasks";
 import {
@@ -271,8 +272,9 @@ async function habitStreak(
  * that a run happened, and the completion dates are the evidence. There
  * is nothing for the user to confirm and nothing to get wrong.
  *
- * Idempotent on `(goalId, titleSnapshot)`, because it runs on every
- * visit to the goal. Dated by `rungReachedOn`, so a rung noticed in
+ * Idempotent on the goal and the rung's day count, because it runs on
+ * every visit to the goal. Not on the whole title: a renamed goal would
+ * otherwise record every rung again under its new name. Dated by `rungReachedOn`, so a rung noticed in
  * September but passed in July files in July — the thing the old
  * two-step date picker existed to protect.
  */
@@ -289,16 +291,21 @@ async function recordHabitRungs(
     .select({ titleSnapshot: achievement.titleSnapshot })
     .from(achievement)
     .where(eq(achievement.goalId, goalId));
-  const held = new Set(existing.map((a) => a.titleSnapshot));
+  // A completed goal's own achievement carries the goal's title, which
+  // could itself read "30 days of …"; it is not a rung.
+  const held = new Set(
+    existing
+      .filter((a) => a.titleSnapshot !== goalTitle)
+      .map((a) => rungDaysOf(a.titleSnapshot)),
+  );
 
   for (const days of reached) {
-    const title = `${days} days of ${goalTitle}`;
-    if (held.has(title)) continue;
+    if (held.has(days)) continue;
     await db.insert(achievement).values({
       id: Crypto.randomUUID(),
       goalId,
       milestoneId: null,
-      titleSnapshot: title,
+      titleSnapshot: habitRungTitle(days, goalTitle),
       achievedAt: rungReachedOn(input, days) ?? input.today,
     });
   }
@@ -771,6 +778,18 @@ export async function addCondition(
     sortOrder: maxSortOrder + 1,
   });
   return id;
+}
+
+/**
+ * Rename a goal (ADR-0043 §5). A label change, like renaming a unit:
+ * achievements keep the title they were earned under in
+ * `title_snapshot`, and habit rungs are matched by day count, so a
+ * rename never rewrites or re-records history. Blank names are ignored.
+ */
+export async function renameGoal(goalId: string, title: string): Promise<void> {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) return;
+  await db.update(goal).set({ title: trimmed }).where(eq(goal.id, goalId));
 }
 
 export async function renameCondition(

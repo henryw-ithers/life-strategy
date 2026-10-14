@@ -909,8 +909,9 @@ On every text field:
 
 - Sheets keep their height when the keyboard opens, and the field
   you're typing in scrolls into view.
-- A bar above the keyboard has ⌄ on the right to hide it, and ‹ › to
-  move between fields where that helps.
+- A bar above the keyboard has one button on the right, iOS's
+  keyboard-down symbol, to hide it. No ‹ › arrows (decided
+  2026-10-14: beside ⌄ they read as three buttons doing one thing).
 - Return works as normal: Done or Next on one-line fields, a new line
   in notes.
 

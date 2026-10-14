@@ -9,14 +9,7 @@
  * is nothing to be tempted by later.
  */
 import { useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MetricKind } from "@glide/scoring";
@@ -24,7 +17,9 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -137,7 +132,7 @@ export function GoalMetricSheet({
           eighth of the content and forced a scroll at every screen
           size. Filling the modal makes the cap mean 88% of the screen.
           `box-none` keeps the scrim tappable through the empty area. */}
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,
@@ -153,10 +148,9 @@ export function GoalMetricSheet({
             Measure this goal
           </AppText>
 
-          <ScrollView
+          <KeyboardScroll
             style={styles.scroller}
             contentContainerStyle={styles.body}
-            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.block}>
@@ -203,31 +197,23 @@ export function GoalMetricSheet({
                   Target
                 </AppText>
                 <View style={styles.pair}>
-                  <TextInput
+                  <TextField
+                    theme={theme}
                     value={target}
                     onChangeText={setTarget}
                     placeholder="24"
-                    placeholderTextColor={theme.muted}
                     keyboardType="numeric"
                     accessibilityLabel="Target number"
-                    style={[
-                      styles.input,
-                      styles.number,
-                      { backgroundColor: theme.surface, color: theme.ink },
-                    ]}
+                    style={[styles.input, styles.number]}
                   />
-                  <TextInput
+                  <TextField
+                    theme={theme}
                     value={unit}
                     onChangeText={setUnit}
                     placeholder="books"
-                    placeholderTextColor={theme.muted}
                     autoCapitalize="none"
                     accessibilityLabel="What the number counts"
-                    style={[
-                      styles.input,
-                      styles.flex,
-                      { backgroundColor: theme.surface, color: theme.ink },
-                    ]}
+                    style={[styles.input, styles.flex]}
                   />
                 </View>
               </View>
@@ -358,7 +344,7 @@ export function GoalMetricSheet({
                 when you next review your goals.
               </AppText>
             </View>
-          </ScrollView>
+          </KeyboardScroll>
 
           <Button
             label="Save"

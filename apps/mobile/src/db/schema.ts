@@ -500,9 +500,6 @@ export const task = sqliteTable("task", {
    * like one.
    */
   kind: text("kind", { enum: ["task", "event"] }).notNull().default("task"),
-  /** Where an event happens — a room, an address. Free text,
-   *  optional, shown with it (ADR-0038). Null on ordinary tasks. */
-  location: text("location"),
   /**
    * The sub-commitment this task lived in before its commitment stopped
    * using sub-commitments, so turning them back on puts it home again

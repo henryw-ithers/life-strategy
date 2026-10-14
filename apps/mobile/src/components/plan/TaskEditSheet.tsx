@@ -24,22 +24,16 @@
  * make the numbers flicker under the user's hands.
  */
 import { useState } from "react";
-import {
-  Keyboard,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import {
   formatWeekdays,
@@ -203,7 +197,7 @@ export function TaskEditSheet({
           eighth of the content and forced a scroll at every screen
           size. Filling the modal makes the cap mean 88% of the screen.
           `box-none` keeps the scrim tappable through the empty area. */}
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,
@@ -220,30 +214,28 @@ export function TaskEditSheet({
             Edit task
           </AppText>
 
-          <ScrollView
+          <KeyboardScroll
             style={styles.scroller}
             contentContainerStyle={styles.scrollBody}
-            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             // The frequency wheel is a nested scroller; without this
             // the sheet steals its drag on Android.
             nestedScrollEnabled
           >
           <View style={styles.field}>
-            <TextInput
+            <TextField
+              theme={theme}
               value={title}
               onChangeText={setTitle}
               placeholder="Task name"
-              placeholderTextColor={theme.muted}
               maxLength={TASK_TITLE_MAX}
-              // Dismisses the keyboard rather than saving and closing:
-              // the schedule sits below this field, and a Return that
-              // ends the sheet ends it before the user reaches what
-              // they most likely opened it for.
-              returnKeyType="done"
-              onSubmitEditing={() => Keyboard.dismiss()}
+              // Return dismisses the keyboard (TextField's default)
+              // rather than saving and closing: the schedule sits below
+              // this field, and a Return that ends the sheet ends it
+              // before the user reaches what they most likely opened
+              // it for.
               accessibilityLabel="Task name"
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+              style={styles.input}
             />
             {TASK_TITLE_MAX - title.length <= TASK_TITLE_COUNTER_AT ? (
               <AppText variant="footnote" color={theme.muted} style={styles.counter}>
@@ -357,7 +349,7 @@ export function TaskEditSheet({
               </View>
             </View>
           ) : null}
-          </ScrollView>
+          </KeyboardScroll>
 
           {missingDays ? (
             <AppText variant="footnote" color={theme.muted} style={styles.blocker}>

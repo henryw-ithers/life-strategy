@@ -193,6 +193,9 @@ export function NumberDial({
           <Animated.ScrollView
             ref={scrollRef}
             horizontal
+            // In a sheet with a field focused, the first tap should pick
+            // a number, not just close the keyboard.
+            keyboardShouldPersistTaps="handled"
             showsHorizontalScrollIndicator={false}
             snapToInterval={ITEM_W}
             decelerationRate="fast"

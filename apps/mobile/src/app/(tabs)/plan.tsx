@@ -424,7 +424,6 @@ export default function PlanScreen() {
             oneOffDate: editing.task.oneOffDate,
             startMinute: editing.task.startMinute,
             endMinute: editing.task.endMinute,
-            location: editing.task.location,
             notes: editing.task.description,
           }}
           accent={theme.areas[editing.unit.areaId] ?? theme.accent}

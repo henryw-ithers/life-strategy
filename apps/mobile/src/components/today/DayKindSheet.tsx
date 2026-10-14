@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { DayKind } from "../../db/today";
@@ -14,7 +8,9 @@ import { radius, space, type as typeScale } from "../../theme/tokens";
 import { NumberDial } from "../number-dial/NumberDial";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 interface DayKindSheetProps {
   visible: boolean;
@@ -97,7 +93,7 @@ export function DayKindSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,
@@ -113,6 +109,7 @@ export function DayKindSheet({
             What kind of day is {dayLabel}?
           </AppText>
 
+          <KeyboardScroll contentContainerStyle={styles.body}>
           <View style={styles.options}>
             {KIND_OPTIONS.map((opt) => {
               const selected = chosen === opt.kind;
@@ -144,17 +141,14 @@ export function DayKindSheet({
 
           {chosen === "special" ? (
             <View style={styles.special}>
-              <TextInput
+              <TextField
+                theme={theme}
                 value={specialTitle}
                 accessibilityLabel="What made it special"
                 onChangeText={setSpecialTitle}
                 placeholder="What made it special?"
-                placeholderTextColor={theme.muted}
                 returnKeyType="done"
-                style={[
-                  styles.input,
-                  { backgroundColor: theme.surface, color: theme.ink },
-                ]}
+                style={styles.input}
               />
               <NumberDial
                 label="How was it?"
@@ -167,6 +161,7 @@ export function DayKindSheet({
               />
             </View>
           ) : null}
+          </KeyboardScroll>
 
           <Button label="Save" onPress={commit} theme={theme} />
           <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
@@ -184,7 +179,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
     gap: space.lg,
+    maxHeight: "92%",
   },
+  body: { gap: space.lg },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   options: { gap: space.sm },
   option: {

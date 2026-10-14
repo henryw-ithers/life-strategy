@@ -6,14 +6,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
+  type TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import Animated, {
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-} from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { suggestTags } from "../../content/tagKeywords";
@@ -23,7 +20,9 @@ import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { useKeyboardLift } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 export interface TagUnit {
   id: string;
@@ -70,7 +69,7 @@ const SIZE_OPTIONS: { size: ActivitySize | null; label: string }[] = [
  * Log or edit a spontaneous activity (ADR-0009): title, suggested unit
  * tags (up to 3), and how significant it was. On rest and special days
  * everything logs creditlessly. Keyboard handling runs on the UI
- * thread (useAnimatedKeyboard) — KeyboardAvoidingView inside a Modal
+ * thread (`useKeyboardLift`) — KeyboardAvoidingView inside a Modal
  * fought the slide-in animation and flickered on device.
  */
 export function ActivitySheet({
@@ -85,7 +84,6 @@ export function ActivitySheet({
 }: ActivitySheetProps) {
   const insets = useSafeAreaInsets();
   const { height: windowH } = useWindowDimensions();
-  const keyboard = useAnimatedKeyboard();
   const [title, setTitle] = useState("");
   const [size, setSize] = useState<ActivitySize | null>("normal");
   const [tags, setTags] = useState<string[]>([]);
@@ -94,12 +92,7 @@ export function ActivitySheet({
   const creditless = dayKind !== "normal";
   const editing = existing != null;
 
-  const keyboardStyle = useAnimatedStyle(() => ({
-    paddingBottom:
-      insets.bottom +
-      space.lg +
-      Math.max(keyboard.height.value - insets.bottom, 0),
-  }));
+  const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
 
   useEffect(() => {
     if (visible) {
@@ -152,7 +145,7 @@ export function ActivitySheet({
         if (!editing) setTimeout(() => titleRef.current?.focus(), 80);
       }}
     >
-      <SheetFrame onClose={onClose}>
+      <SheetFrame onClose={onClose} typing>
       <Animated.View
         style={[
           styles.sheet,
@@ -171,18 +164,14 @@ export function ActivitySheet({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.fields}>
-            <TextInput
+            <TextField
+              theme={theme}
               ref={titleRef}
               value={title}
               accessibilityLabel="What you did"
               onChangeText={onTitleChange}
               placeholder="e.g. Round of golf with Dad"
-              placeholderTextColor={theme.muted}
-              returnKeyType="done"
-              style={[
-                styles.input,
-                { backgroundColor: theme.surface, color: theme.ink },
-              ]}
+              style={styles.input}
             />
 
             <View style={styles.block}>

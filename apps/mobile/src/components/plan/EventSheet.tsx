@@ -12,19 +12,20 @@
  * What is stopping a save is said in words under the button rather
  * than left as a greyed button that explains nothing.
  */
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { formatMinutes } from "@glide/scoring";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { eventProblem, type EventInput } from "../../db/events";
-import { spokenDate } from "../../lib/format";
+import { currentLocalDate } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
-import { radius, space, type as typeScale } from "../../theme/tokens";
+import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { DayField, TimeField } from "../ui/DateTimeField";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { parseWeekdays, type Weekday } from "./planning";
 import { Segmented } from "./Segmented";
 import { UnitPicker } from "./UnitPicker";
@@ -37,7 +38,6 @@ export interface EventSheetValue {
   oneOffDate: string | null;
   startMinute: number | null;
   endMinute: number | null;
-  location: string | null;
   notes: string | null;
 }
 
@@ -90,9 +90,7 @@ export function EventSheet({
   const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
-  const [location, setLocation] = useState(initial?.location ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [picking, setPicking] = useState<"date" | "start" | "end" | null>(null);
 
   const input: EventInput = {
     title,
@@ -100,30 +98,31 @@ export function EventSheet({
     date: repeat === "once" ? date : null,
     startMinute: start,
     endMinute: end,
-    location,
     notes,
   };
   const problem =
     eventProblem(input) ??
     (unitChoice && unitChoice.value.length === 0 ? "Choose where it belongs." : null);
 
-  /** Moving the start keeps the length, as every calendar does. */
+  /** Moving the start keeps the length, as every calendar does. A
+   *  first start brings an hour-long end with it, unless an end was
+   *  already chosen. */
   const pickStart = (m: number) => {
-    const span = start !== null && end !== null ? end - start : 60;
     setStart(m);
-    setEnd(Math.min(1439, m + span));
+    if (start !== null && end !== null) setEnd(Math.min(1439, m + (end - start)));
+    else if (end === null) setEnd(Math.min(1439, m + 60));
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,
             { backgroundColor: theme.canvas, paddingBottom: insets.bottom + space.lg },
           ]}
         >
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <KeyboardScroll contentContainerStyle={styles.body}>
             <View>
               <AppText variant="title" color={theme.ink}>
                 {initial ? "Edit event" : "New event"}
@@ -135,14 +134,14 @@ export function EventSheet({
               </AppText>
             </View>
 
-            <TextInput
+            <TextField
+              theme={theme}
               value={title}
               onChangeText={setTitle}
               placeholder="COMP2521 lecture"
-              placeholderTextColor={theme.muted}
               autoFocus={!initial}
               accessibilityLabel="Name"
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body }]}
+              style={styles.input}
             />
 
             {/* When comes first: an event is defined by it. */}
@@ -158,50 +157,46 @@ export function EventSheet({
               {repeat === "weekly" ? (
                 <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
               ) : (
-                <TimeRow
+                <PickRow
                   label="Date"
-                  value={date ? spokenDate(date) : null}
                   empty="Pick a day"
-                  onPress={() => setPicking("date")}
+                  onSet={() => setDate(currentLocalDate())}
                   theme={theme}
-                />
+                >
+                  {date !== null ? (
+                    <DayField date={date} onChange={setDate} label="Date" accent={accent} theme={theme} />
+                  ) : null}
+                </PickRow>
               )}
-              <TimeRow
+              <PickRow
                 label="Starts"
-                value={start !== null ? formatMinutes(start) : null}
                 empty="Pick a time"
-                onPress={() => setPicking("start")}
+                onSet={() => pickStart(9 * 60)}
                 theme={theme}
-              />
-              <TimeRow
+              >
+                {start !== null ? (
+                  <TimeField minutes={start} onChange={pickStart} label="Starts" accent={accent} theme={theme} />
+                ) : null}
+              </PickRow>
+              <PickRow
                 label="Ends"
-                value={end !== null ? formatMinutes(end) : null}
                 empty="Pick a time"
-                onPress={() => setPicking("end")}
+                onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
                 theme={theme}
-              />
+              >
+                {end !== null ? (
+                  <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
+                ) : null}
+              </PickRow>
             </View>
 
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor={theme.muted}
-              accessibilityLabel="Location"
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body }]}
-            />
-            <TextInput
+            <TextField
+              theme={theme}
               value={notes}
               onChangeText={setNotes}
               placeholder="Notes (optional)"
-              placeholderTextColor={theme.muted}
               accessibilityLabel="Notes"
               multiline
-              style={[
-                styles.input,
-                styles.notes,
-                { backgroundColor: theme.surface, color: theme.ink, ...typeScale.body },
-              ]}
             />
 
             {unitChoice ? (
@@ -213,7 +208,7 @@ export function EventSheet({
                 areaColors={unitChoice.areaColors}
               />
             ) : null}
-          </ScrollView>
+          </KeyboardScroll>
 
           <Button
             label={initial ? "Save" : "Add event"}
@@ -232,82 +227,51 @@ export function EventSheet({
           ) : null}
           <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
 
-          {picking !== null ? (
-            <DateTimePicker
-              value={
-                picking === "date"
-                  ? date
-                    ? new Date(`${date}T12:00:00`)
-                    : new Date()
-                  : minutesToDate(
-                      (picking === "start" ? start : end) ??
-                        (picking === "start" ? 9 * 60 : (start ?? 9 * 60) + 60),
-                    )
-              }
-              mode={picking === "date" ? "date" : "time"}
-              display="spinner"
-              minuteInterval={5}
-              onChange={(_event, next) => {
-                const which = picking;
-                setPicking(null);
-                if (!next || which === null) return;
-                if (which === "date") {
-                  setDate(toLocalDate(next));
-                  return;
-                }
-                const m = next.getHours() * 60 + next.getMinutes();
-                if (which === "start") pickStart(m);
-                else setEnd(m);
-              }}
-            />
-          ) : null}
         </View>
       </SheetFrame>
     </Modal>
   );
 }
 
-/** One "label · value" row that opens a picker. */
-function TimeRow({
+/**
+ * One "label · picker" row. Until it is set, the picker's place holds a
+ * prompt that sets it, because a picker can't show "not chosen yet" and
+ * an event's times are never filled in for you.
+ */
+function PickRow({
   label,
-  value,
   empty,
-  onPress,
+  onSet,
   theme,
+  children,
 }: {
   label: string;
-  value: string | null;
   empty: string;
-  onPress: () => void;
+  onSet: () => void;
   theme: ThemeTokens;
+  /** The picker, or null while unset. */
+  children: React.ReactNode;
 }) {
+  const set = children !== null && children !== undefined;
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${value ?? empty}`}
-      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
-    >
+    <View style={styles.row}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
-      <AppText color={value ? theme.ink : theme.muted} tabular>
-        {value ?? empty}
-      </AppText>
-    </Pressable>
+      {set ? (
+        children
+      ) : (
+        <Pressable
+          onPress={onSet}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${empty}`}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 44, justifyContent: "center" })}
+        >
+          <AppText color={theme.muted}>{empty}</AppText>
+        </Pressable>
+      )}
+    </View>
   );
-}
-
-function minutesToDate(minutes: number): Date {
-  const at = new Date();
-  at.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return at;
-}
-
-function toLocalDate(at: Date): string {
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(
-    at.getDate(),
-  ).padStart(2, "0")}`;
 }
 
 const styles = StyleSheet.create({
@@ -326,7 +290,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 52,
   },
-  notes: { minHeight: 88, textAlignVertical: "top" },
   card: { borderRadius: radius.lg, padding: space.md, gap: space.sm },
   row: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: space.md },
   grow: { flex: 1 },

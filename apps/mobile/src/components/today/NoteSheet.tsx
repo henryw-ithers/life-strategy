@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Modal, StyleSheet, TextInput, View } from "react-native";
-import Animated, {
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-} from "react-native-reanimated";
+import { Modal, StyleSheet, type TextInput, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { useKeyboardLift } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 interface NoteSheetProps {
   visible: boolean;
@@ -37,16 +36,9 @@ export function NoteSheet({
   onCommit,
 }: NoteSheetProps) {
   const insets = useSafeAreaInsets();
-  const keyboard = useAnimatedKeyboard();
   const [body, setBody] = useState(initialBody ?? "");
   const inputRef = useRef<TextInput>(null);
-
-  const keyboardStyle = useAnimatedStyle(() => ({
-    paddingBottom:
-      insets.bottom +
-      space.lg +
-      Math.max(keyboard.height.value - insets.bottom, 0),
-  }));
+  const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
 
   // Re-seed each time it opens: blank for a new note, the existing
   // text when rewriting one.
@@ -70,7 +62,7 @@ export function NoteSheet({
       onRequestClose={onClose}
       onShow={() => setTimeout(() => inputRef.current?.focus(), 80)}
     >
-      <SheetFrame onClose={onClose}>
+      <SheetFrame onClose={onClose} typing>
       <Animated.View
         style={[
           styles.sheet,
@@ -82,15 +74,15 @@ export function NoteSheet({
         <AppText variant="title" color={theme.ink}>
           {initialBody === undefined ? `A note on ${dayLabel}` : "Edit note"}
         </AppText>
-        <TextInput
+        <TextField
+          theme={theme}
           ref={inputRef}
           value={body}
           accessibilityLabel="Note"
           onChangeText={setBody}
           placeholder="What's worth remembering?"
-          placeholderTextColor={theme.muted}
           multiline
-          style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+          style={styles.input}
         />
         <Button
           label={initialBody === undefined ? "Save note" : "Save changes"}

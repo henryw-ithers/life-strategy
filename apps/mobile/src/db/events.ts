@@ -23,8 +23,6 @@ export interface EventInput {
   /** Minutes from local midnight. */
   startMinute: number | null;
   endMinute: number | null;
-  /** Where it happens — a room, an address. Optional. */
-  location?: string | null;
   /** Anything else worth having with it. Optional; stored as the
    *  task's description. */
   notes?: string | null;

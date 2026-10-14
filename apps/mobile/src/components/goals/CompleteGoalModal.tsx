@@ -1,19 +1,14 @@
 import { useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 type Phase = "choose" | "followup";
 
@@ -91,7 +86,7 @@ export function CompleteGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} avoidsKeyboard>
+      <SheetFrame onClose={close} typing>
         <View
           style={[
             styles.sheet,
@@ -169,14 +164,15 @@ export function CompleteGoalModal({
               <AppText variant="title" color={theme.ink}>
                 Follow-up goal
               </AppText>
-              <TextInput
+              <KeyboardScroll contentContainerStyle={styles.body}>
+              <TextField
+                theme={theme}
                 value={newTitle}
                 accessibilityLabel="What comes next"
                 onChangeText={setNewTitle}
                 placeholder={`e.g. ${goalTitle}, next stage`}
-                placeholderTextColor={theme.muted}
                 autoFocus
-                style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+                style={styles.input}
               />
 
               {tasks.length > 0 ? (
@@ -184,7 +180,7 @@ export function CompleteGoalModal({
                   <AppText variant="caption" color={theme.muted}>
                     Carry these tasks to the new goal
                   </AppText>
-                  <ScrollView style={styles.list}>
+                  <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
                     {tasks.map((t) => (
                       <Pressable
                         key={t.id}
@@ -212,6 +208,7 @@ export function CompleteGoalModal({
                   </ScrollView>
                 </>
               ) : null}
+              </KeyboardScroll>
 
               <Button
                 label="Create follow-up"
@@ -242,7 +239,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
     gap: space.md,
+    maxHeight: "92%",
   },
+  body: { gap: space.md },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   option: {
     borderWidth: StyleSheet.hairlineWidth,

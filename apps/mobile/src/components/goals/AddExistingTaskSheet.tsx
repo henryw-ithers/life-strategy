@@ -22,13 +22,15 @@
  * well.
  */
 import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { formatFrequency } from "../plan/frequency";
 
 export interface AttachableTask {
@@ -82,7 +84,7 @@ export function AddExistingTaskSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} avoidsKeyboard>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,
@@ -104,25 +106,21 @@ export function AddExistingTaskSheet({
           </AppText>
 
           {tasks.length > 0 ? (
-            <TextInput
+            <TextField
+              theme={theme}
               value={query}
               onChangeText={setQuery}
               placeholder="Search your plan"
-              placeholderTextColor={theme.muted}
               accessibilityLabel="Search your tasks"
               autoCorrect={false}
               returnKeyType="search"
-              style={[
-                styles.search,
-                { backgroundColor: theme.surface, color: theme.ink },
-              ]}
+              style={styles.search}
             />
           ) : null}
 
-          <ScrollView
+          <KeyboardScroll
             style={styles.scroller}
             contentContainerStyle={styles.body}
-            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             {tasks.length === 0 ? (
@@ -173,7 +171,7 @@ export function AddExistingTaskSheet({
                 ) : null}
               </Pressable>
             ))}
-          </ScrollView>
+          </KeyboardScroll>
         </View>
       </SheetFrame>
     </Modal>

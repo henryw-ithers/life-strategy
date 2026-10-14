@@ -22,11 +22,10 @@
  * (`Group`'s `footnote`). That keeps the list scannable and still says
  * the thing before the tap.
  */
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Application from "expo-application";
 import * as Linking from "expo-linking";
 import { router, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
 
 import { EraseDataModal } from "../components/settings/EraseDataModal";
@@ -35,6 +34,7 @@ import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { Backdrop, hueWash } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
+import { TimeField } from "../components/ui/DateTimeField";
 import { ScreenHeader } from "../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
@@ -46,6 +46,7 @@ import {
 import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
 import { currentLocalDate } from "../lib/calendar";
+import { hhmmToMinutes } from "../lib/pickerValues";
 import { loadDay } from "../db/today";
 import {
   cancelAllNudges,
@@ -75,8 +76,16 @@ export default function SettingsScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [eraseOpen, setEraseOpen] = useState(false);
+  /** The time on the wheel while it's being turned, before it's saved. */
+  const [draftTime, setDraftTime] = useState<number | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
 
   const reload = useCallback(async () => {
     const [loaded, status] = await Promise.all([
@@ -132,12 +141,22 @@ export default function SettingsScreen() {
     await resync();
   };
 
-  const timeAsDate = (() => {
-    const [h, m] = (settings?.time ?? "09:00").split(":").map(Number);
-    const d = new Date();
-    d.setHours(h ?? 9, m ?? 0, 0, 0);
-    return d;
-  })();
+  const reminderMinutes = draftTime ?? hhmmToMinutes(settings?.time ?? "") ?? 9 * 60;
+
+  /** The wheel reports every turn. Saving and rescheduling on each one
+   *  would race, and a slow reload could pull the wheel back mid-turn,
+   *  so the picker shows the draft and the save waits for a pause. */
+  const pickReminderTime = (m: number) => {
+    setDraftTime(m);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      void onChangeTime(Math.floor(m / 60), m % 60).finally(() => {
+        // A newer turn is waiting to save; keep showing it.
+        if (saveTimer.current === null) setDraftTime(null);
+      });
+    }, 500);
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -185,19 +204,13 @@ export default function SettingsScreen() {
                 <AppText color={theme.ink} style={styles.grow}>
                   Time
                 </AppText>
-                <Pressable
-                  onPress={() => setPickerOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Reminder time, ${settings.time}`}
-                  style={({ pressed }) => [
-                    styles.timeChip,
-                    { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <AppText color={theme.ink} tabular>
-                    {settings.time}
-                  </AppText>
-                </Pressable>
+                <TimeField
+                  minutes={reminderMinutes}
+                  onChange={pickReminderTime}
+                  label="Reminder time"
+                  accent={theme.accent}
+                  theme={theme}
+                />
               </View>
             ) : null}
 
@@ -217,18 +230,6 @@ export default function SettingsScreen() {
                   Open system settings
                 </AppText>
               </Pressable>
-            ) : null}
-
-            {pickerOpen ? (
-              <DateTimePicker
-                value={timeAsDate}
-                mode="time"
-                display="spinner"
-                onChange={(_event, date) => {
-                  setPickerOpen(false);
-                  if (date) void onChangeTime(date.getHours(), date.getMinutes());
-                }}
-              />
             ) : null}
           </Group>
         )}
@@ -379,11 +380,5 @@ const styles = StyleSheet.create({
     gap: space.md,
     minHeight: 44,
     marginTop: space.sm,
-  },
-  timeChip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs + 2,
   },
 });

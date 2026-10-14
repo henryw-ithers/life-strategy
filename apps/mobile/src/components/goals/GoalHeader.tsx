@@ -35,6 +35,7 @@ export function GoalHeader({
   goal,
   accent,
   onComplete,
+  onRename,
   onResume,
   onRevive,
   theme,
@@ -42,6 +43,8 @@ export function GoalHeader({
   goal: GoalDetail;
   accent: string;
   onComplete: () => void;
+  /** Tapping the title renames the goal (ADR-0043 §5). */
+  onRename: () => void;
   onResume: () => void;
   onRevive: () => void;
   theme: ThemeTokens;
@@ -63,9 +66,17 @@ export function GoalHeader({
       <AppText variant="caption" color={theme.muted}>
         {goal.unitName}
       </AppText>
-      <AppText variant="display" color={theme.ink}>
-        {goal.title}
-      </AppText>
+      <Pressable
+        onPress={onRename}
+        accessibilityRole="button"
+        accessibilityLabel={goal.title}
+        accessibilityHint="Renames the goal"
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      >
+        <AppText variant="display" color={theme.ink}>
+          {goal.title}
+        </AppText>
+      </Pressable>
       <AppText variant="label" color={accent} style={styles.status}>
         {statusLabel(goal.status)}
       </AppText>

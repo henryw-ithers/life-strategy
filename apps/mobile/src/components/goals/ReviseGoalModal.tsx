@@ -1,19 +1,14 @@
 import { useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 
 interface ReviseGoalModalProps {
   visible: boolean;
@@ -71,7 +66,7 @@ export function ReviseGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} avoidsKeyboard>
+      <SheetFrame onClose={close} typing>
         <View
           style={[
             styles.sheet,
@@ -89,27 +84,24 @@ export function ReviseGoalModal({
           <AppText color={theme.muted}>
             “{goalTitle}” closes as revised; this becomes its successor.
           </AppText>
-          <TextInput
+          <KeyboardScroll contentContainerStyle={styles.body}>
+          <TextField
+            theme={theme}
             value={title}
             accessibilityLabel="Goal"
             onChangeText={setTitle}
-            placeholderTextColor={theme.muted}
             autoFocus
             returnKeyType="next"
-            style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+            style={styles.input}
           />
-          <TextInput
+          <TextField
+            theme={theme}
             value={description}
             accessibilityLabel="Notes, optional"
             onChangeText={setDescription}
             placeholder="Notes (optional)"
-            placeholderTextColor={theme.muted}
             multiline
-            style={[
-              styles.input,
-              styles.description,
-              { backgroundColor: theme.surface, color: theme.ink },
-            ]}
+            style={[styles.input, styles.description]}
           />
 
           {tasks.length > 0 ? (
@@ -117,7 +109,7 @@ export function ReviseGoalModal({
               <AppText variant="caption" color={theme.muted}>
                 Carry these tasks to the new goal
               </AppText>
-              <ScrollView style={styles.list}>
+              <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
                 {tasks.map((t) => (
                   <Pressable
                     key={t.id}
@@ -143,6 +135,7 @@ export function ReviseGoalModal({
               </ScrollView>
             </>
           ) : null}
+          </KeyboardScroll>
 
           <Button
             label="Save as new goal"
@@ -166,7 +159,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
     gap: space.lg,
+    maxHeight: "92%",
   },
+  body: { gap: space.lg },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   input: {
     ...typeScale.body,

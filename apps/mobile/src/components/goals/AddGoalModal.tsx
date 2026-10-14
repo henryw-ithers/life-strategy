@@ -27,19 +27,16 @@
  * become a list of your actual goals.
  */
 import { useState } from "react";
-import {
-  Modal,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
+import { KeyboardScroll } from "../ui/KeyboardBar";
 import { SheetFrame } from "../ui/SheetFrame";
+import { TextField } from "../ui/TextField";
 import { UnitPicker, type PickableUnit } from "../plan/UnitPicker";
 
 interface AddGoalModalProps {
@@ -125,7 +122,7 @@ export function AddGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} avoidsKeyboard>
+      <SheetFrame onClose={close} typing>
         <View
           style={[
             styles.sheet,
@@ -140,28 +137,25 @@ export function AddGoalModal({
           <AppText variant="title" color={theme.ink}>
             New goal
           </AppText>
-          <TextInput
+          <KeyboardScroll contentContainerStyle={styles.body}>
+          <TextField
+            theme={theme}
             value={title}
             onChangeText={setTitle}
             placeholder="e.g. Bench 225 by June"
             accessibilityLabel="Goal"
-            placeholderTextColor={theme.muted}
             autoFocus
             returnKeyType="next"
-            style={[styles.input, { backgroundColor: theme.surface, color: theme.ink }]}
+            style={styles.input}
           />
-          <TextInput
+          <TextField
+            theme={theme}
             value={description}
             onChangeText={setDescription}
             placeholder="Notes (optional)"
             accessibilityLabel="Notes, optional"
-            placeholderTextColor={theme.muted}
             multiline
-            style={[
-              styles.input,
-              styles.description,
-              { backgroundColor: theme.surface, color: theme.ink },
-            ]}
+            style={[styles.input, styles.description]}
           />
 
           <UnitPicker
@@ -178,35 +172,28 @@ export function AddGoalModal({
               left: "225" and "kg" are not equally wide and should not be
               equally sized. */}
           <View style={styles.targetRow}>
-            <TextInput
+            <TextField
+              theme={theme}
               value={target}
               onChangeText={setTarget}
               placeholder="Target"
-              placeholderTextColor={theme.muted}
               keyboardType="decimal-pad"
               returnKeyType="done"
               accessibilityLabel="Target number, optional"
-              style={[
-                styles.input,
-                styles.targetNumber,
-                { backgroundColor: theme.surface, color: theme.ink },
-              ]}
+              style={[styles.input, styles.targetNumber]}
             />
-            <TextInput
+            <TextField
+              theme={theme}
               value={unit}
               onChangeText={setUnit}
               placeholder="kg, books, km"
-              placeholderTextColor={theme.muted}
               autoCapitalize="none"
               returnKeyType="done"
               accessibilityLabel="Unit for the target, optional"
-              style={[
-                styles.input,
-                styles.targetUnit,
-                { backgroundColor: theme.surface, color: theme.ink },
-              ]}
+              style={[styles.input, styles.targetUnit]}
             />
           </View>
+          </KeyboardScroll>
           <Button
             label="Add goal"
             color={accent}
@@ -235,7 +222,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm + 2,
     gap: space.lg,
+    maxHeight: "92%",
   },
+  body: { gap: space.lg },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   input: {
     ...typeScale.body,

@@ -20,13 +20,13 @@
  * out loss-aversion tricks, and a to-do that turns red is exactly that.
  * It exists so that letting something roll forward has a visible edge.
  */
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
+import { currentLocalDate } from "../../lib/calendar";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { DayField } from "../ui/DateTimeField";
 import { Segmented } from "./Segmented";
 
 export type OneOffSize = "quick" | "normal" | "big";
@@ -49,24 +49,6 @@ const SIZES = [
   { value: "big" as const, label: "Big" },
 ];
 
-/** `YYYY-MM-DD` → "Tue 25 Aug". Local, never parsed through Date's
- *  timezone-shifting string constructor (ADR-0002). */
-function pretty(localDate: string): string {
-  const [y, m, d] = localDate.split("-").map(Number);
-  const at = new Date(y!, m! - 1, d!);
-  return at.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function toLocalDate(at: Date): string {
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(
-    at.getDate(),
-  ).padStart(2, "0")}`;
-}
-
 export function OneOffPicker({
   size,
   onSizeChange,
@@ -77,8 +59,6 @@ export function OneOffPicker({
   accent,
   theme,
 }: OneOffPickerProps) {
-  const [picking, setPicking] = useState<"date" | "due" | null>(null);
-
   return (
     <View style={styles.root}>
       <View style={styles.block}>
@@ -109,39 +89,24 @@ export function OneOffPicker({
           label="Do it on"
           empty="No particular day"
           value={date}
-          onPress={() => setPicking("date")}
+          // Today: the likeliest answer, one tap from any other day.
+          onSet={() => onDateChange(currentLocalDate())}
+          onChange={onDateChange}
           onClear={() => onDateChange(null)}
+          accent={accent}
           theme={theme}
         />
         <DateRow
           label="Due by"
           empty="No deadline"
           value={due}
-          onPress={() => setPicking("due")}
+          onSet={() => onDueChange(date ?? currentLocalDate())}
+          onChange={onDueChange}
           onClear={() => onDueChange(null)}
+          accent={accent}
           theme={theme}
         />
       </View>
-
-      {picking !== null ? (
-        <DateTimePicker
-          value={
-            (picking === "date" ? date : due)
-              ? new Date(`${picking === "date" ? date : due}T12:00:00`)
-              : new Date()
-          }
-          mode="date"
-          display="spinner"
-          onChange={(_event, next) => {
-            const which = picking;
-            setPicking(null);
-            if (!next || which === null) return;
-            const local = toLocalDate(next);
-            if (which === "date") onDateChange(local);
-            else onDueChange(local);
-          }}
-        />
-      ) : null}
     </View>
   );
 }
@@ -149,7 +114,9 @@ export function OneOffPicker({
 /**
  * One date, set or unset.
  *
- * The clear control only exists once there is something to clear, so an
+ * Unset, it is a chip that sets it; set, the date picker and a Clear.
+ * A picker can't show "no day", so unset needs its own control. The
+ * clear control only exists once there is something to clear, so an
  * untouched row is a single tap target rather than a control with a
  * dead button beside it.
  */
@@ -157,15 +124,19 @@ function DateRow({
   label,
   empty,
   value,
-  onPress,
+  onSet,
+  onChange,
   onClear,
+  accent,
   theme,
 }: {
   label: string;
   empty: string;
   value: string | null;
-  onPress: () => void;
+  onSet: () => void;
+  onChange: (next: string) => void;
   onClear: () => void;
+  accent: string;
   theme: ThemeTokens;
 }) {
   return (
@@ -173,19 +144,26 @@ function DateRow({
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={value ? `${label}, ${pretty(value)}` : `${label}, ${empty}`}
-        style={({ pressed }) => [
-          styles.chip,
-          { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
-        ]}
-      >
-        <AppText variant="caption" color={value ? theme.ink : theme.muted}>
-          {value ? pretty(value) : empty}
-        </AppText>
-      </Pressable>
+      {value ? (
+        <DayField date={value} onChange={onChange} label={label} accent={accent} theme={theme} />
+      ) : (
+        <Pressable
+          onPress={onSet}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${empty}`}
+          accessibilityHint="Sets a day"
+          // The chip is 32pt; the slop makes the target 44pt.
+          hitSlop={6}
+          style={({ pressed }) => [
+            styles.chip,
+            { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <AppText variant="caption" color={theme.muted}>
+            {empty}
+          </AppText>
+        </Pressable>
+      )}
       {value ? (
         <Pressable
           onPress={onClear}

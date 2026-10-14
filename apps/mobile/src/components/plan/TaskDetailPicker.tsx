@@ -19,7 +19,6 @@
  * Times are integer minutes from local midnight, matching the column
  * and the window math; `formatMinutes` is the app's one time format.
  */
-import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { formatMinutes, type TaskSize } from "@glide/scoring";
 import { useState } from "react";
@@ -28,6 +27,7 @@ import { Pressable, StyleSheet, Switch, View } from "react-native";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
+import { TimeField } from "../ui/DateTimeField";
 import { Segmented } from "./Segmented";
 
 export interface TaskDetail {
@@ -101,7 +101,6 @@ export function TaskDetailPicker({
   // is one tap rather than two. A new task's is always null, so this
   // never opens itself unasked.
   const [open, setOpen] = useState(summary !== null);
-  const [picking, setPicking] = useState<"start" | "end" | null>(null);
 
   /** Moving the start drags the end with it, keeping the span — the
    *  behaviour every calendar has, and the one that does not quietly
@@ -161,28 +160,43 @@ export function TaskDetailPicker({
           <ValueRow
             label="Starts"
             empty="No time"
-            value={
-              value.startMinute === null ? null : formatMinutes(value.startMinute)
-            }
-            onPress={() => setPicking("start")}
+            onSet={() => setStart(defaultFor("start", value))}
             // Clearing a start clears the end too: an end on its own is
             // not a block, and the grid would have nothing to draw.
             onClear={() =>
               onChange({ ...value, startMinute: null, endMinute: null })
             }
             theme={theme}
-          />
+          >
+            {value.startMinute !== null ? (
+              <TimeField
+                minutes={value.startMinute}
+                onChange={setStart}
+                label="Starts"
+                accent={accent}
+                theme={theme}
+              />
+            ) : null}
+          </ValueRow>
           {value.startMinute !== null ? (
             <ValueRow
               label="Ends"
               empty="Open-ended"
-              value={
-                value.endMinute === null ? null : formatMinutes(value.endMinute)
-              }
-              onPress={() => setPicking("end")}
+              onSet={() => setEnd(defaultFor("end", value))}
               onClear={() => onChange({ ...value, endMinute: null })}
               theme={theme}
-            />
+            >
+              {value.endMinute !== null ? (
+                <TimeField
+                  minutes={value.endMinute}
+                  min={Math.min(1439, value.startMinute + MIN_SPAN)}
+                  onChange={setEnd}
+                  label="Ends"
+                  accent={accent}
+                  theme={theme}
+                />
+              ) : null}
+            </ValueRow>
           ) : null}
 
           {showSize ? (
@@ -229,82 +243,67 @@ export function TaskDetailPicker({
           </View>
         </View>
       ) : null}
-
-      {picking !== null ? (
-        <DateTimePicker
-          value={minutesToDate(
-            (picking === "start" ? value.startMinute : value.endMinute) ??
-              defaultFor(picking, value),
-          )}
-          mode="time"
-          display="spinner"
-          minuteInterval={5}
-          onChange={(_event, next) => {
-            const which = picking;
-            setPicking(null);
-            if (!next || which === null) return;
-            const m = next.getHours() * 60 + next.getMinutes();
-            if (which === "start") setStart(m);
-            else setEnd(m);
-          }}
-        />
-      ) : null}
     </View>
   );
 }
 
-/** Where an unset picker opens: 9am for a start, half an hour past the
- *  start for an end, so neither lands on a value you must scroll away
- *  from before you can pick one. */
+/** What an unset time becomes when you tap it: 9am for a start, half an
+ *  hour past the start for an end, so neither lands on a value you must
+ *  scroll away from before you can pick one. */
 function defaultFor(which: "start" | "end", d: TaskDetail): number {
   if (which === "start") return 9 * 60;
   return Math.min(1439, (d.startMinute ?? 9 * 60) + 30);
 }
 
-function minutesToDate(minutes: number): Date {
-  const at = new Date();
-  at.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return at;
-}
-
 /**
  * One value, set or unset — the same row `OneOffPicker` uses for its
- * dates, so a task's times and its dates are set the same way.
+ * dates, so a task's times and its dates are set the same way. Set, it
+ * holds the picker (its children) and a Clear; unset, a chip that sets
+ * it. A picker can't show "nothing", so unset needs its own control.
  */
 function ValueRow({
   label,
   empty,
-  value,
-  onPress,
+  onSet,
   onClear,
   theme,
+  children,
 }: {
   label: string;
   empty: string;
-  value: string | null;
-  onPress: () => void;
+  onSet: () => void;
   onClear: () => void;
   theme: ThemeTokens;
+  /** The picker, or null while unset. */
+  children: React.ReactNode;
 }) {
+  const set = children !== null && children !== undefined;
   return (
     <View style={styles.valueRow}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}, ${value ?? empty}`}
-        style={({ pressed }) => [
-          styles.chip,
-          { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
-        ]}
-      >
-        <AppText variant="caption" color={value ? theme.ink : theme.muted} tabular>
-          {value ?? empty}
-        </AppText>
-      </Pressable>
-      {value !== null ? (
+      {set ? (
+        children
+      ) : (
+        <Pressable
+          onPress={onSet}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${empty}`}
+          accessibilityHint="Sets a time"
+          // The chip is 32pt; the slop makes the target 44pt.
+          hitSlop={6}
+          style={({ pressed }) => [
+            styles.chip,
+            { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <AppText variant="caption" color={theme.muted}>
+            {empty}
+          </AppText>
+        </Pressable>
+      )}
+      {set ? (
         <Pressable
           onPress={onClear}
           hitSlop={10}
