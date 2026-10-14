@@ -307,7 +307,7 @@ export default function BackupScreen() {
           </View>
         ) : null}
       </KeyboardScroll>
-      <KeyboardBar arrows theme={theme} />
+      <KeyboardBar />
     </View>
   );
 }

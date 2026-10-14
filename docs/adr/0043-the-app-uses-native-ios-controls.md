@@ -112,6 +112,12 @@ active field scrolls into view. A bar above the keyboard has ⌄ to hide
 it, and ‹ › to move between fields where that helps. Return works as
 normal.
 
+> **Amended 2026-10-14: no ‹ › arrows.** On the device, the arrows
+> beside ⌄ read as three buttons doing one thing (Henry). The bar now
+> has a single button, iOS's keyboard-down symbol, that hides the
+> keyboard. Return still says Next where moving to the next field
+> helps.
+
 Titles of commitments, sub-commitments, goals and custom units can be
 renamed by tapping them.
 

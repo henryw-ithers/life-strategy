@@ -89,7 +89,7 @@ export function CommitmentSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <SheetFrame onClose={onClose} typing="fields" theme={theme}>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,

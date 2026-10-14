@@ -62,7 +62,7 @@ export function NoteSheet({
       onRequestClose={onClose}
       onShow={() => setTimeout(() => inputRef.current?.focus(), 80)}
     >
-      <SheetFrame onClose={onClose} typing="field" theme={theme}>
+      <SheetFrame onClose={onClose} typing>
       <Animated.View
         style={[
           styles.sheet,

@@ -38,27 +38,21 @@
  */
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { SCRIM, type ThemeTokens } from "../../theme/colors";
+import { SCRIM } from "../../theme/colors";
 import { KeyboardBar } from "./KeyboardBar";
 
-type SheetFrameProps = {
+interface SheetFrameProps {
   /** Tapping the scrim runs this, as the platform expects. */
   onClose: () => void;
+  /**
+   * Set when the sheet holds a text field: adds the bar above the
+   * keyboard. The sheet's body should be a `KeyboardScroll`.
+   */
+  typing?: boolean;
   children: React.ReactNode;
-} & (
-  | {
-      /**
-       * Set when the sheet holds a text field: adds the bar above the
-       * keyboard. `"fields"` adds ‹ › too, for sheets with more than
-       * one. The sheet's body should be a `KeyboardScroll`.
-       */
-      typing: "field" | "fields";
-      theme: ThemeTokens;
-    }
-  | { typing?: undefined; theme?: undefined }
-);
+}
 
-export function SheetFrame({ onClose, typing, theme, children }: SheetFrameProps) {
+export function SheetFrame({ onClose, typing, children }: SheetFrameProps) {
   return (
     <>
       <Pressable
@@ -70,9 +64,7 @@ export function SheetFrame({ onClose, typing, theme, children }: SheetFrameProps
       <View style={styles.frame} pointerEvents="box-none">
         {children}
       </View>
-      {typing !== undefined && theme !== undefined ? (
-        <KeyboardBar arrows={typing === "fields"} theme={theme} />
-      ) : null}
+      {typing === true ? <KeyboardBar /> : null}
     </>
   );
 }

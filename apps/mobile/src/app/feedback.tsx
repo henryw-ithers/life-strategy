@@ -326,7 +326,7 @@ export default function FeedbackScreen() {
           </>
         )}
       </KeyboardScroll>
-      <KeyboardBar theme={theme} />
+      <KeyboardBar />
     </View>
   );
 }

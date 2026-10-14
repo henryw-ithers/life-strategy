@@ -93,7 +93,7 @@ export function DayKindSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} typing="field" theme={theme}>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,

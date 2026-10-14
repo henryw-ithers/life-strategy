@@ -132,7 +132,7 @@ export function GoalMetricSheet({
           eighth of the content and forced a scroll at every screen
           size. Filling the modal makes the cap mean 88% of the screen.
           `box-none` keeps the scrim tappable through the empty area. */}
-      <SheetFrame onClose={onClose} typing="fields" theme={theme}>
+      <SheetFrame onClose={onClose} typing>
         <View
           style={[
             styles.sheet,

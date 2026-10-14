@@ -572,7 +572,7 @@ export default function GoalDetailScreen() {
           </>
         )}
       </KeyboardScroll>
-      <KeyboardBar aboveScreenBottom={tabBarGap} theme={theme} />
+      <KeyboardBar aboveScreenBottom={tabBarGap} />
     </View>
   );
 }

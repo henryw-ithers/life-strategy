@@ -216,7 +216,7 @@ export function AddTaskModal({
           shortened the frame and folded the sheet. The keyboard sits
           over the lower half and `KeyboardScroll` keeps what's under it
           reachable. */}
-      <SheetFrame onClose={close} typing="field" theme={theme}>
+      <SheetFrame onClose={close} typing>
         <View
           style={[
             styles.sheet,

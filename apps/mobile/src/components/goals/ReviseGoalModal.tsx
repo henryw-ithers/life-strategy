@@ -66,7 +66,7 @@ export function ReviseGoalModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} typing="fields" theme={theme}>
+      <SheetFrame onClose={close} typing>
         <View
           style={[
             styles.sheet,
