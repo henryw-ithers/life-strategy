@@ -22,8 +22,7 @@
  * one. The app shows the gap; what goes in it is yours.
  */
 import { formatMinutes, type Window } from "@glide/scoring";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { MAX_POOL_MEMBERS } from "../../db/commitmentPlan";
 import type { TodayTask } from "../../db/today";
@@ -31,7 +30,7 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { formatLength, formatSpan } from "./dayGridLayout";
 
 interface WindowSheetProps {
@@ -55,6 +54,8 @@ interface WindowSheetProps {
   onToggle: (taskId: string) => void;
   onPlannedCountChange: (count: number) => void;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: () => void;
   /** Only offered once the window holds something to clear. */
   onClear?: () => void;
@@ -73,10 +74,10 @@ export function WindowSheet({
   onToggle,
   onPlannedCountChange,
   onClose,
+  onDismissed,
   onSave,
   onClear,
 }: WindowSheetProps) {
-  const insets = useSafeAreaInsets();
   const full = chosen.length >= MAX_POOL_MEMBERS;
   // Never more slots than there are options: a count above the members
   // would divide the window's share by slots the pool cannot fill.
@@ -84,191 +85,155 @@ export function WindowSheet({
   const count = Math.min(plannedCount, maxCount);
 
   return (
-    <Modal
+    <NativeSheet onDismissed={onDismissed}
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title={formatSpan(window.start, window.end, formatMinutes)}
+      confirm={{ label: "Save", onPress: onSave, disabled: chosen.length === 0 }}
     >
-      <SheetFrame onClose={onClose}>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            {formatSpan(window.start, window.end, formatMinutes)}
-          </AppText>
+      <AppText variant="caption" color={theme.muted}>
+        {/* The cue, where there is one — "after the lecture" survives
+            the lecture moving, where a clock time silently would
+            not (ADR-0036 §3). */}
+        {formatLength(window.end - window.start)} free. Pick what might
+        go here; any of them counts.
+      </AppText>
+
+      {carried.length > 0 ? (
+        // Stated as where the work is now, never as what was missed.
+        <View style={[styles.carried, { backgroundColor: theme.surface }]}>
           <AppText variant="caption" color={theme.muted}>
-            {/* The cue, where there is one — "after the lecture" survives
-                the lecture moving, where a clock time silently would
-                not (ADR-0036 §3). */}
-            {formatLength(window.end - window.start)} free. Pick what might
-            go here; any of them counts.
+            Also here from earlier today
           </AppText>
-
-          {carried.length > 0 ? (
-            // Stated as where the work is now, never as what was missed.
-            <View style={[styles.carried, { backgroundColor: theme.surface }]}>
-              <AppText variant="caption" color={theme.muted}>
-                Also here from earlier today
+          {carried.map((t) => (
+            <View key={t.id} style={styles.carriedRow}>
+              <View style={[styles.pip, { backgroundColor: hueFor(t) }]} />
+              <AppText color={theme.ink} numberOfLines={1} style={styles.grow}>
+                {t.title}
               </AppText>
-              {carried.map((t) => (
-                <View key={t.id} style={styles.carriedRow}>
-                  <View style={[styles.pip, { backgroundColor: hueFor(t) }]} />
-                  <AppText color={theme.ink} numberOfLines={1} style={styles.grow}>
-                    {t.title}
-                  </AppText>
-                </View>
-              ))}
             </View>
-          ) : null}
-
-          <View style={styles.list}>
-            {candidates.length === 0 ? (
-              <AppText variant="caption" color={theme.muted}>
-                Nothing open to put here yet.
-              </AppText>
-            ) : (
-              candidates.map((t) => {
-                const on = chosen.includes(t.id);
-                return (
-                  <Pressable
-                    key={t.id}
-                    onPress={() => onToggle(t.id)}
-                    // Disabled only for the ones you *cannot* add, and
-                    // the line below says why — never a dead tap with
-                    // no explanation.
-                    disabled={!on && full}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on, disabled: !on && full }}
-                    accessibilityLabel={t.title}
-                    style={({ pressed }) => [
-                      styles.option,
-                      {
-                        backgroundColor: on ? wash(accent, theme) : theme.surface,
-                        borderColor: on ? accent : "transparent",
-                        opacity: pressed ? 0.6 : !on && full ? 0.4 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[styles.pip, { backgroundColor: hueFor(t) }]}
-                    />
-                    <AppText
-                      color={theme.ink}
-                      style={styles.grow}
-                      numberOfLines={1}
-                    >
-                      {t.title}
-                    </AppText>
-                    <AppText variant="caption" color={theme.muted} tabular>
-                      {t.pointValue}
-                    </AppText>
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
-
-          <AppText variant="footnote" color={theme.muted}>
-            {full
-              ? `Three is the most one window holds. Take one out to swap it.`
-              : `${chosen.length} of ${MAX_POOL_MEMBERS} chosen.`}
-          </AppText>
-
-          {/* Only worth asking once there is more than one thing to
-              choose between. On a single option it has one answer. */}
-          {chosen.length > 1 ? (
-            <View style={styles.countRow}>
-              <View style={styles.grow}>
-                <AppText color={theme.ink}>How many will you do?</AppText>
-                <AppText variant="footnote" color={theme.muted}>
-                  Doing another still pays — this only says what you are
-                  planning for.
-                </AppText>
-              </View>
-              <View style={[styles.stepper, { backgroundColor: theme.surface }]}>
-                <Pressable
-                  onPress={() => onPlannedCountChange(Math.max(1, count - 1))}
-                  disabled={count <= 1}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Fewer"
-                  accessibilityState={{ disabled: count <= 1 }}
-                  style={styles.stepButton}
-                >
-                  <AppText
-                    variant="headline"
-                    color={count <= 1 ? theme.hairline : theme.accent}
-                  >
-                    −
-                  </AppText>
-                </Pressable>
-                <AppText variant="headline" color={theme.ink} tabular>
-                  {count}
-                </AppText>
-                <Pressable
-                  onPress={() =>
-                    onPlannedCountChange(Math.min(maxCount, count + 1))
-                  }
-                  disabled={count >= maxCount}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="More"
-                  accessibilityState={{ disabled: count >= maxCount }}
-                  style={styles.stepButton}
-                >
-                  <AppText
-                    variant="headline"
-                    color={count >= maxCount ? theme.hairline : theme.accent}
-                  >
-                    +
-                  </AppText>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-
-          <Button
-            label="Save"
-            color={accent}
-            disabled={chosen.length === 0}
-            onPress={onSave}
-            theme={theme}
-          />
-          {onClear ? (
-            <Button
-              label="Leave this window open"
-              variant="quiet"
-              onPress={onClear}
-              theme={theme}
-            />
-          ) : null}
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
+          ))}
         </View>
-      </SheetFrame>
-    </Modal>
+      ) : null}
+
+      <View style={styles.list}>
+        {candidates.length === 0 ? (
+          <AppText variant="caption" color={theme.muted}>
+            Nothing open to put here yet.
+          </AppText>
+        ) : (
+          candidates.map((t) => {
+            const on = chosen.includes(t.id);
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => onToggle(t.id)}
+                // Disabled only for the ones you *cannot* add, and
+                // the line below says why — never a dead tap with
+                // no explanation.
+                disabled={!on && full}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on, disabled: !on && full }}
+                accessibilityLabel={t.title}
+                style={({ pressed }) => [
+                  styles.option,
+                  {
+                    backgroundColor: on ? wash(accent, theme) : theme.surface,
+                    borderColor: on ? accent : "transparent",
+                    opacity: pressed ? 0.6 : !on && full ? 0.4 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[styles.pip, { backgroundColor: hueFor(t) }]}
+                />
+                <AppText
+                  color={theme.ink}
+                  style={styles.grow}
+                  numberOfLines={1}
+                >
+                  {t.title}
+                </AppText>
+                <AppText variant="caption" color={theme.muted} tabular>
+                  {t.pointValue}
+                </AppText>
+              </Pressable>
+            );
+          })
+        )}
+      </View>
+
+      <AppText variant="footnote" color={theme.muted}>
+        {full
+          ? `Three is the most one window holds. Take one out to swap it.`
+          : `${chosen.length} of ${MAX_POOL_MEMBERS} chosen.`}
+      </AppText>
+
+      {/* Only worth asking once there is more than one thing to
+          choose between. On a single option it has one answer. */}
+      {chosen.length > 1 ? (
+        <View style={styles.countRow}>
+          <View style={styles.grow}>
+            <AppText color={theme.ink}>How many will you do?</AppText>
+            <AppText variant="footnote" color={theme.muted}>
+              Doing another still pays — this only says what you are
+              planning for.
+            </AppText>
+          </View>
+          <View style={[styles.stepper, { backgroundColor: theme.surface }]}>
+            <Pressable
+              onPress={() => onPlannedCountChange(Math.max(1, count - 1))}
+              disabled={count <= 1}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Fewer"
+              accessibilityState={{ disabled: count <= 1 }}
+              style={styles.stepButton}
+            >
+              <AppText
+                variant="headline"
+                color={count <= 1 ? theme.hairline : theme.accent}
+              >
+                −
+              </AppText>
+            </Pressable>
+            <AppText variant="headline" color={theme.ink} tabular>
+              {count}
+            </AppText>
+            <Pressable
+              onPress={() =>
+                onPlannedCountChange(Math.min(maxCount, count + 1))
+              }
+              disabled={count >= maxCount}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="More"
+              accessibilityState={{ disabled: count >= maxCount }}
+              style={styles.stepButton}
+            >
+              <AppText
+                variant="headline"
+                color={count >= maxCount ? theme.hairline : theme.accent}
+              >
+                +
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+      {onClear ? (
+        <Button
+          label="Leave this window open"
+          variant="quiet"
+          onPress={onClear}
+          theme={theme}
+        />
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.sm,
-    maxHeight: "92%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   list: { gap: space.sm, marginTop: space.xs },
   carried: {
     gap: space.xs,

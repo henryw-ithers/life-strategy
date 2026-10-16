@@ -24,15 +24,14 @@
  * make the numbers flicker under the user's hands.
  */
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { KeyboardScroll } from "../ui/KeyboardScroll";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import {
@@ -98,6 +97,8 @@ interface TaskEditSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (next: TaskEditResult) => void;
   onDelete: () => void;
 }
@@ -111,10 +112,10 @@ export function TaskEditSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onSave,
   onDelete,
 }: TaskEditSheetProps) {
-  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState(task.title);
   const [timesPerWeek, setTimesPerWeek] = useState(task.timesPerWeek);
   const [unitIds, setUnitIds] = useState<string[]>(task.unitIds);
@@ -189,215 +190,176 @@ export function TaskEditSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* `flex: 1` is load-bearing, not tidiness. The sheet's maxHeight
-          is a percentage, and a percentage resolves against the
-          parent's height: with this view unstyled it sized to its own
-          content, so "88%" meant 88% *of the sheet*, which clipped an
-          eighth of the content and forced a scroll at every screen
-          size. Filling the modal makes the cap mean 88% of the screen.
-          `box-none` keeps the scrim tappable through the empty area. */}
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-
-          <AppText variant="title" color={theme.ink} style={styles.heading}>
-            Edit task
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      size="large"
+      title="Edit task"
+      confirm={{ label: dirty ? "Save" : "Done", onPress: save, disabled: !savable }}
+    >
+      <KeyboardScroll
+        style={styles.scroller}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+        // The frequency wheel is a nested scroller; without this
+        // the sheet steals its drag on Android.
+        nestedScrollEnabled
+      >
+      <View style={styles.field}>
+        <TextField
+          theme={theme}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Task name"
+          maxLength={TASK_TITLE_MAX}
+          // Return dismisses the keyboard (TextField's default)
+          // rather than saving and closing: the schedule sits below
+          // this field, and a Return that ends the sheet ends it
+          // before the user reaches what they most likely opened
+          // it for.
+          accessibilityLabel="Task name"
+          style={styles.input}
+        />
+        {TASK_TITLE_MAX - title.length <= TASK_TITLE_COUNTER_AT ? (
+          <AppText variant="footnote" color={theme.muted} style={styles.counter}>
+            {TASK_TITLE_MAX - title.length} left
           </AppText>
+        ) : null}
+      </View>
 
-          <KeyboardScroll
-            style={styles.scroller}
-            contentContainerStyle={styles.scrollBody}
-            showsVerticalScrollIndicator={false}
-            // The frequency wheel is a nested scroller; without this
-            // the sheet steals its drag on Android.
-            nestedScrollEnabled
-          >
-          <View style={styles.field}>
-            <TextField
-              theme={theme}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Task name"
-              maxLength={TASK_TITLE_MAX}
-              // Return dismisses the keyboard (TextField's default)
-              // rather than saving and closing: the schedule sits below
-              // this field, and a Return that ends the sheet ends it
-              // before the user reaches what they most likely opened
-              // it for.
-              accessibilityLabel="Task name"
-              style={styles.input}
-            />
-            {TASK_TITLE_MAX - title.length <= TASK_TITLE_COUNTER_AT ? (
-              <AppText variant="footnote" color={theme.muted} style={styles.counter}>
-                {TASK_TITLE_MAX - title.length} left
+
+      {/* Units before the schedule, matching the add sheet. The two
+          used to run in opposite orders — units last here, first
+          there — which made the same five fields a different form
+          depending on how you arrived at them. Identity first, plan
+          second, in both. */}
+      <UnitPicker
+        units={units}
+        value={unitIds}
+        onChange={setUnitIds}
+        theme={theme}
+        areaColors={areaColors}
+      />
+
+      {/* Cadence is decided once, when the task is made: converting
+          a task that already has completions would strand them, and
+          a recurring task turned one-off would read as settled and
+          vanish on save. Everything else about a one-off — its size,
+          its day, its deadline — is editable here. */}
+      <SchedulePicker
+        once={once}
+        onOnceChange={() => undefined}
+        canChangeCadence={false}
+        oneOff={oneOff}
+        onOneOffChange={setOneOff}
+        timesPerWeek={timesPerWeek}
+        onTimesPerWeekChange={setTimesPerWeek}
+        weekdays={weekdays}
+        onWeekdaysChange={setWeekdays}
+        partOfDay={partOfDay}
+        onPartOfDayChange={setPartOfDay}
+        fortnightOffset={fortnightOffset}
+        onFortnightOffsetChange={setFortnightOffset}
+        detail={detail}
+        onDetailChange={setDetail}
+        daysRequired={homeIsCommitment && !once}
+        accent={accent}
+        theme={theme}
+      />
+
+      {/* The answer to "how do you attach a task to a goal": you
+          could not, from anywhere, until now. Only shown when the
+          unit actually holds goals — a row offering nothing but
+          "No goal" would be a control that teaches the wrong
+          thing about what goals are for. */}
+      {goals.length > 0 ? (
+        <View style={styles.block}>
+          <AppText variant="caption" color={theme.muted}>
+            Part of a goal
+          </AppText>
+          <View style={styles.goalChips}>
+            <Pressable
+              onPress={() => setGoalId(null)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: goalId === null }}
+              accessibilityLabel="No goal"
+              style={({ pressed }) => [
+                styles.goalChip,
+                {
+                  backgroundColor:
+                    goalId === null ? wash(accent, theme) : theme.surface,
+                  borderColor: goalId === null ? accent : theme.hairline,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <AppText
+                variant="caption"
+                color={goalId === null ? theme.ink : theme.muted}
+              >
+                No goal
               </AppText>
-            ) : null}
-          </View>
-
-
-          {/* Units before the schedule, matching the add sheet. The two
-              used to run in opposite orders — units last here, first
-              there — which made the same five fields a different form
-              depending on how you arrived at them. Identity first, plan
-              second, in both. */}
-          <UnitPicker
-            units={units}
-            value={unitIds}
-            onChange={setUnitIds}
-            theme={theme}
-            areaColors={areaColors}
-          />
-
-          {/* Cadence is decided once, when the task is made: converting
-              a task that already has completions would strand them, and
-              a recurring task turned one-off would read as settled and
-              vanish on save. Everything else about a one-off — its size,
-              its day, its deadline — is editable here. */}
-          <SchedulePicker
-            once={once}
-            onOnceChange={() => undefined}
-            canChangeCadence={false}
-            oneOff={oneOff}
-            onOneOffChange={setOneOff}
-            timesPerWeek={timesPerWeek}
-            onTimesPerWeekChange={setTimesPerWeek}
-            weekdays={weekdays}
-            onWeekdaysChange={setWeekdays}
-            partOfDay={partOfDay}
-            onPartOfDayChange={setPartOfDay}
-            fortnightOffset={fortnightOffset}
-            onFortnightOffsetChange={setFortnightOffset}
-            detail={detail}
-            onDetailChange={setDetail}
-            daysRequired={homeIsCommitment && !once}
-            accent={accent}
-            theme={theme}
-          />
-
-          {/* The answer to "how do you attach a task to a goal": you
-              could not, from anywhere, until now. Only shown when the
-              unit actually holds goals — a row offering nothing but
-              "No goal" would be a control that teaches the wrong
-              thing about what goals are for. */}
-          {goals.length > 0 ? (
-            <View style={styles.block}>
-              <AppText variant="caption" color={theme.muted}>
-                Part of a goal
-              </AppText>
-              <View style={styles.goalChips}>
+            </Pressable>
+            {goals.map((g) => {
+              const on = g.id === goalId;
+              return (
                 <Pressable
-                  onPress={() => setGoalId(null)}
+                  key={g.id}
+                  onPress={() => setGoalId(g.id)}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: goalId === null }}
-                  accessibilityLabel="No goal"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={g.title}
                   style={({ pressed }) => [
                     styles.goalChip,
                     {
-                      backgroundColor:
-                        goalId === null ? wash(accent, theme) : theme.surface,
-                      borderColor: goalId === null ? accent : theme.hairline,
+                      backgroundColor: on ? wash(accent, theme) : theme.surface,
+                      borderColor: on ? accent : theme.hairline,
                       opacity: pressed ? 0.7 : 1,
                     },
                   ]}
                 >
                   <AppText
                     variant="caption"
-                    color={goalId === null ? theme.ink : theme.muted}
+                    color={on ? theme.ink : theme.muted}
+                    numberOfLines={1}
+                    style={styles.goalChipLabel}
                   >
-                    No goal
+                    {g.title}
                   </AppText>
                 </Pressable>
-                {goals.map((g) => {
-                  const on = g.id === goalId;
-                  return (
-                    <Pressable
-                      key={g.id}
-                      onPress={() => setGoalId(g.id)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      accessibilityLabel={g.title}
-                      style={({ pressed }) => [
-                        styles.goalChip,
-                        {
-                          backgroundColor: on ? wash(accent, theme) : theme.surface,
-                          borderColor: on ? accent : theme.hairline,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      <AppText
-                        variant="caption"
-                        color={on ? theme.ink : theme.muted}
-                        numberOfLines={1}
-                        style={styles.goalChipLabel}
-                      >
-                        {g.title}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-          </KeyboardScroll>
-
-          {missingDays ? (
-            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
-              Pick the days it happens. Commitment work is paid on the days
-              it is scheduled.
-            </AppText>
-          ) : null}
-          <Button
-            label={dirty ? "Save changes" : "Done"}
-            color={accent}
-            disabled={!savable}
-            onPress={save}
-            theme={theme}
-          />
-          <Button
-            label="Delete task"
-            variant="quiet"
-            onPress={() => {
-              onDelete();
-              onClose();
-            }}
-            theme={theme}
-          />
+              );
+            })}
+          </View>
         </View>
-      </SheetFrame>
-    </Modal>
+      ) : null}
+      </KeyboardScroll>
+
+      {missingDays ? (
+        <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+          Pick the days it happens. Commitment work is paid on the days
+          it is scheduled.
+        </AppText>
+      ) : null}
+      <Button
+        label="Delete task"
+        variant="quiet"
+        onPress={() => {
+          onDelete();
+          onClose();
+        }}
+        theme={theme}
+      />
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
   blocker: { textAlign: "center", marginBottom: -space.sm },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-    // Leaves the top of the screen showing so the sheet still reads as
-    // a sheet rather than a takeover, and gives the scroller a bound.
-    maxHeight: "88%",
-  },
-  heading: { marginBottom: -space.xs },
-  scroller: { flexGrow: 0 },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   /** The gap the sheet used to own for these children; it now belongs
    *  to the scroller so the pinned actions keep their own spacing. */
   scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xs },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   field: { gap: space.xs },
   block: { gap: space.sm },
   goalChips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },

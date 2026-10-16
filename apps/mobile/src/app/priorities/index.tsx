@@ -12,7 +12,7 @@
  * `db/ranking.ts` for why that distinction matters to the graph's
  * history and to ADR-0008's calibration series.
  */
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,10 +30,9 @@ import { loadMonthCheckpoint, type MonthCheckpoint } from "../../db/log";
 import { currentLocalDate } from "../../lib/calendar";
 import { SettingsRow } from "../../components/ui/SettingsRow";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { ReorderableList, type ReorderableItem } from "../../components/ui/ReorderableList";
-import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { loadGraphSnapshots } from "../../db/graph";
 import {
   applyPriorityOrder,
@@ -46,8 +45,6 @@ import { space } from "../../theme/tokens";
 
 
 export default function PrioritiesScreen() {
-  /** Pushed from Life since Phase 3b, so it needs a way back. */
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/goals" as Href));
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
@@ -112,42 +109,39 @@ export default function PrioritiesScreen() {
     setSaving(false);
   };
 
-  if (error) {
-    return (
-      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-        <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
-        <LoadFailure error={error} onRetry={retry} theme={theme} />
+  // Loading, a failed load, and no diagnostic yet: the same screen
+  // frame, with the scroll view first for the nav bar (`pushedOptions`).
+  const notReady =
+    error ? (
+      <LoadFailure error={error} onRetry={retry} theme={theme} />
+    ) : board === undefined ? (
+      <ActivityIndicator color={theme.muted} style={styles.loading} />
+    ) : board === null ? (
+      <View style={styles.empty}>
+        <AppText color={theme.ink} style={styles.centerText}>
+          Your priorities start with a diagnostic. Rank what matters, and
+          the order lands here — ready to adjust whenever it shifts.
+        </AppText>
+        <Button
+          label="Run the diagnostic"
+          onPress={() => router.push("/diagnostic")}
+          theme={theme}
+        />
       </View>
-    );
-  }
-
-  if (board === undefined) {
+    ) : null;
+  // `!board` adds nothing at runtime (a missing board is already a
+  // `notReady`); it narrows `board` for the code below.
+  if (notReady !== null || !board) {
     return (
-      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-        <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
-        <ActivityIndicator color={theme.muted} style={styles.loading} />
-      </View>
-    );
-  }
-
-  if (board === null) {
-    return (
-      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-        <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
-        <View style={styles.empty}>
-          <AppText color={theme.ink} style={styles.centerText}>
-            Your priorities start with a diagnostic. Rank what matters, and
-            the order lands here — ready to adjust whenever it shifts.
-          </AppText>
-          <Button
-            label="Run the diagnostic"
-            onPress={() => router.push("/diagnostic")}
-            theme={theme}
-          />
-        </View>
+      <View style={styles.root}>
+        <ScrollView
+          style={styles.body}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.container}
+        >
+          <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
+          {notReady}
+        </ScrollView>
       </View>
     );
   }
@@ -159,15 +153,14 @@ export default function PrioritiesScreen() {
   }));
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScreenHeader title="Priorities" theme={theme} onBack={back} />
-
+    <View style={styles.root}>
       <ScrollView
         style={styles.body}
         scrollEnabled={!dragging}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Summary before detail. This screen is where you re-gauge, so
             it opens on how the month went; the order you can change and
             the history behind it follow. It used to open on the graph,
@@ -285,7 +278,7 @@ function RankRow({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   body: { flex: 1 },
   container: {
     paddingHorizontal: space.screen,
@@ -293,7 +286,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxl,
   },
   loading: { marginTop: space.xxl },
-  empty: { gap: space.lg, marginTop: space.xxl, paddingHorizontal: space.screen },
+  empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   lead: { marginBottom: space.md },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, flex: 1 },

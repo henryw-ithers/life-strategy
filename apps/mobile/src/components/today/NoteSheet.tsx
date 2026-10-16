@@ -1,14 +1,9 @@
-import { useRef, useState } from "react";
-import { Modal, StyleSheet, type TextInput, View } from "react-native";
-import Animated from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useState } from "react";
+import { StyleSheet } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
-import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { useKeyboardLift } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 interface NoteSheetProps {
@@ -19,6 +14,8 @@ interface NoteSheetProps {
   initialBody?: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onCommit: (body: string) => void;
 }
 
@@ -26,19 +23,22 @@ interface NoteSheetProps {
  *
  *  Entries used to be append-only (ADR-0002) and this sheet always
  *  opened blank. That was retired on 2026-08-13 — pass `initialBody`
- *  and the same sheet edits in place. */
+ *  and the same sheet edits in place.
+ *
+ *  **The first native sheet (Phase 3c trial).** It sits in a SwiftUI
+ *  sheet (`NativeSheet`), which handles the keyboard itself, so the
+ *  lifting this sheet used to do is gone. Save is the header's
+ *  confirming action. */
 export function NoteSheet({
   visible,
   dayLabel,
   initialBody,
   theme,
   onClose,
+  onDismissed,
   onCommit,
 }: NoteSheetProps) {
-  const insets = useSafeAreaInsets();
   const [body, setBody] = useState(initialBody ?? "");
-  const inputRef = useRef<TextInput>(null);
-  const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
 
   // Re-seed each time it opens: blank for a new note, the existing
   // text when rewriting one. Done as the sheet opens, during render,
@@ -57,59 +57,33 @@ export function NoteSheet({
   };
 
   return (
-    <Modal
+    <NativeSheet onDismissed={onDismissed}
       visible={visible}
-      transparent
-      statusBarTranslucent
-      animationType="slide"
-      onRequestClose={onClose}
-      onShow={() => setTimeout(() => inputRef.current?.focus(), 80)}
+      onClose={onClose}
+      title={initialBody === undefined ? `A note on ${dayLabel}` : "Edit note"}
+      confirm={{
+        label: "Save",
+        onPress: commit,
+        disabled: body.trim().length === 0,
+      }}
     >
-      <SheetFrame onClose={onClose} typing>
-      <Animated.View
-        style={[
-          styles.sheet,
-          { backgroundColor: theme.canvas, borderColor: theme.hairline },
-          keyboardStyle,
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink}>
-          {initialBody === undefined ? `A note on ${dayLabel}` : "Edit note"}
-        </AppText>
-        <TextField
-          theme={theme}
-          ref={inputRef}
-          value={body}
-          accessibilityLabel="Note"
-          onChangeText={setBody}
-          placeholder="What's worth remembering?"
-          multiline
-          style={styles.input}
-        />
-        <Button
-          label={initialBody === undefined ? "Save note" : "Save changes"}
-          disabled={body.trim().length === 0}
-          onPress={commit}
-          theme={theme}
-        />
-        <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-      </Animated.View>
-      </SheetFrame>
-    </Modal>
+      <TextField
+        theme={theme}
+        value={body}
+        accessibilityLabel="Note"
+        onChangeText={setBody}
+        placeholder="What's worth remembering?"
+        multiline
+        // The sheet's content mounts as it presents, so this focuses
+        // as it opens.
+        autoFocus
+        style={styles.input}
+      />
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   input: {
     ...typeScale.body,
     minHeight: 120,

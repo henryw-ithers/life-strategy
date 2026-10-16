@@ -19,7 +19,8 @@
  * still and the keyboard covers the lower part of it. Since 2026-10-13
  * the scroller adds the keyboard's height below the fields, so
  * everything under the keyboard can still be scrolled into view
- * (ADR-0043 §5).
+ * (ADR-0043 §5). Since Phase 3c it is a full-height native sheet
+ * (`NativeSheet`) with Add in its header.
  *
  * **The plan is made here, not afterwards** (ADR-0024 §1 as amended
  * 2026-08-17). The order is the order a person thinks in: what, how
@@ -59,15 +60,13 @@
  * behaviour.
  */
 import { useState } from "react";
-import { Modal, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { KeyboardScroll } from "../ui/KeyboardScroll";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { TASK_TITLE_COUNTER_AT, TASK_TITLE_MAX } from "./limits";
 import {
@@ -84,6 +83,8 @@ import { needsDays } from "./unitSelection";
 interface AddTaskModalProps {
   visible: boolean;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   /** Every scoreable unit; a task can serve more than one. */
   units: PickableUnit[];
   /**
@@ -122,6 +123,7 @@ interface AddTaskModalProps {
 export function AddTaskModal({
   visible,
   onClose,
+  onDismissed,
   units,
   homeUnitId,
   areaColors,
@@ -129,7 +131,6 @@ export function AddTaskModal({
   theme,
   onCommit,
 }: AddTaskModalProps) {
-  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [timesPerWeek, setTimesPerWeek] = useState(7);
   const [unitIds, setUnitIds] = useState<string[]>(
@@ -211,124 +212,84 @@ export function AddTaskModal({
   const remaining = TASK_TITLE_MAX - title.length;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      {/* No keyboard avoidance, deliberately: `behavior="padding"`
-          shortened the frame and folded the sheet. The keyboard sits
-          over the lower half and `KeyboardScroll` keeps what's under it
-          reachable. */}
-      <SheetFrame onClose={close} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-
-          <AppText variant="title" color={theme.ink}>
-            {lockedOneOffDate === undefined ? "New task" : "Add to this day"}
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={close}
+      size="large"
+      title={lockedOneOffDate === undefined ? "New task" : "Add to this day"}
+      confirm={{ label: "Add", onPress: commit, disabled: !ready }}
+    >
+      <KeyboardScroll
+        style={styles.scroller}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+      >
+      <View style={styles.field}>
+        <TextField
+          theme={theme}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="e.g. 30 minutes of movement"
+          maxLength={TASK_TITLE_MAX}
+          // Return dismisses the keyboard (TextField's default); it
+          // does **not** commit. It used to, back when the name and
+          // the unit were the whole sheet — with the schedule below
+          // the fold, a Return that files the task takes away the
+          // three questions the user came here to answer, and does
+          // it at the exact moment they were reaching for them.
+          accessibilityLabel="Task name"
+          style={styles.input}
+        />
+        {/* Silent until the cap is in sight — a counter on a
+            five-word title is noise. */}
+        {remaining <= TASK_TITLE_COUNTER_AT ? (
+          <AppText variant="footnote" color={theme.muted} style={styles.counter}>
+            {remaining} left
           </AppText>
+        ) : null}
+      </View>
 
-          {/* Scrolls in its content area only, with the actions pinned
-              below it — the same rule `TaskEditSheet` follows, and for
-              the same reason: five fields no longer fit a short screen
-              with the keyboard up, and cramming them would cost touch
-              targets on a row of seven chips. */}
-          <KeyboardScroll
-            style={styles.scroller}
-            contentContainerStyle={styles.scrollBody}
-            showsVerticalScrollIndicator={false}
-          >
-          <View style={styles.field}>
-            <TextField
-              theme={theme}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. 30 minutes of movement"
-              maxLength={TASK_TITLE_MAX}
-              // Return dismisses the keyboard (TextField's default); it
-              // does **not** commit. It used to, back when the name and
-              // the unit were the whole sheet — with the schedule below
-              // the fold, a Return that files the task takes away the
-              // three questions the user came here to answer, and does
-              // it at the exact moment they were reaching for them.
-              accessibilityLabel="Task name"
-              style={styles.input}
-            />
-            {/* Silent until the cap is in sight — a counter on a
-                five-word title is noise. */}
-            {remaining <= TASK_TITLE_COUNTER_AT ? (
-              <AppText variant="footnote" color={theme.muted} style={styles.counter}>
-                {remaining} left
-              </AppText>
-            ) : null}
-          </View>
+      <UnitPicker
+        units={units}
+        value={unitIds}
+        onChange={setUnitIds}
+        theme={theme}
+        areaColors={areaColors}
+      />
 
-          <UnitPicker
-            units={units}
-            value={unitIds}
-            onChange={setUnitIds}
-            theme={theme}
-            areaColors={areaColors}
-          />
+      <SchedulePicker
+        once={once}
+        onOnceChange={setOnce}
+        canChangeCadence={lockedOneOffDate === undefined}
+        oneOff={oneOff}
+        onOneOffChange={setOneOff}
+        timesPerWeek={timesPerWeek}
+        onTimesPerWeekChange={setTimesPerWeek}
+        weekdays={weekdays}
+        onWeekdaysChange={setWeekdays}
+        detail={detail}
+        onDetailChange={setDetail}
+        daysRequired={
+          !once &&
+          units.find((u) => u.id === unitIds[0])?.commitment === true
+        }
+        partOfDay={partOfDay}
+        onPartOfDayChange={setPartOfDay}
+        accent={accent}
+        theme={theme}
+      />
+      </KeyboardScroll>
 
-          <SchedulePicker
-            once={once}
-            onOnceChange={setOnce}
-            canChangeCadence={lockedOneOffDate === undefined}
-            oneOff={oneOff}
-            onOneOffChange={setOneOff}
-            timesPerWeek={timesPerWeek}
-            onTimesPerWeekChange={setTimesPerWeek}
-            weekdays={weekdays}
-            onWeekdaysChange={setWeekdays}
-            detail={detail}
-            onDetailChange={setDetail}
-            daysRequired={
-              !once &&
-              units.find((u) => u.id === unitIds[0])?.commitment === true
-            }
-            partOfDay={partOfDay}
-            onPartOfDayChange={setPartOfDay}
-            accent={accent}
-            theme={theme}
-          />
-          </KeyboardScroll>
-
-          {/* Why Add is unavailable, beside the button that is — the
-              days row that asks may be scrolled out of sight, and a
-              disabled button with no reason reads as broken. */}
-          {missingDays && title.trim().length > 0 ? (
-            <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
-              Pick the days it happens. Commitment work is paid on the days
-              it is scheduled.
-            </AppText>
-          ) : null}
-
-          {/* Side by side: the card is short enough that stacking two
-              full-width buttons would make the actions the tallest
-              thing in it. */}
-          <View style={styles.actions}>
-            <View style={styles.action}>
-              <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
-            </View>
-            <View style={styles.action}>
-              <Button
-                label="Add task"
-                color={accent}
-                disabled={!ready}
-                onPress={commit}
-                theme={theme}
-              />
-            </View>
-          </View>
-        </View>
-      </SheetFrame>
-    </Modal>
+      {/* Why Add is unavailable, beside the button that is — the
+          days row that asks may be scrolled out of sight, and a
+          disabled button with no reason reads as broken. */}
+      {missingDays && title.trim().length > 0 ? (
+        <AppText variant="footnote" color={theme.muted} style={styles.blocker}>
+          Pick the days it happens. Commitment work is paid on the days
+          it is scheduled.
+        </AppText>
+      ) : null}
+    </NativeSheet>
   );
 }
 
@@ -345,17 +306,8 @@ const styles = StyleSheet.create({
    * and the same shape `TaskEditSheet` already had, so creating and
    * editing a task now look like one surface rather than two.
    */
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.md,
-    maxHeight: "88%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-  scroller: { flexGrow: 0 },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   /** 12pt, against the 24pt `SchedulePicker` opens with. The name and
    *  the unit are one thought (what this is); the schedule is the
    *  other. Even 16s everywhere made five fields read as one list. */
@@ -368,6 +320,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
   },
-  actions: { flexDirection: "row", alignItems: "center", gap: space.md },
-  action: { flex: 1 },
 });

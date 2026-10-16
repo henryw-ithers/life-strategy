@@ -24,6 +24,7 @@ import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
+import { pushedOptions } from "../components/nav/tabRoot";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 
 import { space } from "../theme/tokens";
@@ -165,6 +166,21 @@ export default function RootLayout() {
   return <MigrationGate />;
 }
 
+/** The screens pushed over the tabs that take a native nav bar, and
+ *  their titles. The day sets its title as you step through days. The
+ *  diagnostic and onboarding are full-screen flows with no bar. */
+const PUSHED: [route: string, title: string][] = [
+  ["settings", "Settings"],
+  // Opened from Life (Phase 3b). Phase 6 replaces it with the tiers.
+  ["priorities/index", "Priorities"],
+  ["backup", "Your data"],
+  ["calibration", "Calibration"],
+  // Its heading, "Where your data lives", is too long for a large title.
+  ["privacy", "Privacy"],
+  ["problem", "Problem log"],
+  ["feedback", "Send feedback"],
+];
+
 /**
  * Database gate: run pending migrations and seed the default taxonomy
  * before rendering any screen. Screens below this layout can assume the
@@ -202,7 +218,20 @@ function MigrationGate() {
       <KeyboardProvider>
         <ThemeProvider value={navigationTheme(theme)}>
           <RouteWitness />
-          <Stack screenOptions={{ headerShown: false }} />
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Screens pushed over the tabs get a native bar, set here so
+                it is there from the first frame of the push. */}
+            {PUSHED.map(([name, title]) => (
+              <Stack.Screen key={name} name={name} options={{ ...pushedOptions(theme), title }} />
+            ))}
+            {/* A small title: the graph has no scroll view to collapse a
+                large one, and the day steps through dates in its own. */}
+            <Stack.Screen
+              name="priorities/graph"
+              options={{ ...pushedOptions(theme, { inline: true }), title: "Your portfolio" }}
+            />
+            <Stack.Screen name="day/[date]" options={pushedOptions(theme, { inline: true })} />
+          </Stack>
         </ThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

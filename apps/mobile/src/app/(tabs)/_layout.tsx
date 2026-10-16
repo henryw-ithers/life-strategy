@@ -29,6 +29,7 @@ import { getTheme } from "../../theme/colors";
 
 /** Tab roots are see-through so the backdrop behind the tabs shows. */
 const SEE_THROUGH = { backgroundColor: "transparent" } as const;
+const NATIVE_CONTAINER = { nativeContainerStyle: SEE_THROUGH } as const;
 
 export default function TabsLayout() {
   const scheme = useColorScheme();
@@ -36,7 +37,14 @@ export default function TabsLayout() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <NativeTabs minimizeBehavior="onScrollDown" tintColor={theme.ink}>
+      <NativeTabs
+        minimizeBehavior="onScrollDown"
+        tintColor={theme.ink}
+        // The tab bar controller paints systemBackground over everything
+        // unless told otherwise, which hid the backdrop on the phone
+        // (the web preview has no such container).
+        unstable_nativeProps={NATIVE_CONTAINER}
+      >
         <NativeTabs.Trigger name="(home)" contentStyle={SEE_THROUGH}>
           <NativeTabs.Trigger.Icon sf="sun.max" />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>

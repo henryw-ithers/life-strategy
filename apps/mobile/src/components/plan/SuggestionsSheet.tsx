@@ -23,15 +23,13 @@
  * make a library into a recommender, which is a different product.
  */
 import { useMemo } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { LIBRARY, type GoalTemplate, type TaskTemplate } from "../../content/library";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { formatFrequency } from "./frequency";
 import type { Profile } from "@glide/scoring";
 
@@ -48,6 +46,8 @@ interface SuggestionsSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onAddTask: (t: TaskTemplate) => void;
   onAddGoal: (g: GoalTemplate) => void;
 }
@@ -79,10 +79,10 @@ export function SuggestionsSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onAddTask,
   onAddGoal,
 }: SuggestionsSheetProps) {
-  const insets = useSafeAreaInsets();
   const entry = LIBRARY[unitId];
 
   const has = useMemo(
@@ -116,124 +116,102 @@ export function SuggestionsSheet({
   const nothingLeft = tasks.length === 0 && goals.length === 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose}>
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.canvas,
-            borderColor: theme.hairline,
-            paddingBottom: insets.bottom + space.lg,
-          },
-        ]}
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      size="large"
+      dismiss="done"
+      title={`Ideas for ${unitName}`}
+    >
+      <AppText variant="caption" color={theme.muted}>
+        {profile
+          ? `Written for this part of life, ${PROFILE_LABEL[profile]} first. Nothing is added until you pick it.`
+          : "Written for this part of life. Nothing is added until you pick it."}
+      </AppText>
+
+      <ScrollView
+        style={styles.scroller}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink}>
-          Ideas for {unitName}
-        </AppText>
-        <AppText variant="caption" color={theme.muted}>
-          {profile
-            ? `Written for this part of life, ${PROFILE_LABEL[profile]} first. Nothing is added until you pick it.`
-            : "Written for this part of life. Nothing is added until you pick it."}
-        </AppText>
+        {nothingLeft ? (
+          <AppText variant="caption" color={theme.muted}>
+            {entry
+              ? "You already have everything the library suggests here. Adding your own is the better move now."
+              : "No suggestions written for this one yet."}
+          </AppText>
+        ) : null}
 
-        <ScrollView
-          style={styles.scroller}
-          contentContainerStyle={styles.body}
-          showsVerticalScrollIndicator={false}
-        >
-          {nothingLeft ? (
-            <AppText variant="caption" color={theme.muted}>
-              {entry
-                ? "You already have everything the library suggests here. Adding your own is the better move now."
-                : "No suggestions written for this one yet."}
-            </AppText>
-          ) : null}
+        {goals.length > 0 ? (
+          <AppText variant="caption" color={theme.muted}>
+            Goals
+          </AppText>
+        ) : null}
+        {goals.map((g) => (
+          <Pressable
+            key={g.id}
+            onPress={() => onAddGoal(g)}
+            accessibilityRole="button"
+            accessibilityLabel={`Add goal: ${g.title}`}
+            style={({ pressed }) => [
+              styles.card,
+              {
+                backgroundColor: pressed ? wash(accent, theme) : theme.surface,
+                borderColor: theme.hairline,
+              },
+            ]}
+          >
+            <AppText color={theme.ink}>{g.title}</AppText>
+            {g.description ? (
+              <AppText variant="footnote" color={theme.muted}>
+                {g.description}
+              </AppText>
+            ) : null}
+          </Pressable>
+        ))}
 
-          {goals.length > 0 ? (
-            <AppText variant="caption" color={theme.muted}>
-              Goals
-            </AppText>
-          ) : null}
-          {goals.map((g) => (
-            <Pressable
-              key={g.id}
-              onPress={() => onAddGoal(g)}
-              accessibilityRole="button"
-              accessibilityLabel={`Add goal: ${g.title}`}
-              style={({ pressed }) => [
-                styles.card,
-                {
-                  backgroundColor: pressed ? wash(accent, theme) : theme.surface,
-                  borderColor: theme.hairline,
-                },
-              ]}
-            >
-              <AppText color={theme.ink}>{g.title}</AppText>
-              {g.description ? (
-                <AppText variant="footnote" color={theme.muted}>
-                  {g.description}
-                </AppText>
-              ) : null}
-            </Pressable>
-          ))}
-
-          {tasks.length > 0 ? (
-            <AppText variant="caption" color={theme.muted} style={styles.groupGap}>
-              Tasks
-            </AppText>
-          ) : null}
-          {tasks.map((t) => (
-            <Pressable
-              key={t.id}
-              onPress={() => onAddTask(t)}
-              accessibilityRole="button"
-              accessibilityLabel={`Add task: ${t.title}, ${formatFrequency(t.timesPerWeek)}`}
-              style={({ pressed }) => [
-                styles.card,
-                {
-                  backgroundColor: pressed ? wash(accent, theme) : theme.surface,
-                  borderColor: theme.hairline,
-                },
-              ]}
-            >
-              <View style={styles.cardHead}>
-                <AppText color={theme.ink} style={styles.grow}>
-                  {t.title}
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  {formatFrequency(t.timesPerWeek)}
-                </AppText>
-              </View>
-              {t.description ? (
-                <AppText variant="footnote" color={theme.muted}>
-                  {t.description}
-                </AppText>
-              ) : null}
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <Button label="Done" variant="secondary" onPress={onClose} theme={theme} />
-      </View>
-      </SheetFrame>
-    </Modal>
+        {tasks.length > 0 ? (
+          <AppText variant="caption" color={theme.muted} style={styles.groupGap}>
+            Tasks
+          </AppText>
+        ) : null}
+        {tasks.map((t) => (
+          <Pressable
+            key={t.id}
+            onPress={() => onAddTask(t)}
+            accessibilityRole="button"
+            accessibilityLabel={`Add task: ${t.title}, ${formatFrequency(t.timesPerWeek)}`}
+            style={({ pressed }) => [
+              styles.card,
+              {
+                backgroundColor: pressed ? wash(accent, theme) : theme.surface,
+                borderColor: theme.hairline,
+              },
+            ]}
+          >
+            <View style={styles.cardHead}>
+              <AppText color={theme.ink} style={styles.grow}>
+                {t.title}
+              </AppText>
+              <AppText variant="caption" color={theme.muted}>
+                {formatFrequency(t.timesPerWeek)}
+              </AppText>
+            </View>
+            {t.description ? (
+              <AppText variant="footnote" color={theme.muted}>
+                {t.description}
+              </AppText>
+            ) : null}
+          </Pressable>
+        ))}
+      </ScrollView>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.sm,
-    maxHeight: "88%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-  scroller: { flexGrow: 0 },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   body: { gap: space.sm, paddingVertical: space.md },
   groupGap: { marginTop: space.md },
   /** Tappable in full: the whole card is the button, so a suggestion

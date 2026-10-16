@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { Modal, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   markNotificationPermissionAsked,
@@ -8,10 +6,8 @@ import {
 } from "../../db/settings";
 import { requestPermission } from "../../notifications/dailyNudge";
 import { type ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 interface PermissionPrescreenProps {
   visible: boolean;
@@ -27,7 +23,6 @@ interface PermissionPrescreenProps {
  * the user hasn't seen yet. "Not now" is final until settings.
  */
 export function PermissionPrescreen({ visible, onDone, theme }: PermissionPrescreenProps) {
-  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
 
   const enable = async () => {
@@ -47,43 +42,20 @@ export function PermissionPrescreen({ visible, onDone, theme }: PermissionPrescr
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={notNow}>
-      <SheetFrame onClose={notNow}>
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.canvas,
-            borderColor: theme.hairline,
-            paddingBottom: insets.bottom + space.lg,
-          },
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink}>
-          A daily reminder?
-        </AppText>
-        <AppText color={theme.ink}>
-          One nudge a day, at a time you choose, and only when today’s list
-          still needs you. It never says what’s on it. Tapping it opens
-          today’s checklist.
-        </AppText>
-        <Button label="Enable" onPress={enable} disabled={busy} theme={theme} />
-        <Button label="Not now" variant="quiet" onPress={notNow} disabled={busy} theme={theme} />
-      </View>
-      </SheetFrame>
-    </Modal>
+    <NativeSheet
+      visible={visible}
+      onClose={notNow}
+      // "Not now" is what Cancel does here: it won't ask again.
+      cancelLabel="Not now"
+      dismissible={!busy}
+      title="A daily reminder?"
+      confirm={{ label: "Enable", onPress: enable, disabled: busy }}
+    >
+      <AppText color={theme.ink}>
+        One nudge a day, at a time you choose, and only when today’s list
+        still needs you. It never says what’s on it. Tapping it opens
+        today’s checklist.
+      </AppText>
+    </NativeSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-});

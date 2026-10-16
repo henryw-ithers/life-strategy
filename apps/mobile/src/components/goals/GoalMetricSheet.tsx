@@ -9,16 +9,14 @@
  * is nothing to be tempted by later.
  */
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { MetricKind } from "@glide/scoring";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { KeyboardScroll } from "../ui/KeyboardScroll";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 const MONTHS = [
@@ -61,6 +59,8 @@ interface GoalMetricSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (
     metric: MetricDraft | null,
     targetDate: string | null,
@@ -77,9 +77,9 @@ export function GoalMetricSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onSave,
 }: GoalMetricSheetProps) {
-  const insets = useSafeAreaInsets();
   const thisYear = new Date().getFullYear();
 
   const [kind, setKind] = useState<MetricKind | null>(metric?.kind ?? null);
@@ -124,253 +124,217 @@ export function GoalMetricSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* `flex: 1` is load-bearing, not tidiness. The sheet's maxHeight
-          is a percentage, and a percentage resolves against the
-          parent's height: with this view unstyled it sized to its own
-          content, so "88%" meant 88% *of the sheet*, which clipped an
-          eighth of the content and forced a scroll at every screen
-          size. Filling the modal makes the cap mean 88% of the screen.
-          `box-none` keeps the scrim tappable through the empty area. */}
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            Measure this goal
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      size="large"
+      title="Measure this goal"
+      confirm={{ label: "Save", onPress: save, disabled: !savable }}
+    >
+      <KeyboardScroll
+        style={styles.scroller}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.block}>
+          <AppText variant="caption" color={theme.muted}>
+            How it’s counted
           </AppText>
-
-          <KeyboardScroll
-            style={styles.scroller}
-            contentContainerStyle={styles.body}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.block}>
-              <AppText variant="caption" color={theme.muted}>
-                How it’s counted
-              </AppText>
-              {KINDS.map((k) => {
-                const on = kind === k.kind;
-                return (
-                  <Pressable
-                    key={k.kind}
-                    onPress={() => setKind(on ? null : k.kind)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${k.label}. ${k.hint}`}
-                    style={({ pressed }) => [
-                      styles.kindRow,
-                      pressed && { opacity: 0.7 },
-                      {
-                        backgroundColor: theme.surface,
-                        borderColor: on ? accent : "transparent",
-                      },
-                    ]}
-                  >
-                    <AppText variant="label" color={on ? theme.accent : theme.ink}>
-                      {k.label}
-                    </AppText>
-                    <AppText variant="footnote" color={theme.muted}>
-                      {k.hint}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-              {kind !== null ? (
+          {KINDS.map((k) => {
+            const on = kind === k.kind;
+            return (
+              <Pressable
+                key={k.kind}
+                onPress={() => setKind(on ? null : k.kind)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${k.label}. ${k.hint}`}
+                style={({ pressed }) => [
+                  styles.kindRow,
+                  pressed && { opacity: 0.7 },
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: on ? accent : "transparent",
+                  },
+                ]}
+              >
+                <AppText variant="label" color={on ? theme.accent : theme.ink}>
+                  {k.label}
+                </AppText>
                 <AppText variant="footnote" color={theme.muted}>
-                  Tap again to remove the measure and keep this a plain goal.
+                  {k.hint}
                 </AppText>
-              ) : null}
-            </View>
-
-            {kind !== null && kind !== "habit" ? (
-              <View style={styles.block}>
-                <AppText variant="caption" color={theme.muted}>
-                  Target
-                </AppText>
-                <View style={styles.pair}>
-                  <TextField
-                    theme={theme}
-                    value={target}
-                    onChangeText={setTarget}
-                    placeholder="24"
-                    keyboardType="numeric"
-                    accessibilityLabel="Target number"
-                    style={[styles.input, styles.number]}
-                  />
-                  <TextField
-                    theme={theme}
-                    value={unit}
-                    onChangeText={setUnit}
-                    placeholder="books"
-                    autoCapitalize="none"
-                    accessibilityLabel="What the number counts"
-                    style={[styles.input, styles.flex]}
-                  />
-                </View>
-              </View>
-            ) : null}
-
-            {/* Auto-count (ADR-0015 §2). Cumulative only, and one
-                task chosen by name — never "all tasks under this
-                goal", which would make progress a silent function of
-                the task list, so editing tasks would rewrite goal
-                history. */}
-            {kind === "cumulative" && tasks.length > 0 ? (
-              <View style={styles.block}>
-                <AppText variant="caption" color={theme.muted}>
-                  Count a task automatically (optional)
-                </AppText>
-                {tasks.map((t) => {
-                  const on = autocount === t.id;
-                  return (
-                    <Pressable
-                      key={t.id}
-                      onPress={() => setAutocount(on ? null : t.id)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      accessibilityLabel={`Count ${t.title}`}
-                      style={({ pressed }) => [
-                        styles.taskRow,
-                        pressed && { opacity: 0.7 },
-                        {
-                          backgroundColor: theme.surface,
-                          borderColor: on ? accent : "transparent",
-                        },
-                      ]}
-                    >
-                      <AppText
-                        variant="label"
-                        color={on ? theme.accent : theme.ink}
-                        numberOfLines={1}
-                      >
-                        {t.title}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-                <AppText variant="footnote" color={theme.muted}>
-                  {autocount === null
-                    ? "Pick one and ticking it adds 1 here, so you don't log the same thing twice."
-                    : "Ticking it adds 1 here. Tap again to unlink; entries it already made stay, and you can delete them individually."}
-                </AppText>
-              </View>
-            ) : null}
-
-            <View style={styles.block}>
-              <View style={styles.head}>
-                <AppText variant="caption" color={theme.muted}>
-                  By when (optional)
-                </AppText>
-                {month !== null ? (
-                  <Pressable
-                    onPress={() => setMonth(null)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Clear the deadline"
-                    hitSlop={8}
-                  >
-                    <AppText variant="caption" color={theme.accent}>
-                      Clear
-                    </AppText>
-                  </Pressable>
-                ) : null}
-              </View>
-              <View style={styles.yearRow}>
-                {[thisYear, thisYear + 1, thisYear + 2].map((y) => {
-                  const on = y === year;
-                  return (
-                    <Pressable
-                      key={y}
-                      onPress={() => setYear(y)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      accessibilityLabel={String(y)}
-                      style={({ pressed }) => [
-                        styles.yearChip,
-                        pressed && { opacity: 0.7 },
-                        {
-                          backgroundColor: on ? wash(accent, theme) : theme.surface,
-                          borderColor: on ? accent : theme.hairline,
-                        },
-                      ]}
-                    >
-                      <AppText variant="caption" color={theme.ink} tabular>
-                        {y}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={styles.monthGrid}>
-                {MONTHS.map((label, i) => {
-                  const value = i + 1;
-                  const on = month === value;
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => setMonth(on ? null : value)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      accessibilityLabel={`${label} ${year}`}
-                      style={({ pressed }) => [
-                        styles.monthChip,
-                        pressed && { opacity: 0.7 },
-                        {
-                          backgroundColor: on ? wash(accent, theme) : theme.surface,
-                          borderColor: on ? accent : "transparent",
-                        },
-                      ]}
-                    >
-                      <AppText variant="caption" color={theme.ink}>
-                        {label}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {/* A passed date changes nothing anywhere — no badge, no
-                  colour, no prompt (ADR-0015 §4). Saying so up front is
-                  what makes setting one safe. */}
-              <AppText variant="footnote" color={theme.muted}>
-                A month, not a day. Nothing happens if it passes — it comes up
-                when you next review your goals.
-              </AppText>
-            </View>
-          </KeyboardScroll>
-
-          <Button
-            label="Save"
-            color={accent}
-            disabled={!savable}
-            onPress={save}
-            theme={theme}
-          />
+              </Pressable>
+            );
+          })}
+          {kind !== null ? (
+            <AppText variant="footnote" color={theme.muted}>
+              Tap again to remove the measure and keep this a plain goal.
+            </AppText>
+          ) : null}
         </View>
-      </SheetFrame>
-    </Modal>
+
+        {kind !== null && kind !== "habit" ? (
+          <View style={styles.block}>
+            <AppText variant="caption" color={theme.muted}>
+              Target
+            </AppText>
+            <View style={styles.pair}>
+              <TextField
+                theme={theme}
+                value={target}
+                onChangeText={setTarget}
+                placeholder="24"
+                keyboardType="numeric"
+                accessibilityLabel="Target number"
+                style={[styles.input, styles.number]}
+              />
+              <TextField
+                theme={theme}
+                value={unit}
+                onChangeText={setUnit}
+                placeholder="books"
+                autoCapitalize="none"
+                accessibilityLabel="What the number counts"
+                style={[styles.input, styles.flex]}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {/* Auto-count (ADR-0015 §2). Cumulative only, and one
+            task chosen by name — never "all tasks under this
+            goal", which would make progress a silent function of
+            the task list, so editing tasks would rewrite goal
+            history. */}
+        {kind === "cumulative" && tasks.length > 0 ? (
+          <View style={styles.block}>
+            <AppText variant="caption" color={theme.muted}>
+              Count a task automatically (optional)
+            </AppText>
+            {tasks.map((t) => {
+              const on = autocount === t.id;
+              return (
+                <Pressable
+                  key={t.id}
+                  onPress={() => setAutocount(on ? null : t.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`Count ${t.title}`}
+                  style={({ pressed }) => [
+                    styles.taskRow,
+                    pressed && { opacity: 0.7 },
+                    {
+                      backgroundColor: theme.surface,
+                      borderColor: on ? accent : "transparent",
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="label"
+                    color={on ? theme.accent : theme.ink}
+                    numberOfLines={1}
+                  >
+                    {t.title}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+            <AppText variant="footnote" color={theme.muted}>
+              {autocount === null
+                ? "Pick one and ticking it adds 1 here, so you don't log the same thing twice."
+                : "Ticking it adds 1 here. Tap again to unlink; entries it already made stay, and you can delete them individually."}
+            </AppText>
+          </View>
+        ) : null}
+
+        <View style={styles.block}>
+          <View style={styles.head}>
+            <AppText variant="caption" color={theme.muted}>
+              By when (optional)
+            </AppText>
+            {month !== null ? (
+              <Pressable
+                onPress={() => setMonth(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Clear the deadline"
+                hitSlop={8}
+              >
+                <AppText variant="caption" color={theme.accent}>
+                  Clear
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.yearRow}>
+            {[thisYear, thisYear + 1, thisYear + 2].map((y) => {
+              const on = y === year;
+              return (
+                <Pressable
+                  key={y}
+                  onPress={() => setYear(y)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={String(y)}
+                  style={({ pressed }) => [
+                    styles.yearChip,
+                    pressed && { opacity: 0.7 },
+                    {
+                      backgroundColor: on ? wash(accent, theme) : theme.surface,
+                      borderColor: on ? accent : theme.hairline,
+                    },
+                  ]}
+                >
+                  <AppText variant="caption" color={theme.ink} tabular>
+                    {y}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.monthGrid}>
+            {MONTHS.map((label, i) => {
+              const value = i + 1;
+              const on = month === value;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setMonth(on ? null : value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${label} ${year}`}
+                  style={({ pressed }) => [
+                    styles.monthChip,
+                    pressed && { opacity: 0.7 },
+                    {
+                      backgroundColor: on ? wash(accent, theme) : theme.surface,
+                      borderColor: on ? accent : "transparent",
+                    },
+                  ]}
+                >
+                  <AppText variant="caption" color={theme.ink}>
+                    {label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+          {/* A passed date changes nothing anywhere — no badge, no
+              colour, no prompt (ADR-0015 §4). Saying so up front is
+              what makes setting one safe. */}
+          <AppText variant="footnote" color={theme.muted}>
+            A month, not a day. Nothing happens if it passes — it comes up
+            when you next review your goals.
+          </AppText>
+        </View>
+      </KeyboardScroll>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-    maxHeight: "88%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-  scroller: { flexGrow: 0 },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   body: { gap: space.lg, paddingBottom: space.xs },
   block: { gap: space.sm },
   head: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },

@@ -23,15 +23,14 @@
  * over for fractions would silently cost a gesture people use.
  */
 import { PARTIAL_FRACTIONS, partialPoints } from "@glide/scoring";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { TodayTask } from "../../db/today";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { progressLabel } from "./rowCaption";
 
 /** "a quarter", "half" — the increment, in words. */
@@ -47,6 +46,8 @@ interface PartialSheetProps {
   theme: ThemeTokens;
   accent: string;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   /** The fraction this completion is for; the day holds one at a time. */
   onPick: (fraction: number) => void;
   /** Take today's completion back off. Only offered when there is one. */
@@ -61,11 +62,11 @@ export function PartialSheet({
   theme,
   accent,
   onClose,
+  onDismissed,
   onPick,
   onClear,
   onMove,
 }: PartialSheetProps) {
-  const insets = useSafeAreaInsets();
   /**
    * What this sheet adds to: everything banked **except today**.
    *
@@ -98,103 +99,70 @@ export function PartialSheet({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <SheetFrame onClose={onClose}>
-        <View
-          style={[
-            styles.sheet,
+    <NativeSheet visible={visible} onClose={onClose} onDismissed={onDismissed} title={task.title}>
+      <AppText variant="caption" color={theme.muted}>
+        {done > 0
+          ? `${progressLabel(done)} from before. How much today?`
+          : "How much of it did you do?"}
+      </AppText>
+
+      {[...steps, finish].map((step) => (
+        <Pressable
+          key={step.fraction}
+          onPress={() => onPick(step.fraction)}
+          accessibilityRole="button"
+          accessibilityLabel={`${step.label}, ${Math.round(
+            step.brings * 100,
+          )} per cent done, ${step.pays} points`}
+          accessibilityState={{ selected: step.fraction === picked }}
+          style={({ pressed }) => [
+            styles.step,
             {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
+              backgroundColor:
+                step.fraction === picked || step.fraction === 1
+                  ? wash(accent, theme)
+                  : theme.surface,
+              opacity: pressed ? 0.6 : 1,
             },
+            step.fraction === picked
+              ? { borderWidth: 1, borderColor: accent }
+              : null,
           ]}
         >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink} numberOfLines={2}>
-            {task.title}
+          <View style={styles.grow}>
+            <AppText color={theme.ink}>{step.label}</AppText>
+            <AppText variant="footnote" color={theme.muted}>
+              {/* Where it takes you, not what is left over. */}
+              Takes you to {Math.round(step.brings * 100)}%
+            </AppText>
+          </View>
+          <AppText variant="headline" color={theme.ink} tabular>
+            {step.pays > 0 ? `+${step.pays}` : "0"}
           </AppText>
-          <AppText variant="caption" color={theme.muted}>
-            {done > 0
-              ? `${progressLabel(done)} from before. How much today?`
-              : "How much of it did you do?"}
-          </AppText>
+        </Pressable>
+      ))}
 
-          {[...steps, finish].map((step) => (
-            <Pressable
-              key={step.fraction}
-              onPress={() => onPick(step.fraction)}
-              accessibilityRole="button"
-              accessibilityLabel={`${step.label}, ${Math.round(
-                step.brings * 100,
-              )} per cent done, ${step.pays} points`}
-              accessibilityState={{ selected: step.fraction === picked }}
-              style={({ pressed }) => [
-                styles.step,
-                {
-                  backgroundColor:
-                    step.fraction === picked || step.fraction === 1
-                      ? wash(accent, theme)
-                      : theme.surface,
-                  opacity: pressed ? 0.6 : 1,
-                },
-                step.fraction === picked
-                  ? { borderWidth: 1, borderColor: accent }
-                  : null,
-              ]}
-            >
-              <View style={styles.grow}>
-                <AppText color={theme.ink}>{step.label}</AppText>
-                <AppText variant="footnote" color={theme.muted}>
-                  {/* Where it takes you, not what is left over. */}
-                  Takes you to {Math.round(step.brings * 100)}%
-                </AppText>
-              </View>
-              <AppText variant="headline" color={theme.ink} tabular>
-                {step.pays > 0 ? `+${step.pays}` : "0"}
-              </AppText>
-            </Pressable>
-          ))}
-
-          {picked !== null ? (
-            <Button
-              label="Clear what I logged today"
-              variant="quiet"
-              onPress={onClear}
-              theme={theme}
-            />
-          ) : null}
-          {onMove ? (
-            <Button
-              label="Move it to another part of the day"
-              variant="quiet"
-              onPress={onMove}
-              theme={theme}
-            />
-          ) : null}
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-        </View>
-      </SheetFrame>
-    </Modal>
+      {picked !== null ? (
+        <Button
+          label="Clear what I logged today"
+          variant="quiet"
+          onPress={onClear}
+          theme={theme}
+        />
+      ) : null}
+      {onMove ? (
+        <Button
+          label="Move it to another part of the day"
+          variant="quiet"
+          onPress={onMove}
+          theme={theme}
+        />
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.sm,
-    maxHeight: "92%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   step: {
     flexDirection: "row",
     alignItems: "center",

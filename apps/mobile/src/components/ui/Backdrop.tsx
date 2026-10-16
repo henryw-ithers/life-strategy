@@ -1,4 +1,5 @@
-import { StyleSheet, View, type ViewStyle } from "react-native";
+import { useHeaderHeight } from "expo-router/react-navigation";
+import { Platform, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 
 export interface BackdropCircle {
   /** Area hue (hex). Alpha is appended, so pass the opaque token. */
@@ -41,6 +42,26 @@ export function Backdrop({ circles }: { circles: BackdropCircle[] }) {
 }
 
 /**
+ * The backdrop for a pushed screen, which has to keep its scroll view
+ * first (`pushedOptions`): put this first *inside* the scroll content.
+ * It is placed as if it were behind the screen, from the top of the
+ * window and a window high, so the circles sit where a tab's do; they
+ * scroll away with the content.
+ */
+export function ScrollBackdrop({ circles }: { circles: BackdropCircle[] }) {
+  const { height } = useWindowDimensions();
+  // Scroll content starts below the nav bar on iOS, where it's
+  // transparent. The web preview's bar takes its own space.
+  const headerHeight = useHeaderHeight();
+  const top = Platform.OS === "ios" ? -headerHeight : 0;
+  return (
+    <View pointerEvents="none" style={[styles.scrolling, { top, height }]}>
+      <Backdrop circles={circles} />
+    </View>
+  );
+}
+
+/**
  * All six area hues as a faint constellation — the app's portfolio
  * geometry, previewed. For landing/overview moments. `faint` halves
  * the presence for content-heavy screens.
@@ -67,3 +88,7 @@ export function hueWash(accent: string): BackdropCircle[] {
     { color: accent, size: 140, offset: { bottom: -40, left: -50 }, alpha: "0d" },
   ];
 }
+
+const styles = StyleSheet.create({
+  scrolling: { position: "absolute", left: 0, right: 0 },
+});

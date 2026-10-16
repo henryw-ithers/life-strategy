@@ -20,11 +20,10 @@
  * padding, and their own content; they just stop re-deriving where it
  * sits.
  *
- * **Keyboard (2026-10-13).** It used to wrap typing sheets in a
- * `KeyboardAvoidingView`, which shrank every sheet that took typing
- * (ADR-0043). Now a typing sheet scrolls its body in a `KeyboardScroll`
- * and the frame adds the bar above the keyboard. The sheet keeps its
- * height either way.
+ * **Native sheets replaced it (Phase 3c).** Every form sheet is now a
+ * `NativeSheet`. This frame remains for the web preview's stand-in and
+ * for the one confirmation still drawn by the app (erasing data), which
+ * becomes a native alert in Phase 3d.
  *
  * Three details are load-bearing:
  *
@@ -39,20 +38,14 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { SCRIM } from "../../theme/colors";
-import { KeyboardBar } from "./KeyboardBar";
 
 interface SheetFrameProps {
   /** Tapping the scrim runs this, as the platform expects. */
   onClose: () => void;
-  /**
-   * Set when the sheet holds a text field: adds the bar above the
-   * keyboard. The sheet's body should be a `KeyboardScroll`.
-   */
-  typing?: boolean;
   children: React.ReactNode;
 }
 
-export function SheetFrame({ onClose, typing, children }: SheetFrameProps) {
+export function SheetFrame({ onClose, children }: SheetFrameProps) {
   return (
     <>
       <Pressable
@@ -64,7 +57,6 @@ export function SheetFrame({ onClose, typing, children }: SheetFrameProps) {
       <View style={styles.frame} pointerEvents="box-none">
         {children}
       </View>
-      {typing === true ? <KeyboardBar /> : null}
     </>
   );
 }

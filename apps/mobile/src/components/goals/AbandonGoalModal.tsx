@@ -1,18 +1,18 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 type TaskAction = "detach" | "archive";
 
 interface AbandonGoalModalProps {
   visible: boolean;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   goalTitle: string;
   tasks: { id: string; title: string }[];
   accent: string;
@@ -26,13 +26,13 @@ interface AbandonGoalModalProps {
 export function AbandonGoalModal({
   visible,
   onClose,
+  onDismissed,
   goalTitle,
   tasks,
   accent,
   theme,
   onCommit,
 }: AbandonGoalModalProps) {
-  const insets = useSafeAreaInsets();
   const [actions, setActions] = useState<Record<string, TaskAction>>({});
   const [saving, setSaving] = useState(false);
 
@@ -53,89 +53,64 @@ export function AbandonGoalModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close}>
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.canvas,
-            borderColor: theme.hairline,
-            paddingBottom: insets.bottom + space.lg,
-          },
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink}>
-          Set “{goalTitle}” aside?
-        </AppText>
-        <AppText color={theme.muted}>
-          It can be revived anytime, and it keeps its history. Its tasks: keep
-          them as unit habits, or remove them too.
-        </AppText>
-
-        {tasks.length > 0 ? (
-          <ScrollView style={styles.list}>
-            {tasks.map((t) => (
-              <View key={t.id} style={[styles.row, { borderTopColor: theme.hairline }]}>
-                <AppText color={theme.ink} style={styles.grow} numberOfLines={2}>
-                  {t.title}
-                </AppText>
-                <View style={styles.segment}>
-                  <Pressable
-                    onPress={() => setActions((prev) => ({ ...prev, [t.id]: "detach" }))}
-                    accessibilityRole="button"
-                    style={[
-                      styles.segmentOption,
-                      {
-                        backgroundColor:
-                          actionFor(t.id) === "detach" ? `${accent}1f` : "transparent",
-                      },
-                    ]}
-                  >
-                    <AppText variant="footnote" color={theme.ink}>
-                      Keep
-                    </AppText>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setActions((prev) => ({ ...prev, [t.id]: "archive" }))}
-                    accessibilityRole="button"
-                    style={[
-                      styles.segmentOption,
-                      {
-                        backgroundColor:
-                          actionFor(t.id) === "archive" ? `${theme.danger}1f` : "transparent",
-                      },
-                    ]}
-                  >
-                    <AppText variant="footnote" color={theme.ink}>
-                      Remove
-                    </AppText>
-                  </Pressable>
-                </View>
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={close}
+      title="Set aside"
+      confirm={{ label: "Set aside", onPress: commit, disabled: saving }}
+    >
+      <AppText color={theme.muted}>
+        “{goalTitle}” can be revived anytime, and it keeps its history. Its
+        tasks: keep them as unit habits, or remove them too.
+      </AppText>
+      {tasks.length > 0 ? (
+        <ScrollView style={styles.list}>
+          {tasks.map((t) => (
+            <View key={t.id} style={[styles.row, { borderTopColor: theme.hairline }]}>
+              <AppText color={theme.ink} style={styles.grow} numberOfLines={2}>
+                {t.title}
+              </AppText>
+              <View style={styles.segment}>
+                <Pressable
+                  onPress={() => setActions((prev) => ({ ...prev, [t.id]: "detach" }))}
+                  accessibilityRole="button"
+                  style={[
+                    styles.segmentOption,
+                    {
+                      backgroundColor:
+                        actionFor(t.id) === "detach" ? `${accent}1f` : "transparent",
+                    },
+                  ]}
+                >
+                  <AppText variant="footnote" color={theme.ink}>
+                    Keep
+                  </AppText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setActions((prev) => ({ ...prev, [t.id]: "archive" }))}
+                  accessibilityRole="button"
+                  style={[
+                    styles.segmentOption,
+                    {
+                      backgroundColor:
+                        actionFor(t.id) === "archive" ? `${theme.danger}1f` : "transparent",
+                    },
+                  ]}
+                >
+                  <AppText variant="footnote" color={theme.ink}>
+                    Remove
+                  </AppText>
+                </Pressable>
               </View>
-            ))}
-          </ScrollView>
-        ) : null}
-
-        <Button label="Set aside" color={accent} disabled={saving} onPress={commit} theme={theme} />
-        <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
-      </View>
-      </SheetFrame>
-    </Modal>
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   list: { maxHeight: 260 },
   row: {
     flexDirection: "row",

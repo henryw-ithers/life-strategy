@@ -56,6 +56,7 @@ import {
 import { usePlanData } from "../../../hooks/usePlanData";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { useRetained } from "../../../hooks/useRetained";
 
 interface EditTarget {
   task: PlanTask;
@@ -194,6 +195,11 @@ export default function PlanScreen() {
    *  the diagnostic, which is where Plan's own empty state points. The
    *  effect also clears the request so the next one registers. */
   const canAdd = plan?.hasSnapshot === true && allUnits.length > 0;
+  const [editingShown, editingGone] = useRetained(editing);
+  const [infoUnitShown, infoUnitGone] = useRetained(infoUnit);
+  const [suggestingForShown, suggestingForGone] = useRetained(suggestingFor);
+  const [addingEventShown, addingEventGone] = useRetained(addingEvent);
+  const [addingShown, addingGone] = useRetained(adding);
   const [handledAdd, setHandledAdd] = useState<string | undefined>(undefined);
   if (addParam !== handledAdd && plan !== null) {
     setHandledAdd(addParam);
@@ -390,28 +396,30 @@ export default function PlanScreen() {
         />
       ) : null}
 
-      {adding ? (
+      {addingShown ? (
         <AddTaskModal
-          visible
+          visible={adding !== null}
+          onDismissed={addingGone}
           onClose={() => setAdding(null)}
           units={allUnits}
-          homeUnitId={adding.homeUnit?.id}
+          homeUnitId={addingShown.homeUnit?.id}
           areaColors={theme.areas}
           theme={theme}
           onCommit={commitTask}
         />
       ) : null}
 
-      {addingEvent ? (
+      {addingEventShown ? (
         <EventSheet
-          visible
-          unitName={addingEvent.unitName}
+          visible={addingEvent !== null}
+          onDismissed={addingEventGone}
+          unitName={addingEventShown.unitName}
           unitChoice={
-            addingEvent.unitName
+            addingEventShown.unitName
               ? undefined
               : {
                   units: allUnits,
-                  value: addingEvent.unitIds,
+                  value: addingEventShown.unitIds,
                   onChange: (unitIds) => setAddingEvent({ unitIds }),
                   areaColors: theme.areas,
                 }
@@ -420,7 +428,7 @@ export default function PlanScreen() {
           theme={theme}
           onClose={() => setAddingEvent(null)}
           onSave={async (input) => {
-            const unitIds = addingEvent.unitIds;
+            const unitIds = addingEventShown.unitIds;
             setAddingEvent(null);
             const id = await addEvent(unitIds, input);
             await revealAdded(id, unitIds[0]);
@@ -430,75 +438,78 @@ export default function PlanScreen() {
 
       {/* An event opens its own sheet, not the task editor — it is
           planned by when, not by how often (ADR-0038). */}
-      {editing && editing.task.kind === "event" ? (
+      {editingShown && editingShown.task.kind === "event" ? (
         <EventSheet
-          visible
+          visible={editing !== null}
+          onDismissed={editingGone}
           initial={{
-            title: editing.task.title,
-            plannedWeekdays: editing.task.plannedWeekdays,
-            oneOffDate: editing.task.oneOffDate,
-            startMinute: editing.task.startMinute,
-            endMinute: editing.task.endMinute,
-            notes: editing.task.description,
+            title: editingShown.task.title,
+            plannedWeekdays: editingShown.task.plannedWeekdays,
+            oneOffDate: editingShown.task.oneOffDate,
+            startMinute: editingShown.task.startMinute,
+            endMinute: editingShown.task.endMinute,
+            notes: editingShown.task.description,
           }}
-          accent={theme.areas[editing.unit.areaId] ?? theme.accent}
+          accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setEditing(null)}
           onSave={async (input) => {
-            const id = editing.task.id;
+            const id = editingShown.task.id;
             setEditing(null);
             await updateEvent(id, input);
             await reload();
           }}
           onDelete={() => {
-            const t = editing.task;
+            const t = editingShown.task;
             setEditing(null);
             deleteTask(t);
           }}
         />
       ) : null}
 
-      {editing && editing.task.kind !== "event" ? (
+      {editingShown && editingShown.task.kind !== "event" ? (
         <TaskEditSheet
-          visible
-          task={editableFrom(editing.task)}
+          visible={editing !== null}
+          onDismissed={editingGone}
+          task={editableFrom(editingShown.task)}
           units={allUnits}
-          goals={goalsByUnit[editing.unit.id] ?? []}
+          goals={goalsByUnit[editingShown.unit.id] ?? []}
           areaColors={theme.areas}
-          accent={theme.areas[editing.unit.areaId] ?? theme.accent}
+          accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setEditing(null)}
           onSave={async (next) => {
-            await applyTaskEdit(editing.task, next);
+            await applyTaskEdit(editingShown.task, next);
             await reload();
           }}
-          onDelete={() => deleteTask(editing.task)}
+          onDelete={() => deleteTask(editingShown.task)}
         />
       ) : null}
 
-      {suggestingFor ? (
+      {suggestingForShown ? (
         <SuggestionsSheet
-          visible
-          unitId={suggestingFor.id}
-          unitName={suggestingFor.name}
+          visible={suggestingFor !== null}
+          onDismissed={suggestingForGone}
+          unitId={suggestingForShown.id}
+          unitName={suggestingForShown.name}
           profile={
             // Null before the first diagnostic: nothing has a weight or a
             // rating yet, so there is no situation to read.
-            suggestingFor.weight !== null && ratings.has(suggestingFor.id)
+            suggestingForShown.weight !== null && ratings.has(suggestingForShown.id)
               ? unitProfile({
-                  weight: suggestingFor.weight,
-                  importance: ratings.get(suggestingFor.id)!.importance,
-                  satisfaction: ratings.get(suggestingFor.id)!.satisfaction,
+                  weight: suggestingForShown.weight,
+                  importance: ratings.get(suggestingForShown.id)!.importance,
+                  satisfaction: ratings.get(suggestingForShown.id)!.satisfaction,
                 })
               : null
           }
-          existingTaskTitles={suggestingFor.tasks.map((t) => t.title)}
-          existingGoalTitles={(goalsByUnit[suggestingFor.id] ?? []).map((g) => g.title)}
-          accent={theme.areas[suggestingFor.areaId] ?? theme.accent}
+          existingTaskTitles={suggestingForShown.tasks.map((t) => t.title)}
+          existingGoalTitles={(goalsByUnit[suggestingForShown.id] ?? []).map((g) => g.title)}
+          accent={theme.areas[suggestingForShown.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setSuggestingFor(null)}
           onAddTask={(t) => {
-            const unit = suggestingFor;
+            const unit = suggestingForShown;
             setSuggestingFor(null);
             // `commitTask` reloads and reveals the row itself.
             save(
@@ -507,7 +518,7 @@ export default function PlanScreen() {
             );
           }}
           onAddGoal={(g) => {
-            const unit = suggestingFor;
+            const unit = suggestingForShown;
             setSuggestingFor(null);
             let id = "";
             save(
@@ -532,13 +543,14 @@ export default function PlanScreen() {
         />
       ) : null}
 
-      {infoUnit && UNIT_INFO[infoUnit.id] ? (
+      {infoUnitShown && UNIT_INFO[infoUnitShown.id] ? (
         <UnitInfoSheet
-          visible
+          visible={infoUnit !== null}
+          onDismissed={infoUnitGone}
           onClose={() => setInfoUnit(null)}
-          unitName={infoUnit.name}
-          info={UNIT_INFO[infoUnit.id]!}
-          accent={theme.areas[infoUnit.areaId] ?? theme.accent}
+          unitName={infoUnitShown.name}
+          info={UNIT_INFO[infoUnitShown.id]!}
+          accent={theme.areas[infoUnitShown.areaId] ?? theme.accent}
           theme={theme}
         />
       ) : null}

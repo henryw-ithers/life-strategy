@@ -8,15 +8,13 @@
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { PALETTE, PALETTE_KEYS, isPaletteKey, type PaletteKey } from "../../theme/palette";
-import { radius, space } from "../../theme/tokens";
+import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 interface ColourSheetProps {
   visible: boolean;
@@ -31,6 +29,8 @@ interface ColourSheetProps {
   /** Saves the choice. The sheet closes once it resolves. */
   onPick: (colour: PaletteKey | null) => Promise<void>;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
 }
 
 export function ColourSheet({
@@ -41,8 +41,8 @@ export function ColourSheet({
   theme,
   onPick,
   onClose,
+  onDismissed,
 }: ColourSheetProps) {
-  const insets = useSafeAreaInsets();
   const current = isPaletteKey(value) ? value : null;
   /** One save at a time: a second tap mid-save is ignored, so two
    *  writes can't race to be the last one. */
@@ -58,50 +58,30 @@ export function ColourSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose}>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            Colour
-          </AppText>
-
-          <View style={styles.grid} accessibilityRole="radiogroup">
-            <Swatch
-              label="Automatic"
-              hue={automaticHue}
-              selected={current === null}
-              onPress={() => void pick(null)}
-              theme={theme}
-            />
-            {PALETTE_KEYS.map((key) => (
-              <Swatch
-                key={key}
-                label={PALETTE[key].name}
-                hue={PALETTE[key][theme.name]}
-                selected={current === key}
-                onPress={() => void pick(key)}
-                theme={theme}
-              />
-            ))}
-          </View>
-          <AppText variant="footnote" color={theme.muted}>
-            Automatic uses {automaticFrom}’s colour.
-          </AppText>
-
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-        </View>
-      </SheetFrame>
-    </Modal>
+    <NativeSheet onDismissed={onDismissed} visible={visible} onClose={onClose} title="Colour">
+      <View style={styles.grid} accessibilityRole="radiogroup">
+        <Swatch
+          label="Automatic"
+          hue={automaticHue}
+          selected={current === null}
+          onPress={() => void pick(null)}
+          theme={theme}
+        />
+        {PALETTE_KEYS.map((key) => (
+          <Swatch
+            key={key}
+            label={PALETTE[key].name}
+            hue={PALETTE[key][theme.name]}
+            selected={current === key}
+            onPress={() => void pick(key)}
+            theme={theme}
+          />
+        ))}
+      </View>
+      <AppText variant="footnote" color={theme.muted}>
+        Automatic uses {automaticFrom}’s colour.
+      </AppText>
+    </NativeSheet>
   );
 }
 
@@ -148,16 +128,6 @@ function Swatch({
 const DOT = 40;
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-    maxHeight: "92%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: space.md },
   swatch: { width: "20%", alignItems: "center", gap: space.xs, minHeight: 44 },
   ring: {

@@ -32,11 +32,10 @@ import { EraseDataModal } from "../components/settings/EraseDataModal";
 import { AppText } from "../components/ui/AppText";
 import { Chevron } from "../components/ui/Chevron";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
 import { TimeField } from "../components/ui/DateTimeField";
-import { ScreenHeader } from "../components/ui/ScreenHeader";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
@@ -160,14 +159,13 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScreenHeader
-        title="Settings"
-        theme={theme}
-        onBack={() => (router.canGoBack() ? router.back() : router.replace("/log" as Href))}
-      />
-      <ScrollView style={styles.body} contentContainerStyle={styles.container}>
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.body}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.container}
+      >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Tuning the plan itself comes first: it is the only thing here
             that changes what the app shows you tomorrow. */}
         <Group theme={theme} title="Your plan" footnote="Calibration checks whether the daily grade matches how the week actually felt." flush>
@@ -348,27 +346,12 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
-  /** Takes the space between the fixed header and the tab bar; the
-   *  settings list scrolls inside it while both stay put. */
+  root: { flex: 1 },
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingTop: space.sm, paddingBottom: space.xxxl },
   loading: { marginTop: space.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
-  /** A row inside a flush Group: the group owns the fill and the side
-   *  padding, so the row only owns its height and its own contents.
-   *  Vertical padding rather than height alone, because the rows at the
-   *  bottom carry a second explanatory line and would otherwise sit
-   *  flush against their dividers. */
-  groupRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    minHeight: 52,
-    paddingVertical: space.sm,
-  },
   grow: { flex: 1 },
-  caption: { marginTop: -space.xs },
   resourceLine: { marginTop: -space.xs },
   build: { marginTop: space.xxl, textAlign: "center" },
   link: { flexDirection: "row", alignItems: "center", gap: space.xs },

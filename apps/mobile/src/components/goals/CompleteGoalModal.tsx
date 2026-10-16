@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 type Phase = "choose" | "followup";
@@ -15,6 +13,8 @@ type Phase = "choose" | "followup";
 interface CompleteGoalModalProps {
   visible: boolean;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   goalTitle: string;
   tasks: { id: string; title: string }[];
   accent: string;
@@ -33,6 +33,7 @@ interface CompleteGoalModalProps {
 export function CompleteGoalModal({
   visible,
   onClose,
+  onDismissed,
   goalTitle,
   tasks,
   accent,
@@ -41,7 +42,6 @@ export function CompleteGoalModal({
   onMaintenance,
   onFollowUp,
 }: CompleteGoalModalProps) {
-  const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<Phase>("choose");
   const [newTitle, setNewTitle] = useState("");
   const [carry, setCarry] = useState<Record<string, boolean>>({});
@@ -56,10 +56,14 @@ export function CompleteGoalModal({
     setSaving(false);
   };
 
-  const close = () => {
-    reset();
-    onClose();
-  };
+  // Reset as it opens, not as it closes: a reset during the closing
+  // slide would snap back to the first step on screen.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) reset();
+  }
+  const close = onClose;
 
   const runArchive = () => {
     if (saving) return;
@@ -85,164 +89,135 @@ export function CompleteGoalModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={close}
+      size={phase === "followup" ? "large" : "fit"}
+      scroll={phase === "followup"}
+      title={phase === "choose" ? "Goal complete" : "Follow-up goal"}
+      confirm={
+        phase === "followup"
+          ? {
+              label: "Create",
+              onPress: runFollowUp,
+              disabled: newTitle.trim().length === 0 || saving,
+            }
+          : undefined
+      }
+    >
+      {phase === "choose" ? (
+        <>
+          <AppText color={theme.muted}>
+            What does “{goalTitle}” leave behind?
+          </AppText>
 
-          {phase === "choose" ? (
+          <Pressable
+            onPress={runArchive}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.option,
+              { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <AppText variant="headline" color={theme.ink}>
+              Archive
+            </AppText>
+            <AppText variant="caption" color={theme.muted}>
+              Its tasks retire with it.
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setPhase("followup")}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.option,
+              { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <AppText variant="headline" color={theme.ink}>
+              Follow-up goal
+            </AppText>
+            <AppText variant="caption" color={theme.muted}>
+              Turn it into a new goal, keeping whichever tasks still serve
+              it.
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={runMaintenance}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.option,
+              { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <AppText variant="headline" color={theme.ink}>
+              Transition to maintenance
+            </AppText>
+            <AppText variant="caption" color={theme.muted}>
+              The goal ends; its tasks continue as unit habits.
+            </AppText>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <TextField
+            theme={theme}
+            value={newTitle}
+            accessibilityLabel="What comes next"
+            onChangeText={setNewTitle}
+            placeholder={`e.g. ${goalTitle}, next stage`}
+            autoFocus
+            style={styles.input}
+          />
+
+          {tasks.length > 0 ? (
             <>
-              <AppText variant="title" color={theme.ink}>
-                Goal complete
+              <AppText variant="caption" color={theme.muted}>
+                Carry these tasks to the new goal
               </AppText>
-              <AppText color={theme.muted}>
-                What does “{goalTitle}” leave behind?
-              </AppText>
-
-              <Pressable
-                onPress={runArchive}
-                disabled={saving}
-                style={({ pressed }) => [
-                  styles.option,
-                  { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <AppText variant="headline" color={theme.ink}>
-                  Archive
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  Its tasks retire with it.
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={() => setPhase("followup")}
-                disabled={saving}
-                style={({ pressed }) => [
-                  styles.option,
-                  { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <AppText variant="headline" color={theme.ink}>
-                  Follow-up goal
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  Turn it into a new goal, keeping whichever tasks still serve
-                  it.
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={runMaintenance}
-                disabled={saving}
-                style={({ pressed }) => [
-                  styles.option,
-                  { borderColor: theme.hairline, opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <AppText variant="headline" color={theme.ink}>
-                  Transition to maintenance
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  The goal ends; its tasks continue as unit habits.
-                </AppText>
-              </Pressable>
-
-              <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
+              <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+                {tasks.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() =>
+                      setCarry((prev) => ({ ...prev, [t.id]: !carries(t.id) }))
+                    }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: carries(t.id) }}
+                    style={[styles.row, { borderTopColor: theme.hairline }]}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        {
+                          borderColor: accent,
+                          backgroundColor: carries(t.id) ? accent : "transparent",
+                        },
+                      ]}
+                    />
+                    <AppText color={theme.ink} style={styles.grow} numberOfLines={2}>
+                      {t.title}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </>
-          ) : (
-            <>
-              <AppText variant="title" color={theme.ink}>
-                Follow-up goal
-              </AppText>
-              <KeyboardScroll contentContainerStyle={styles.body}>
-              <TextField
-                theme={theme}
-                value={newTitle}
-                accessibilityLabel="What comes next"
-                onChangeText={setNewTitle}
-                placeholder={`e.g. ${goalTitle}, next stage`}
-                autoFocus
-                style={styles.input}
-              />
-
-              {tasks.length > 0 ? (
-                <>
-                  <AppText variant="caption" color={theme.muted}>
-                    Carry these tasks to the new goal
-                  </AppText>
-                  <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
-                    {tasks.map((t) => (
-                      <Pressable
-                        key={t.id}
-                        onPress={() =>
-                          setCarry((prev) => ({ ...prev, [t.id]: !carries(t.id) }))
-                        }
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: carries(t.id) }}
-                        style={[styles.row, { borderTopColor: theme.hairline }]}
-                      >
-                        <View
-                          style={[
-                            styles.checkbox,
-                            {
-                              borderColor: accent,
-                              backgroundColor: carries(t.id) ? accent : "transparent",
-                            },
-                          ]}
-                        />
-                        <AppText color={theme.ink} style={styles.grow} numberOfLines={2}>
-                          {t.title}
-                        </AppText>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </>
-              ) : null}
-              </KeyboardScroll>
-
-              <Button
-                label="Create follow-up"
-                color={accent}
-                disabled={newTitle.trim().length === 0 || saving}
-                onPress={runFollowUp}
-                theme={theme}
-              />
-              <Button
-                label="Back"
-                variant="quiet"
-                onPress={() => setPhase("choose")}
-                theme={theme}
-              />
-            </>
-          )}
-        </View>
-      </SheetFrame>
-    </Modal>
+          ) : null}
+          <Button
+            label="Back"
+            variant="quiet"
+            onPress={() => setPhase("choose")}
+            theme={theme}
+          />
+        </>
+      )}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.md,
-    maxHeight: "92%",
-  },
-  body: { gap: space.md },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   option: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,

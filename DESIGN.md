@@ -218,8 +218,10 @@ solid when Reduce Transparency is on.
 
 ### Text fields
 
-Every field is `TextField` with the keyboard bar from `KeyboardBar`
-(ADR-0043 §5). Sheets keep their height when the keyboard opens.
+Every field is `TextField` (ADR-0043 §5). Its keyboard carries one
+round ⌄ button that hides it, attached through iOS's input accessory
+view so it stays on the keyboard in screens and sheets alike. Sheets
+keep their height when the keyboard opens.
 
 ### Date and time pickers
 
@@ -267,9 +269,15 @@ glass edge and the shrinking tab bar by following each screen's first
 child, so a tab root's scroll view must come first, with
 `contentInsetAdjustmentBehavior="automatic"`.
 
-Focused flows (onboarding, the diagnostic, Settings, Backup,
-Priorities) are pushed by the root stack and cover the tabs. Pushed
-screens draw their own header until Phase 3d.
+Focused screens (Settings, Backup, Priorities, a day) are pushed by
+the root stack and cover the tabs; a goal or a commitment pushes within
+Life. Every pushed screen has the same native nav bar as a tab root,
+with the system back button, so a push is one native transition. Its
+own actions go in a ••• menu in that bar. A pushed screen is opaque,
+because it slides over the one beneath, so its backdrop goes first
+inside its scroll view (`ScrollBackdrop`), which keeps the scroll view
+first. Onboarding and the diagnostic are full-screen flows with no
+bar.
 
 ## 6. Do and don't
 

@@ -9,7 +9,11 @@
  * "automatic"` and must come first in the screen, or the title won't
  * collapse.
  *
- * Pushed screens keep their own headers until Phase 3d.
+ * Pushed screens get the same bar (`pushedOptions`), so a push is one
+ * native transition: the title, back button and toolbar animate
+ * together. They used to hide the bar and draw their own header, and
+ * the bar's buttons and the two titles glitched across each other
+ * mid-push (Henry, 2026-10-16).
  */
 import { Platform } from "react-native";
 
@@ -32,5 +36,20 @@ export function tabRootOptions(theme: ThemeTokens, title: string) {
   } as const;
 }
 
-/** Pushed screens draw their own header for now (Phase 3d). */
-export const PUSHED_OPTIONS = { headerShown: false } as const;
+/**
+ * A pushed screen's nav bar: the system back button and the screen's
+ * title, large unless `inline`. The screen sets its title and toolbar
+ * itself (`<Stack.Screen options={{ title }} />`, `Stack.Toolbar`).
+ *
+ * Unlike a tab root its content is opaque: a pushed screen slides over
+ * the one beneath, which would show through. Same rule for the scroll
+ * view, which must come first, so the screen's backdrop goes inside it
+ * (`ScrollBackdrop`).
+ */
+export function pushedOptions(theme: ThemeTokens, opts?: { inline?: boolean }) {
+  return {
+    ...tabRootOptions(theme, ""),
+    headerLargeTitleEnabled: opts?.inline !== true,
+    contentStyle: { backgroundColor: theme.canvas },
+  } as const;
+}

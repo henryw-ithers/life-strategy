@@ -13,20 +13,21 @@
  * an event is a time you turn up for, a task is work you fit in
  * (ADR-0038). Each has its own add row, opening its own sheet.
  *
- * **What you do to the whole thing lives behind the options button**
- * at the top right (Henry, 2026-10-02): using sub-commitments or not,
+ * **What you do to the whole thing lives in the ••• menu** in the nav
+ * bar (Henry, 2026-10-02): using sub-commitments or not,
  * **archiving** — what happens to a commitment you actually held; the
  * share returns to the pool, the log keeps the term, and unarchiving
  * brings it back — and deleting, for the mistyped one, behind a confirm
  * that says what survives (ADR-0007's deletion amendment). The page
- * itself is left to what is in it. A sub-commitment's options are
- * rename and delete: archiving belongs to the commitment as a whole.
+ * itself is left to what is in it. A sub-commitment's only option is
+ * delete: archiving belongs to the commitment as a whole. Renaming is
+ * the Name row, on every kind of page.
  *
  * Every row is a target; there is no row here that looks live and is
  * not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, useLocalSearchParams, type Href } from "expo-router";
+import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -54,7 +55,8 @@ import {
   type PickableUnit,
 } from "../../../../components/plan/unitSelection";
 import { AppText } from "../../../../components/ui/AppText";
-import { Backdrop, hueWash } from "../../../../components/ui/Backdrop";
+import { MoreMenu, type MoreMenuItem } from "../../../../components/nav/MoreMenu";
+import { hueWash, ScrollBackdrop } from "../../../../components/ui/Backdrop";
 import { Button } from "../../../../components/ui/Button";
 import { Group } from "../../../../components/ui/Group";
 import { MenuSheet } from "../../../../components/ui/MenuSheet";
@@ -89,6 +91,7 @@ import {
 import { getTheme, SCRIM, unitHue } from "../../../../theme/colors";
 import { PALETTE, isPaletteKey } from "../../../../theme/palette";
 import { radius, space } from "../../../../theme/tokens";
+import { useRetained } from "../../../../hooks/useRetained";
 
 export default function CommitmentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -111,8 +114,6 @@ export default function CommitmentScreen() {
     events: number;
     tasks: number;
   } | null>(null);
-  /** The options menu at the top right. */
-  const [optionsOpen, setOptionsOpen] = useState(false);
   /** The sub-commitment whose press-and-hold menu is open. */
   const [subMenu, setSubMenu] = useState<CommitmentUnitScreen["subs"][number] | null>(null);
   /** The sub-commitment being renamed from that menu. */
@@ -126,6 +127,10 @@ export default function CommitmentScreen() {
    *  tab edits, so the same sheet and the same save apply. */
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [editingTask, setEditingTask] = useState<PlanTask | null>(null);
+  const [addingTaskShown, addingTaskGone] = useRetained(addingTask ? true : null);
+  const [editingTaskShown, editingTaskGone] = useRetained(editingTask);
+  const [eventSheetShown, eventSheetGone] = useRetained(eventSheet);
+  const [sheetShown, sheetGone] = useRetained(sheet);
 
   const reload = useCallback(async () => {
     const [screen, next] = await Promise.all([loadCommitmentUnit(id), loadPlan()]);
@@ -177,8 +182,7 @@ export default function CommitmentScreen() {
     }
   };
 
-  /** Tapping the title, the Name row and the menu's Rename all open
-   *  this (ADR-0043 §5). */
+  /** The Name row opens this (ADR-0043 §5). */
   const openRename = () => {
     if (!data) return;
     setSheet(
@@ -188,18 +192,15 @@ export default function CommitmentScreen() {
     );
   };
 
-  /** What the options button offers, for this kind of page. */
-  const optionRows = () => {
+  /** The ••• menu in the nav bar, for this kind of page. Renaming is
+   *  the Name row's, so it isn't repeated here. */
+  const options = (): MoreMenuItem[] => {
     if (!data) return [];
-    const close = (run: () => void) => () => {
-      setOptionsOpen(false);
-      run();
-    };
-    const rename = { label: "Rename", onPress: close(openRename) };
-    const del = {
+    const del: MoreMenuItem = {
       label: isSub ? "Delete sub-commitment" : "Delete commitment",
+      icon: "trash",
       destructive: true,
-      onPress: close(() =>
+      onPress: () =>
         setDeleteTarget({
           id: data.id,
           name: data.name,
@@ -207,25 +208,28 @@ export default function CommitmentScreen() {
           events: data.events.length,
           tasks: data.tasks.length,
         }),
-      ),
     };
-    if (isSub) return [rename, del];
+    if (isSub) return [del];
     if (archived) {
       return [
-        rename,
-        { label: "Unarchive", onPress: close(() => void unarchiveCommitment(data.id).then(reload)) },
+        {
+          label: "Unarchive",
+          icon: "archivebox",
+          onPress: () => void unarchiveCommitment(data.id).then(reload),
+        },
         del,
       ];
     }
     return [
-      rename,
       {
         label: data.subsOn ? "Stop using sub-commitments" : "Use sub-commitments",
-        onPress: close(() => toggleSubs(!data.subsOn)),
+        icon: "square.split.1x2",
+        onPress: () => toggleSubs(!data.subsOn),
       },
       {
         label: "Archive",
-        onPress: close(() =>
+        icon: "archivebox",
+        onPress: () =>
           Alert.alert(
             `Archive ${data.name}?`,
             "It keeps everything and stops scoring. You can unarchive it from this menu whenever.",
@@ -234,51 +238,28 @@ export default function CommitmentScreen() {
               { text: "Archive", onPress: () => void archiveCommitment(data.id).then(reload) },
             ],
           ),
-        ),
       },
       del,
     ];
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(accent)} />
+    <View style={styles.root}>
+      <Stack.Screen options={{ title: data?.name ?? "" }} />
+      {/* What you do to the commitment as a whole (split it, archive it,
+          delete it) lives in one menu, out of the way of what is in it
+          (Henry, 2026-10-02). */}
+      <MoreMenu items={options()} label={data ? `Options for ${data.name}` : "Options"} />
       <ScrollView
-        // The native tab bar floats over content; automatic insets keep
-        // the status bar above and the tab bar below clear of it.
+        // First in the screen, so the nav bar's title collapses on
+        // scroll; automatic insets keep it and the tab bar clear.
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          { paddingTop: space.md, paddingBottom: space.xxxl },
+          { paddingTop: space.sm, paddingBottom: space.xxxl },
         ]}
       >
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={8}
-            style={styles.back}
-          >
-            <AppText variant="label" color={theme.muted}>
-              ‹ {data?.parent ? data.parent.name : "Commitments"}
-            </AppText>
-          </Pressable>
-          {/* What you do to the commitment as a whole — split it,
-              archive it, delete it — lives behind one button, out of
-              the way of what is in it (Henry, 2026-10-02). */}
-          {data ? (
-            <Pressable
-              onPress={() => setOptionsOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`Options for ${data.name}`}
-              hitSlop={10}
-              style={({ pressed }) => [styles.options, { opacity: pressed ? 0.5 : 1 }]}
-            >
-              <Ionicons name="ellipsis-horizontal-circle" size={26} color={accent} />
-            </Pressable>
-          ) : null}
-        </View>
+        <ScrollBackdrop circles={hueWash(accent)} />
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
@@ -286,17 +267,6 @@ export default function CommitmentScreen() {
           <ActivityIndicator color={theme.muted} style={{ marginTop: space.xxl }} />
         ) : (
           <>
-            <Pressable
-              onPress={openRename}
-              accessibilityRole="button"
-              accessibilityLabel={data.name}
-              accessibilityHint="Renames it"
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-            >
-              <AppText variant="display" color={theme.ink}>
-                {data.name}
-              </AppText>
-            </Pressable>
             <AppText variant="label" color={accent} style={styles.status}>
               {archived
                 ? "Archived"
@@ -310,7 +280,7 @@ export default function CommitmentScreen() {
             {archived ? (
               <AppText variant="caption" color={theme.muted} style={styles.bannerNote}>
                 Its tasks are paused and it takes no share of a day. Its
-                history is untouched. Unarchive it from the options at the
+                history is untouched. Unarchive it from the ••• menu at the
                 top right.
               </AppText>
             ) : null}
@@ -439,9 +409,10 @@ export default function CommitmentScreen() {
               </>
             )}
 
-            {addingTask ? (
+            {addingTaskShown ? (
               <AddTaskModal
-                visible
+                visible={addingTask}
+                onDismissed={addingTaskGone}
                 onClose={() => setAddingTask(false)}
                 units={units}
                 homeUnitId={data.id}
@@ -472,10 +443,11 @@ export default function CommitmentScreen() {
               />
             ) : null}
 
-            {editingTask !== null ? (
+            {editingTaskShown !== null ? (
               <TaskEditSheet
-                visible
-                task={editableFrom(editingTask)}
+                visible={editingTask !== null}
+                onDismissed={editingTaskGone}
+                task={editableFrom(editingTaskShown)}
                 units={units}
                 goals={[]}
                 areaColors={theme.areas}
@@ -483,13 +455,13 @@ export default function CommitmentScreen() {
                 theme={theme}
                 onClose={() => setEditingTask(null)}
                 onSave={async (next) => {
-                  const t = editingTask;
+                  const t = editingTaskShown;
                   setEditingTask(null);
                   await applyTaskEdit(t, next);
                   await reload();
                 }}
                 onDelete={async () => {
-                  const t = editingTask;
+                  const t = editingTaskShown;
                   setEditingTask(null);
                   await archiveTask(t.id);
                   await reload();
@@ -497,36 +469,37 @@ export default function CommitmentScreen() {
               />
             ) : null}
 
-            {eventSheet !== null ? (
+            {eventSheetShown !== null ? (
               <EventSheet
-                visible
+                visible={eventSheet !== null}
+                onDismissed={eventSheetGone}
                 unitName={data.name}
                 initial={
-                  eventSheet === "new"
+                  eventSheetShown === "new"
                     ? undefined
                     : {
-                        title: eventSheet.title,
-                        plannedWeekdays: eventSheet.plannedWeekdays,
-                        oneOffDate: eventSheet.oneOffDate,
-                        startMinute: eventSheet.startMinute,
-                        endMinute: eventSheet.endMinute,
-                        notes: eventSheet.notes,
+                        title: eventSheetShown.title,
+                        plannedWeekdays: eventSheetShown.plannedWeekdays,
+                        oneOffDate: eventSheetShown.oneOffDate,
+                        startMinute: eventSheetShown.startMinute,
+                        endMinute: eventSheetShown.endMinute,
+                        notes: eventSheetShown.notes,
                       }
                 }
                 accent={accent}
                 theme={theme}
                 onClose={() => setEventSheet(null)}
                 onSave={async (input) => {
-                  if (eventSheet === "new") await addEvent([data.id], input);
-                  else await updateEvent(eventSheet.id, input);
+                  if (eventSheetShown === "new") await addEvent([data.id], input);
+                  else await updateEvent(eventSheetShown.id, input);
                   setEventSheet(null);
                   await reload();
                 }}
                 onDelete={
-                  eventSheet === "new"
+                  eventSheetShown === "new"
                     ? undefined
                     : async () => {
-                        await archiveTask(eventSheet.id);
+                        await archiveTask(eventSheetShown.id);
                         setEventSheet(null);
                         await reload();
                       }
@@ -534,10 +507,11 @@ export default function CommitmentScreen() {
               />
             ) : null}
 
-            {sheet !== null ? (
+            {sheetShown !== null ? (
               <CommitmentSheet
-                visible
-                mode={sheet}
+                visible={sheet !== null}
+                onDismissed={sheetGone}
+                mode={sheetShown}
                 others={data.others}
                 theme={theme}
                 onClose={() => {
@@ -545,11 +519,11 @@ export default function CommitmentScreen() {
                   setRenamingSubId(null);
                 }}
                 onSave={async ({ name, percent }) => {
-                  if (sheet.kind === "commitment") {
+                  if (sheetShown.kind === "commitment") {
                     await updateCommitment(data.id, { name, percent });
                   } else if (renamingSubId !== null) {
                     await updateCommitment(renamingSubId, { name });
-                  } else if (sheet.name !== undefined) {
+                  } else if (sheetShown.name !== undefined) {
                     await updateCommitment(data.id, { name });
                   } else {
                     await createSubCommitment(data.id, name);
@@ -581,14 +555,6 @@ export default function CommitmentScreen() {
                   Alert.alert("Couldn’t save the colour", "Try again.");
                 }
               }}
-            />
-
-            <MenuSheet
-              visible={optionsOpen}
-              title={data.name}
-              theme={theme}
-              onClose={() => setOptionsOpen(false)}
-              rows={optionRows()}
             />
 
             <MenuSheet
@@ -774,11 +740,8 @@ function ActionRow({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   container: { paddingHorizontal: space.screen },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
-  options: { minWidth: 44, minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   status: { marginTop: space.xs },
   bannerNote: { marginTop: space.sm },
   row: {

@@ -1,15 +1,12 @@
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { DayKind } from "../../db/today";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { NumberDial } from "../number-dial/NumberDial";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 interface DayKindSheetProps {
@@ -22,6 +19,8 @@ interface DayKindSheetProps {
   theme: ThemeTokens;
   reduceMotion: boolean;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onCommit: (
     kind: DayKind,
     opts: { title?: string | null; satisfactionRating?: number | null },
@@ -67,9 +66,9 @@ export function DayKindSheet({
   theme,
   reduceMotion,
   onClose,
+  onDismissed,
   onCommit,
 }: DayKindSheetProps) {
-  const insets = useSafeAreaInsets();
   const [chosen, setChosen] = useState<DayKind>(kind);
   const [specialTitle, setSpecialTitle] = useState(title ?? "");
   const [rating, setRating] = useState<number | null>(satisfactionRating);
@@ -94,97 +93,70 @@ export function DayKindSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            What kind of day is {dayLabel}?
-          </AppText>
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      size="large"
+      scroll
+      title={`What kind of day is ${dayLabel}?`}
+      confirm={{ label: "Save", onPress: commit }}
+    >
+      <View style={styles.options}>
+        {KIND_OPTIONS.map((opt) => {
+          const selected = chosen === opt.kind;
+          return (
+            <Pressable
+              key={opt.kind}
+              onPress={() => setChosen(opt.kind)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              style={({ pressed }) => [
+                styles.option,
+                {
+                  backgroundColor: selected ? `${theme.accent}14` : theme.surface,
+                  borderColor: selected ? theme.accent : "transparent",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <AppText variant="headline" color={theme.ink}>
+                {opt.label}
+              </AppText>
+              <AppText variant="caption" color={theme.muted}>
+                {opt.detail}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
 
-          <KeyboardScroll contentContainerStyle={styles.body}>
-          <View style={styles.options}>
-            {KIND_OPTIONS.map((opt) => {
-              const selected = chosen === opt.kind;
-              return (
-                <Pressable
-                  key={opt.kind}
-                  onPress={() => setChosen(opt.kind)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  style={({ pressed }) => [
-                    styles.option,
-                    {
-                      backgroundColor: selected ? `${theme.accent}14` : theme.surface,
-                      borderColor: selected ? theme.accent : "transparent",
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <AppText variant="headline" color={theme.ink}>
-                    {opt.label}
-                  </AppText>
-                  <AppText variant="caption" color={theme.muted}>
-                    {opt.detail}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {chosen === "special" ? (
-            <View style={styles.special}>
-              <TextField
-                theme={theme}
-                value={specialTitle}
-                accessibilityLabel="What made it special"
-                onChangeText={setSpecialTitle}
-                placeholder="What made it special?"
-                returnKeyType="done"
-                style={styles.input}
-              />
-              <NumberDial
-                label="How was it?"
-                a11yName="Day satisfaction"
-                value={rating}
-                onChange={setRating}
-                accent={theme.accent}
-                theme={theme}
-                reduceMotion={reduceMotion}
-              />
-            </View>
-          ) : null}
-          </KeyboardScroll>
-
-          <Button label="Save" onPress={commit} theme={theme} />
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
+      {chosen === "special" ? (
+        <View style={styles.special}>
+          <TextField
+            theme={theme}
+            value={specialTitle}
+            accessibilityLabel="What made it special"
+            onChangeText={setSpecialTitle}
+            placeholder="What made it special?"
+            returnKeyType="done"
+            style={styles.input}
+          />
+          <NumberDial
+            label="How was it?"
+            a11yName="Day satisfaction"
+            value={rating}
+            onChange={setRating}
+            accent={theme.accent}
+            theme={theme}
+            reduceMotion={reduceMotion}
+          />
         </View>
-      </SheetFrame>
-    </Modal>
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-    maxHeight: "92%",
-  },
-  body: { gap: space.lg },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   options: { gap: space.sm },
   option: {
     borderRadius: radius.lg,

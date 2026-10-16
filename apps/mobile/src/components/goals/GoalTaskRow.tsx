@@ -5,6 +5,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 
+import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
+
 import type { GoalTask } from "../../db/goals";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
@@ -85,20 +87,40 @@ export function GoalTaskRow({
 }
 
 /** The inline add row shared by conditions and tasks — one action, one
- *  look. */
+ *  look. Given `choices`, a tap opens a native menu of them instead. */
 export function GoalAddRow({
   label,
+  spokenLabel,
   onPress,
+  choices,
   accent,
   style,
 }: {
   label: string;
-  onPress: () => void;
+  /** What VoiceOver reads, where `label` alone repeats: "Add task to
+   *  Find a flat". */
+  spokenLabel?: string;
   accent: string;
   /** Inside a Group the box supplies the rhythm; standing alone it has
    *  to bring its own. */
   style?: ViewStyle;
-}) {
+} & (
+  | { onPress: () => void; choices?: undefined }
+  /** "Add task" means two things, so it asks which (Phase 3c). */
+  | { choices: MenuAction[]; onPress?: undefined }
+)) {
+  if (choices) {
+    return (
+      <ActionMenu actions={choices} label={spokenLabel ?? label} moreColor={accent} more={false}>
+        <View style={[styles.addRow, style]}>
+          <Ionicons name="add" size={16} color={accent} />
+          <AppText variant="label" color={accent}>
+            {label}
+          </AppText>
+        </View>
+      </ActionMenu>
+    );
+  }
   return (
     <Pressable
       onPress={onPress}

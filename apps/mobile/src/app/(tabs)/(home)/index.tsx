@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -68,6 +68,7 @@ import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { spokenDate } from "../../../lib/format";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { useRetained } from "../../../hooks/useRetained";
 
 /** Uniform, because `ReorderableList` positions rows from their index.
  *  Fits a title plus its factual caption with the row's own padding. */
@@ -150,6 +151,12 @@ export default function TodayScreen() {
     part: PartOfDay | null;
     ordered: string[];
   } | null>(null);
+  /** A task to move once the partial sheet has closed (its "Move it"). */
+  const moveNext = useRef<TodayTask | null>(null);
+  const [taggingTaskShown, taggingTaskGone] = useRetained(taggingTask);
+  const [movingTaskShown, movingTaskGone] = useRetained(movingTask);
+  const [partialTaskShown, partialTaskGone] = useRetained(partialTask);
+  const [planningShown, planningGone] = useRetained(planning);
   /** A drag owns the finger; the page must hold still under it. */
   const [draggingTask, setDraggingTask] = useState(false);
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>({});
@@ -585,16 +592,17 @@ export default function TodayScreen() {
         theme={theme}
       />
 
-      {planning ? (
+      {planningShown ? (
         <WindowSheet
-          visible
-          window={planning.window}
+          visible={planning !== null}
+          onDismissed={planningGone}
+          window={planningShown.window}
           // Only open work: offering something already ticked would be
           // offering to plan the past.
-          candidates={todayTasks.filter((t) => !planning.carried.includes(t.id))}
-          carried={allTasks.filter((t) => planning.carried.includes(t.id))}
-          chosen={planning.chosen}
-          plannedCount={planning.plannedCount}
+          candidates={todayTasks.filter((t) => !planningShown.carried.includes(t.id))}
+          carried={allTasks.filter((t) => planningShown.carried.includes(t.id))}
+          chosen={planningShown.chosen}
+          plannedCount={planningShown.plannedCount}
           hueFor={hueFor}
           accent={theme.accent}
           theme={theme}
@@ -615,7 +623,7 @@ export default function TodayScreen() {
           }
           onClose={() => setPlanning(null)}
           onSave={() => {
-            const p = planning;
+            const p = planningShown;
             setPlanning(null);
             void (async () => {
               if (p.poolId !== null) {
@@ -633,10 +641,10 @@ export default function TodayScreen() {
             })();
           }}
           onClear={
-            planning.poolId === null
+            planningShown.poolId === null
               ? undefined
               : () => {
-                  const id = planning.poolId;
+                  const id = planningShown.poolId;
                   setPlanning(null);
                   if (id !== null) void deletePool(id).then(() => refresh());
                 }
@@ -644,49 +652,56 @@ export default function TodayScreen() {
         />
       ) : null}
 
-      {partialTask ? (
+      {partialTaskShown ? (
         <PartialSheet
-          visible
-          task={partialTask}
-          accent={hueFor(partialTask)}
+          visible={partialTask !== null}
+          task={partialTaskShown}
+          onDismissed={() => {
+            partialTaskGone();
+            if (moveNext.current) setMovingTask(moveNext.current);
+            moveNext.current = null;
+          }}
+          accent={hueFor(partialTaskShown)}
           theme={theme}
           onClose={() => setPartialTask(null)}
           onPick={(fraction) => {
-            const t = partialTask;
+            const t = partialTaskShown;
             setPartialTask(null);
             void Haptics.selectionAsync();
             void setCompletionFraction(t.id, day.date, fraction).then((scored) => refresh(scored));
           }}
           onClear={() => {
-            const t = partialTask;
+            const t = partialTaskShown;
             setPartialTask(null);
             void toggleCompletion(t.id, day.date).then((scored) => refresh(scored));
           }}
           // The gesture's older job, kept reachable (ADR-0024 §3).
           onMove={
-            partialTask.completedToday
+            partialTaskShown.completedToday
               ? undefined
               : () => {
-                  const t = partialTask;
+                  // Opened once this sheet has finished closing: iOS
+                  // drops a sheet presented while another is closing.
+                  moveNext.current = partialTaskShown;
                   setPartialTask(null);
-                  setMovingTask(t);
                 }
           }
         />
       ) : null}
 
-      {movingTask ? (
+      {movingTaskShown ? (
         <MoveTaskSheet
-          visible
-          taskTitle={movingTask.title}
-          current={movingTask.partOfDay}
-          placedToday={movingTask.placedToday}
+          visible={movingTask !== null}
+          onDismissed={movingTaskGone}
+          taskTitle={movingTaskShown.title}
+          current={movingTaskShown.partOfDay}
+          placedToday={movingTaskShown.placedToday}
           dayLabel={isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? "that day")}
-          accent={hueFor(movingTask)}
+          accent={hueFor(movingTaskShown)}
           theme={theme}
           onClose={() => setMovingTask(null)}
           onPick={(part, scope) => {
-            const t = movingTask;
+            const t = movingTaskShown;
             setMovingTask(null);
             void (async () => {
               if (scope === "always") {
@@ -701,9 +716,9 @@ export default function TodayScreen() {
             })();
           }}
           onClearPlacement={
-            movingTask.placedToday
+            movingTaskShown.placedToday
               ? () => {
-                  const t = movingTask;
+                  const t = movingTaskShown;
                   setMovingTask(null);
                   void clearPlacementForDay(t.id, day.date).then(() => refresh());
                 }
@@ -712,18 +727,19 @@ export default function TodayScreen() {
         />
       ) : null}
 
-      {taggingTask ? (
+      {taggingTaskShown ? (
         <CompletionTagSheet
-          visible
-          taskTitle={taggingTask.title}
+          visible={taggingTask !== null}
+          onDismissed={taggingTaskGone}
+          taskTitle={taggingTaskShown.title}
           units={day.communalUnits}
-          selected={taggingTask.tagUnitIds}
+          selected={taggingTaskShown.tagUnitIds}
           areaColors={theme.areas}
           accent={theme.accent}
           theme={theme}
           onClose={() => setTaggingTask(null)}
           onSave={(unitIds) => {
-            void setCompletionTags(taggingTask.id, day.date, unitIds).then(() => refresh());
+            void setCompletionTags(taggingTaskShown.id, day.date, unitIds).then(() => refresh());
           }}
         />
       ) : null}

@@ -1,17 +1,13 @@
 import * as Haptics from "expo-haptics";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  type TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import Animated from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { suggestTags } from "../../content/tagKeywords";
 import type { ActivitySize } from "../../db/activityCredit";
@@ -19,9 +15,7 @@ import type { DayKind } from "../../db/today";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { useKeyboardLift } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 export interface TagUnit {
@@ -46,6 +40,8 @@ interface ActivitySheetProps {
   existing?: ExistingActivity | null;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onCommit: (
     title: string,
     note: string | null,
@@ -68,9 +64,8 @@ const SIZE_OPTIONS: { size: ActivitySize | null; label: string }[] = [
 /**
  * Log or edit a spontaneous activity (ADR-0009): title, suggested unit
  * tags (up to 3), and how significant it was. On rest and special days
- * everything logs creditlessly. Keyboard handling runs on the UI
- * thread (`useKeyboardLift`) — KeyboardAvoidingView inside a Modal
- * fought the slide-in animation and flickered on device.
+ * everything logs creditlessly. A native sheet since Phase 3c
+ * (`NativeSheet`), which handles the keyboard itself.
  */
 export function ActivitySheet({
   visible,
@@ -79,21 +74,22 @@ export function ActivitySheet({
   existing,
   theme,
   onClose,
+  onDismissed,
   onCommit,
   onDelete,
 }: ActivitySheetProps) {
-  const insets = useSafeAreaInsets();
   const { height: windowH } = useWindowDimensions();
   const [title, setTitle] = useState("");
   const [size, setSize] = useState<ActivitySize | null>("normal");
   const [tags, setTags] = useState<string[]>([]);
   /** Set once the user edits tags by hand; suggestions stop then. */
   const [tagsTouched, setTagsTouched] = useState(false);
-  const titleRef = useRef<TextInput>(null);
   const creditless = dayKind !== "normal";
-  const editing = existing != null;
-
-  const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
+  /** The activity it opened with. Home clears its own copy on close,
+   *  and the sheet keeps this one so its title and Delete don't change
+   *  while it slides away. */
+  const [opened, setOpened] = useState<ExistingActivity | null>(existing ?? null);
+  const editing = opened !== null;
 
   // Re-seed each time it opens, as it opens.
   const [wasVisible, setWasVisible] = useState(visible);
@@ -104,7 +100,8 @@ export function ActivitySheet({
       setSize(existing ? existing.size : "normal");
       setTags(existing?.tagUnitIds ?? []);
       // Editing an activity must never auto-rewrite its tags.
-      setTagsTouched(editing);
+      setTagsTouched(existing != null);
+      setOpened(existing ?? null);
     }
   }
 
@@ -132,72 +129,98 @@ export function ActivitySheet({
     const trimmed = title.trim();
     if (trimmed.length === 0) return;
     // Notes on activities are legacy data; edits pass them through.
-    onCommit(trimmed, existing?.note ?? null, creditless ? null : size, tags);
+    onCommit(trimmed, opened?.note ?? null, creditless ? null : size, tags);
     onClose();
   };
 
   return (
-    <Modal
+    <NativeSheet onDismissed={onDismissed}
       visible={visible}
-      transparent
-      statusBarTranslucent
-      animationType="slide"
-      onRequestClose={onClose}
-      // Focus after the slide-in settles; autoFocus mid-animation makes
-      // the keyboard and sheet fight each other.
-      onShow={() => {
-        if (!editing) setTimeout(() => titleRef.current?.focus(), 80);
+      onClose={onClose}
+      title={editing ? "Edit activity" : "Log an activity"}
+      confirm={{
+        label: editing ? "Save" : "Log",
+        onPress: commit,
+        disabled: title.trim().length === 0,
       }}
     >
-      <SheetFrame onClose={onClose} typing>
-      <Animated.View
-        style={[
-          styles.sheet,
-          { backgroundColor: theme.canvas, borderColor: theme.hairline },
-          keyboardStyle,
-        ]}
+      <ScrollView
+        style={{ maxHeight: Math.round(windowH * 0.5) }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink}>
-          {editing ? "Edit activity" : "Log an activity"}
-        </AppText>
+        <View style={styles.fields}>
+          <TextField
+            theme={theme}
+            // Focuses as the sheet opens, for a new activity only.
+            autoFocus={!editing}
+            value={title}
+            accessibilityLabel="What you did"
+            onChangeText={onTitleChange}
+            placeholder="e.g. Round of golf with Dad"
+            style={styles.input}
+          />
 
-        <ScrollView
-          style={{ maxHeight: Math.round(windowH * 0.5) }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.fields}>
-            <TextField
-              theme={theme}
-              ref={titleRef}
-              value={title}
-              accessibilityLabel="What you did"
-              onChangeText={onTitleChange}
-              placeholder="e.g. Round of golf with Dad"
-              style={styles.input}
-            />
+          <View style={styles.block}>
+            <AppText variant="caption" color={theme.muted}>
+              Where it counts · up to 3
+            </AppText>
+            <View style={styles.chips}>
+              {units.map((u) => {
+                const selected = tags.includes(u.id);
+                const hue = theme.areas[u.areaId] ?? theme.accent;
+                return (
+                  <Pressable
+                    key={u.id}
+                    onPress={() => toggleTag(u.id)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={u.name}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: selected ? `${hue}1f` : theme.surface,
+                        borderColor: selected ? hue : "transparent",
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="caption"
+                      color={selected ? theme.ink : theme.muted}
+                    >
+                      {u.name}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
-            <View style={styles.block}>
-              <AppText variant="caption" color={theme.muted}>
-                Where it counts · up to 3
-              </AppText>
+          <View style={styles.block}>
+            <AppText variant="caption" color={theme.muted}>
+              {creditless
+                ? dayKind === "rest"
+                  ? "Day off. This logs without credit."
+                  : "Special day. This logs as part of the story."
+                : "How significant was it?"}
+            </AppText>
+            {!creditless ? (
               <View style={styles.chips}>
-                {units.map((u) => {
-                  const selected = tags.includes(u.id);
-                  const hue = theme.areas[u.areaId] ?? theme.accent;
+                {SIZE_OPTIONS.map((opt) => {
+                  const selected = size === opt.size;
                   return (
                     <Pressable
-                      key={u.id}
-                      onPress={() => toggleTag(u.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      accessibilityLabel={u.name}
+                      key={opt.label}
+                      onPress={() => setSize(opt.size)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
                       style={[
                         styles.chip,
                         {
-                          backgroundColor: selected ? `${hue}1f` : theme.surface,
-                          borderColor: selected ? hue : "transparent",
+                          backgroundColor: selected
+                            ? `${theme.accent}1f`
+                            : theme.surface,
+                          borderColor: selected ? theme.accent : "transparent",
                         },
                       ]}
                     >
@@ -205,106 +228,46 @@ export function ActivitySheet({
                         variant="caption"
                         color={selected ? theme.ink : theme.muted}
                       >
-                        {u.name}
+                        {opt.label}
                       </AppText>
                     </Pressable>
                   );
                 })}
               </View>
-            </View>
-
-            <View style={styles.block}>
-              <AppText variant="caption" color={theme.muted}>
-                {creditless
-                  ? dayKind === "rest"
-                    ? "Day off. This logs without credit."
-                    : "Special day. This logs as part of the story."
-                  : "How significant was it?"}
-              </AppText>
-              {!creditless ? (
-                <View style={styles.chips}>
-                  {SIZE_OPTIONS.map((opt) => {
-                    const selected = size === opt.size;
-                    return (
-                      <Pressable
-                        key={opt.label}
-                        onPress={() => setSize(opt.size)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected }}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: selected
-                              ? `${theme.accent}1f`
-                              : theme.surface,
-                            borderColor: selected ? theme.accent : "transparent",
-                          },
-                        ]}
-                      >
-                        <AppText
-                          variant="caption"
-                          color={selected ? theme.ink : theme.muted}
-                        >
-                          {opt.label}
-                        </AppText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : null}
-            </View>
+            ) : null}
           </View>
-        </ScrollView>
-
-        <Button
-          label={editing ? "Save changes" : "Log it"}
-          disabled={title.trim().length === 0}
-          onPress={commit}
-          theme={theme}
-        />
-        {editing && onDelete ? (
-          <Pressable
-            onPress={() => {
-              // Deleting erases a line of the life log — same stakes as
-              // archiving a task, so it gets the same confirm.
-              Alert.alert("Delete this activity?", "It leaves the day's record.", [
-                { text: "Keep", style: "cancel" },
-                {
-                  text: "Delete",
-                  style: "destructive",
-                  onPress: () => {
-                    onDelete();
-                    onClose();
-                  },
+        </View>
+      </ScrollView>
+      {editing && onDelete ? (
+        <Pressable
+          onPress={() => {
+            // Deleting erases a line of the life log — same stakes as
+            // archiving a task, so it gets the same confirm.
+            Alert.alert("Delete this activity?", "It leaves the day's record.", [
+              { text: "Keep", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => {
+                  onDelete();
+                  onClose();
                 },
-              ]);
-            }}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.delete, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <AppText variant="label" color={theme.danger}>
-              Delete activity
-            </AppText>
-          </Pressable>
-        ) : (
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-        )}
-      </Animated.View>
-      </SheetFrame>
-    </Modal>
+              },
+            ]);
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.delete, { opacity: pressed ? 0.5 : 1 }]}
+        >
+          <AppText variant="label" color={theme.danger}>
+            Delete activity
+          </AppText>
+        </Pressable>
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   fields: { gap: space.lg },
   input: {
     ...typeScale.body,

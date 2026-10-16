@@ -5,11 +5,10 @@
  * acceptance. Nothing here ever pushes; it only exists on a screen
  * the user navigates to themselves.
  */
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   loadCalibrationState,
@@ -23,7 +22,7 @@ import {
 import { currentLocalDate } from "../lib/calendar";
 import { NumberDial } from "../components/number-dial/NumberDial";
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
@@ -69,7 +68,6 @@ function isApplicable(proposedChange: string): boolean {
 export default function CalibrationScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
 
   const [checkin, setCheckin] = useState<CheckinStatus | null>(null);
@@ -110,29 +108,15 @@ export default function CalibrationScreen() {
   const resolved = calibration?.suggestions.filter((s) => s.status !== "proposed") ?? [];
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+    <View style={styles.root}>
       <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.xl },
+          { paddingTop: space.md, paddingBottom: space.xl },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Calibration
-        </AppText>
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         <AppText color={theme.muted} style={styles.lead}>
           A weekly check, and once there’s enough of it, a look at whether
           your grades and how your weeks actually felt agree.
@@ -246,9 +230,8 @@ export default function CalibrationScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   lead: { marginTop: space.xs, marginBottom: space.xl },
   section: {
     marginTop: space.xl,
