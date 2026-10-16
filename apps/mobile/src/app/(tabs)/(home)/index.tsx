@@ -13,60 +13,61 @@
 import { isEditable, specialDayBonus, type Window as GridWindow } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Redirect, router, type Href } from "expo-router";
+import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   useColorScheme,
   useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
-import { type PartOfDay } from "../../components/plan/planning";
-import { ActivitiesBand } from "../../components/today/ActivitiesBand";
-import { ActivitySheet, type ExistingActivity } from "../../components/today/ActivitySheet";
-import { CompletionTagSheet } from "../../components/today/CompletionTagSheet";
-import { DayGrid, windowKey } from "../../components/today/DayGrid";
-import { DayKindSheet } from "../../components/today/DayKindSheet";
-import { DayRecord } from "../../components/today/DayRecord";
+import { type PartOfDay } from "../../../components/plan/planning";
+import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
+import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { ActivitySheet, type ExistingActivity } from "../../../components/today/ActivitySheet";
+import { CompletionTagSheet } from "../../../components/today/CompletionTagSheet";
+import { DayGrid, windowKey } from "../../../components/today/DayGrid";
+import { DayKindSheet } from "../../../components/today/DayKindSheet";
+import { DayRecord } from "../../../components/today/DayRecord";
 import {
   arrangeDay,
   isDone,
   minuteOfToday,
   type SectionKey,
-} from "../../components/today/daySections";
-import { DropScopeSheet } from "../../components/today/DropScopeSheet";
-import { MoveTaskSheet } from "../../components/today/MoveTaskSheet";
-import { NoteSheet } from "../../components/today/NoteSheet";
-import { PartialSheet } from "../../components/today/PartialSheet";
-import { RecordActions } from "../../components/today/RecordActions";
-import { SectionedChecklist } from "../../components/today/SectionedChecklist";
-import { TailSection } from "../../components/today/TailSection";
-import { TaskRow } from "../../components/today/TaskRow";
-import { TodayHeader } from "../../components/today/TodayHeader";
-import { WindowSheet } from "../../components/today/WindowSheet";
-import { AppText } from "../../components/ui/AppText";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
-import { Button } from "../../components/ui/Button";
-import { deleteActivity, logActivity, updateActivity } from "../../db/activities";
-import { createPool, deletePool, updatePool } from "../../db/commitmentWrites";
-import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../db/completions";
-import { setDayKind } from "../../db/dayGrades";
-import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../db/journal";
-import { isOnboardingComplete } from "../../db/onboarding";
-import { addPhoto, deletePhoto } from "../../db/photos";
-import { clearPlacementForDay, placeTaskForDay } from "../../db/placements";
-import { loadDayLayout, setDayLayout, type DayLayout } from "../../db/settings";
-import { reorderDayTasks, setTaskPartOfDay } from "../../db/tasks";
-import type { TodayActivity, TodayTask } from "../../db/today";
-import { usePlannedAhead, useDayData } from "../../hooks/useDayData";
-import { spokenDate } from "../../lib/format";
-import { getTheme } from "../../theme/colors";
-import { space } from "../../theme/tokens";
+} from "../../../components/today/daySections";
+import { DropScopeSheet } from "../../../components/today/DropScopeSheet";
+import { MoveTaskSheet } from "../../../components/today/MoveTaskSheet";
+import { NoteSheet } from "../../../components/today/NoteSheet";
+import { PartialSheet } from "../../../components/today/PartialSheet";
+import { RecordActions } from "../../../components/today/RecordActions";
+import { SectionedChecklist } from "../../../components/today/SectionedChecklist";
+import { TailSection } from "../../../components/today/TailSection";
+import { TaskRow } from "../../../components/today/TaskRow";
+import { TodayHeader } from "../../../components/today/TodayHeader";
+import { WindowSheet } from "../../../components/today/WindowSheet";
+import { AppText } from "../../../components/ui/AppText";
+import { Button } from "../../../components/ui/Button";
+import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
+import { createPool, deletePool, updatePool } from "../../../db/commitmentWrites";
+import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
+import { setDayKind } from "../../../db/dayGrades";
+import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
+import { isOnboardingComplete } from "../../../db/onboarding";
+import { addPhoto, deletePhoto } from "../../../db/photos";
+import { clearPlacementForDay, placeTaskForDay } from "../../../db/placements";
+import { loadDayLayout, setDayLayout, type DayLayout } from "../../../db/settings";
+import { reorderDayTasks, setTaskPartOfDay } from "../../../db/tasks";
+import type { TodayActivity, TodayTask } from "../../../db/today";
+import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
+import { spokenDate } from "../../../lib/format";
+import { getTheme } from "../../../theme/colors";
+import { space } from "../../../theme/tokens";
 
 /** Uniform, because `ReorderableList` positions rows from their index.
  *  Fits a title plus its factual caption with the row's own padding. */
@@ -80,7 +81,6 @@ const CHECKLIST_HEADER_HEIGHT = 48;
 export default function TodayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   /** Dynamic Type, so the grid's hours grow with its labels. */
   const { fontScale } = useWindowDimensions();
@@ -96,6 +96,38 @@ export default function TodayScreen() {
    *  than writing a new one. */
   const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(null);
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
+  /** On iOS the nav bar is transparent, so Home's own header starts
+   *  below it. The web preview's bar takes its own space. */
+  const headerHeight = useHeaderHeight();
+  const headerInset = Platform.OS === "ios" ? headerHeight : 0;
+
+  /** Plan's or Life's + menu asked to log something (`openAdd`): open
+   *  the sheet as the request arrives, then clear it. */
+  const { add: addParam } = useLocalSearchParams<{ add?: string }>();
+  const [seenAddParam, setSeenAddParam] = useState(addParam);
+  if (addParam !== seenAddParam) {
+    setSeenAddParam(addParam);
+    if (addParam === "activity") {
+      setEditingActivity(null);
+      setActivitySheet(true);
+    }
+  }
+  useEffect(() => {
+    if (addParam) router.setParams({ add: undefined });
+  }, [addParam]);
+
+  /** + and Settings in the nav bar, in every state (ADR-0043 §1). */
+  const homeToolbar = (
+    <TabToolbar
+      onTask={() => openAdd("task")}
+      onEvent={() => openAdd("event")}
+      onLog={() => {
+        setEditingActivity(null);
+        setActivitySheet(true);
+      }}
+      settings
+    />
+  );
   const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
   /** The row whose slot is being changed (ADR-0024 phase 3). */
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
@@ -141,8 +173,9 @@ export default function TodayScreen() {
 
   if (day === null) {
     return (
-      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-        <Backdrop circles={constellation(theme.areas, { faint: true })} />
+      <View style={styles.root}>
+        {/* The nav bar's buttons show while the day loads, too. */}
+        {homeToolbar}
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       </View>
     );
@@ -293,8 +326,9 @@ export default function TodayScreen() {
     : null;
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+    <View style={styles.root}>
+      {/* The backdrop is drawn behind the tabs (app/(tabs)/_layout.tsx). */}
+      {homeToolbar}
 
       <TodayHeader
         day={day}
@@ -312,7 +346,7 @@ export default function TodayScreen() {
           setDayLayoutState(next);
           void setDayLayout(next);
         }}
-        topInset={insets.top}
+        topInset={headerInset}
         layout={layout}
         reduceMotion={reduceMotion}
         theme={theme}
@@ -321,6 +355,9 @@ export default function TodayScreen() {
       <ScrollView
         style={styles.body}
         scrollEnabled={!draggingTask}
+        // Keeps the last rows, and the guidelines line, clear of the
+        // native tab bar, which floats over content.
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
         {day.finalized ? (

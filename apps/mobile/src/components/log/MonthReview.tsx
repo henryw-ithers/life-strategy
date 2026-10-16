@@ -18,7 +18,7 @@
  * a scrolling list should not also be a gesture surface competing with
  * the scroll it sits in.
  */
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
@@ -102,7 +102,7 @@ export function MonthReview({
 
       {at >= 0 ? (
         <Pressable
-          onPress={() => router.push("/portfolio/graph")}
+          onPress={() => router.push("/priorities/graph" as Href)}
           accessibilityRole="button"
           accessibilityLabel={`Portfolio after the ${snapshots[at]?.label} diagnostic. Opens full size.`}
           style={({ pressed }) => [styles.graphRow, { opacity: pressed ? 0.7 : 1 }]}

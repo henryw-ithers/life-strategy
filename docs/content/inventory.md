@@ -68,7 +68,7 @@ record, the file is the behaviour.
 | Calibration cold-start line | Calibration copy | `src/app/calibration.tsx` |
 | Insight lines (higher / lower / aligned) | Calibration copy | `src/app/calibration.tsx` |
 | Suggestion copy + Accept/Dismiss | Calibration copy | `src/app/calibration.tsx` |
-| Support resources block | Support Resources | `src/app/(tabs)/settings.tsx` |
+| Support resources block | Support Resources | `src/app/settings.tsx` |
 
 ---
 
@@ -81,7 +81,7 @@ table is the navigation aid; the strings themselves live in the files.
 
 | Screen | File | Copy it holds |
 |---|---|---|
-| Today / checklist | `src/app/(tabs)/index.tsx` | Section headings ("Done this week", "Completed"), empty states ("Run the diagnostic", "Plan your tasks"), day-record copy ("Today's notes", "From this day"), press-and-hold hints, accessibility labels |
+| Today / checklist | `src/app/(tabs)/(home)/index.tsx` | Section headings ("Done this week", "Completed"), empty states ("Run the diagnostic", "Plan your tasks"), day-record copy ("Today's notes", "From this day"), press-and-hold hints, accessibility labels |
 | Activity sheet | `src/components/today/ActivitySheet.tsx` | "Log an activity", size prompt ("How significant was it?"), day-off and special-day credit explanations, delete confirmation |
 | Day kind sheet | `src/components/today/DayKindSheet.tsx` | The three day-kind explanations, "Day satisfaction", "What made it special?" |
 | Note sheet | `src/components/today/NoteSheet.tsx` | Journal entry prompts |
@@ -92,7 +92,7 @@ table is the navigation aid; the strings themselves live in the files.
 | Screen | File | Copy it holds |
 |---|---|---|
 | Diagnostic | `src/app/diagnostic.tsx` | Step headings ("Your priorities", "Your areas · Priority"), the area question, drag hints, discard confirmation |
-| Plan | `src/app/(tabs)/plan.tsx` | Empty states, weight-change prompts, unit expand/collapse labels |
+| Plan | `src/app/(tabs)/plan/index.tsx` | Empty states, weight-change prompts, unit expand/collapse labels |
 | Goals list & detail | `src/app/(tabs)/goals/index.tsx`, `[goalId].tsx` | Goal-load nudge, status labels, milestone copy |
 | Goal modals | `src/components/goals/*.tsx` | Add, complete (three-path), revise, and **abandon** copy — the last is neutral by rule (ADR-0007 §1): "set aside," never "failed" |
 | Portfolio graph | `src/components/portfolio-graph/*.tsx` | Legend, callout, mode control, scrubber labels |
@@ -104,7 +104,7 @@ table is the navigation aid; the strings themselves live in the files.
 |---|---|---|
 | Onboarding | `src/app/onboarding.tsx` | Welcome screens |
 | Notification pre-screen | `src/components/notifications/PermissionPrescreen.tsx` | The in-app ask before the OS prompt (ADR-0010 §4) |
-| Settings | `src/app/(tabs)/settings.tsx` | Reminder controls, recompute explanation, replay-welcome, erase-data description, support resources |
+| Settings | `src/app/settings.tsx` | Reminder controls, recompute explanation, replay-welcome, erase-data description, support resources |
 | Erase data | `src/components/settings/EraseDataModal.tsx` | Destructive confirmation |
 | Backup | `src/app/backup.tsx` | Passphrase, seal/open, restore copy |
 | Feedback | `src/app/feedback.tsx` | Feedback form → `henrywithersfeedback@gmail.com` |

@@ -12,7 +12,7 @@
  * `db/ranking.ts` for why that distinction matters to the graph's
  * history and to ADR-0008's calibration series.
  */
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,30 +22,32 @@ import {
   View,
 } from "react-native";
 
-import type { GraphSnapshot } from "../../../components/portfolio-graph";
-import { AppText } from "../../../components/ui/AppText";
-import { Group } from "../../../components/ui/Group";
-import { MonthReview } from "../../../components/log/MonthReview";
-import { loadMonthCheckpoint, type MonthCheckpoint } from "../../../db/log";
-import { currentLocalDate } from "../../../lib/calendar";
-import { SettingsRow } from "../../../components/ui/SettingsRow";
-import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
-import { Backdrop, constellation } from "../../../components/ui/Backdrop";
-import { Button } from "../../../components/ui/Button";
-import { ReorderableList, type ReorderableItem } from "../../../components/ui/ReorderableList";
-import { ScreenHeader } from "../../../components/ui/ScreenHeader";
-import { loadGraphSnapshots } from "../../../db/graph";
+import type { GraphSnapshot } from "../../components/portfolio-graph";
+import { AppText } from "../../components/ui/AppText";
+import { Group } from "../../components/ui/Group";
+import { MonthReview } from "../../components/log/MonthReview";
+import { loadMonthCheckpoint, type MonthCheckpoint } from "../../db/log";
+import { currentLocalDate } from "../../lib/calendar";
+import { SettingsRow } from "../../components/ui/SettingsRow";
+import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
+import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { Button } from "../../components/ui/Button";
+import { ReorderableList, type ReorderableItem } from "../../components/ui/ReorderableList";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { loadGraphSnapshots } from "../../db/graph";
 import {
   applyPriorityOrder,
   loadRankingBoard,
   resetToDiagnostic,
   type RankingBoard,
-} from "../../../db/ranking";
-import { getTheme, type ThemeTokens } from "../../../theme/colors";
-import { space } from "../../../theme/tokens";
+} from "../../db/ranking";
+import { getTheme, type ThemeTokens } from "../../theme/colors";
+import { space } from "../../theme/tokens";
 
 
-export default function PortfolioScreen() {
+export default function PrioritiesScreen() {
+  /** Pushed from Life since Phase 3b, so it needs a way back. */
+  const back = () => (router.canGoBack() ? router.back() : router.replace("/goals" as Href));
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
@@ -114,7 +116,7 @@ export default function PortfolioScreen() {
     return (
       <View style={[styles.root, { backgroundColor: theme.canvas }]}>
         <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Portfolio" theme={theme} />
+        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
         <LoadFailure error={error} onRetry={retry} theme={theme} />
       </View>
     );
@@ -124,7 +126,7 @@ export default function PortfolioScreen() {
     return (
       <View style={[styles.root, { backgroundColor: theme.canvas }]}>
         <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Portfolio" theme={theme} />
+        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       </View>
     );
@@ -134,10 +136,10 @@ export default function PortfolioScreen() {
     return (
       <View style={[styles.root, { backgroundColor: theme.canvas }]}>
         <Backdrop circles={constellation(theme.areas, { faint: true })} />
-        <ScreenHeader title="Portfolio" theme={theme} />
+        <ScreenHeader title="Priorities" theme={theme} onBack={back} />
         <View style={styles.empty}>
           <AppText color={theme.ink} style={styles.centerText}>
-            Your portfolio starts with a diagnostic. Rank what matters, and
+            Your priorities start with a diagnostic. Rank what matters, and
             the order lands here — ready to adjust whenever it shifts.
           </AppText>
           <Button
@@ -159,7 +161,7 @@ export default function PortfolioScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScreenHeader title="Portfolio" theme={theme} />
+      <ScreenHeader title="Priorities" theme={theme} onBack={back} />
 
       <ScrollView
         style={styles.body}

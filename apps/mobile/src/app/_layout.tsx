@@ -1,5 +1,12 @@
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
-import { Stack, usePathname, type ErrorBoundaryProps } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  usePathname,
+  type ErrorBoundaryProps,
+} from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
@@ -17,8 +24,31 @@ import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
-import { getTheme } from "../theme/colors";
+import { getTheme, type ThemeTokens } from "../theme/colors";
+
 import { space } from "../theme/tokens";
+
+/**
+ * React Navigation's colours, from ours. Its default theme paints every
+ * navigator container light grey, which hid the backdrop behind the
+ * tabs and stayed light in dark mode. Containers are transparent: each
+ * opaque screen paints its own canvas, and tab roots are meant to be
+ * see-through (app/(tabs)/_layout.tsx).
+ */
+function navigationTheme(theme: ThemeTokens) {
+  const base = theme.name === "dark" ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: "transparent",
+      card: theme.canvas,
+      text: theme.ink,
+      border: theme.hairline,
+      primary: theme.ink,
+    },
+  };
+}
 
 /**
  * Everything React never sees — uncaught async rejections, errors in
@@ -143,6 +173,8 @@ export default function RootLayout() {
  */
 function MigrationGate() {
   const { success, error: migrationError } = useMigrations(db, migrations);
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [seeded, setSeeded] = useState(false);
   const [seedError, setSeedError] = useState<Error | null>(null);
 
@@ -168,8 +200,10 @@ function MigrationGate() {
       {/* Every text field's scrolling and the bar above the keyboard
           read from this (ADR-0043 §5). */}
       <KeyboardProvider>
-        <RouteWitness />
-        <Stack screenOptions={{ headerShown: false }} />
+        <ThemeProvider value={navigationTheme(theme)}>
+          <RouteWitness />
+          <Stack screenOptions={{ headerShown: false }} />
+        </ThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );

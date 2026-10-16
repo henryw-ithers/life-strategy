@@ -19,30 +19,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
-import { UnitInfoSheet } from "../../components/diagnostic/UnitInfoSheet";
-import { AddTaskModal } from "../../components/plan/AddTaskModal";
-import { applyTaskEdit, editableFrom } from "../../components/plan/applyTaskEdit";
-import { CommitmentTasks } from "../../components/plan/CommitmentTasks";
-import { CoverageBar } from "../../components/plan/CoverageBar";
-import { EventSheet } from "../../components/plan/EventSheet";
-import { FirstRunCard } from "../../components/plan/FirstRunCard";
-import { type PartOfDay } from "../../components/plan/planning";
-import { PlanUnitSection } from "../../components/plan/PlanUnitSection";
-import type { OneOffState } from "../../components/plan/SchedulePicker";
-import { SuggestionsSheet } from "../../components/plan/SuggestionsSheet";
-import { NO_DETAIL, type TaskDetail } from "../../components/plan/TaskDetailPicker";
-import { TaskEditSheet } from "../../components/plan/TaskEditSheet";
-import type { PickableUnit } from "../../components/plan/UnitPicker";
-import { COMMITMENT_AREA, pickableUnits } from "../../components/plan/unitSelection";
-import { AppText } from "../../components/ui/AppText";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
-import { Button } from "../../components/ui/Button";
-import { Group } from "../../components/ui/Group";
-import { ScreenHeader } from "../../components/ui/ScreenHeader";
-import { LoadFailure } from "../../components/ui/ScreenLoad";
-import { UndoToast } from "../../components/ui/UndoToast";
-import { UNIT_INFO } from "../../content/units";
-import { createGoal, setGoalMetric } from "../../db/goals";
+import { UnitInfoSheet } from "../../../components/diagnostic/UnitInfoSheet";
+import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddTaskModal } from "../../../components/plan/AddTaskModal";
+import { applyTaskEdit, editableFrom } from "../../../components/plan/applyTaskEdit";
+import { CommitmentTasks } from "../../../components/plan/CommitmentTasks";
+import { CoverageBar } from "../../../components/plan/CoverageBar";
+import { EventSheet } from "../../../components/plan/EventSheet";
+import { FirstRunCard } from "../../../components/plan/FirstRunCard";
+import { type PartOfDay } from "../../../components/plan/planning";
+import { PlanUnitSection } from "../../../components/plan/PlanUnitSection";
+import type { OneOffState } from "../../../components/plan/SchedulePicker";
+import { SuggestionsSheet } from "../../../components/plan/SuggestionsSheet";
+import { NO_DETAIL, type TaskDetail } from "../../../components/plan/TaskDetailPicker";
+import { TaskEditSheet } from "../../../components/plan/TaskEditSheet";
+import type { PickableUnit } from "../../../components/plan/UnitPicker";
+import { COMMITMENT_AREA, pickableUnits } from "../../../components/plan/unitSelection";
+import { AppText } from "../../../components/ui/AppText";
+import { Button } from "../../../components/ui/Button";
+import { Group } from "../../../components/ui/Group";
+import { LoadFailure } from "../../../components/ui/ScreenLoad";
+import { UndoToast } from "../../../components/ui/UndoToast";
+import { UNIT_INFO } from "../../../content/units";
+import { createGoal, setGoalMetric } from "../../../db/goals";
 import {
   addEvent,
   addTask,
@@ -53,10 +52,10 @@ import {
   updateEvent,
   type PlanTask,
   type PlanUnit,
-} from "../../db/tasks";
-import { usePlanData } from "../../hooks/usePlanData";
-import { getTheme } from "../../theme/colors";
-import { space } from "../../theme/tokens";
+} from "../../../db/tasks";
+import { usePlanData } from "../../../hooks/usePlanData";
+import { getTheme } from "../../../theme/colors";
+import { space } from "../../../theme/tokens";
 
 interface EditTarget {
   task: PlanTask;
@@ -77,7 +76,10 @@ export default function PlanScreen() {
   /** The post-diagnostic diff links here with a unit to open — the
    *  prompts say "Friendship rose to 12 points" and landing on a
    *  collapsed list would strand that intent (ADR-0005 §2). */
-  const { unit: unitParam } = useLocalSearchParams<{ unit?: string }>();
+  const { unit: unitParam, add: addParam } = useLocalSearchParams<{
+    unit?: string;
+    add?: string;
+  }>();
 
   const { plan, commitmentDay, goalsByUnit, ratings, reload, save, error, retry } = usePlanData();
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
@@ -185,6 +187,32 @@ export default function PlanScreen() {
     router.setParams({ unit: undefined });
   }, [unitParam, revealUnit]);
 
+  /** Another tab's + menu asked for a task or an event (`openAdd`).
+   *  It waits for the plan to load. Then, with something to file it
+   *  under, the sheet opens as the request is seen (during render, as
+   *  for the unit link above); with no plan yet, the effect sends it to
+   *  the diagnostic, which is where Plan's own empty state points. The
+   *  effect also clears the request so the next one registers. */
+  const canAdd = plan?.hasSnapshot === true && allUnits.length > 0;
+  const [handledAdd, setHandledAdd] = useState<string | undefined>(undefined);
+  if (addParam !== handledAdd && plan !== null) {
+    setHandledAdd(addParam);
+    if (canAdd && addParam === "task") setAdding({ homeUnit: null });
+    else if (canAdd && addParam === "event") setAddingEvent({ unitIds: [] });
+  }
+  useEffect(() => {
+    if (!addParam || plan === null) return;
+    router.setParams({ add: undefined });
+    if (!canAdd) router.push("/diagnostic" as Href);
+  }, [addParam, plan, canAdd]);
+
+  /** Plan's own + menu: the same rule, decided at the tap. */
+  const addHere = (what: "task" | "event") => {
+    if (!canAdd) router.push("/diagnostic" as Href);
+    else if (what === "task") setAdding({ homeUnit: null });
+    else setAddingEvent({ unitIds: [] });
+  };
+
   /**
    * Something new lands last in its unit, so the screen has to say where
    * it went: open that unit, bring it into view, and tint the row for
@@ -226,51 +254,24 @@ export default function PlanScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScreenHeader title="Tasks" theme={theme} />
-
-      {/* The screen's own thesis, above everything it applies to: how
-          much of your hundred is in play, and so what today can score. */}
-      {plan?.hasSnapshot ? (
-        <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
-      ) : null}
-
-      {/* Capture, before navigation: the same sheet as a unit's own add,
-          with the unit as a field inside it. Fixed rather than scrolled
-          away — it's furniture, like the header it sits under. Two kinds
-          of thing, two doors (ADR-0038): work you fit in, and a time you
-          turn up for. */}
-      {plan?.hasSnapshot && allUnits.length > 0 ? (
-        <View style={styles.addBar}>
-          <View style={styles.grow}>
-            <Button
-              variant="tonal"
-              icon="add"
-              label="Add task"
-              onPress={() => setAdding({ homeUnit: null })}
-              theme={theme}
-            />
-          </View>
-          <View style={styles.grow}>
-            <Button
-              variant="tonal"
-              icon="calendar-outline"
-              label="Add event"
-              onPress={() => setAddingEvent({ unitIds: [] })}
-              theme={theme}
-            />
-          </View>
-        </View>
-      ) : null}
-
+    <View style={styles.root}>
+      {/* The scroll view comes first: iOS follows the first child down to
+          find what drives the large title and the tab bar's shrinking.
+          The backdrop sits behind the tabs (app/(tabs)/_layout.tsx). */}
       <ScrollView
         ref={scrollRef}
         style={styles.body}
         scrollEnabled={!draggingTask}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
         <View ref={contentRef}>
+          {/* The screen's own thesis, above everything it applies to: how
+              much of your hundred is in play, and so what today can score.
+              It scrolls with the list now that the nav bar is native. */}
+          {plan?.hasSnapshot ? (
+            <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
+          ) : null}
           {error ? (
             <LoadFailure error={error} onRetry={retry} theme={theme} />
           ) : plan === null ? (
@@ -368,6 +369,13 @@ export default function PlanScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Shown in every state, so the + never pops in late. */}
+      <TabToolbar
+        onTask={() => addHere("task")}
+        onEvent={() => addHere("event")}
+        onLog={() => openAdd("activity")}
+      />
 
       {undo ? (
         <UndoToast
@@ -545,15 +553,6 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl },
   loading: { marginTop: space.xxl },
-  /** Tight under the header, loose above the list: the buttons belong to
-   *  the furniture, not to the first area. */
-  addBar: {
-    flexDirection: "row",
-    gap: space.sm,
-    paddingHorizontal: space.screen,
-    paddingTop: space.md,
-    paddingBottom: space.sm,
-  },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
   // Areas breathe more than the rows inside them — the rhythm is what
