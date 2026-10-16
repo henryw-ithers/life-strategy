@@ -109,6 +109,14 @@ export const lifeUnit = sqliteTable("life_unit", {
   usesSubCommitments: integer("uses_sub_commitments", { mode: "boolean" })
     .notNull()
     .default(false),
+  /**
+   * The unit's own colour, as a palette key (`theme/palette.ts`), or
+   * null to use its area's (ADR-0043 §4). A key rather than hex so a
+   * palette revision recolours every unit without a migration.
+   * Presentation only, like `area_id`: never a weight, rank or score
+   * (ADR-0021).
+   */
+  colour: text("colour"),
   archivedAt: text("archived_at"),
   ...timestamps,
 });

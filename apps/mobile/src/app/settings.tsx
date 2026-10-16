@@ -30,8 +30,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorS
 
 import { EraseDataModal } from "../components/settings/EraseDataModal";
 import { AppText } from "../components/ui/AppText";
+import { Chevron } from "../components/ui/Chevron";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
-import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
 import { TimeField } from "../components/ui/DateTimeField";
@@ -160,7 +161,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(theme.accent)} />
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScreenHeader
         title="Settings"
         theme={theme}
@@ -226,9 +227,12 @@ export default function SettingsScreen() {
                 <AppText color={theme.ink}>
                   Notifications are off at the system level.
                 </AppText>
-                <AppText variant="label" color={theme.accent}>
-                  Open system settings
-                </AppText>
+                <View style={styles.link}>
+                  <AppText variant="label" color={theme.accent}>
+                    Open system settings
+                  </AppText>
+                  <Chevron color={theme.accent} theme={theme} />
+                </View>
               </Pressable>
             ) : null}
           </Group>
@@ -367,6 +371,7 @@ const styles = StyleSheet.create({
   caption: { marginTop: -space.xs },
   resourceLine: { marginTop: -space.xs },
   build: { marginTop: space.xxl, textAlign: "center" },
+  link: { flexDirection: "row", alignItems: "center", gap: space.xs },
   deniedBox: {
     marginTop: space.sm,
     borderWidth: StyleSheet.hairlineWidth,

@@ -84,7 +84,7 @@ import {
 import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { AppText } from "../../components/ui/AppText";
-import { Backdrop, hueWash } from "../../components/ui/Backdrop";
+import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import {
@@ -323,7 +323,7 @@ export default function PlanDayScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(theme.accent)} />
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
 
       {/* The date is the subject of this screen, so it is the title, and
           the two arrows sit beside it rather than in a separate strip:

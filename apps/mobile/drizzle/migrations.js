@@ -20,6 +20,7 @@ import m0015 from './0015_thin_shinko_yamashiro.sql';
 import m0016 from './0016_chief_mister_fear.sql';
 import m0017 from './0017_aberrant_lady_deathstrike.sql';
 import m0018 from './0018_slimy_mentor.sql';
+import m0019 from './0019_cool_galactus.sql';
 
   export default {
     journal,
@@ -42,7 +43,8 @@ m0014,
 m0015,
 m0016,
 m0017,
-m0018
+m0018,
+m0019
     }
   }
   

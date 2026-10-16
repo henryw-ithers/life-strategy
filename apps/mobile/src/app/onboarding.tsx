@@ -72,7 +72,7 @@ import { PermissionPrescreen } from "../components/notifications/PermissionPresc
 import { AreaInfoSheet } from "../components/diagnostic/AreaInfoSheet";
 import { AppText } from "../components/ui/AppText";
 import { Chevron } from "../components/ui/Chevron";
-import { Backdrop, constellation, hueWash } from "../components/ui/Backdrop";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { LoadFailure } from "../components/ui/ScreenLoad";
 import {
@@ -437,7 +437,7 @@ export default function OnboardingScreen() {
   if (step === "notify") {
     return (
       <View style={screen}>
-        <Backdrop circles={hueWash(theme.accent)} />
+        <Backdrop circles={constellation(theme.areas, { faint: true })} />
         <PermissionPrescreen visible onDone={() => go("done")} theme={theme} />
       </View>
     );
@@ -647,7 +647,7 @@ function Page({
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={circles ?? hueWash(theme.accent)} />
+      <Backdrop circles={circles ?? constellation(theme.areas, { faint: true })} />
       <View style={[styles.body, pad]}>
         {index >= 0 ? <Progress index={index} theme={theme} /> : null}
         <ScrollView

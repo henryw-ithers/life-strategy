@@ -30,7 +30,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { Chevron, Disclosure } from "../components/ui/Chevron";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { KIND_LABEL as FEEDBACK_LABEL } from "../lib/feedback";
 import {
@@ -105,7 +106,7 @@ export default function ProblemLogScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(theme.accent)} />
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScrollView
         contentContainerStyle={[
           styles.container,
@@ -154,6 +155,7 @@ export default function ProblemLogScreen() {
               <AppText variant="label" color={theme.accent}>
                 Send feedback
               </AppText>
+              <Chevron color={theme.accent} theme={theme} />
             </Pressable>
           </View>
         ) : (
@@ -256,6 +258,7 @@ export default function ProblemLogScreen() {
                     ? "Hide what gets sent"
                     : "See exactly what gets sent"}
                 </AppText>
+                <Disclosure open={payloadShown} color={theme.accent} theme={theme} />
               </Pressable>
 
               {payloadShown ? (
@@ -304,8 +307,8 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.xs,
   },
-  crossLink: { minHeight: 44, justifyContent: "center" },
-  disclosure: { minHeight: 44, justifyContent: "center" },
+  crossLink: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: space.xs },
+  disclosure: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: space.xs },
   payload: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,

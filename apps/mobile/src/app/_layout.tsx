@@ -1,13 +1,4 @@
-/* Per-weight subpaths, not the package barrel. The barrel's index
- * requires all seven weights, and Metro bundles every `require`d asset
- * it can reach — importing it shipped ~290 kB of ExtraLight, Light and
- * ExtraBold the app never renders. */
-import { Manrope_400Regular } from "@expo-google-fonts/manrope/400Regular";
-import { Manrope_500Medium } from "@expo-google-fonts/manrope/500Medium";
-import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold";
-import { Manrope_700Bold } from "@expo-google-fonts/manrope/700Bold";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
-import { useFonts } from "expo-font";
 import { Stack, usePathname, type ErrorBoundaryProps } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -145,24 +136,13 @@ export default function RootLayout() {
 }
 
 /**
- * Database and font gate: run pending migrations, seed the default
- * taxonomy, and load the type family before rendering any screen.
- * Screens below this layout can assume the database exists, is
- * current, and that Manrope is available.
- *
- * Fonts belong in the same gate as the data: rendering a frame before
- * they resolve shows the whole app in the system face and then swaps
- * it, which is the flash of unstyled text — worse here than a slightly
- * longer splash, because every screen is type.
+ * Database gate: run pending migrations and seed the default taxonomy
+ * before rendering any screen. Screens below this layout can assume the
+ * database exists and is current. There is no font to wait for: the app
+ * is set in SF, the system font (ADR-0043 §3).
  */
 function MigrationGate() {
   const { success, error: migrationError } = useMigrations(db, migrations);
-  const [fontsLoaded, fontError] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-  });
   const [seeded, setSeeded] = useState(false);
   const [seedError, setSeedError] = useState<Error | null>(null);
 
@@ -180,11 +160,8 @@ function MigrationGate() {
   const fatal = migrationError ?? seedError;
   if (fatal) return <StartupFailure error={fatal} />;
 
-  // Splash screen stays visible while migrations, seed, and fonts run.
-  // A font that fails to load is deliberately *not* fatal: the system
-  // face is a perfectly readable fallback, and refusing to open the
-  // app over a typeface would be the wrong trade.
-  if (!success || !seeded || (!fontsLoaded && !fontError)) return null;
+  // Splash screen stays visible while migrations and the seed run.
+  if (!success || !seeded) return null;
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -238,7 +215,7 @@ function StartupFailure({ error }: { error: Error }) {
  *
  * Its own component rather than a `usePathname()` in `RootLayout`,
  * because the hook re-renders its owner on every navigation and the
- * gate above owns the migration and font state. Renders nothing.
+ * gate above owns the migration state. Renders nothing.
  */
 function RouteWitness() {
   const pathname = usePathname();

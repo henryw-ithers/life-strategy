@@ -17,7 +17,7 @@ import { commitmentBandMax } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { CommitmentDetail } from "../../db/commitments";
-import { type ThemeTokens, wash } from "../../theme/colors";
+import { type ThemeTokens, unitHue, wash } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Group } from "../ui/Group";
@@ -103,7 +103,8 @@ export function CommitmentsList({
             <Row
               key={c.id}
               commitment={c}
-              hue={hue}
+              // Each commitment shows its own colour (ADR-0043 §4).
+              hue={unitHue(theme, c)}
               theme={theme}
               onPress={() => onOpen(c.id)}
               last={i === commitments.length - 1}
@@ -123,7 +124,8 @@ export function CommitmentsList({
             <Row
               key={c.id}
               commitment={c}
-              hue={hue}
+              // Each commitment shows its own colour (ADR-0043 §4).
+              hue={unitHue(theme, c)}
               theme={theme}
               onPress={() => onOpen(c.id)}
               last={i === archived.length - 1}

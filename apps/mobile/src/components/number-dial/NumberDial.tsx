@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";
-import { fonts, radius, space, type as typeScale } from "../../theme/tokens";
+import { radius, space, type as typeScale, weight } from "../../theme/tokens";
 
 const ITEM_W = 44;
 const DIAL_H = 56;
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   readout: {
     fontSize: 20,
     lineHeight: 24,
-    fontFamily: fonts.bold,
+    fontWeight: weight.bold,
     letterSpacing: -0.2,
     fontVariant: ["tabular-nums"],
   },
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   },
   digit: {
     fontSize: 19,
-    fontFamily: fonts.semibold,
+    fontWeight: weight.semibold,
     fontVariant: ["tabular-nums"],
   },
 });

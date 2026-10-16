@@ -25,81 +25,37 @@ export const radius = {
 } as const;
 
 /**
- * Manrope, loaded at launch (see `src/app/_layout.tsx`).
+ * SF, the system font (ADR-0043 §3). It comes with the phone, so
+ * nothing loads at launch, and iOS applies its own optical tracking
+ * for each size, so the scale sets no letter spacing. Weights are
+ * plain `fontWeight` values: unlike a bundled family, SF has every
+ * weight built in.
  *
- * React Native does **not** synthesize weights for a custom family —
- * each weight is a separately registered family name, and setting
- * `fontWeight` alongside one makes Android fake-bold on top of an
- * already-bold file. So the scale names the exact face and never
- * carries `fontWeight`.
- *
- * Any text outside `AppText` — a `TextInput`, or a raw `Text` inside a
- * component with its own sizing — must still pull its family from
- * here, or it silently falls back to the system font and the screen
- * ends up in two typefaces.
+ * Text outside `AppText` (a `TextInput`, or a raw `Text` with its own
+ * sizing) should still take its weight from here.
  */
-export const fonts = {
-  regular: "Manrope_400Regular",
-  medium: "Manrope_500Medium",
-  semibold: "Manrope_600SemiBold",
-  bold: "Manrope_700Bold",
+export const weight = {
+  regular: "400",
+  medium: "500",
+  semibold: "600",
+  bold: "700",
 } as const;
 
 /**
- * Type scale, disciplined. Negative tracking on large sizes, tabular
- * numerals wherever numbers align (Manrope ships `tnum`).
+ * Type scale, disciplined. Sizes are unchanged from the Manrope scale
+ * so no screen reflows; tabular numerals wherever numbers align.
  */
 export const type = {
-  display: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontFamily: fonts.bold,
-    letterSpacing: -0.5,
-  },
-  title: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontFamily: fonts.bold,
-    letterSpacing: -0.35,
-  },
-  headline: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontFamily: fonts.semibold,
-    letterSpacing: -0.2,
-  },
-  body: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontFamily: fonts.regular,
-    letterSpacing: 0,
-  },
-  label: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontFamily: fonts.semibold,
-    letterSpacing: 0,
-  },
-  caption: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: fonts.medium,
-    letterSpacing: 0.05,
-  },
-  footnote: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: fonts.medium,
-    letterSpacing: 0.1,
-  },
+  display: { fontSize: 28, lineHeight: 34, fontWeight: weight.bold },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: weight.bold },
+  headline: { fontSize: 17, lineHeight: 22, fontWeight: weight.semibold },
+  body: { fontSize: 16, lineHeight: 24, fontWeight: weight.regular },
+  label: { fontSize: 15, lineHeight: 20, fontWeight: weight.semibold },
+  caption: { fontSize: 13, lineHeight: 18, fontWeight: weight.medium },
+  footnote: { fontSize: 12, lineHeight: 16, fontWeight: weight.medium },
   /** The day's grade. A real, recurring display size the scale was
    *  missing — `DayNumber` had been hard-coding it. */
-  numeral: {
-    fontSize: 44,
-    lineHeight: 48,
-    fontFamily: fonts.bold,
-    letterSpacing: -1,
-  },
+  numeral: { fontSize: 44, lineHeight: 48, fontWeight: weight.bold },
 } as const satisfies Record<string, TextStyle>;
 
 export type TypeVariant = keyof typeof type;

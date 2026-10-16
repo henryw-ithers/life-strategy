@@ -3,7 +3,6 @@
   "main": "index",
   "version": "1.0.0",
   "dependencies": {
-    "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/ui": "~57.0.23",
     "@expo/vector-icons": "^15.1.1",
     "@glide/backup": "*",

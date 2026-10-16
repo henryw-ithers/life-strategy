@@ -44,6 +44,7 @@ import {
   CommitmentSheet,
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
+import { ColourSheet } from "../../../../components/commitments/ColourSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
@@ -72,6 +73,7 @@ import {
   archiveCommitment,
   createSubCommitment,
   deleteCommitment,
+  setUnitColour,
   setUsesSubCommitments,
   unarchiveCommitment,
   updateCommitment,
@@ -85,7 +87,8 @@ import {
   type PlanData,
   type PlanTask,
 } from "../../../../db/tasks";
-import { getTheme, SCRIM } from "../../../../theme/colors";
+import { getTheme, SCRIM, unitHue } from "../../../../theme/colors";
+import { PALETTE, isPaletteKey } from "../../../../theme/palette";
 import { radius, space } from "../../../../theme/tokens";
 
 export default function CommitmentScreen() {
@@ -93,9 +96,13 @@ export default function CommitmentScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const insets = useSafeAreaInsets();
-  const accent = theme.areas["work-money"] ?? theme.accent;
 
   const [data, setData] = useState<CommitmentUnitScreen | null>(null);
+  /** Its own colour, or its commitment's, or its area's (ADR-0043 §4). */
+  const accent = data
+    ? unitHue(theme, { areaId: data.areaId, colour: data.colour ?? data.parentColour })
+    : theme.accent;
+  const [colourOpen, setColourOpen] = useState(false);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   /** What the delete confirm is about: this screen's own unit, or one
    *  of its sub-commitments, from the press-and-hold menu. */
@@ -313,7 +320,6 @@ export default function CommitmentScreen() {
                 value={data.name}
                 theme={theme}
                 onPress={openRename}
-                last={archived || isSub || data.others.length === 0}
               />
               {/* Only worth a row when there is something to share
                   with: a lone commitment takes the whole band. */}
@@ -325,9 +331,15 @@ export default function CommitmentScreen() {
                   onPress={() =>
                     setSheet({ kind: "commitment", name: data.name, percent: data.sharePercent })
                   }
-                  last
                 />
               ) : null}
+              <ActionRow
+                label="Colour"
+                value={isPaletteKey(data.colour) ? PALETTE[data.colour].name : "Automatic"}
+                theme={theme}
+                onPress={() => setColourOpen(true)}
+                last
+              />
             </Group>
 
             {data.subsOn ? (
@@ -547,6 +559,28 @@ export default function CommitmentScreen() {
                 }}
               />
             ) : null}
+
+            <ColourSheet
+              visible={colourOpen}
+              value={data.colour}
+              // Automatic is what it shows with no colour of its own: a
+              // sub-commitment's parent's colour, else its area's.
+              automaticHue={unitHue(theme, { areaId: data.areaId, colour: data.parentColour })}
+              automaticFrom={data.parent ? data.parent.name : "its area"}
+              theme={theme}
+              onClose={() => setColourOpen(false)}
+              onPick={async (colour) => {
+                // Save first, close after: closing first made a failed
+                // save look like a successful one.
+                try {
+                  await setUnitColour(data.id, colour);
+                  setColourOpen(false);
+                  await reload();
+                } catch {
+                  Alert.alert("Couldn’t save the colour", "Try again.");
+                }
+              }}
+            />
 
             <MenuSheet
               visible={optionsOpen}
