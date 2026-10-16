@@ -52,6 +52,7 @@ import { TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { WindowSheet } from "../../../components/today/WindowSheet";
 import { AppText } from "../../../components/ui/AppText";
+import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
 import { createPool, deletePool, updatePool } from "../../../db/commitmentWrites";
@@ -334,7 +335,9 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.root}>
-      {/* The backdrop is drawn behind the tabs (app/(tabs)/_layout.tsx). */}
+      {/* Fixed behind Home's content: its own header sits above its scroll
+          view until Phase 9, so there's no first-child path to keep. */}
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
       {homeToolbar}
 
       <TodayHeader

@@ -50,6 +50,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MonthReview, monthName } from "../../../components/log/MonthReview";
 import type { GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { loadGraphSnapshots } from "../../../db/graph";
@@ -213,14 +214,15 @@ export default function LogScreen() {
   return (
     <View style={styles.root}>
       {/* The scroll view comes first so the large title and the tab bar
-          follow it; the filters scroll with the list for the same reason.
-          The backdrop is drawn behind the tabs (app/(tabs)/_layout.tsx),
-          and Settings moved to Home and Life (Phase 3b). */}
+          follow it; the filters scroll with the list for the same reason,
+          and the backdrop sits inside it. Settings moved to Home and Life
+          (Phase 3b). */}
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Filters appear once there is something to filter. On a log with
             one month in it they would be five controls over three days. */}
         {months !== null && months.length > 0 ? (
@@ -511,7 +513,7 @@ function DayEntry({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   body: { flex: 1 },
   container: {
     paddingHorizontal: space.screen,

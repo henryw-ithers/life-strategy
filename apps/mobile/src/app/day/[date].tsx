@@ -54,6 +54,7 @@ import {
 } from "react-native";
 
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
+import { useLatest } from "../../hooks/useLatest";
 import { pickableUnits } from "../../components/plan/unitSelection";
 import {
   ANYTIME_LABEL,
@@ -195,7 +196,7 @@ export default function PlanDayScreen() {
     setPools(nextPools);
     // Setters are stable; listing them lets the React Compiler match
     // its own dependency inference and compile this screen.
-  }, [date, setDayLayoutState]);
+  }, [date, setDay, setPlan, setDayLayoutState, setPools]);
   const { error, retry } = useScreenLoad(load);
 
   /** Everything that would show up on this day, still open. */
@@ -320,6 +321,9 @@ export default function PlanDayScreen() {
     })().catch(() => undefined);
   };
 
+  /** The arrows call through this, so a new `step` doesn't rebuild the
+   *  nav bar's buttons (`useLatest`). */
+  const latestStep = useLatest(step);
   const relativeLabel = relative(date, today);
 
   return (
@@ -335,13 +339,13 @@ export default function PlanDayScreen() {
           icon="chevron.left"
           accessibilityLabel="Previous day"
           disabled={!canGoBack}
-          onPress={() => step(-1)}
+          onPress={() => latestStep.current(-1)}
         />
         <Stack.Toolbar.Button
           icon="chevron.right"
           accessibilityLabel="Next day"
           disabled={!canGoForward}
-          onPress={() => step(1)}
+          onPress={() => latestStep.current(1)}
         />
       </Stack.Toolbar>
 

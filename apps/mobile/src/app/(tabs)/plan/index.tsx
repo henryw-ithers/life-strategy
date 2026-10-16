@@ -36,6 +36,7 @@ import { TaskEditSheet } from "../../../components/plan/TaskEditSheet";
 import type { PickableUnit } from "../../../components/plan/UnitPicker";
 import { COMMITMENT_AREA, pickableUnits } from "../../../components/plan/unitSelection";
 import { AppText } from "../../../components/ui/AppText";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
@@ -263,7 +264,7 @@ export default function PlanScreen() {
     <View style={styles.root}>
       {/* The scroll view comes first: iOS follows the first child down to
           find what drives the large title and the tab bar's shrinking.
-          The backdrop sits behind the tabs (app/(tabs)/_layout.tsx). */}
+          So the backdrop goes inside it. */}
       <ScrollView
         ref={scrollRef}
         style={styles.body}
@@ -271,6 +272,7 @@ export default function PlanScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         <View ref={contentRef}>
           {/* The screen's own thesis, above everything it applies to: how
               much of your hundred is in play, and so what today can score.
@@ -559,7 +561,7 @@ export default function PlanScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   /** Takes the space between the fixed header and the tab bar; the unit
    *  list scrolls inside it while both stay put. */
   body: { flex: 1 },

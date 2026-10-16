@@ -57,6 +57,7 @@ import {
   pauseGoal,
   renameCondition,
   renameGoal,
+  readGoalHeading,
   reorderConditions,
   reviseGoal,
   reviveGoal,
@@ -73,6 +74,7 @@ import { useGoalDetail } from "../../../hooks/useGoalDetail";
 import { currentLocalDate } from "../../../lib/calendar";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { useFirstRead } from "../../../hooks/useFirstRead";
 import { useRetained } from "../../../hooks/useRetained";
 
 /** Where an add was started: straight off the goal (`null`), or from a
@@ -85,6 +87,10 @@ export default function GoalDetailScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();
   const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
+  /** The nav bar's title and menu, from the first frame of the push,
+   *  then from the loaded goal (`useFirstRead`). */
+  const firstHeading = useFirstRead(() => readGoalHeading(goalId));
+  const heading = goal ?? firstHeading;
 
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
@@ -105,6 +111,11 @@ export default function GoalDetailScreen() {
   const [metricShown, metricGone] = useRetained(editingMetric ? true : null);
   const [addingTaskShown, addingTaskGone] = useRetained(addingTask);
   const [addingExistingShown, addingExistingGone] = useRetained(addingExisting);
+  // Mounted only while open: each is a SwiftUI host, and building three
+  // of them as the page pushed delayed the push.
+  const [completingShown, completingGone] = useRetained(completing ? true : null);
+  const [abandoningShown, abandoningGone] = useRetained(abandoning ? true : null);
+  const [revisingShown, revisingGone] = useRetained(revising ? true : null);
 
   const accent = goal ? (theme.areas[goal.areaId] ?? theme.accent) : theme.accent;
   const editable = goal?.status === "active";
@@ -174,12 +185,12 @@ export default function GoalDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: goal?.title ?? "" }} />
-      {goal ? (
+      <Stack.Screen options={{ title: heading?.title ?? "" }} />
+      {heading ? (
         <GoalToolbar
-          status={goal.status}
+          status={heading.status}
           onRename={renameTitle}
-          onPause={() => save(() => pauseGoal(goal.id))}
+          onPause={() => goal && save(() => pauseGoal(goal.id))}
           onRevise={() => setRevising(true)}
           onSetAside={() => setAbandoning(true)}
           onDelete={() => setDeleting(true)}
@@ -393,57 +404,66 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            <CompleteGoalModal
-              visible={completing}
-              onClose={() => setCompleting(false)}
-              goalTitle={goal.title}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onArchive={async () => {
-                await completeGoal(goal.id, "archive");
-                await reload();
-              }}
-              onMaintenance={async () => {
-                await completeGoal(goal.id, "maintenance");
-                await reload();
-              }}
-              onFollowUp={async (newTitle, taskCarry) => {
-                const { successorGoalId } = await completeGoal(goal.id, "follow_up", {
-                  newTitle,
-                  taskCarry,
-                });
-                if (successorGoalId) router.replace(`/goals/${successorGoalId}` as Href);
-                else await reload();
-              }}
-            />
+            {completingShown ? (
+              <CompleteGoalModal
+                visible={completing}
+                onDismissed={completingGone}
+                onClose={() => setCompleting(false)}
+                goalTitle={goal.title}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onArchive={async () => {
+                  await completeGoal(goal.id, "archive");
+                  await reload();
+                }}
+                onMaintenance={async () => {
+                  await completeGoal(goal.id, "maintenance");
+                  await reload();
+                }}
+                onFollowUp={async (newTitle, taskCarry) => {
+                  const { successorGoalId } = await completeGoal(goal.id, "follow_up", {
+                    newTitle,
+                    taskCarry,
+                  });
+                  if (successorGoalId) router.replace(`/goals/${successorGoalId}` as Href);
+                  else await reload();
+                }}
+              />
+            ) : null}
 
-            <AbandonGoalModal
-              visible={abandoning}
-              onClose={() => setAbandoning(false)}
-              goalTitle={goal.title}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onCommit={async (decisions) => {
-                await abandonGoal(goal.id, decisions);
-                await reload();
-              }}
-            />
+            {abandoningShown ? (
+              <AbandonGoalModal
+                visible={abandoning}
+                onDismissed={abandoningGone}
+                onClose={() => setAbandoning(false)}
+                goalTitle={goal.title}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onCommit={async (decisions) => {
+                  await abandonGoal(goal.id, decisions);
+                  await reload();
+                }}
+              />
+            ) : null}
 
-            <ReviseGoalModal
-              visible={revising}
-              onClose={() => setRevising(false)}
-              goalTitle={goal.title}
-              goalDescription={goal.description}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onCommit={async (newTitle, newDescription, taskCarry) => {
-                const newId = await reviseGoal(goal.id, newTitle, newDescription, taskCarry);
-                router.replace(`/goals/${newId}` as Href);
-              }}
-            />
+            {revisingShown ? (
+              <ReviseGoalModal
+                visible={revising}
+                onDismissed={revisingGone}
+                onClose={() => setRevising(false)}
+                goalTitle={goal.title}
+                goalDescription={goal.description}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onCommit={async (newTitle, newDescription, taskCarry) => {
+                  const newId = await reviseGoal(goal.id, newTitle, newDescription, taskCarry);
+                  router.replace(`/goals/${newId}` as Href);
+                }}
+              />
+            ) : null}
 
             {addingTaskShown ? (
               <AddTaskModal

@@ -31,10 +31,11 @@ import { space } from "../theme/tokens";
 
 /**
  * React Navigation's colours, from ours. Its default theme paints every
- * navigator container light grey, which hid the backdrop behind the
- * tabs and stayed light in dark mode. Containers are transparent: each
- * opaque screen paints its own canvas, and tab roots are meant to be
- * see-through (app/(tabs)/_layout.tsx).
+ * navigator container light grey, which stayed light in dark mode. The
+ * background is our canvas, opaque: Expo's native tabs guide traces
+ * the flash on a tab switch and flickering glass header buttons to this
+ * background, and a transparent one let the old page show through
+ * during every tab switch (Henry, 2026-10-16).
  */
 function navigationTheme(theme: ThemeTokens) {
   const base = theme.name === "dark" ? DarkTheme : DefaultTheme;
@@ -42,7 +43,7 @@ function navigationTheme(theme: ThemeTokens) {
     ...base,
     colors: {
       ...base.colors,
-      background: "transparent",
+      background: theme.canvas,
       card: theme.canvas,
       text: theme.ink,
       border: theme.hairline,

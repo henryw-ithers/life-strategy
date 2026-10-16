@@ -371,6 +371,38 @@ export interface CommitmentUnitScreen {
   tasks: UnitItem[];
 }
 
+/** What a commitment's nav bar shows: its name and the shape of its •••
+ *  menu. */
+export interface CommitmentHeading {
+  name: string;
+  /** A sub-commitment, whose only option is delete. */
+  sub: boolean;
+  archived: boolean;
+  subsOn: boolean;
+}
+
+/**
+ * A commitment's heading, read synchronously like `readGoalHeading`, so
+ * the nav bar is right on the first frame of the push. Null if it's
+ * gone.
+ */
+export function readCommitmentHeading(id: string): CommitmentHeading | null {
+  const row = db.select().from(lifeUnit).where(eq(lifeUnit.id, id)).get();
+  if (!row) return null;
+  const liveSubs = db
+    .select({ id: lifeUnit.id })
+    .from(lifeUnit)
+    .where(and(eq(lifeUnit.parentUnitId, id), isNull(lifeUnit.archivedAt)))
+    .all();
+  const sub = row.parentUnitId !== null;
+  return {
+    name: row.name,
+    sub,
+    archived: row.archivedAt !== null,
+    subsOn: !sub && subCommitmentsOn(row, liveSubs.length),
+  };
+}
+
 /**
  * Everything one commitment screen needs — the commitment itself or one
  * of its sub-commitments, which open their own screen (Henry,

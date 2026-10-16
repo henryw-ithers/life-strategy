@@ -11,22 +11,21 @@
 import { Stack } from "expo-router";
 
 import type { GoalDetail } from "../../db/goals";
+import { useLatest } from "../../hooks/useLatest";
 
-export function GoalToolbar({
-  status,
-  onRename,
-  onPause,
-  onRevise,
-  onSetAside,
-  onDelete,
-}: {
+interface GoalToolbarProps {
   status: GoalDetail["status"];
   onRename: () => void;
   onPause: () => void;
   onRevise: () => void;
   onSetAside: () => void;
   onDelete: () => void;
-}) {
+}
+
+/** Only `status` shapes the menu; the handlers go through `useLatest`,
+ *  so loading the goal doesn't rebuild the bar. */
+export function GoalToolbar({ status, ...handlers }: GoalToolbarProps) {
+  const latest = useLatest(handlers);
   const active = status === "active";
   // Set aside is the honest ending for a goal you tried, so it is
   // offered while the goal is still live.
@@ -34,7 +33,7 @@ export function GoalToolbar({
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="Goal actions">
-        <Stack.Toolbar.MenuAction icon="pencil" onPress={onRename}>
+        <Stack.Toolbar.MenuAction icon="pencil" onPress={() => latest.current.onRename()}>
           Rename
         </Stack.Toolbar.MenuAction>
         {canSetAside ? (
@@ -43,7 +42,7 @@ export function GoalToolbar({
               <Stack.Toolbar.MenuAction
                 icon="pause.circle"
                 subtitle="Stops for now. Its tasks stay in your plan."
-                onPress={onPause}
+                onPress={() => latest.current.onPause()}
               >
                 Pause
               </Stack.Toolbar.MenuAction>
@@ -52,7 +51,7 @@ export function GoalToolbar({
               <Stack.Toolbar.MenuAction
                 icon="arrow.triangle.branch"
                 subtitle="Rewrite it as a new goal, linked to this one."
-                onPress={onRevise}
+                onPress={() => latest.current.onRevise()}
               >
                 Revise
               </Stack.Toolbar.MenuAction>
@@ -61,7 +60,7 @@ export function GoalToolbar({
               <Stack.Toolbar.MenuAction
                 icon="archivebox"
                 subtitle="The honest ending for a goal you tried. Revivable any time."
-                onPress={onSetAside}
+                onPress={() => latest.current.onSetAside()}
               >
                 Set aside
               </Stack.Toolbar.MenuAction>
@@ -77,7 +76,7 @@ export function GoalToolbar({
             icon="trash"
             destructive
             subtitle="For a goal you never meant to make."
-            onPress={onDelete}
+            onPress={() => latest.current.onDelete()}
           >
             Delete goal
           </Stack.Toolbar.MenuAction>

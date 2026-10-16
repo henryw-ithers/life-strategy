@@ -35,6 +35,7 @@ import { CommitmentsList } from "../../../components/commitments/CommitmentsList
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { Segmented } from "../../../components/plan/Segmented";
 import { AppText } from "../../../components/ui/AppText";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
@@ -111,13 +112,13 @@ export default function GoalsScreen() {
   return (
     <View style={styles.root}>
       {/* The scroll view comes first so the large title and the tab bar
-          follow it (see app/(tabs)/_layout.tsx, which draws the
-          backdrop). */}
+          follow it, so the backdrop goes inside it. */}
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Priorities until Phase 6 rebuilds it as tiers: today's ranking
             screen, which used to be the Portfolio tab (spec §5, Life). */}
         <Group theme={theme} flush>
@@ -396,7 +397,7 @@ const styles = StyleSheet.create({
   addBar: { paddingBottom: space.sm },
   empty: { marginTop: space.xxxl, gap: space.sm },
   emptyText: { maxWidth: 340 },
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   /** Takes the space between the fixed header and the tab bar; the
    *  list scrolls inside it while both stay put. */
   body: { flex: 1 },

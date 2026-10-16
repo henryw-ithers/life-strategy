@@ -45,6 +45,7 @@ import {
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
 import { ColourSheet } from "../../../../components/commitments/ColourSheet";
+import { CommitmentToolbar } from "../../../../components/commitments/CommitmentToolbar";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
@@ -55,7 +56,6 @@ import {
   type PickableUnit,
 } from "../../../../components/plan/unitSelection";
 import { AppText } from "../../../../components/ui/AppText";
-import { MoreMenu, type MoreMenuItem } from "../../../../components/nav/MoreMenu";
 import { hueWash, ScrollBackdrop } from "../../../../components/ui/Backdrop";
 import { Button } from "../../../../components/ui/Button";
 import { Group } from "../../../../components/ui/Group";
@@ -67,6 +67,8 @@ import {
 import { GENERAL_SUB_NAME } from "../../../../db/commitmentPlan";
 import {
   loadCommitmentUnit,
+  readCommitmentHeading,
+  type CommitmentHeading,
   type CommitmentUnitScreen,
   type UnitItem,
 } from "../../../../db/commitments";
@@ -91,6 +93,7 @@ import {
 import { getTheme, SCRIM, unitHue } from "../../../../theme/colors";
 import { PALETTE, isPaletteKey } from "../../../../theme/palette";
 import { radius, space } from "../../../../theme/tokens";
+import { useFirstRead } from "../../../../hooks/useFirstRead";
 import { useRetained } from "../../../../hooks/useRetained";
 
 export default function CommitmentScreen() {
@@ -99,6 +102,7 @@ export default function CommitmentScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
   const [data, setData] = useState<CommitmentUnitScreen | null>(null);
+  const firstHeading = useFirstRead(() => readCommitmentHeading(id));
   /** Its own colour, or its commitment's, or its area's (ADR-0043 §4). */
   const accent = data
     ? unitHue(theme, { areaId: data.areaId, colour: data.colour ?? data.parentColour })
@@ -192,64 +196,46 @@ export default function CommitmentScreen() {
     );
   };
 
-  /** The ••• menu in the nav bar, for this kind of page. Renaming is
-   *  the Name row's, so it isn't repeated here. */
-  const options = (): MoreMenuItem[] => {
-    if (!data) return [];
-    const del: MoreMenuItem = {
-      label: isSub ? "Delete sub-commitment" : "Delete commitment",
-      icon: "trash",
-      destructive: true,
-      onPress: () =>
-        setDeleteTarget({
-          id: data.id,
-          name: data.name,
-          sub: isSub,
-          events: data.events.length,
-          tasks: data.tasks.length,
-        }),
-    };
-    if (isSub) return [del];
-    if (archived) {
-      return [
-        {
-          label: "Unarchive",
-          icon: "archivebox",
-          onPress: () => void unarchiveCommitment(data.id).then(reload),
-        },
-        del,
-      ];
-    }
-    return [
-      {
-        label: data.subsOn ? "Stop using sub-commitments" : "Use sub-commitments",
-        icon: "square.split.1x2",
-        onPress: () => toggleSubs(!data.subsOn),
-      },
-      {
-        label: "Archive",
-        icon: "archivebox",
-        onPress: () =>
-          Alert.alert(
-            `Archive ${data.name}?`,
-            "It keeps everything and stops scoring. You can unarchive it from this menu whenever.",
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Archive", onPress: () => void archiveCommitment(data.id).then(reload) },
-            ],
-          ),
-      },
-      del,
-    ];
+  const deleteThis = () => {
+    if (!data) return;
+    setDeleteTarget({
+      id: data.id,
+      name: data.name,
+      sub: isSub,
+      events: data.events.length,
+      tasks: data.tasks.length,
+    });
   };
+  const archiveThis = () => {
+    if (!data) return;
+    Alert.alert(
+      `Archive ${data.name}?`,
+      "It keeps everything and stops scoring. You can unarchive it from this menu whenever.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive", onPress: () => void archiveCommitment(data.id).then(reload) },
+      ],
+    );
+  };
+
+  /** The nav bar's title and menu, from the first frame of the push
+   *  (`readCommitmentHeading`), then from the loaded page. */
+  const heading: CommitmentHeading | null = data
+    ? { name: data.name, sub: isSub, archived, subsOn: data.subsOn }
+    : firstHeading;
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: data?.name ?? "" }} />
-      {/* What you do to the commitment as a whole (split it, archive it,
-          delete it) lives in one menu, out of the way of what is in it
-          (Henry, 2026-10-02). */}
-      <MoreMenu items={options()} label={data ? `Options for ${data.name}` : "Options"} />
+      <Stack.Screen options={{ title: heading?.name ?? "" }} />
+      {heading ? (
+        <CommitmentToolbar
+          heading={heading}
+          onToggleSubs={() => data && toggleSubs(!data.subsOn)}
+          onArchive={archiveThis}
+          onUnarchive={() => data && void unarchiveCommitment(data.id).then(reload)}
+          onDelete={deleteThis}
+        />
+      ) : null}
       <ScrollView
         // First in the screen, so the nav bar's title collapses on
         // scroll; automatic insets keep it and the tab bar clear.

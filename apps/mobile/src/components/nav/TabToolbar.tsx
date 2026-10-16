@@ -9,9 +9,12 @@
  * every sheet (Henry, 2026-10-16).
  *
  * A header toolbar draws no view of its own; it only sets the nav bar,
- * so it can sit anywhere in a screen.
+ * so it can sit anywhere in a screen. Its buttons call the handlers
+ * through `useLatest`, so new handlers don't rebuild the bar.
  */
 import { router, Stack, type Href } from "expo-router";
+
+import { useLatest } from "../../hooks/useLatest";
 
 /** What another tab's `+` asked this tab to open. */
 export type AddRequest = "task" | "event" | "activity";
@@ -32,26 +35,28 @@ interface TabToolbarProps {
   settings?: boolean;
 }
 
-export function TabToolbar({ onTask, onEvent, onLog, onGoal, settings }: TabToolbarProps) {
+export function TabToolbar(props: TabToolbarProps) {
+  const latest = useLatest(props);
+  const goal = props.onGoal !== undefined;
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu icon="plus" accessibilityLabel="Add">
-        <Stack.Toolbar.MenuAction icon="checkmark.circle" onPress={onTask}>
+        <Stack.Toolbar.MenuAction icon="checkmark.circle" onPress={() => latest.current.onTask()}>
           Task
         </Stack.Toolbar.MenuAction>
-        <Stack.Toolbar.MenuAction icon="calendar" onPress={onEvent}>
+        <Stack.Toolbar.MenuAction icon="calendar" onPress={() => latest.current.onEvent()}>
           Event
         </Stack.Toolbar.MenuAction>
-        <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={onLog}>
+        <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => latest.current.onLog()}>
           Log something
         </Stack.Toolbar.MenuAction>
-        {onGoal ? (
-          <Stack.Toolbar.MenuAction icon="flag" onPress={onGoal}>
+        {goal ? (
+          <Stack.Toolbar.MenuAction icon="flag" onPress={() => latest.current.onGoal?.()}>
             Goal
           </Stack.Toolbar.MenuAction>
         ) : null}
       </Stack.Toolbar.Menu>
-      {settings ? (
+      {props.settings === true ? (
         <Stack.Toolbar.Button
           icon="gearshape"
           accessibilityLabel="Settings"
