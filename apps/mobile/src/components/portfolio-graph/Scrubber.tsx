@@ -66,20 +66,22 @@ export function Scrubber({
       "worklet";
       if (trackW.value <= 0) return;
       const usable = trackW.value - PAD * 2;
-      progress.value = Math.min(max, Math.max(0, ((e.x - PAD) / usable) * max));
+      progress.set(Math.min(max, Math.max(0, ((e.x - PAD) / usable) * max)));
     })
     .onUpdate((e) => {
       "worklet";
       if (trackW.value <= 0) return;
       const usable = trackW.value - PAD * 2;
-      progress.value = Math.min(max, Math.max(0, ((e.x - PAD) / usable) * max));
+      progress.set(Math.min(max, Math.max(0, ((e.x - PAD) / usable) * max)));
     })
     .onFinalize(() => {
       "worklet";
-      progress.value = withTiming(Math.round(progress.value), {
-        duration: reduceMotion ? 0 : 180,
-        easing: Easing.out(Easing.quad),
-      });
+      progress.set(
+        withTiming(Math.round(progress.get()), {
+          duration: reduceMotion ? 0 : 180,
+          easing: Easing.out(Easing.quad),
+        }),
+      );
     });
 
   const thumbStyle = useAnimatedStyle(() => {
@@ -91,7 +93,7 @@ export function Scrubber({
 
   const setIndex = (index: number) => {
     const clamped = Math.min(max, Math.max(0, index));
-    progress.value = withTiming(clamped, { duration: reduceMotion ? 0 : 180 });
+    progress.set(withTiming(clamped, { duration: reduceMotion ? 0 : 180 }));
   };
 
   return (
@@ -100,7 +102,7 @@ export function Scrubber({
         style={styles.hitArea}
         onLayout={(e) => {
           setTrackWidth(e.nativeEvent.layout.width);
-          trackW.value = e.nativeEvent.layout.width;
+          trackW.set(e.nativeEvent.layout.width);
         }}
         accessible
         accessibilityRole="adjustable"

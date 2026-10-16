@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -87,33 +87,37 @@ export function ActivitySheet({
   const [title, setTitle] = useState("");
   const [size, setSize] = useState<ActivitySize | null>("normal");
   const [tags, setTags] = useState<string[]>([]);
-  const tagsTouched = useRef(false);
+  /** Set once the user edits tags by hand; suggestions stop then. */
+  const [tagsTouched, setTagsTouched] = useState(false);
   const titleRef = useRef<TextInput>(null);
   const creditless = dayKind !== "normal";
   const editing = existing != null;
 
   const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
 
-  useEffect(() => {
+  // Re-seed each time it opens, as it opens.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) {
       setTitle(existing?.title ?? "");
       setSize(existing ? existing.size : "normal");
       setTags(existing?.tagUnitIds ?? []);
       // Editing an activity must never auto-rewrite its tags.
-      tagsTouched.current = editing;
+      setTagsTouched(editing);
     }
-  }, [visible, existing, editing]);
+  }
 
   // Suggestions track the title until the user edits tags by hand.
   const onTitleChange = (next: string) => {
     setTitle(next);
-    if (!tagsTouched.current) {
+    if (!tagsTouched) {
       setTags(suggestTags(next).filter((id) => units.some((u) => u.id === id)));
     }
   };
 
   const toggleTag = (unitId: string) => {
-    tagsTouched.current = true;
+    setTagsTouched(true);
     void Haptics.selectionAsync();
     setTags((prev) =>
       prev.includes(unitId)

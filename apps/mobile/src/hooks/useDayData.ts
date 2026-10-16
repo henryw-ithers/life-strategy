@@ -129,11 +129,15 @@ export function useDayData() {
  */
 export function usePlannedAhead(day: DayData | null, open: boolean): TodayTask[] | null {
   const [ahead, setAhead] = useState<TodayTask[] | null>(null);
+  // Closing drops the list, as it closes (during render, not in the
+  // effect), so reopening starts from "loading" rather than old rows.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) setAhead(null);
+  }
   useEffect(() => {
-    if (!day || !open) {
-      setAhead(null);
-      return;
-    }
+    if (!day || !open) return;
     let live = true;
     void loadPlannedAhead(day.date).then((rows) => {
       if (live) setAhead(rows);
@@ -142,5 +146,5 @@ export function usePlannedAhead(day: DayData | null, open: boolean): TodayTask[]
       live = false;
     };
   }, [day, open]);
-  return ahead;
+  return day && open ? ahead : null;
 }

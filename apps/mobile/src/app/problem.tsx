@@ -102,7 +102,7 @@ export default function ProblemLogScreen() {
     clearLog();
     setEntries([]);
     setPayloadShown(false);
-  }, []);
+  }, [setPayloadShown]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>

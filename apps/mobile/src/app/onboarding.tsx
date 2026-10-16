@@ -306,11 +306,16 @@ export default function OnboardingScreen() {
   }, []);
 
   const loadStep = useCallback(() => {
-    setError(null);
     void loadOnboardingStep().then(setStep).catch(fail);
   }, [fail]);
 
   useEffect(loadStep, [loadStep]);
+
+  /** Retry clears the old error first; the first load has none. */
+  const retryStep = useCallback(() => {
+    setError(null);
+    loadStep();
+  }, [loadStep]);
 
   const go = useCallback((next: OnboardingStep) => {
     setStep(next);
@@ -421,7 +426,7 @@ export default function OnboardingScreen() {
   if (error) {
     return (
       <View style={[screen, styles.center]}>
-        <LoadFailure error={error} onRetry={loadStep} theme={theme} />
+        <LoadFailure error={error} onRetry={retryStep} theme={theme} />
       </View>
     );
   }

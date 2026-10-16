@@ -23,7 +23,7 @@
  * beside.
  */
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -112,11 +112,11 @@ export function SectionedChecklist({
   // render is not guaranteed to land.
   const signature = sections.map((s) => `${s.key}:${s.rowIds.join(",")}`).join("|");
   useEffect(() => {
-    layout.value = sections.map((s) => [...s.rowIds]);
+    layout.set(sections.map((s) => [...s.rowIds]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
   useEffect(() => {
-    heights.value = headerHeights;
+    heights.set(headerHeights);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerHeights.join(",")]);
 
@@ -135,10 +135,14 @@ export function SectionedChecklist({
    * mid-drag drops the drag. They also have to see **fresh** props, or a
    * committed move would be written against a stale arrangement. A ref
    * holding the latest values gives both — the functions never change,
-   * what they read always does.
+   * what they read always does. It is refreshed in a layout effect
+   * rather than during render (the React Compiler can't follow a ref
+   * written mid-render), which still lands before any touch.
    */
   const latest = useRef({ sections, onMove, onDragStateChange });
-  latest.current = { sections, onMove, onDragStateChange };
+  useLayoutEffect(() => {
+    latest.current = { sections, onMove, onDragStateChange };
+  });
 
   const setDragState = useCallback((next: boolean) => {
     latest.current.onDragStateChange?.(next);
@@ -296,19 +300,19 @@ function ChecklistRow({
         .activateAfterLongPress(220)
         .onStart(() => {
           "worklet";
-          draggingId.value = rowId;
-          liftedId.value = rowId;
-          startTop.value = topOfRow(layout.value, METRICS(heights.value, rowHeight), rowId);
-          dragTop.value = startTop.value;
-          translation.value = 0;
-          lift.value = withTiming(1, { duration: 140 });
+          draggingId.set(rowId);
+          liftedId.set(rowId);
+          startTop.set(topOfRow(layout.value, METRICS(heights.value, rowHeight), rowId));
+          dragTop.set(startTop.value);
+          translation.set(0);
+          lift.set(withTiming(1, { duration: 140 }));
           runOnJS(onSetDragging)(true);
           runOnJS(onTick)();
         })
         .onUpdate((e) => {
           "worklet";
-          translation.value = e.translationY;
-          dragTop.value = startTop.value + e.translationY;
+          translation.set(e.translationY);
+          dragTop.set(startTop.value + e.translationY);
 
           const target = locate(
             layout.value,
@@ -318,7 +322,7 @@ function ChecklistRow({
           const next = moveRow(layout.value, rowId, target);
           // Null means the target resolved to where it already is.
           if (next === null) return;
-          layout.value = next;
+          layout.set(next);
           runOnJS(onTick)();
         })
         .onEnd(() => {
@@ -341,9 +345,9 @@ function ChecklistRow({
          */
         .onFinalize(() => {
           "worklet";
-          draggingId.value = null;
-          liftedId.value = null;
-          lift.value = withTiming(0, { duration: 220 });
+          draggingId.set(null);
+          liftedId.set(null);
+          lift.set(withTiming(0, { duration: 220 }));
           runOnJS(onSetDragging)(false);
         }),
     [

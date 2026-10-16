@@ -194,7 +194,9 @@ export default function PlanDayScreen() {
     setPlan(nextPlan);
     setDayLayoutState(layout);
     setPools(nextPools);
-  }, [date]);
+    // Setters are stable; listing them lets the React Compiler match
+    // its own dependency inference and compile this screen.
+  }, [date, setDayLayoutState]);
   const { error, retry } = useScreenLoad(load);
 
   /** Everything that would show up on this day, still open. */
