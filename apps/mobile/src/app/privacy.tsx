@@ -20,10 +20,9 @@
  */
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, useColorScheme, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { getTheme } from "../theme/colors";
 import { space } from "../theme/tokens";
@@ -56,21 +55,18 @@ const STATEMENT: readonly { heading: string; body: string }[] = [
 export default function PrivacyScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+    <View style={styles.root}>
       <ScrollView
         style={styles.body}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.xxl },
+          { paddingTop: space.md, paddingBottom: space.xxl },
         ]}
       >
-        <AppText variant="display" color={theme.ink} accessibilityRole="header">
-          Where your data lives
-        </AppText>
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
 
         {STATEMENT.map((part) => (
           <View key={part.heading} style={styles.part}>
@@ -102,7 +98,7 @@ export default function PrivacyScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, gap: space.xl },
   part: { gap: space.xs },

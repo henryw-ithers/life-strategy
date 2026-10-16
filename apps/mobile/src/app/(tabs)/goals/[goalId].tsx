@@ -6,29 +6,21 @@
  * set of *conditions* — parallel prerequisites, each holding its own
  * tasks, none completing. The screen reads top to bottom as one
  * sentence: this is the goal · here is how it is measured · here is what
- * has to be true · here is how to manage it.
+ * has to be true.
  *
- * **The lifecycle actions sit at the foot.** Complete is the one action
- * that belongs beside the goal; pause, revise, set aside and delete are
- * things you do *to* a goal, and they live in a quiet Manage group.
- * Actions drive the ADR-0007 state machine — pause, resume, abandon
- * (revivable), revise (spawns a linked successor), and the three-path
- * completion flow.
+ * **The lifecycle actions sit in the nav bar.** Complete is the one
+ * action that belongs beside the goal; rename, pause, revise, set aside
+ * and delete are things you do *to* a goal, and they live in the •••
+ * menu (`GoalToolbar`). Actions drive the ADR-0007 state machine:
+ * pause, resume, abandon (revivable), revise (spawns a linked
+ * successor), and the three-path completion flow.
  *
  * Composition only: data is `useGoalDetail`; the header, conditions,
- * task rows and Manage group are components in `components/goals/`.
+ * task rows and toolbar are components in `components/goals/`.
  */
-import { router, useLocalSearchParams, type Href } from "expo-router";
+import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  useColorScheme,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, useColorScheme, View } from "react-native";
 import Animated, { FadeIn, LinearTransition, useReducedMotion } from "react-native-reanimated";
 
 import { AbandonGoalModal } from "../../../components/goals/AbandonGoalModal";
@@ -38,19 +30,19 @@ import { ConditionForm } from "../../../components/goals/ConditionForm";
 import { ConditionGroup } from "../../../components/goals/ConditionGroup";
 import { DeleteGoalModal } from "../../../components/goals/DeleteGoalModal";
 import { GoalHeader } from "../../../components/goals/GoalHeader";
-import { ConditionMenu, fromMenu, GoalTaskMenu } from "../../../components/goals/GoalMenus";
-import { GoalManageGroup } from "../../../components/goals/GoalManageGroup";
+import { ConditionMenu, GoalTaskMenu } from "../../../components/goals/GoalMenus";
+import { GoalToolbar } from "../../../components/goals/GoalToolbar";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
 import { GoalAddRow, GoalTaskRow } from "../../../components/goals/GoalTaskRow";
 import { ReviseGoalModal } from "../../../components/goals/ReviseGoalModal";
 import { AddTaskModal } from "../../../components/plan/AddTaskModal";
 import { AppText } from "../../../components/ui/AppText";
-import { Backdrop, hueWash } from "../../../components/ui/Backdrop";
+import type { MenuAction } from "../../../components/ui/ActionMenu";
+import { hueWash, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group, GroupDivider } from "../../../components/ui/Group";
-import { KeyboardBar, KeyboardScroll } from "../../../components/ui/KeyboardBar";
-import { MenuSheet } from "../../../components/ui/MenuSheet";
+import { KeyboardScroll } from "../../../components/ui/KeyboardScroll";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
 import {
   abandonGoal,
@@ -65,6 +57,7 @@ import {
   pauseGoal,
   renameCondition,
   renameGoal,
+  readGoalHeading,
   reorderConditions,
   reviseGoal,
   reviveGoal,
@@ -81,6 +74,8 @@ import { useGoalDetail } from "../../../hooks/useGoalDetail";
 import { currentLocalDate } from "../../../lib/calendar";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { useFirstRead } from "../../../hooks/useFirstRead";
+import { useRetained } from "../../../hooks/useRetained";
 
 /** Where an add was started: straight off the goal (`null`), or from a
  *  condition. */
@@ -92,9 +87,11 @@ export default function GoalDetailScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();
   const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
+  /** The nav bar's title and menu, from the first frame of the push,
+   *  then from the loaded goal (`useFirstRead`). */
+  const firstHeading = useFirstRead(() => readGoalHeading(goalId));
+  const heading = goal ?? firstHeading;
 
-  const { height: windowHeight } = useWindowDimensions();
-  const [tabBarGap, setTabBarGap] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [revising, setRevising] = useState(false);
@@ -110,10 +107,15 @@ export default function GoalDetailScreen() {
   const [composingCondition, setComposingCondition] = useState(false);
   const [conditionMenu, setConditionMenu] = useState<GoalCondition | null>(null);
   const [movingTask, setMovingTask] = useState<GoalTask | null>(null);
-  /** An "add" waiting on its choice: write a new task, or pull in one
-   *  you already have. */
-  const [choosingAdd, setChoosingAdd] = useState<AddFrom | null>(null);
   const [addingExisting, setAddingExisting] = useState<AddFrom | null>(null);
+  const [metricShown, metricGone] = useRetained(editingMetric ? true : null);
+  const [addingTaskShown, addingTaskGone] = useRetained(addingTask);
+  const [addingExistingShown, addingExistingGone] = useRetained(addingExisting);
+  // Mounted only while open: each is a SwiftUI host, and building three
+  // of them as the page pushed delayed the push.
+  const [completingShown, completingGone] = useRetained(completing ? true : null);
+  const [abandoningShown, abandoningGone] = useRetained(abandoning ? true : null);
+  const [revisingShown, revisingGone] = useRetained(revising ? true : null);
 
   const accent = goal ? (theme.areas[goal.areaId] ?? theme.accent) : theme.accent;
   const editable = goal?.status === "active";
@@ -150,8 +152,23 @@ export default function GoalDetailScreen() {
     save(() => reorderConditions(ids));
   };
 
-  /** The system's rename prompt, opened from the title or from Manage
-   *  (ADR-0043 §5). A name only: Revise is for changing the goal. */
+  /** "Add task" means two things, and a person shouldn't have to guess
+   *  which one the button does: a native menu asks. */
+  const addChoices = (conditionId: string | null): MenuAction[] => [
+    {
+      label: "Write a new task",
+      icon: "square.and.pencil",
+      onPress: () => setAddingTask({ conditionId }),
+    },
+    {
+      label: "Add one you already have",
+      icon: "text.badge.plus",
+      onPress: () => setAddingExisting({ conditionId }),
+    },
+  ];
+
+  /** The system's rename prompt, from the ••• menu (ADR-0043 §5). A
+   *  name only: Revise is for changing the goal. */
   const renameTitle = () => {
     if (!goal) return;
     Alert.prompt(
@@ -167,36 +184,28 @@ export default function GoalDetailScreen() {
   };
 
   return (
-    <View
-      style={[styles.root, { backgroundColor: theme.canvas }]}
-      // How far the screen's bottom sits above the window's, for the
-      // keyboard bar (see KeyboardBar). Under the native tab bar, which
-      // floats over content, this is normally 0.
-      onLayout={(e) =>
-        setTabBarGap(Math.max(0, windowHeight - e.nativeEvent.layout.y - e.nativeEvent.layout.height))
-      }
-    >
-      <Backdrop circles={hueWash(accent)} />
+    <View style={styles.root}>
+      <Stack.Screen options={{ title: heading?.title ?? "" }} />
+      {heading ? (
+        <GoalToolbar
+          status={heading.status}
+          onRename={renameTitle}
+          onPause={() => goal && save(() => pauseGoal(goal.id))}
+          onRevise={() => setRevising(true)}
+          onSetAside={() => setAbandoning(true)}
+          onDelete={() => setDeleting(true)}
+        />
+      ) : null}
       <KeyboardScroll
-        // The native tab bar floats over content; automatic insets keep
-        // the status bar above and the tab bar below clear of it.
+        // First in the screen, so the nav bar's title collapses on
+        // scroll; automatic insets keep it and the tab bar clear.
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          { paddingTop: space.md, paddingBottom: space.xxxl },
+          { paddingTop: space.sm, paddingBottom: space.xxxl },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
+        <ScrollBackdrop circles={hueWash(accent)} />
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
@@ -228,7 +237,6 @@ export default function GoalDetailScreen() {
               goal={goal}
               accent={accent}
               onComplete={() => setCompleting(true)}
-              onRename={renameTitle}
               onResume={() => save(() => resumeGoal(goal.id))}
               onRevive={() => save(() => reviveGoal(goal.id))}
               theme={theme}
@@ -299,11 +307,7 @@ export default function GoalDetailScreen() {
                 {editable ? (
                   <>
                     {goal.tasks.length > 0 ? <GroupDivider theme={theme} /> : null}
-                    <GoalAddRow
-                      label="Add task"
-                      accent={accent}
-                      onPress={() => setChoosingAdd({ conditionId: null })}
-                    />
+                    <GoalAddRow label="Add task" accent={accent} choices={addChoices(null)} />
                   </>
                 ) : null}
               </Group>
@@ -319,7 +323,7 @@ export default function GoalDetailScreen() {
                   accent={accent}
                   onOpenMenu={() => setConditionMenu(c)}
                   onOpenTask={setMovingTask}
-                  onAddTask={() => setChoosingAdd({ conditionId: c.id })}
+                  addChoices={addChoices(c.id)}
                   theme={theme}
                 />
               </Animated.View>
@@ -368,21 +372,11 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            {/* ── Manage ── */}
-            <GoalManageGroup
-              status={goal.status}
-              onRename={renameTitle}
-              onPause={() => save(() => pauseGoal(goal.id))}
-              onRevise={() => setRevising(true)}
-              onSetAside={() => setAbandoning(true)}
-              onDelete={() => setDeleting(true)}
-              theme={theme}
-            />
-
             {/* ── Sheets and menus ── */}
-            {editingMetric ? (
+            {metricShown ? (
               <GoalMetricSheet
-                visible
+                visible={editingMetric}
+                onDismissed={metricGone}
                 metric={
                   goal.metricKind !== null && goal.targetValue !== null
                     ? {
@@ -410,61 +404,71 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            <CompleteGoalModal
-              visible={completing}
-              onClose={() => setCompleting(false)}
-              goalTitle={goal.title}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onArchive={async () => {
-                await completeGoal(goal.id, "archive");
-                await reload();
-              }}
-              onMaintenance={async () => {
-                await completeGoal(goal.id, "maintenance");
-                await reload();
-              }}
-              onFollowUp={async (newTitle, taskCarry) => {
-                const { successorGoalId } = await completeGoal(goal.id, "follow_up", {
-                  newTitle,
-                  taskCarry,
-                });
-                if (successorGoalId) router.replace(`/goals/${successorGoalId}` as Href);
-                else await reload();
-              }}
-            />
+            {completingShown ? (
+              <CompleteGoalModal
+                visible={completing}
+                onDismissed={completingGone}
+                onClose={() => setCompleting(false)}
+                goalTitle={goal.title}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onArchive={async () => {
+                  await completeGoal(goal.id, "archive");
+                  await reload();
+                }}
+                onMaintenance={async () => {
+                  await completeGoal(goal.id, "maintenance");
+                  await reload();
+                }}
+                onFollowUp={async (newTitle, taskCarry) => {
+                  const { successorGoalId } = await completeGoal(goal.id, "follow_up", {
+                    newTitle,
+                    taskCarry,
+                  });
+                  if (successorGoalId) router.replace(`/goals/${successorGoalId}` as Href);
+                  else await reload();
+                }}
+              />
+            ) : null}
 
-            <AbandonGoalModal
-              visible={abandoning}
-              onClose={() => setAbandoning(false)}
-              goalTitle={goal.title}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onCommit={async (decisions) => {
-                await abandonGoal(goal.id, decisions);
-                await reload();
-              }}
-            />
+            {abandoningShown ? (
+              <AbandonGoalModal
+                visible={abandoning}
+                onDismissed={abandoningGone}
+                onClose={() => setAbandoning(false)}
+                goalTitle={goal.title}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onCommit={async (decisions) => {
+                  await abandonGoal(goal.id, decisions);
+                  await reload();
+                }}
+              />
+            ) : null}
 
-            <ReviseGoalModal
-              visible={revising}
-              onClose={() => setRevising(false)}
-              goalTitle={goal.title}
-              goalDescription={goal.description}
-              tasks={goal.allTasks}
-              accent={accent}
-              theme={theme}
-              onCommit={async (newTitle, newDescription, taskCarry) => {
-                const newId = await reviseGoal(goal.id, newTitle, newDescription, taskCarry);
-                router.replace(`/goals/${newId}` as Href);
-              }}
-            />
+            {revisingShown ? (
+              <ReviseGoalModal
+                visible={revising}
+                onDismissed={revisingGone}
+                onClose={() => setRevising(false)}
+                goalTitle={goal.title}
+                goalDescription={goal.description}
+                tasks={goal.allTasks}
+                accent={accent}
+                theme={theme}
+                onCommit={async (newTitle, newDescription, taskCarry) => {
+                  const newId = await reviseGoal(goal.id, newTitle, newDescription, taskCarry);
+                  router.replace(`/goals/${newId}` as Href);
+                }}
+              />
+            ) : null}
 
-            {addingTask ? (
+            {addingTaskShown ? (
               <AddTaskModal
-                visible
+                visible={addingTask !== null}
+                onDismissed={addingTaskGone}
                 onClose={() => setAddingTask(null)}
                 units={units}
                 homeUnitId={goal.unitId}
@@ -487,7 +491,7 @@ export default function GoalDetailScreen() {
                     partOfDay,
                     goal.id,
                     oneOff,
-                    addingTask.conditionId,
+                    addingTaskShown.conditionId,
                     detail,
                   );
                   await reload();
@@ -519,37 +523,20 @@ export default function GoalDetailScreen() {
               theme={theme}
             />
 
-            {/* "Add task" means two different things, and a person should
-                not have to guess which one the button does. */}
-            <MenuSheet
-              visible={choosingAdd !== null}
-              theme={theme}
-              onClose={() => setChoosingAdd(null)}
-              rows={[
-                {
-                  label: "Write a new task",
-                  onPress: fromMenu(choosingAdd, () => setChoosingAdd(null), setAddingTask),
-                },
-                {
-                  label: "Add one you already have",
-                  onPress: fromMenu(choosingAdd, () => setChoosingAdd(null), setAddingExisting),
-                },
-              ]}
-            />
-
-            {addingExisting ? (
+            {addingExistingShown ? (
               <AddExistingTaskSheet
-                visible
+                visible={addingExisting !== null}
+                onDismissed={addingExistingGone}
                 tasks={attachable}
                 conditionTitle={
-                  goal.conditions.find((c) => c.id === addingExisting.conditionId)?.title ?? null
+                  goal.conditions.find((c) => c.id === addingExistingShown.conditionId)?.title ?? null
                 }
                 areaColors={theme.areas}
                 accent={accent}
                 theme={theme}
                 onClose={() => setAddingExisting(null)}
                 onPick={(taskId) => {
-                  const where = addingExisting;
+                  const where = addingExistingShown;
                   setAddingExisting(null);
                   save(() => attachTaskToGoal(taskId, goal.id, where.conditionId));
                 }}
@@ -572,15 +559,13 @@ export default function GoalDetailScreen() {
           </>
         )}
       </KeyboardScroll>
-      <KeyboardBar aboveScreenBottom={tabBarGap} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   loading: { marginTop: space.xxl },
   notFound: { marginTop: space.xxl, gap: space.sm },
   groupAction: { alignSelf: "flex-start", marginTop: space.xs },

@@ -12,6 +12,7 @@ import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Group, GroupDivider } from "../ui/Group";
+import type { MenuAction } from "../ui/ActionMenu";
 import { GoalAddRow, GoalTaskRow } from "./GoalTaskRow";
 
 export function ConditionGroup({
@@ -21,7 +22,7 @@ export function ConditionGroup({
   accent,
   onOpenMenu,
   onOpenTask,
-  onAddTask,
+  addChoices,
   theme,
 }: {
   condition: GoalCondition;
@@ -31,7 +32,8 @@ export function ConditionGroup({
   /** Rename, reorder or remove the condition. */
   onOpenMenu: () => void;
   onOpenTask: (task: GoalTask) => void;
-  onAddTask: () => void;
+  /** Write a new task, or add one you have (`GoalAddRow`). */
+  addChoices: MenuAction[];
   theme: ThemeTokens;
 }) {
   return (
@@ -101,7 +103,12 @@ export function ConditionGroup({
       {editable ? (
         <>
           <GroupDivider theme={theme} />
-          <GoalAddRow label="Add task" accent={accent} onPress={onAddTask} />
+          <GoalAddRow
+            label="Add task"
+            spokenLabel={`Add task to ${c.title}`}
+            accent={accent}
+            choices={addChoices}
+          />
         </>
       ) : null}
     </Group>

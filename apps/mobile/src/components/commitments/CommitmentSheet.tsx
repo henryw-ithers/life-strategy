@@ -21,15 +21,12 @@
  */
 import { rebalanceShares } from "@glide/scoring";
 import { useState } from "react";
-import { Modal, StyleSheet, Switch, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, Switch, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 
 export type CommitmentSheetMode =
@@ -42,6 +39,8 @@ interface CommitmentSheetProps {
   /** The other live commitments and the percent each takes now. */
   others?: { id: string; name: string; percent: number }[];
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (input: { name: string; percent?: number; usesSubCommitments?: boolean }) => void;
   theme: ThemeTokens;
 }
@@ -51,6 +50,7 @@ export function CommitmentSheet({
   mode,
   others = [],
   onClose,
+  onDismissed,
   onSave,
   theme,
 }: CommitmentSheetProps) {
@@ -63,7 +63,6 @@ export function CommitmentSheet({
       ? String(mode.percent ?? Math.round(100 / (others.length + 1)))
       : "",
   );
-  const insets = useSafeAreaInsets();
 
   const percentNum = Number(percentText);
   const percentValid =
@@ -83,151 +82,123 @@ export function CommitmentSheet({
   const [split, setSplit] = useState(false);
 
   return (
-    <Modal
+    <NativeSheet onDismissed={onDismissed}
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      size="large"
+      scroll
+      title={
+        editing
+          ? "Rename"
+          : mode.kind === "commitment"
+            ? "New commitment"
+            : `Add to ${mode.parentName}`
+      }
+      confirm={{
+        label: editing ? "Save" : "Add",
+        disabled: !canSave,
+        onPress: () =>
+          onSave({
+            name: name.trim(),
+            ...(asksPercent ? { percent: percentNum } : {}),
+            ...(mode.kind === "commitment" && !editing ? { usesSubCommitments: split } : {}),
+          }),
+      }}
     >
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <AppText variant="title" color={theme.ink}>
-            {editing
-              ? "Rename"
-              : mode.kind === "commitment"
-                ? "New commitment"
-                : `Add to ${mode.parentName}`}
+      {!editing ? (
+        <AppText variant="body" color={theme.muted}>
+          {mode.kind === "commitment"
+            ? "Something with a schedule that takes up part of your week — a course, a job, a club."
+            : "A sub-commitment holds its own events and tasks — a class, a shift pattern, a team."}
+        </AppText>
+      ) : null}
+      <TextField
+        theme={theme}
+        value={name}
+        onChangeText={setName}
+        placeholder={
+          mode.kind === "commitment" ? "School" : "COMP2521"
+        }
+        autoFocus
+        style={styles.input}
+        accessibilityLabel="Name"
+      />
+
+      {mode.kind === "commitment" && !asksPercent ? (
+        <AppText variant="caption" color={theme.muted}>
+          Your only commitment, so it takes all of the commitment band.
+          Add another and you’ll choose how they split it.
+        </AppText>
+      ) : null}
+
+      {asksPercent ? (
+        <View style={styles.shareBlock}>
+          <View style={styles.shareRow}>
+            <AppText variant="label" color={theme.ink} style={styles.grow}>
+              Share of commitment points
+            </AppText>
+            <TextField
+              theme={theme}
+              value={percentText}
+              onChangeText={(t) => setPercentText(t.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+              maxLength={2}
+              style={[styles.shareInput, typeScale.headline]}
+              accessibilityLabel="Percent of commitment points from this commitment"
+            />
+            <AppText variant="headline" color={theme.ink}>
+              %
+            </AppText>
+          </View>
+          {/* The answer means something only beside the others, so
+              they are shown as they will be — live, in proportion. */}
+          <View style={[styles.others, { borderColor: theme.hairline }]}>
+            {others.map((o) => (
+              <View key={o.id} style={styles.otherRow}>
+                <AppText color={theme.muted} style={styles.grow} numberOfLines={1}>
+                  {o.name}
+                </AppText>
+                <AppText color={theme.muted} tabular>
+                  {preview
+                    ? `${preview.find((p) => p.id === o.id)?.share ?? 0}%`
+                    : `${o.percent}%`}
+                </AppText>
+              </View>
+            ))}
+          </View>
+          <AppText variant="caption" color={theme.muted}>
+            {percentValid
+              ? others.length === 1
+                ? "The other commitment takes the rest."
+                : "The others share the rest, keeping their proportions."
+              : "Choose a number from 1 to 99."}
           </AppText>
+        </View>
+      ) : null}
 
-          {!editing ? (
-            <AppText variant="body" color={theme.muted}>
-              {mode.kind === "commitment"
-                ? "Something with a schedule that takes up part of your week — a course, a job, a club."
-                : "A sub-commitment holds its own events and tasks — a class, a shift pattern, a team."}
+      {mode.kind === "commitment" && !editing ? (
+        <View style={styles.shareRow}>
+          <View style={styles.grow}>
+            <AppText variant="label" color={theme.ink}>
+              Sub-commitments
             </AppText>
-          ) : null}
-
-          <KeyboardScroll contentContainerStyle={styles.body}>
-          <TextField
-            theme={theme}
-            value={name}
-            onChangeText={setName}
-            placeholder={
-              mode.kind === "commitment" ? "School" : "COMP2521"
-            }
-            autoFocus
-            style={styles.input}
-            accessibilityLabel="Name"
-          />
-
-          {mode.kind === "commitment" && !asksPercent ? (
             <AppText variant="caption" color={theme.muted}>
-              Your only commitment, so it takes all of the commitment band.
-              Add another and you’ll choose how they split it.
+              Split it into classes, shifts or teams, each with its own
+              events and tasks. You can change this later.
             </AppText>
-          ) : null}
-
-          {asksPercent ? (
-            <View style={styles.shareBlock}>
-              <View style={styles.shareRow}>
-                <AppText variant="label" color={theme.ink} style={styles.grow}>
-                  Share of commitment points
-                </AppText>
-                <TextField
-                  theme={theme}
-                  value={percentText}
-                  onChangeText={(t) => setPercentText(t.replace(/[^0-9]/g, ""))}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  style={[styles.shareInput, typeScale.headline]}
-                  accessibilityLabel="Percent of commitment points from this commitment"
-                />
-                <AppText variant="headline" color={theme.ink}>
-                  %
-                </AppText>
-              </View>
-              {/* The answer means something only beside the others, so
-                  they are shown as they will be — live, in proportion. */}
-              <View style={[styles.others, { borderColor: theme.hairline }]}>
-                {others.map((o) => (
-                  <View key={o.id} style={styles.otherRow}>
-                    <AppText color={theme.muted} style={styles.grow} numberOfLines={1}>
-                      {o.name}
-                    </AppText>
-                    <AppText color={theme.muted} tabular>
-                      {preview
-                        ? `${preview.find((p) => p.id === o.id)?.share ?? 0}%`
-                        : `${o.percent}%`}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
-              <AppText variant="caption" color={theme.muted}>
-                {percentValid
-                  ? others.length === 1
-                    ? "The other commitment takes the rest."
-                    : "The others share the rest, keeping their proportions."
-                  : "Choose a number from 1 to 99."}
-              </AppText>
-            </View>
-          ) : null}
-
-          {mode.kind === "commitment" && !editing ? (
-            <View style={styles.shareRow}>
-              <View style={styles.grow}>
-                <AppText variant="label" color={theme.ink}>
-                  Sub-commitments
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  Split it into classes, shifts or teams, each with its own
-                  events and tasks. You can change this later.
-                </AppText>
-              </View>
-              <Switch
-                value={split}
-                onValueChange={setSplit}
-                accessibilityLabel="Sub-commitments"
-              />
-            </View>
-          ) : null}
-          </KeyboardScroll>
-
-          <Button
-            label={editing ? "Save" : "Add"}
-            onPress={() =>
-              onSave({
-                name: name.trim(),
-                ...(asksPercent ? { percent: percentNum } : {}),
-                ...(mode.kind === "commitment" && !editing ? { usesSubCommitments: split } : {}),
-              })
-            }
-            disabled={!canSave}
-            theme={theme}
+          </View>
+          <Switch
+            value={split}
+            onValueChange={setSplit}
+            accessibilityLabel="Sub-commitments"
           />
         </View>
-      </SheetFrame>
-    </Modal>
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingHorizontal: space.screen,
-    paddingTop: space.xl,
-    gap: space.md,
-    maxHeight: "92%",
-  },
-  body: { gap: space.md },
   input: {
     borderRadius: radius.md,
     paddingHorizontal: space.lg,

@@ -43,20 +43,18 @@ import {
   planLoadHours,
   type Window as GridWindow,
 } from "@glide/scoring";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
   useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AddTaskModal } from "../../components/plan/AddTaskModal";
+import { useLatest } from "../../hooks/useLatest";
 import { pickableUnits } from "../../components/plan/unitSelection";
 import {
   ANYTIME_LABEL,
@@ -84,7 +82,7 @@ import {
 import { Segmented } from "../../components/plan/Segmented";
 import { SectionedChecklist } from "../../components/today/SectionedChecklist";
 import { AppText } from "../../components/ui/AppText";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../../components/ui/Backdrop";
 import { Button } from "../../components/ui/Button";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import {
@@ -98,6 +96,7 @@ import { loadDay, type DayData, type TodayTask } from "../../db/today";
 import { placeTaskForDay } from "../../db/placements";
 import { getTheme } from "../../theme/colors";
 import { space } from "../../theme/tokens";
+import { useRetained } from "../../hooks/useRetained";
 
 const ROW_HEIGHT = 56;
 const HEADER_HEIGHT = 44;
@@ -147,7 +146,6 @@ function relative(localDate: string, today: string): string | null {
 export default function PlanDayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   /** Dynamic Type, so the grid's hours grow with its labels. */
   const { fontScale } = useWindowDimensions();
   const params = useLocalSearchParams<{ date?: string }>();
@@ -182,6 +180,8 @@ export default function PlanDayScreen() {
   } | null>(null);
   const [adding, setAdding] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [planningShown, planningGone] = useRetained(planning);
+  const [addingShown, addingGone] = useRetained(adding ? true : null);
 
   const load = useCallback(async () => {
     const [nextDay, nextPlan, layout, nextPools] = await Promise.all([
@@ -196,7 +196,7 @@ export default function PlanDayScreen() {
     setPools(nextPools);
     // Setters are stable; listing them lets the React Compiler match
     // its own dependency inference and compile this screen.
-  }, [date, setDayLayoutState]);
+  }, [date, setDay, setPlan, setDayLayoutState, setPools]);
   const { error, retry } = useScreenLoad(load);
 
   /** Everything that would show up on this day, still open. */
@@ -321,74 +321,44 @@ export default function PlanDayScreen() {
     })().catch(() => undefined);
   };
 
+  /** The arrows call through this, so a new `step` doesn't rebuild the
+   *  nav bar's buttons (`useLatest`). */
+  const latestStep = useLatest(step);
   const relativeLabel = relative(date, today);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-
+    <View style={styles.root}>
       {/* The date is the subject of this screen, so it is the title, and
-          the two arrows sit beside it rather than in a separate strip:
-          stepping a day is the primary navigation here, not a secondary
-          control that deserves its own row. */}
-      <View style={[styles.header, { paddingTop: insets.top + space.sm, borderBottomColor: theme.hairline }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.5 : 1 }]}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.ink} />
-        </Pressable>
-
-        <View style={styles.headerText}>
-          <AppText variant="title" color={theme.ink} numberOfLines={1}>
-            {relativeLabel ?? spoken(date).split(" ").slice(1).join(" ")}
-          </AppText>
-          <AppText variant="caption" color={theme.muted} numberOfLines={1}>
-            {spoken(date)}
-          </AppText>
-        </View>
-
-        <Pressable
-          onPress={() => step(-1)}
-          disabled={!canGoBack}
-          hitSlop={8}
-          accessibilityRole="button"
+          stepping a day sits beside it in the nav bar: it is the primary
+          navigation here, not a control that deserves its own row. */}
+      <Stack.Screen
+        options={{ title: relativeLabel ?? spoken(date).split(" ").slice(1).join(" ") }}
+      />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="chevron.left"
           accessibilityLabel="Previous day"
-          accessibilityState={{ disabled: !canGoBack }}
-          style={({ pressed }) => [
-            styles.iconButton,
-            { opacity: !canGoBack ? 0.3 : pressed ? 0.5 : 1 },
-          ]}
-        >
-          <Ionicons name="chevron-back" size={20} color={theme.muted} />
-        </Pressable>
-        <Pressable
-          onPress={() => step(1)}
-          disabled={!canGoForward}
-          hitSlop={8}
-          accessibilityRole="button"
+          disabled={!canGoBack}
+          onPress={() => latestStep.current(-1)}
+        />
+        <Stack.Toolbar.Button
+          icon="chevron.right"
           accessibilityLabel="Next day"
-          accessibilityState={{ disabled: !canGoForward }}
-          style={({ pressed }) => [
-            styles.iconButton,
-            { opacity: !canGoForward ? 0.3 : pressed ? 0.5 : 1 },
-          ]}
-        >
-          <Ionicons name="chevron-forward" size={20} color={theme.muted} />
-        </Pressable>
-      </View>
+          disabled={!canGoForward}
+          onPress={() => latestStep.current(1)}
+        />
+      </Stack.Toolbar>
 
       <ScrollView
         style={styles.body}
         scrollEnabled={!dragging}
-        contentContainerStyle={[
-          styles.container,
-          { paddingBottom: insets.bottom + space.xxxl },
-        ]}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[styles.container, { paddingBottom: space.xxxl }]}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
+        <AppText variant="caption" color={theme.muted} style={styles.date}>
+          {spoken(date)}
+        </AppText>
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : day === null ? null : tasks.length === 0 && elsewhere.length === 0 ? (
@@ -589,13 +559,14 @@ export default function PlanDayScreen() {
         </View>
       </ScrollView>
 
-      {planning ? (
+      {planningShown ? (
         <WindowSheet
-          visible
-          window={planning.window}
+          visible={planning !== null}
+          onDismissed={planningGone}
+          window={planningShown.window}
           candidates={tasks}
-          chosen={planning.chosen}
-          plannedCount={planning.plannedCount}
+          chosen={planningShown.chosen}
+          plannedCount={planningShown.plannedCount}
           hueFor={(t) => theme.areas[t.areaId] ?? theme.accent}
           accent={theme.accent}
           theme={theme}
@@ -616,7 +587,7 @@ export default function PlanDayScreen() {
           }
           onClose={() => setPlanning(null)}
           onSave={() => {
-            const p = planning;
+            const p = planningShown;
             setPlanning(null);
             void (async () => {
               if (p.poolId !== null) {
@@ -637,10 +608,10 @@ export default function PlanDayScreen() {
             })();
           }}
           onClear={
-            planning.poolId === null
+            planningShown.poolId === null
               ? undefined
               : () => {
-                  const id = planning.poolId;
+                  const id = planningShown.poolId;
                   setPlanning(null);
                   if (id !== null) void deletePool(id).then(load);
                 }
@@ -648,9 +619,10 @@ export default function PlanDayScreen() {
         />
       ) : null}
 
-      {adding && plan ? (
+      {addingShown && plan ? (
         <AddTaskModal
-          visible
+          visible={adding}
+          onDismissed={addingGone}
           onClose={() => setAdding(false)}
           // The same list every sheet files into: commitments first,
           // then the scored units. This used to offer every unit,
@@ -690,22 +662,8 @@ export default function PlanDayScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.xs,
-    paddingHorizontal: space.screen,
-    paddingBottom: space.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerText: { flex: 1, gap: 1, marginLeft: space.xs },
-  iconButton: {
-    minWidth: 40,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  root: { flex: 1 },
+  date: { marginBottom: space.md },
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingTop: space.md },
   lead: { marginBottom: space.md, maxWidth: 340 },

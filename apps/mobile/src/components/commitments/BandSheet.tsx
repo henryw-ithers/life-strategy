@@ -30,14 +30,13 @@ import {
 } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 const MIN = COMMITMENT_BAND_MIN;
 const STEP = COMMITMENT_BAND_STEP;
@@ -55,6 +54,8 @@ interface BandSheetProps {
    *  60, 70, 80 for one, two, three (ADR-0032 §2). */
   commitments: number;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (band: number | null) => void;
   theme: ThemeTokens;
 }
@@ -64,12 +65,12 @@ export function BandSheet({
   band,
   commitments,
   onClose,
+  onDismissed,
   onSave,
   theme,
 }: BandSheetProps) {
   const MAX = commitmentBandMax(commitments);
   const [value, setValue] = useState(Math.min(band ?? 40, MAX));
-  const insets = useSafeAreaInsets();
 
   const step = (by: number) => {
     const next = Math.min(MAX, Math.max(MIN, value + by));
@@ -81,116 +82,99 @@ export function BandSheet({
   const life = 100 - value;
 
   return (
-    <Modal
+    <NativeSheet onDismissed={onDismissed}
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Commitments"
+      confirm={{ label: "Save", onPress: () => onSave(value) }}
     >
-      <SheetFrame onClose={onClose}>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
+      <AppText variant="body" color={theme.muted} style={styles.lede}>
+        On a day with something scheduled, this much of the day belongs
+        to your commitments. Days with nothing scheduled are unchanged.
+      </AppText>
+
+      <View style={[styles.stepper, { backgroundColor: theme.surface }]}>
+        <Pressable
+          onPress={() => step(-STEP)}
+          disabled={value <= MIN}
+          hitSlop={12}
+          style={styles.stepButton}
+          accessibilityRole="button"
+          accessibilityLabel="Less"
+          accessibilityState={{ disabled: value <= MIN }}
         >
-          <AppText variant="title" color={theme.ink}>
-            Commitments
+          <AppText
+            variant="title"
+            color={value <= MIN ? theme.hairline : theme.accent}
+          >
+            −
           </AppText>
-          <AppText variant="body" color={theme.muted} style={styles.lede}>
-            On a day with something scheduled, this much of the day belongs
-            to your commitments. Days with nothing scheduled are unchanged.
+        </Pressable>
+
+        <View style={styles.readout}>
+          <AppText variant="display" color={theme.ink}>
+            {value}%
           </AppText>
-
-          <View style={[styles.stepper, { backgroundColor: theme.surface }]}>
-            <Pressable
-              onPress={() => step(-STEP)}
-              disabled={value <= MIN}
-              hitSlop={12}
-              style={styles.stepButton}
-              accessibilityRole="button"
-              accessibilityLabel="Less"
-              accessibilityState={{ disabled: value <= MIN }}
-            >
-              <AppText
-                variant="title"
-                color={value <= MIN ? theme.hairline : theme.accent}
-              >
-                −
-              </AppText>
-            </Pressable>
-
-            <View style={styles.readout}>
-              <AppText variant="display" color={theme.ink}>
-                {value}%
-              </AppText>
-            </View>
-
-            <Pressable
-              onPress={() => step(STEP)}
-              disabled={value >= MAX}
-              hitSlop={12}
-              style={styles.stepButton}
-              accessibilityRole="button"
-              accessibilityLabel="More"
-              accessibilityState={{ disabled: value >= MAX }}
-            >
-              <AppText
-                variant="title"
-                color={value >= MAX ? theme.hairline : theme.accent}
-              >
-                +
-              </AppText>
-            </Pressable>
-          </View>
-
-          {/* What it costs, in points, for something the person owns.
-              A percentage alone asks them to do this arithmetic in
-              their head, and most will not. */}
-          <View style={[styles.effect, { borderColor: theme.hairline }]}>
-            <Row
-              label="The rest of your life keeps"
-              value={`${life}%`}
-              theme={theme}
-            />
-            <Row
-              label="Your own plan pays"
-              value={`${scaled(PLANNED_BAND, value)} pts`}
-              detail={`${PLANNED_BAND} pts on a free day`}
-              theme={theme}
-            />
-            <Row
-              label="Activities can add"
-              value={`${scaled(UNPLANNED_BAND, value)} pts`}
-              detail={`${UNPLANNED_BAND} pts on a free day`}
-              theme={theme}
-              last
-            />
-          </View>
-
-          <AppText variant="caption" color={theme.muted} style={styles.note}>
-            {value >= MAX
-              ? commitments >= 3
-                ? `${MAX}% is the most commitments can take, so the rest of your life always keeps at least ${100 - MAX}%.`
-                : `${MAX}% is the most with ${commitments <= 1 ? "one commitment" : "two commitments"}, so the rest of your life keeps at least ${100 - MAX}%. Each commitment you add raises it by 10.`
-              : "Nothing is scored differently on a day with no commitment work."}
-          </AppText>
-
-          <Button label="Save" onPress={() => onSave(value)} theme={theme} />
-          {band !== null ? (
-            <Button
-              label="Turn off commitments scoring"
-              variant="quiet"
-              onPress={() => onSave(null)}
-              theme={theme}
-            />
-          ) : null}
         </View>
-      </SheetFrame>
-    </Modal>
+
+        <Pressable
+          onPress={() => step(STEP)}
+          disabled={value >= MAX}
+          hitSlop={12}
+          style={styles.stepButton}
+          accessibilityRole="button"
+          accessibilityLabel="More"
+          accessibilityState={{ disabled: value >= MAX }}
+        >
+          <AppText
+            variant="title"
+            color={value >= MAX ? theme.hairline : theme.accent}
+          >
+            +
+          </AppText>
+        </Pressable>
+      </View>
+
+      {/* What it costs, in points, for something the person owns.
+          A percentage alone asks them to do this arithmetic in
+          their head, and most will not. */}
+      <View style={[styles.effect, { borderColor: theme.hairline }]}>
+        <Row
+          label="The rest of your life keeps"
+          value={`${life}%`}
+          theme={theme}
+        />
+        <Row
+          label="Your own plan pays"
+          value={`${scaled(PLANNED_BAND, value)} pts`}
+          detail={`${PLANNED_BAND} pts on a free day`}
+          theme={theme}
+        />
+        <Row
+          label="Activities can add"
+          value={`${scaled(UNPLANNED_BAND, value)} pts`}
+          detail={`${UNPLANNED_BAND} pts on a free day`}
+          theme={theme}
+          last
+        />
+      </View>
+
+      <AppText variant="caption" color={theme.muted} style={styles.note}>
+        {value >= MAX
+          ? commitments >= 3
+            ? `${MAX}% is the most commitments can take, so the rest of your life always keeps at least ${100 - MAX}%.`
+            : `${MAX}% is the most with ${commitments <= 1 ? "one commitment" : "two commitments"}, so the rest of your life keeps at least ${100 - MAX}%. Each commitment you add raises it by 10.`
+          : "Nothing is scored differently on a day with no commitment work."}
+      </AppText>
+      {band !== null ? (
+        <Button
+          label="Turn off commitments scoring"
+          variant="quiet"
+          onPress={() => onSave(null)}
+          theme={theme}
+        />
+      ) : null}
+    </NativeSheet>
   );
 }
 
@@ -232,13 +216,6 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingHorizontal: space.screen,
-    paddingTop: space.xl,
-    gap: space.md,
-  },
   lede: { marginBottom: space.xs },
   stepper: {
     flexDirection: "row",

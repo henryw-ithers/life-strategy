@@ -65,6 +65,7 @@ import { carryOverOrder } from "../db/priorityCarryOver";
 import { loadGraphSnapshots } from "../db/graph";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { space } from "../theme/tokens";
+import { useRetained } from "../hooks/useRetained";
 
 type Phase = "loading" | "intro" | "steps" | "saving" | "error" | "diff" | "results";
 
@@ -195,6 +196,7 @@ export default function DiagnosticFlow() {
     name: string;
     accent: string;
   } | null>(null);
+  const [infoUnitShown, infoUnitGone] = useRetained(infoUnit);
 
   useEffect(() => {
     (async () => {
@@ -536,13 +538,14 @@ export default function DiagnosticFlow() {
             theme={theme}
           />
         </View>
-        {infoUnit && UNIT_INFO[infoUnit.id] ? (
+        {infoUnitShown && UNIT_INFO[infoUnitShown.id] ? (
           <UnitInfoSheet
-            visible
+            visible={infoUnit !== null}
+            onDismissed={infoUnitGone}
             onClose={() => setInfoUnit(null)}
-            unitName={infoUnit.name}
-            info={UNIT_INFO[infoUnit.id]!}
-            accent={infoUnit.accent}
+            unitName={infoUnitShown.name}
+            info={UNIT_INFO[infoUnitShown.id]!}
+            accent={infoUnitShown.accent}
             theme={theme}
           />
         ) : null}

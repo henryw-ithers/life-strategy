@@ -25,14 +25,12 @@
  * about the self.
  */
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 export interface TaggableUnit {
   id: string;
@@ -49,6 +47,8 @@ interface CompletionTagSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (unitIds: string[]) => void;
 }
 
@@ -61,9 +61,9 @@ export function CompletionTagSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onSave,
 }: CompletionTagSheetProps) {
-  const insets = useSafeAreaInsets();
   const [picked, setPicked] = useState<string[]>([...selected]);
 
   const toggle = (id: string) =>
@@ -72,92 +72,62 @@ export function CompletionTagSheet({
     );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose}>
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.canvas,
-            borderColor: theme.hairline,
-            paddingBottom: insets.bottom + space.lg,
-          },
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-
-        <View style={styles.head}>
-          {/* Matches ActivitySheet's "Where it counts", because it is
-              the same question about the same thing. */}
-          <AppText variant="title" color={theme.ink}>
-            Where else it counts
-          </AppText>
-          <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
-            {taskTitle}
-          </AppText>
-        </View>
-
-        <View style={styles.chips}>
-          {units.map((u) => {
-            const on = picked.includes(u.id);
-            const hue = areaColors[u.areaId] ?? accent;
-            return (
-              <Pressable
-                key={u.id}
-                onPress={() => toggle(u.id)}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: on }}
-                accessibilityLabel={u.name}
-                style={({ pressed }) => [
-                  styles.chip,
-                  {
-                    backgroundColor: on ? wash(hue, theme) : theme.surface,
-                    borderColor: on ? hue : theme.hairline,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <AppText variant="label" color={theme.ink}>
-                  {u.name}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* States the earning rule, because it is not obvious that one
-            mark is enough (ADR-0025 §3). Reads the same whether nothing
-            is picked or everything is — the ambient-kindness test. */}
-        <AppText variant="footnote" color={theme.muted}>
-          A day that counts toward one of these earns it in full.
-        </AppText>
-
-        <Button
-          label="Done"
-          color={accent}
-          onPress={() => {
-            onSave(picked);
-            onClose();
-          }}
-          theme={theme}
-        />
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      // Matches ActivitySheet's "Where it counts", because it is the
+      // same question about the same thing.
+      title="Where else it counts"
+      confirm={{
+        label: "Done",
+        onPress: () => {
+          onSave(picked);
+          onClose();
+        },
+      }}
+    >
+      <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
+        {taskTitle}
+      </AppText>
+      <View style={styles.chips}>
+        {units.map((u) => {
+          const on = picked.includes(u.id);
+          const hue = areaColors[u.areaId] ?? accent;
+          return (
+            <Pressable
+              key={u.id}
+              onPress={() => toggle(u.id)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={u.name}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  backgroundColor: on ? wash(hue, theme) : theme.surface,
+                  borderColor: on ? hue : theme.hairline,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <AppText variant="label" color={theme.ink}>
+                {u.name}
+              </AppText>
+            </Pressable>
+          );
+        })}
       </View>
-      </SheetFrame>
-    </Modal>
+
+      {/* States the earning rule, because it is not obvious that one
+          mark is enough (ADR-0025 §3). Reads the same whether nothing
+          is picked or everything is — the ambient-kindness test. */}
+      <AppText variant="footnote" color={theme.muted}>
+        A day that counts toward one of these earns it in full.
+      </AppText>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-  head: { gap: 2 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   chip: {
     minHeight: 44,

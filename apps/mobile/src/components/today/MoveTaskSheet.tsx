@@ -17,8 +17,7 @@
  * **From now on** rewrites the task's own `part_of_day`, which is the
  * same field the edit sheet sets — one value, two ways in.
  */
-import { Modal, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
 import {
   ANYTIME_LABEL,
@@ -30,7 +29,7 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 const SLOTS: readonly (PartOfDay | null)[] = [...PART_OF_DAY_ORDER, null];
 
@@ -46,6 +45,8 @@ interface MoveTaskSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onPick: (part: PartOfDay | null, scope: "today" | "always") => void;
   /** Only offered when a placement exists to clear. */
   onClearPlacement?: () => void;
@@ -60,102 +61,74 @@ export function MoveTaskSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onPick,
   onClearPlacement,
 }: MoveTaskSheetProps) {
-  const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose}>
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.canvas,
-            borderColor: theme.hairline,
-            paddingBottom: insets.bottom + space.lg,
-          },
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-        <AppText variant="title" color={theme.ink} numberOfLines={2}>
-          {taskTitle}
-        </AppText>
-        <AppText variant="caption" color={theme.muted}>
-          {placedToday
-            ? `Moved for ${dayLabel} only. Its usual slot is unchanged.`
-            : "When do you want to do this?"}
-        </AppText>
+    <NativeSheet onDismissed={onDismissed} visible={visible} onClose={onClose} title={taskTitle}>
+      <AppText variant="caption" color={theme.muted}>
+        {placedToday
+          ? `Moved for ${dayLabel} only. Its usual slot is unchanged.`
+          : "When do you want to do this?"}
+      </AppText>
 
-        {SLOTS.map((slot) => {
-          const on = slot === current;
-          const label = slot ? PART_OF_DAY_LABEL[slot] : ANYTIME_LABEL;
-          return (
-            <View key={slot ?? "anytime"} style={styles.slot}>
-              <View
-                style={[
-                  styles.slotHead,
-                  {
-                    backgroundColor: on ? wash(accent, theme) : "transparent",
-                    borderColor: on ? accent : theme.hairline,
-                  },
-                ]}
-              >
-                <AppText color={on ? theme.ink : theme.muted}>{label}</AppText>
+      {SLOTS.map((slot) => {
+        const on = slot === current;
+        const label = slot ? PART_OF_DAY_LABEL[slot] : ANYTIME_LABEL;
+        return (
+          <View key={slot ?? "anytime"} style={styles.slot}>
+            <View
+              style={[
+                styles.slotHead,
+                {
+                  backgroundColor: on ? wash(accent, theme) : "transparent",
+                  borderColor: on ? accent : theme.hairline,
+                },
+              ]}
+            >
+              <AppText color={on ? theme.ink : theme.muted}>{label}</AppText>
+            </View>
+            {/* Two scopes, side by side, so the choice is one tap and
+                never a second screen. The current slot still offers
+                both — moving Evening to Evening "from now on" is how
+                you make a temporary placement permanent. */}
+            <View style={styles.scopes}>
+              <View style={styles.grow}>
+                <Button
+                  label={`Just ${dayLabel}`}
+                  variant="secondary"
+                  onPress={() => onPick(slot, "today")}
+                  theme={theme}
+                />
               </View>
-              {/* Two scopes, side by side, so the choice is one tap and
-                  never a second screen. The current slot still offers
-                  both — moving Evening to Evening "from now on" is how
-                  you make a temporary placement permanent. */}
-              <View style={styles.scopes}>
-                <View style={styles.grow}>
-                  <Button
-                    label={`Just ${dayLabel}`}
-                    variant="secondary"
-                    onPress={() => onPick(slot, "today")}
-                    theme={theme}
-                  />
-                </View>
-                <View style={styles.grow}>
-                  <Button
-                    label="From now on"
-                    variant="quiet"
-                    onPress={() => onPick(slot, "always")}
-                    theme={theme}
-                  />
-                </View>
+              <View style={styles.grow}>
+                <Button
+                  label="From now on"
+                  variant="quiet"
+                  onPress={() => onPick(slot, "always")}
+                  theme={theme}
+                />
               </View>
             </View>
-          );
-        })}
+          </View>
+        );
+      })}
 
-        {placedToday && onClearPlacement ? (
-          <Button
-            label="Put it back where it usually goes"
-            variant="quiet"
-            onPress={onClearPlacement}
-            theme={theme}
-          />
-        ) : null}
-        <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-      </View>
-      </SheetFrame>
-    </Modal>
+      {placedToday && onClearPlacement ? (
+        <Button
+          label="Put it back where it usually goes"
+          variant="quiet"
+          onPress={onClearPlacement}
+          theme={theme}
+        />
+      ) : null}
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.sm,
-    maxHeight: "92%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   slot: { gap: space.xs, marginTop: space.xs },
   slotHead: {
     minHeight: 40,

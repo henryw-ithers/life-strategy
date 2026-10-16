@@ -1,7 +1,8 @@
 /**
- * The top of a goal's screen: its unit, title, status and description,
- * links to the goals it came from or continues in, and the one action
- * that belongs beside the goal for its current state.
+ * The top of a goal's screen, under its title in the nav bar: its unit,
+ * status and description, links to the goals it came from or continues
+ * in, and the one action that belongs beside the goal for its current
+ * state.
  */
 import { router, type Href } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -35,7 +36,6 @@ export function GoalHeader({
   goal,
   accent,
   onComplete,
-  onRename,
   onResume,
   onRevive,
   theme,
@@ -43,14 +43,12 @@ export function GoalHeader({
   goal: GoalDetail;
   accent: string;
   onComplete: () => void;
-  /** Tapping the title renames the goal (ADR-0043 §5). */
-  onRename: () => void;
   onResume: () => void;
   onRevive: () => void;
   theme: ThemeTokens;
 }) {
   /** Finishing is the goal's own ending, not an administrative act on
-   *  it, so it sits here rather than under Manage; so do the ways back
+   *  it, so it sits here rather than in the ••• menu; so do the ways back
    *  from a pause or a setting-aside. */
   const primary =
     goal.status === "active"
@@ -66,17 +64,6 @@ export function GoalHeader({
       <AppText variant="caption" color={theme.muted}>
         {goal.unitName}
       </AppText>
-      <Pressable
-        onPress={onRename}
-        accessibilityRole="button"
-        accessibilityLabel={goal.title}
-        accessibilityHint="Renames the goal"
-        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-      >
-        <AppText variant="display" color={theme.ink}>
-          {goal.title}
-        </AppText>
-      </Pressable>
       <AppText variant="label" color={accent} style={styles.status}>
         {statusLabel(goal.status)}
       </AppText>

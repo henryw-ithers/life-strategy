@@ -218,8 +218,10 @@ solid when Reduce Transparency is on.
 
 ### Text fields
 
-Every field is `TextField` with the keyboard bar from `KeyboardBar`
-(ADR-0043 §5). Sheets keep their height when the keyboard opens.
+Every field is `TextField` (ADR-0043 §5). Its keyboard carries one
+round ⌄ button that hides it, attached through iOS's input accessory
+view so it stays on the keyboard in screens and sheets alike. Sheets
+keep their height when the keyboard opens.
 
 ### Date and time pickers
 
@@ -261,15 +263,28 @@ header). The nav bar carries a `+` pull-down menu (Task, Event, Log
 something, and Goal on Life) and, on Home and Life, Settings. A menu
 item another tab owns switches to that tab and opens it there.
 
-The backdrop is drawn once behind the tabs, and tab roots are
-transparent. iOS finds the scroll view that drives the large title, the
-glass edge and the shrinking tab bar by following each screen's first
-child, so a tab root's scroll view must come first, with
-`contentInsetAdjustmentBehavior="automatic"`.
+Every screen is opaque and draws its own backdrop. iOS changes tabs
+with both pages on screen for a moment, so see-through pages over one
+shared backdrop showed through each other on every switch. iOS finds
+the scroll view that drives the large title, the glass edge and the
+shrinking tab bar by following each screen's first child, so a
+screen's scroll view must come first, with
+`contentInsetAdjustmentBehavior="automatic"`, and the backdrop goes
+first inside it (`ScrollBackdrop`). Home keeps its own header above its
+scroll view until Phase 9, so its backdrop sits fixed behind it.
 
-Focused flows (onboarding, the diagnostic, Settings, Backup,
-Priorities) are pushed by the root stack and cover the tabs. Pushed
-screens draw their own header until Phase 3d.
+A screen's nav bar must be right on its first frame. Any change to a
+toolbar or title makes iOS rebuild every bar button, which shows as
+flicker, and a change during a push is drawn over the transition. So a
+pushed screen reads its title synchronously (`useFirstRead`), and
+toolbar buttons call their handlers through `useLatest`.
+
+Focused screens (Settings, Backup, Priorities, a day) are pushed by
+the root stack and cover the tabs; a goal or a commitment pushes within
+Life. Every pushed screen has the same native nav bar as a tab root,
+with the system back button, so a push is one native transition. Its
+own actions go in a ••• menu in that bar. Onboarding and the
+diagnostic are full-screen flows with no bar.
 
 ## 6. Do and don't
 

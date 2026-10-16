@@ -27,11 +27,10 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText } from "../components/ui/AppText";
 import { Chevron, Disclosure } from "../components/ui/Chevron";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { KIND_LABEL as FEEDBACK_LABEL } from "../lib/feedback";
 import {
@@ -70,7 +69,6 @@ const PROBLEM_LABEL: Record<ProblemKind, string> = {
 export default function ProblemLogScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
 
   const [entries, setEntries] = useState<LogEntry[]>(() => readLog());
   const [payloadShown, setPayloadShown] = useState(false);
@@ -105,32 +103,18 @@ export default function ProblemLogScreen() {
   }, [setPayloadShown]);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+    <View style={styles.root}>
       <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
           {
-            paddingTop: insets.top + space.md,
-            paddingBottom: insets.bottom + space.xl,
+            paddingTop: space.md,
+            paddingBottom: space.xl,
           },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Problem log
-        </AppText>
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         <AppText color={theme.ink} style={styles.lede}>
           Anything that went wrong, and any feedback you’ve sent. It’s all
           written down here on this phone and nowhere else.
@@ -290,9 +274,8 @@ export default function ProblemLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   lede: { marginTop: space.sm },
   section: {
     marginTop: space.xl,

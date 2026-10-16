@@ -87,6 +87,7 @@ import { recordProblem } from "../lib/problemLog";
 import { AREA_INFO } from "../content/areas";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
+import { useRetained } from "../hooks/useRetained";
 
 /** How many of the eighteen the `weights` screen names. Enough to show
  *  a spread between top and bottom without becoming a list to read. */
@@ -289,6 +290,7 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<Error | null>(null);
   /** Which area's explanation is open, if any. */
   const [openArea, setOpenArea] = useState<string | null>(null);
+  const [openAreaShown, openAreaGone] = useRetained(openArea);
   /** Loaded once the diagnostic has produced a snapshot; the `weights`
    *  screen is the user's own ranking, not an example of one. */
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -462,12 +464,13 @@ export default function OnboardingScreen() {
           Six areas, eighteen parts
         </AppText>
         <AreaBloom theme={theme} onOpen={setOpenArea} />
-        {openArea !== null && AREA_INFO[openArea] ? (
+        {openAreaShown !== null && AREA_INFO[openAreaShown] ? (
           <AreaInfoSheet
-            visible
+            visible={openArea !== null}
+            onDismissed={openAreaGone}
             onClose={() => setOpenArea(null)}
-            info={AREA_INFO[openArea]}
-            accent={theme.areas[openArea] ?? theme.accent}
+            info={AREA_INFO[openAreaShown]}
+            accent={theme.areas[openAreaShown] ?? theme.accent}
             theme={theme}
           />
         ) : null}

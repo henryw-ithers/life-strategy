@@ -27,22 +27,19 @@
  * become a list of your actual goals.
  */
 import { useState } from "react";
-import { Modal, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
-import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { UnitPicker, type PickableUnit } from "../plan/UnitPicker";
 
 interface AddGoalModalProps {
   visible: boolean;
   onClose: () => void;
-  accent: string;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   theme: ThemeTokens;
   /** Every unit a goal can belong to. */
   units: PickableUnit[];
@@ -64,14 +61,13 @@ interface AddGoalModalProps {
 export function AddGoalModal({
   visible,
   onClose,
-  accent,
+  onDismissed,
   theme,
   units,
   areaColors,
   homeUnitId,
   onCommit,
 }: AddGoalModalProps) {
-  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [unitIds, setUnitIds] = useState<string[]>(
@@ -81,19 +77,9 @@ export function AddGoalModal({
   const [unit, setUnit] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const reset = () => {
-    setTitle("");
-    setDescription("");
-    setUnitIds(homeUnitId ? [homeUnitId] : []);
-    setTarget("");
-    setUnit("");
-    setSaving(false);
-  };
-
-  const close = () => {
-    reset();
-    onClose();
-  };
+  // No reset here: the sheet is mounted fresh for each open
+  // (`useRetained`), and resetting while it slides away would show.
+  const close = onClose;
 
   const commit = () => {
     if (title.trim().length === 0 || unitIds.length === 0 || saving) return;
@@ -121,92 +107,74 @@ export function AddGoalModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <SheetFrame onClose={close} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            New goal
-          </AppText>
-          <KeyboardScroll contentContainerStyle={styles.body}>
-          <TextField
-            theme={theme}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g. Bench 225 by June"
-            accessibilityLabel="Goal"
-            autoFocus
-            returnKeyType="next"
-            style={styles.input}
-          />
-          <TextField
-            theme={theme}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Notes (optional)"
-            accessibilityLabel="Notes, optional"
-            multiline
-            style={[styles.input, styles.description]}
-          />
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={close}
+      size="large"
+      scroll
+      title="New goal"
+      confirm={{
+        label: "Add",
+        onPress: commit,
+        disabled: title.trim().length === 0 || unitIds.length === 0 || saving,
+      }}
+    >
+      <TextField
+        theme={theme}
+        value={title}
+        onChangeText={setTitle}
+        placeholder="e.g. Bench 225 by June"
+        accessibilityLabel="Goal"
+        autoFocus
+        returnKeyType="next"
+        style={styles.input}
+      />
+      <TextField
+        theme={theme}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Notes (optional)"
+        accessibilityLabel="Notes, optional"
+        multiline
+        style={[styles.input, styles.description]}
+      />
 
-          <UnitPicker
-            units={units}
-            value={unitIds}
-            onChange={setUnitIds}
-            theme={theme}
-            areaColors={areaColors}
-            max={1}
-          />
+      <UnitPicker
+        units={units}
+        value={unitIds}
+        onChange={setUnitIds}
+        theme={theme}
+        areaColors={areaColors}
+        max={1}
+      />
 
-          {/* One row, because a target and its unit are one answer. The
-              number takes the space it needs and the unit takes what is
-              left: "225" and "kg" are not equally wide and should not be
-              equally sized. */}
-          <View style={styles.targetRow}>
-            <TextField
-              theme={theme}
-              value={target}
-              onChangeText={setTarget}
-              placeholder="Target"
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-              accessibilityLabel="Target number, optional"
-              style={[styles.input, styles.targetNumber]}
-            />
-            <TextField
-              theme={theme}
-              value={unit}
-              onChangeText={setUnit}
-              placeholder="kg, books, km"
-              autoCapitalize="none"
-              returnKeyType="done"
-              accessibilityLabel="Unit for the target, optional"
-              style={[styles.input, styles.targetUnit]}
-            />
-          </View>
-          </KeyboardScroll>
-          <Button
-            label="Add goal"
-            color={accent}
-            disabled={
-              title.trim().length === 0 || unitIds.length === 0 || saving
-            }
-            onPress={commit}
-            theme={theme}
-          />
-          <Button label="Cancel" variant="quiet" onPress={close} theme={theme} />
-        </View>
-      </SheetFrame>
-    </Modal>
+      {/* One row, because a target and its unit are one answer. The
+          number takes the space it needs and the unit takes what is
+          left: "225" and "kg" are not equally wide and should not be
+          equally sized. */}
+      <View style={styles.targetRow}>
+        <TextField
+          theme={theme}
+          value={target}
+          onChangeText={setTarget}
+          placeholder="Target"
+          keyboardType="decimal-pad"
+          returnKeyType="done"
+          accessibilityLabel="Target number, optional"
+          style={[styles.input, styles.targetNumber]}
+        />
+        <TextField
+          theme={theme}
+          value={unit}
+          onChangeText={setUnit}
+          placeholder="kg, books, km"
+          autoCapitalize="none"
+          returnKeyType="done"
+          accessibilityLabel="Unit for the target, optional"
+          style={[styles.input, styles.targetUnit]}
+        />
+      </View>
+    </NativeSheet>
   );
 }
 
@@ -215,17 +183,6 @@ const styles = StyleSheet.create({
   /** The number is the answer; the unit only qualifies it. */
   targetNumber: { flex: 2 },
   targetUnit: { flex: 3 },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.lg,
-    maxHeight: "92%",
-  },
-  body: { gap: space.lg },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   input: {
     ...typeScale.body,
     minHeight: 48,

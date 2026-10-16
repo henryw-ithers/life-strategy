@@ -6,7 +6,8 @@
  * sub-commitments: a second hand-rolled copy is how vocabularies drift
  * apart.
  */
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { useRef } from "react";
+import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { SCRIM, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
@@ -32,6 +33,20 @@ export function MenuSheet({
   onClose: () => void;
   title?: string;
 }) {
+  /** A row's action waits until this menu has finished closing: most of
+   *  them open a native sheet, and iOS drops a sheet presented while
+   *  another view is still closing (Phase 3c). Phase 3d replaces this
+   *  menu with a native one. */
+  const pending = useRef<(() => void) | null>(null);
+  const choose = (row: MenuRow) => {
+    // The web preview's Modal never reports dismissal.
+    if (Platform.OS === "web") {
+      row.onPress();
+      return;
+    }
+    pending.current = row.onPress;
+    onClose();
+  };
   return (
     <Modal
       visible={visible}
@@ -39,6 +54,11 @@ export function MenuSheet({
       statusBarTranslucent
       animationType="fade"
       onRequestClose={onClose}
+      onDismiss={() => {
+        const run = pending.current;
+        pending.current = null;
+        run?.();
+      }}
     >
       <Pressable
         style={styles.menuBackdrop}
@@ -60,7 +80,7 @@ export function MenuSheet({
           {rows.map((row) => (
             <Pressable
               key={row.label}
-              onPress={row.onPress}
+              onPress={() => choose(row)}
               disabled={row.disabled}
               accessibilityRole="button"
               accessibilityState={{ disabled: row.disabled }}

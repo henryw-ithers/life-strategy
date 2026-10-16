@@ -8,16 +8,13 @@
  * replaces data, and the passphrase genuinely cannot be recovered, so
  * both say so plainly. Clarity about consequences is not shame.
  */
-import { router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   useColorScheme,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   describeBackupError,
@@ -28,9 +25,9 @@ import {
   type BackupPreview,
 } from "../backup/backupFile";
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, constellation } from "../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
-import { KeyboardBar, KeyboardScroll } from "../components/ui/KeyboardBar";
+import { KeyboardScroll } from "../components/ui/KeyboardScroll";
 import { TextField } from "../components/ui/TextField";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 import { radius, space, type as typeScale } from "../theme/tokens";
@@ -57,7 +54,6 @@ function formatDate(iso: string): string {
 export default function BackupScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
   const [passphrase, setPassphrase] = useState("");
@@ -137,32 +133,18 @@ export default function BackupScreen() {
   const busy = mode.kind === "exporting" || mode.kind === "restoring";
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+    <View style={styles.root}>
       <KeyboardScroll
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
           {
-            paddingTop: insets.top + space.md,
-            paddingBottom: insets.bottom + space.xl,
+            paddingTop: space.md,
+            paddingBottom: space.xl,
           },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-
-        <AppText variant="display" color={theme.ink}>
-          Your data
-        </AppText>
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         <AppText color={theme.ink} style={styles.lede}>
           Everything you’ve written lives on this phone and nowhere else. A
           backup is the only copy that survives it.
@@ -307,7 +289,6 @@ export default function BackupScreen() {
           </View>
         ) : null}
       </KeyboardScroll>
-      <KeyboardBar />
     </View>
   );
 }
@@ -342,9 +323,8 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   container: { paddingHorizontal: space.screen },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   lede: { marginTop: space.sm },
   section: {
     marginTop: space.xl,

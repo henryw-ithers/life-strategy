@@ -35,6 +35,7 @@ import { CommitmentsList } from "../../../components/commitments/CommitmentsList
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { Segmented } from "../../../components/plan/Segmented";
 import { AppText } from "../../../components/ui/AppText";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
@@ -53,6 +54,7 @@ import {
 import { setCommitmentBand, clearCommitmentBand } from "../../../db/settings";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { useRetained } from "../../../hooks/useRetained";
 
 function statusLabel(status: GoalListItem["status"]): string {
   switch (status) {
@@ -77,7 +79,6 @@ export default function GoalsScreen() {
   );
   const [adding, setAdding] = useState(false);
   const [addingTo, setAddingTo] = useState<GoalsUnit | null>(null);
-  const [addingToAreaId, setAddingToAreaId] = useState<string | null>(null);
   const [tab, setTab] = useState<"goals" | "commitments">("goals");
   const [commitments, setCommitments] = useState<CommitmentsScreenData | null>(
     null,
@@ -104,17 +105,20 @@ export default function GoalsScreen() {
   );
 
   const { error, retry } = useScreenLoad(reload);
+  const [bandShown, bandGone] = useRetained(bandOpen ? true : null);
+  const [sheetModeShown, sheetModeGone] = useRetained(sheetMode);
+  const [addingShown, addingGone] = useRetained(adding ? true : null);
 
   return (
     <View style={styles.root}>
       {/* The scroll view comes first so the large title and the tab bar
-          follow it (see app/(tabs)/_layout.tsx, which draws the
-          backdrop). */}
+          follow it, so the backdrop goes inside it. */}
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Priorities until Phase 6 rebuilds it as tiers: today's ranking
             screen, which used to be the Portfolio tab (spec §5, Life). */}
         <Group theme={theme} flush>
@@ -154,7 +158,6 @@ export default function GoalsScreen() {
                 onPress={() => {
                   setAdding(true);
                   setAddingTo(null);
-                  setAddingToAreaId(null);
                 }}
                 theme={theme}
               />
@@ -243,7 +246,6 @@ export default function GoalsScreen() {
                       onPress={() => {
                         setAdding(true);
                         setAddingTo(unit);
-                        setAddingToAreaId(area.id);
                       }}
                       hitSlop={8}
                       accessibilityRole="button"
@@ -315,14 +317,14 @@ export default function GoalsScreen() {
           setTab("goals");
           setAdding(true);
           setAddingTo(null);
-          setAddingToAreaId(null);
         }}
         settings
       />
 
-      {bandOpen ? (
+      {bandShown ? (
         <BandSheet
-          visible
+          visible={bandOpen}
+          onDismissed={bandGone}
           band={commitments?.band ?? null}
           commitments={commitments?.commitments.length ?? 0}
           theme={theme}
@@ -336,10 +338,11 @@ export default function GoalsScreen() {
         />
       ) : null}
 
-      {sheetMode !== null ? (
+      {sheetModeShown !== null ? (
         <CommitmentSheet
-          visible
-          mode={sheetMode}
+          visible={sheetMode !== null}
+          onDismissed={sheetModeGone}
+          mode={sheetModeShown}
           others={(commitments?.commitments ?? []).map((c) => ({
             id: c.id,
             name: c.name,
@@ -355,15 +358,14 @@ export default function GoalsScreen() {
         />
       ) : null}
 
-      {adding ? (
+      {addingShown ? (
         <AddGoalModal
-          visible
+          visible={adding}
+          onDismissed={addingGone}
           onClose={() => {
             setAdding(false);
             setAddingTo(null);
-            setAddingToAreaId(null);
           }}
-          accent={theme.areas[addingToAreaId ?? ""] ?? theme.accent}
           theme={theme}
           units={allUnits}
           areaColors={theme.areas}
@@ -395,7 +397,7 @@ const styles = StyleSheet.create({
   addBar: { paddingBottom: space.sm },
   empty: { marginTop: space.xxxl, gap: space.sm },
   emptyText: { maxWidth: 340 },
-  root: { flex: 1, overflow: "hidden" },
+  root: { flex: 1 },
   /** Takes the space between the fixed header and the tab bar; the
    *  list scrolls inside it while both stay put. */
   body: { flex: 1 },

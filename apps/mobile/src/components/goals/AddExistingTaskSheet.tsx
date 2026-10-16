@@ -22,14 +22,13 @@
  * well.
  */
 import { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { KeyboardScroll } from "../ui/KeyboardScroll";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { formatFrequency } from "../plan/frequency";
 
@@ -55,6 +54,8 @@ interface AddExistingTaskSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onPick: (taskId: string) => void;
 }
 
@@ -66,9 +67,9 @@ export function AddExistingTaskSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onPick,
 }: AddExistingTaskSheetProps) {
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
 
   // A full plan runs to a few dozen tasks across eighteen units, which
@@ -83,112 +84,85 @@ export function AddExistingTaskSheet({
   }, [tasks, query]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
-          <AppText variant="title" color={theme.ink}>
-            Add a task you already have
-          </AppText>
+    <NativeSheet onDismissed={onDismissed} visible={visible} onClose={onClose} size="large" title="Add a task">
+      <AppText variant="caption" color={theme.muted}>
+        {conditionTitle
+          ? `It joins “${conditionTitle}”, and keeps earning from its own unit.`
+          : "It joins this goal, and keeps earning from its own unit."}
+      </AppText>
+
+      {tasks.length > 0 ? (
+        <TextField
+          theme={theme}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search your plan"
+          accessibilityLabel="Search your tasks"
+          autoCorrect={false}
+          returnKeyType="search"
+          style={styles.search}
+        />
+      ) : null}
+
+      <KeyboardScroll
+        style={styles.scroller}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
+        {tasks.length === 0 ? (
           <AppText variant="caption" color={theme.muted}>
-            {conditionTitle
-              ? `It joins “${conditionTitle}”, and keeps earning from its own unit.`
-              : "It joins this goal, and keeps earning from its own unit."}
+            Every task in your plan already serves this goal. Adding a new
+            one is the move now.
           </AppText>
+        ) : matches.length === 0 ? (
+          <AppText variant="caption" color={theme.muted}>
+            Nothing in your plan matches “{query.trim()}”.
+          </AppText>
+        ) : null}
 
-          {tasks.length > 0 ? (
-            <TextField
-              theme={theme}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search your plan"
-              accessibilityLabel="Search your tasks"
-              autoCorrect={false}
-              returnKeyType="search"
-              style={styles.search}
-            />
-          ) : null}
-
-          <KeyboardScroll
-            style={styles.scroller}
-            contentContainerStyle={styles.body}
-            showsVerticalScrollIndicator={false}
+        {matches.map((t) => (
+          <Pressable
+            key={t.id}
+            onPress={() => onPick(t.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`${t.title}, ${t.unitName}, ${formatFrequency(
+              t.timesPerWeek,
+            )}${t.servingGoalTitle ? `, currently serving ${t.servingGoalTitle}` : ""}`}
+            style={({ pressed }) => [
+              styles.card,
+              {
+                backgroundColor: pressed ? wash(accent, theme) : theme.surface,
+                borderColor: theme.hairline,
+              },
+            ]}
           >
-            {tasks.length === 0 ? (
-              <AppText variant="caption" color={theme.muted}>
-                Every task in your plan already serves this goal. Adding a new
-                one is the move now.
+            <AppText color={theme.ink} numberOfLines={2}>
+              {t.title}
+            </AppText>
+            <View style={styles.meta}>
+              <View
+                style={[
+                  styles.pip,
+                  { backgroundColor: areaColors[t.areaId] ?? theme.muted },
+                ]}
+              />
+              <AppText variant="footnote" color={theme.muted}>
+                {t.unitName} · {formatFrequency(t.timesPerWeek)}
               </AppText>
-            ) : matches.length === 0 ? (
-              <AppText variant="caption" color={theme.muted}>
-                Nothing in your plan matches “{query.trim()}”.
+            </View>
+            {t.servingGoalTitle ? (
+              <AppText variant="footnote" color={theme.muted}>
+                Currently under “{t.servingGoalTitle}” — it will move here.
               </AppText>
             ) : null}
-
-            {matches.map((t) => (
-              <Pressable
-                key={t.id}
-                onPress={() => onPick(t.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`${t.title}, ${t.unitName}, ${formatFrequency(
-                  t.timesPerWeek,
-                )}${t.servingGoalTitle ? `, currently serving ${t.servingGoalTitle}` : ""}`}
-                style={({ pressed }) => [
-                  styles.card,
-                  {
-                    backgroundColor: pressed ? wash(accent, theme) : theme.surface,
-                    borderColor: theme.hairline,
-                  },
-                ]}
-              >
-                <AppText color={theme.ink} numberOfLines={2}>
-                  {t.title}
-                </AppText>
-                <View style={styles.meta}>
-                  <View
-                    style={[
-                      styles.pip,
-                      { backgroundColor: areaColors[t.areaId] ?? theme.muted },
-                    ]}
-                  />
-                  <AppText variant="footnote" color={theme.muted}>
-                    {t.unitName} · {formatFrequency(t.timesPerWeek)}
-                  </AppText>
-                </View>
-                {t.servingGoalTitle ? (
-                  <AppText variant="footnote" color={theme.muted}>
-                    Currently under “{t.servingGoalTitle}” — it will move here.
-                  </AppText>
-                ) : null}
-              </Pressable>
-            ))}
-          </KeyboardScroll>
-        </View>
-      </SheetFrame>
-    </Modal>
+          </Pressable>
+        ))}
+      </KeyboardScroll>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.sm,
-    maxHeight: "88%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
   search: {
     ...typeScale.body,
     minHeight: 44,
@@ -196,7 +170,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     marginTop: space.xs,
   },
-  scroller: { flexGrow: 0 },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   body: { gap: space.sm, paddingVertical: space.md },
   /** Tappable in full, like the library's own cards: the whole row is
    *  the button, so a task costs one tap wherever the thumb lands. */

@@ -13,8 +13,7 @@
  * than left as a greyed button that explains nothing.
  */
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { eventProblem, type EventInput } from "../../db/events";
 import { currentLocalDate } from "../../lib/calendar";
@@ -23,8 +22,8 @@ import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { DayField, TimeField } from "../ui/DateTimeField";
-import { KeyboardScroll } from "../ui/KeyboardBar";
-import { SheetFrame } from "../ui/SheetFrame";
+import { KeyboardScroll } from "../ui/KeyboardScroll";
+import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { parseWeekdays, type Weekday } from "./planning";
 import { Segmented } from "./Segmented";
@@ -60,6 +59,8 @@ interface EventSheetProps {
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   onSave: (input: EventInput) => void;
   /** Offered when editing. */
   onDelete?: () => void;
@@ -80,10 +81,10 @@ export function EventSheet({
   accent,
   theme,
   onClose,
+  onDismissed,
   onSave,
   onDelete,
 }: EventSheetProps) {
-  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [repeat, setRepeat] = useState<Repeat>(initial?.oneOffDate ? "once" : "weekly");
   const [days, setDays] = useState<Weekday[]>(parseWeekdays(initial?.plannedWeekdays));
@@ -114,122 +115,108 @@ export function EventSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <SheetFrame onClose={onClose} typing>
-        <View
-          style={[
-            styles.sheet,
-            { backgroundColor: theme.canvas, paddingBottom: insets.bottom + space.lg },
-          ]}
-        >
-          <KeyboardScroll contentContainerStyle={styles.body}>
-            <View>
-              <AppText variant="title" color={theme.ink}>
-                {initial ? "Edit event" : "New event"}
-              </AppText>
-              <AppText variant="caption" color={theme.muted}>
-                {unitName
-                  ? `A time you attend, in ${unitName}.`
-                  : "A time you attend — a class, a shift, an appointment."}
-              </AppText>
-            </View>
+    <NativeSheet onDismissed={onDismissed}
+      visible={visible}
+      onClose={onClose}
+      size="large"
+      title={initial ? "Edit event" : "New event"}
+      confirm={{
+        label: initial ? "Save" : "Add",
+        onPress: () => onSave(input),
+        disabled: problem !== null,
+      }}
+    >
+      <KeyboardScroll style={styles.scroller} contentContainerStyle={styles.body}>
+        <AppText variant="caption" color={theme.muted}>
+          {unitName
+            ? `A time you attend, in ${unitName}.`
+            : "A time you attend — a class, a shift, an appointment."}
+        </AppText>
 
-            <TextField
-              theme={theme}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="COMP2521 lecture"
-              autoFocus={!initial}
-              accessibilityLabel="Name"
-              style={styles.input}
-            />
+        <TextField
+          theme={theme}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="COMP2521 lecture"
+          autoFocus={!initial}
+          accessibilityLabel="Name"
+          style={styles.input}
+        />
 
-            {/* When comes first: an event is defined by it. */}
-            <View style={[styles.card, { backgroundColor: theme.surface }]}>
-              <Segmented
-                segments={REPEATS}
-                value={repeat}
-                onChange={setRepeat}
-                accent={accent}
-                theme={theme}
-                label="Repeats"
-              />
-              {repeat === "weekly" ? (
-                <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
-              ) : (
-                <PickRow
-                  label="Date"
-                  empty="Pick a day"
-                  onSet={() => setDate(currentLocalDate())}
-                  theme={theme}
-                >
-                  {date !== null ? (
-                    <DayField date={date} onChange={setDate} label="Date" accent={accent} theme={theme} />
-                  ) : null}
-                </PickRow>
-              )}
-              <PickRow
-                label="Starts"
-                empty="Pick a time"
-                onSet={() => pickStart(9 * 60)}
-                theme={theme}
-              >
-                {start !== null ? (
-                  <TimeField minutes={start} onChange={pickStart} label="Starts" accent={accent} theme={theme} />
-                ) : null}
-              </PickRow>
-              <PickRow
-                label="Ends"
-                empty="Pick a time"
-                onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
-                theme={theme}
-              >
-                {end !== null ? (
-                  <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
-                ) : null}
-              </PickRow>
-            </View>
-
-            <TextField
-              theme={theme}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Notes (optional)"
-              accessibilityLabel="Notes"
-              multiline
-            />
-
-            {unitChoice ? (
-              <UnitPicker
-                units={unitChoice.units}
-                value={unitChoice.value}
-                onChange={unitChoice.onChange}
-                theme={theme}
-                areaColors={unitChoice.areaColors}
-              />
-            ) : null}
-          </KeyboardScroll>
-
-          <Button
-            label={initial ? "Save" : "Add event"}
-            color={accent}
-            disabled={problem !== null}
-            onPress={() => onSave(input)}
+        {/* When comes first: an event is defined by it. */}
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <Segmented
+            segments={REPEATS}
+            value={repeat}
+            onChange={setRepeat}
+            accent={accent}
             theme={theme}
+            label="Repeats"
           />
-          {problem !== null ? (
-            <AppText variant="caption" color={theme.muted} style={styles.center}>
-              {problem}
-            </AppText>
-          ) : null}
-          {onDelete ? (
-            <Button label="Delete event" variant="quiet" onPress={onDelete} theme={theme} />
-          ) : null}
-          <Button label="Cancel" variant="quiet" onPress={onClose} theme={theme} />
-
+          {repeat === "weekly" ? (
+            <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
+          ) : (
+            <PickRow
+              label="Date"
+              empty="Pick a day"
+              onSet={() => setDate(currentLocalDate())}
+              theme={theme}
+            >
+              {date !== null ? (
+                <DayField date={date} onChange={setDate} label="Date" accent={accent} theme={theme} />
+              ) : null}
+            </PickRow>
+          )}
+          <PickRow
+            label="Starts"
+            empty="Pick a time"
+            onSet={() => pickStart(9 * 60)}
+            theme={theme}
+          >
+            {start !== null ? (
+              <TimeField minutes={start} onChange={pickStart} label="Starts" accent={accent} theme={theme} />
+            ) : null}
+          </PickRow>
+          <PickRow
+            label="Ends"
+            empty="Pick a time"
+            onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
+            theme={theme}
+          >
+            {end !== null ? (
+              <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
+            ) : null}
+          </PickRow>
         </View>
-      </SheetFrame>
-    </Modal>
+
+        <TextField
+          theme={theme}
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Notes (optional)"
+          accessibilityLabel="Notes"
+          multiline
+        />
+
+        {unitChoice ? (
+          <UnitPicker
+            units={unitChoice.units}
+            value={unitChoice.value}
+            onChange={unitChoice.onChange}
+            theme={theme}
+            areaColors={unitChoice.areaColors}
+          />
+        ) : null}
+      </KeyboardScroll>
+      {problem !== null ? (
+        <AppText variant="caption" color={theme.muted} style={styles.center}>
+          {problem}
+        </AppText>
+      ) : null}
+      {onDelete ? (
+        <Button label="Delete event" variant="quiet" onPress={onDelete} theme={theme} />
+      ) : null}
+    </NativeSheet>
   );
 }
 
@@ -275,14 +262,8 @@ function PickRow({
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingHorizontal: space.screen,
-    paddingTop: space.xl,
-    gap: space.sm,
-    maxHeight: "92%",
-  },
+  /** Takes the rest of the full-height sheet, and scrolls in it. */
+  scroller: { flex: 1 },
   body: { gap: space.md, paddingBottom: space.md },
   input: {
     borderRadius: radius.md,

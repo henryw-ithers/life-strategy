@@ -262,6 +262,22 @@ async function habitStreak(
 }
 
 /**
+ * A goal's title and status, read synchronously (the expo-sqlite driver
+ * is sync underneath) so its screen has its nav bar right on the first
+ * frame of the push. A title or menu that arrives mid-push makes the
+ * bar rebuild its buttons over the transition (Phase 3c). The rest of
+ * the screen loads as usual. Null if the goal is gone.
+ */
+export function readGoalHeading(goalId: string): Pick<GoalDetail, "title" | "status"> | null {
+  const row = db
+    .select({ title: goal.title, status: goal.status })
+    .from(goal)
+    .where(eq(goal.id, goalId))
+    .get();
+  return row ?? null;
+}
+
+/**
  * Write an achievement for every habit rung the streak has passed and
  * the log does not already hold (ADR-0030 §5).
  *

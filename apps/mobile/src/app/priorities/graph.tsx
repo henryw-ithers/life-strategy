@@ -8,13 +8,11 @@
  * Its scrubber also wants the screen to itself — inside a scrolling
  * parent the two gestures compete.
  */
-import { router } from "expo-router";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, useColorScheme, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from "react-native";
 
 import { PortfolioGraphView, type GraphSnapshot } from "../../components/portfolio-graph";
-import { AppText } from "../../components/ui/AppText";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { Backdrop, constellation } from "../../components/ui/Backdrop";
 import { loadGraphSnapshots } from "../../db/graph";
@@ -24,7 +22,8 @@ import { space } from "../../theme/tokens";
 export default function PortfolioGraphScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
+  const headerInset = Platform.OS === "ios" ? headerHeight : 0;
   const [snapshots, setSnapshots] = useState<GraphSnapshot[] | null>(null);
 
   const load = useCallback(async () => {
@@ -35,27 +34,13 @@ export default function PortfolioGraphScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          style={styles.back}
-        >
-          <AppText variant="label" color={theme.muted}>
-            ‹ Back
-          </AppText>
-        </Pressable>
-        <AppText variant="display" color={theme.ink} accessibilityRole="header">
-          Your portfolio
-        </AppText>
-      </View>
-
-      <View style={styles.body}>
+      {/* No scroll view: the scrubber wants the screen to itself. So the
+          title is a small one (root `_layout`), and the content starts
+          below the transparent nav bar by itself. */}
+      <View style={[styles.body, { paddingTop: headerInset + space.sm }]}>
         {error ? (
-        <LoadFailure error={error} onRetry={retry} theme={theme} />
-      ) : snapshots === null ? (
+          <LoadFailure error={error} onRetry={retry} theme={theme} />
+        ) : snapshots === null ? (
           <ActivityIndicator color={theme.muted} style={styles.loading} />
         ) : (
           <PortfolioGraphView snapshots={snapshots} theme={theme} />
@@ -67,8 +52,6 @@ export default function PortfolioGraphScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  header: { paddingHorizontal: space.screen, paddingBottom: space.md },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   body: { flex: 1, paddingHorizontal: space.screen },
   loading: { marginTop: space.xxl },
 });

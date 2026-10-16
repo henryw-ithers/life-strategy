@@ -15,19 +15,19 @@
  * no weight, no exclusion, no navigation into the unit. It is a sheet
  * you read and dismiss.
  */
-import { Modal, ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import type { AreaInfo } from "../../content/areas";
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Button } from "../ui/Button";
-import { SheetFrame } from "../ui/SheetFrame";
+import { NativeSheet } from "../ui/NativeSheet";
 
 interface AreaInfoSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** After it has finished closing (`NativeSheet`). */
+  onDismissed?: () => void;
   info: AreaInfo;
   /** The area's own hue, so the sheet is identifiably about that area. */
   accent: string;
@@ -37,79 +37,39 @@ interface AreaInfoSheetProps {
 export function AreaInfoSheet({
   visible,
   onClose,
+  onDismissed,
   info,
   accent,
   theme,
 }: AreaInfoSheetProps) {
-  const insets = useSafeAreaInsets();
+  const { height: windowH } = useWindowDimensions();
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <SheetFrame onClose={onClose}>
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.canvas,
-              borderColor: theme.hairline,
-              paddingBottom: insets.bottom + space.lg,
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: theme.hairline }]} />
+    <NativeSheet onDismissed={onDismissed} visible={visible} onClose={onClose} title={info.name} dismiss="done">
+      {/* Scrolls inside a cap, so a long entry never runs off the sheet. */}
+      <ScrollView
+        style={{ maxHeight: Math.round(windowH * 0.7) }}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
+        <AppText color={theme.ink} style={styles.prose}>
+          {info.description}
+        </AppText>
 
-          <View style={styles.titleRow}>
-            <View style={[styles.dot, { backgroundColor: accent }]} />
-            <AppText variant="title" color={theme.ink}>
-              {info.name}
+        {info.covers.map((line) => (
+          <View key={line} style={styles.coverRow}>
+            <View style={[styles.pip, { backgroundColor: accent }]} />
+            <AppText color={theme.ink} style={styles.coverText}>
+              {line}
             </AppText>
           </View>
-
-          <ScrollView
-            style={styles.scroller}
-            contentContainerStyle={styles.body}
-            showsVerticalScrollIndicator={false}
-          >
-            <AppText color={theme.ink} style={styles.prose}>
-              {info.description}
-            </AppText>
-
-            {info.covers.map((line) => (
-              <View key={line} style={styles.coverRow}>
-                <View style={[styles.pip, { backgroundColor: accent }]} />
-                <AppText color={theme.ink} style={styles.coverText}>
-                  {line}
-                </AppText>
-              </View>
-            ))}
-          </ScrollView>
-
-          <Button label="Done" variant="secondary" onPress={onClose} theme={theme} />
-        </View>
-      </SheetFrame>
-    </Modal>
+        ))}
+      </ScrollView>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm + 2,
-    gap: space.md,
-    maxHeight: "80%",
-  },
-  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2 },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  scroller: { flexGrow: 0 },
   body: { gap: space.md, paddingBottom: space.xs },
   prose: { maxWidth: 460 },
   coverRow: { flexDirection: "row", alignItems: "flex-start", gap: space.sm },
