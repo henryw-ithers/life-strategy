@@ -134,6 +134,13 @@
       "when": 1791918635928,
       "tag": "0018_slimy_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792162196501,
+      "tag": "0019_cool_galactus",
+      "breakpoints": true
     }
   ]
 }

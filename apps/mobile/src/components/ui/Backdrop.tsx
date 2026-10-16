@@ -15,6 +15,10 @@ export interface BackdropCircle {
  * bleeding off the canvas — the portfolio graph's geometry, echoed as
  * atmosphere. Render first inside a container with overflow hidden.
  * Never place it behind dense data (the graph canvas stays clean).
+ *
+ * **Kept clear of the top (Prism, 2026-10-14).** Nothing starts above
+ * the large title, so the nav bar and its glass have little to blur
+ * at rest (spec §2.2). The circles begin about where content does.
  */
 export function Backdrop({ circles }: { circles: BackdropCircle[] }) {
   return (
@@ -47,9 +51,9 @@ export function constellation(
 ): BackdropCircle[] {
   const f = opts?.faint === true;
   return [
-    { color: areas["mental-wellbeing"] ?? "#888", size: 260, offset: { top: -90, right: -70 }, alpha: f ? "0d" : "1a" },
+    { color: areas["mental-wellbeing"] ?? "#888", size: 260, offset: { top: 120, right: -110 }, alpha: f ? "0d" : "1a" },
     { color: areas["relationships"] ?? "#888", size: 150, offset: { top: 130, left: -70 }, alpha: f ? "0a" : "14" },
-    { color: areas["home-environment"] ?? "#888", size: 88, offset: { top: 40, left: 48 }, alpha: f ? "08" : "10" },
+    { color: areas["home-environment"] ?? "#888", size: 88, offset: { top: 190, left: 36 }, alpha: f ? "08" : "10" },
     { color: areas["leisure-creativity"] ?? "#888", size: 110, offset: { top: 300, right: 40 }, alpha: f ? "09" : "12" },
     { color: areas["work-money"] ?? "#888", size: 64, offset: { top: 220, right: 120 }, alpha: f ? "08" : "10" },
     { color: areas["physical-health"] ?? "#888", size: 190, offset: { bottom: -70, right: -50 }, alpha: f ? "08" : "0f" },
@@ -59,7 +63,7 @@ export function constellation(
 /** One hue washing a focused screen — used per area in the diagnostic. */
 export function hueWash(accent: string): BackdropCircle[] {
   return [
-    { color: accent, size: 280, offset: { top: -110, right: -90 }, alpha: "16" },
+    { color: accent, size: 280, offset: { top: 120, right: -130 }, alpha: "16" },
     { color: accent, size: 140, offset: { bottom: -40, left: -50 }, alpha: "0d" },
   ];
 }

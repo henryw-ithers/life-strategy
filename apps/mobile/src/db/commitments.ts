@@ -238,6 +238,10 @@ export async function hasCommitments(): Promise<boolean> {
 export interface CommitmentDetail {
   id: string;
   name: string;
+  /** For colour only (ADR-0021): the area it falls back to. */
+  areaId: string;
+  /** Its own palette key, or null to use its area's (ADR-0043 §4). */
+  colour: string | null;
   share: number;
   /** This commitment's share as a whole-number percent of the band. */
   sharePercent: number;
@@ -299,6 +303,8 @@ export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
     return {
       id: p.id,
       name: p.name,
+      areaId: p.areaId,
+      colour: p.colour,
       share: p.commitmentShare ?? 0,
       sharePercent:
         liveTotal > 0 && p.archivedAt === null
@@ -340,6 +346,13 @@ export interface UnitItem {
 export interface CommitmentUnitScreen {
   id: string;
   name: string;
+  /** For colour only (ADR-0021): the area it falls back to. */
+  areaId: string;
+  /** Its own palette key, or null. */
+  colour: string | null;
+  /** A sub-commitment's commitment's palette key, which it shows when
+   *  it has none of its own. Null on a commitment. */
+  parentColour: string | null;
   archivedAt: string | null;
   /** The commitment this belongs to, for a sub-commitment; else null. */
   parent: { id: string; name: string } | null;
@@ -407,6 +420,9 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
   return {
     id,
     name: row.name,
+    areaId: row.areaId,
+    colour: row.colour,
+    parentColour: parentRow?.colour ?? null,
     archivedAt: row.archivedAt,
     parent: parentRow ? { id: parentRow.id, name: parentRow.name } : null,
     sharePercent: parentRow ? 0 : percentOf(row.commitmentShare),

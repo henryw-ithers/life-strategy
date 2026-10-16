@@ -116,7 +116,7 @@ export function ReorderableList({
   // `scrollable={false}` case where a parent owns the scrolling.
   const scrollOffset = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollOffset.value = e.contentOffset.y;
+    scrollOffset.set(e.contentOffset.y);
   });
   const [viewportHeight, setViewportHeight] = useState(0);
   /** Mirrors `draggingId` on the JS side purely to freeze scrolling. */
@@ -147,7 +147,7 @@ export function ReorderableList({
   // mapping, so this is a no-op on that path and never flickers.
   const key = items.map((i) => i.id).join("|");
   useEffect(() => {
-    positions.value = Object.fromEntries(items.map((item, i) => [item.id, i]));
+    positions.set(Object.fromEntries(items.map((item, i) => [item.id, i])));
     // `key` is the order; `items` identity churns every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -237,7 +237,7 @@ export function ReorderableList({
           next[otherId] = slot + 1;
       }
       next[id] = target;
-      positions.value = next;
+      positions.set(next);
       runOnJS(tick)(); // one detent, one tick
     }
   });
@@ -354,23 +354,23 @@ function Row({
     .activeOffsetY([-1, 1])
     .shouldCancelWhenOutside(false)
     .onStart(() => {
-      draggingId.value = item.id;
-      startTop.value = (positions.value[item.id] ?? index) * slot + INSET;
-      dragTop.value = startTop.value;
-      startScroll.value = scrollOffset.value;
-      translation.value = 0;
-      liftedId.value = item.id;
-      lift.value = withTiming(1, { duration: 140 });
+      draggingId.set(item.id);
+      startTop.set((positions.value[item.id] ?? index) * slot + INSET);
+      dragTop.set(startTop.value);
+      startScroll.set(scrollOffset.value);
+      translation.set(0);
+      liftedId.set(item.id);
+      lift.set(withTiming(1, { duration: 140 }));
       runOnJS(onSetDragging)(true);
       runOnJS(onTick)();
     })
     .onUpdate((e) => {
-      translation.value = e.translationY;
+      translation.set(e.translationY);
     })
     .onFinalize(() => {
       if (draggingId.value !== item.id) return;
-      draggingId.value = null;
-      lift.value = withTiming(0, { duration: 160 });
+      draggingId.set(null);
+      lift.set(withTiming(0, { duration: 160 }));
       runOnJS(onSetDragging)(false);
       runOnJS(onCommit)(positions.value);
     });

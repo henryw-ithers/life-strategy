@@ -1,119 +1,75 @@
 /**
- * App color tokens, composed in OKLCH and exported as hex (React
- * Native can't parse OKLCH at runtime). Sources in comments so the
- * palette can be recomposed. Light canvas is pure white; dark canvas
- * is pure near-black — the brand hue lives in the area colors and
- * accents, never smuggled into the surface.
+ * App colour tokens: the Prism style (ADR-0043 §3, chosen 2026-10-13).
+ *
+ * The backgrounds, text and separators are iOS's own system colours, so
+ * the app sits beside Apple's in light and dark mode. The accent is the
+ * label colour (black in light mode, white in dark), so it is never
+ * confused with a unit's colour. All the colour in the app comes from
+ * units, through `palette.ts`. Contrast is checked in
+ * `__tests__/palette.test.ts`.
  */
+import { AREA_COLOUR, PALETTE, isPaletteKey, type PaletteKey } from "./palette";
+
 export type ThemeName = "light" | "dark";
 
 export interface ThemeTokens {
   name: ThemeName;
-  /** oklch(1 0 0) / oklch(0.13 0 0) */
+  /** systemBackground: #FFFFFF / #000000 */
   canvas: string;
-  /** oklch(0.955 0.003 220) / oklch(0.19 0.006 220) */
+  /** secondarySystemBackground, for cards: #F2F2F7 / #1C1C1E */
   surface: string;
-  /** oklch(0.22 0.012 220) / oklch(0.93 0.005 200) — ≥16:1 on canvas */
+  /** label */
   ink: string;
-  /** oklch(0.50 0.015 220) / oklch(0.68 0.010 200) — ≥6:1 on canvas */
+  /** secondary text, opaque so it holds 4.5:1 on cards as well as the
+   *  background (iOS's translucent secondaryLabel doesn't). */
   muted: string;
-  /** oklch(0.90 0.004 220) / oklch(0.30 0 0) */
+  /** separator */
   hairline: string;
-  /** Brand teal (hue 200) — primary actions and app-level accents. */
+  /** The label colour: buttons and highlights. */
   accent: string;
-  /** Label color on accent/area fills. Dark theme lifts its hues, so
-   *  the readable label there is near-black, not white (≥7:1). */
+  /** Text and ticks on `accent` or on a unit-coloured fill. */
   onAccent: string;
-  /** Destructive actions only — never an area hue doing double duty. */
+  /** Destructive actions only. It is the same red as the palette's Red,
+   *  as on iOS, where a red list and a red Delete button coexist: a
+   *  destructive action is known by its label, never by colour alone. */
   danger: string;
-  /** One categorical hue per Strategic Life Area, keyed by area id. */
+  /** Each area's colour, keyed by area id. */
   areas: Record<string, string>;
 }
 
 /** Sheet/modal backdrop dim, identical in both themes. */
 export const SCRIM = "rgba(0,0,0,0.45)";
 
-/** Hues 20/150/200/255/80/300 at L≈0.55–0.66 C≈0.10–0.13 (light canvas). */
-const AREA_COLORS_LIGHT: Record<string, string> = {
-  relationships: "#bb565a", // rose, hue 20
-  "physical-health": "#4a925c", // green, hue 150
-  "mental-wellbeing": "#007a80", // brand teal, hue 200 — tracks `accent`
-  "work-money": "#3d73b6", // blue, hue 255
-  "home-environment": "#b8892d", // amber, hue 80
-  "leisure-creativity": "#7d5fad", // violet, hue 300
-};
-
-/** Same hues lifted to L≈0.70–0.78 so bubbles glow on the dark canvas. */
-const AREA_COLORS_DARK: Record<string, string> = {
-  relationships: "#eb8182",
-  "physical-health": "#6fc082",
-  "mental-wellbeing": "#3ebfc6",
-  "work-money": "#64a1ee",
-  "home-environment": "#e3ad4b",
-  "leisure-creativity": "#ab8be3",
-};
-
-/**
- * The light hues at the lightness a **white label** needs, keyed by the
- * hue they stand in for (see `solidFill`).
- *
- * DESIGN.md recorded this as an open decision: `Button`'s primary
- * variant renders `onAccent` on whatever fill it is given, and thirteen
- * call sites hand it an area hue — 3.78:1 on Physical health, 3.16:1 on
- * Environment. The two options it named were restricting fills to the
- * accent or giving the variant a wash; Henry chose a third on
- * 2026-08-17: keep the hue, take it down to where the label passes.
- *
- * Same OKLCH hue and chroma, L lowered until white clears **4.8:1** —
- * AA with a little margin rather than a value sitting on the line.
- * Four of the six move by less than a step and are visually the same
- * colour; only Physical health and Environment change materially, which is
- * exactly the pair that failed. Environment reads as deep ochre rather
- * than amber when filled, because an amber that carries white text *is*
- * ochre — the alternative was a 3.16:1 button.
- *
- * These are for **solid fills behind a label only**. Bubbles, pips,
- * borders, washes and the graph all keep the original hues: they carry
- * no text, and matching them here would darken the app's identity for
- * no reason.
- */
-const AREA_FILLS_LIGHT: Record<string, string> = {
-  "#bb565a": "#b85156", // rose      4.57 → 4.82
-  "#4a925c": "#36804a", // green     3.78 → 4.83
-  "#007a80": "#007a80", // teal      5.13, already clear
-  "#3d73b6": "#3d73b6", // blue      4.85, already clear
-  "#b8892d": "#966a04", // amber     3.16 → 4.81
-  "#7d5fad": "#7d5fad", // violet    5.11, already clear
-};
+function areaColours(name: ThemeName): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(AREA_COLOUR).map(([area, key]) => [area, PALETTE[key][name]]),
+  );
+}
 
 const THEMES: Record<ThemeName, ThemeTokens> = {
   light: {
     name: "light",
-    canvas: "#ffffff",
-    surface: "#eef1f1",
-    ink: "#151c1e",
-    muted: "#5a6569",
-    hairline: "#dbdfe0",
-    /** oklch(0.52 0.087 200) — 5.1:1 as text on canvas, 4.5:1 on
-     *  surface, and 5.1:1 for the white label on an accent fill. The
-     *  previous #008c92 sat at 4.06:1 in all three roles, under AA for
-     *  15–17px label text; this is the same hue, one step down. */
-    accent: "#007a80",
-    onAccent: "#ffffff",
-    danger: "#a63d33", // oklch(0.50 0.13 30) — 6.3:1 on white
-    areas: AREA_COLORS_LIGHT,
+    canvas: "#FFFFFF",
+    surface: "#F2F2F7",
+    ink: "#000000",
+    muted: "#6C6C70",
+    hairline: "#C6C6C8",
+    accent: "#000000",
+    onAccent: "#FFFFFF",
+    danger: "#D70015",
+    areas: areaColours("light"),
   },
   dark: {
     name: "dark",
-    canvas: "#070707",
-    surface: "#111416",
-    ink: "#e4e9e9",
-    muted: "#929a9b",
-    hairline: "#2e2e2e",
-    accent: "#3ebfc6",
-    onAccent: "#070707",
-    danger: "#ee9086", // lifted to match dark-area weight — 8.6:1 on canvas
-    areas: AREA_COLORS_DARK,
+    canvas: "#000000",
+    surface: "#1C1C1E",
+    ink: "#FFFFFF",
+    muted: "#98989F",
+    hairline: "#38383A",
+    accent: "#FFFFFF",
+    onAccent: "#000000",
+    danger: "#FF6961",
+    areas: areaColours("dark"),
   },
 };
 
@@ -121,11 +77,26 @@ export function getTheme(name: ThemeName): ThemeTokens {
   return THEMES[name];
 }
 
-/** Grade ramp for calendar scores: red <50, orange 50s, yellow 60s,
- *  green 70s, brighter green 80s, bright blue 90+. Hues at palette
- *  weight per theme (darker on light canvas, lifted on dark). */
-const GRADE_RAMP_LIGHT = ["#c2453c", "#c07a2b", "#a38f1f", "#4a925c", "#31a352", "#2b7fdd"];
-const GRADE_RAMP_DARK = ["#ef7a6d", "#e59a4a", "#d9c04b", "#6fc082", "#52d97e", "#58b0ff"];
+/**
+ * A unit's colour: its own palette colour if it has one, otherwise its
+ * area's (ADR-0043 §4). A stored value that isn't a palette key is
+ * ignored rather than drawn.
+ */
+export function unitHue(
+  theme: ThemeTokens,
+  unit: { areaId: string; colour?: string | null },
+): string {
+  if (isPaletteKey(unit.colour)) return PALETTE[unit.colour][theme.name];
+  return theme.areas[unit.areaId] ?? theme.accent;
+}
+
+/**
+ * The grade chip's six bands, low to high: under 50, the 50s, 60s, 70s,
+ * 80s, and 90 and over. Palette colours since 2026-10-16 (Henry), so the
+ * chips match the rest of the app in both modes. Used on the month grid
+ * and Home's week strip only (DESIGN.md, the calendar exception).
+ */
+const GRADE_RAMP: readonly PaletteKey[] = ["red", "orange", "yellow", "green", "mint", "blue"];
 
 /**
  * A hue as a selectable surface: 12% on the light canvas, 18% on the
@@ -148,26 +119,20 @@ export function wash(hue: string, theme: ThemeTokens): string {
 }
 
 /**
- * A hue as a **solid fill with `onAccent` text on it** — the primary
+ * A hue as a **solid fill with `onAccent` text on it**: the primary
  * button, the checklist's tick circle.
  *
- * Light theme swaps in the deepened variant (`AREA_FILLS_LIGHT`) so the
- * white label clears AA. Dark theme returns the hue untouched: its
- * label is near-black on a lifted hue, which is 7.2:1 at worst.
- *
- * Anything that is *not* a fill behind text — bubbles, pips, borders,
- * washes — takes `theme.areas[id]` directly and must not come through
- * here. Call it once, at the point the fill is chosen, so callers keep
- * passing the hue they mean.
+ * Under Prism every palette colour already carries `onAccent` at 4.5:1
+ * or better in both modes (the palette test checks it), so the fill is
+ * the hue itself. Kept as the one place a fill is chosen, so a future
+ * palette that needs a deeper fill changes here and nowhere else.
  */
-export function solidFill(hue: string, theme: ThemeTokens): string {
-  if (theme.name === "dark") return hue;
-  return AREA_FILLS_LIGHT[hue.toLowerCase()] ?? hue;
+export function solidFill(hue: string, _theme: ThemeTokens): string {
+  return hue;
 }
 
 export function gradeColor(grade: number, theme: ThemeTokens): string {
-  const ramp = theme.name === "dark" ? GRADE_RAMP_DARK : GRADE_RAMP_LIGHT;
   const band =
     grade < 50 ? 0 : grade < 60 ? 1 : grade < 70 ? 2 : grade < 80 ? 3 : grade < 90 ? 4 : 5;
-  return ramp[band]!;
+  return PALETTE[GRADE_RAMP[band]!][theme.name];
 }

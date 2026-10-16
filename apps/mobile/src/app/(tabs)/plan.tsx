@@ -170,10 +170,17 @@ export default function PlanScreen() {
   /** A tab stays mounted, so the `unit` param only seeds state on the
    *  first visit. Every later link — from a goal, or the post-diagnostic
    *  diff — arrives here instead, and must open its unit too. Cleared
-   *  once handled, so a second link to the same unit still changes it. */
+   *  once handled, so a second link to the same unit still changes it.
+   *  Opening the unit happens as the link arrives (during render, the
+   *  React way to follow a changed value); scrolling to it and clearing
+   *  the link are side effects, so they stay in the effect. */
+  const [seenUnitParam, setSeenUnitParam] = useState(unitParam);
+  if (unitParam !== seenUnitParam) {
+    setSeenUnitParam(unitParam);
+    if (unitParam) setOpenUnitId(unitParam);
+  }
   useEffect(() => {
     if (!unitParam) return;
-    setOpenUnitId(unitParam);
     revealUnit(unitParam);
     router.setParams({ unit: undefined });
   }, [unitParam, revealUnit]);

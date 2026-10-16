@@ -23,7 +23,7 @@ import {
 import { currentLocalDate } from "../lib/calendar";
 import { NumberDial } from "../components/number-dial/NumberDial";
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
@@ -111,7 +111,7 @@ export default function CalibrationScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(theme.accent)} />
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <ScrollView
         contentContainerStyle={[
           styles.container,

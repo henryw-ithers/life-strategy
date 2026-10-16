@@ -31,7 +31,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText } from "../components/ui/AppText";
-import { Backdrop, hueWash } from "../components/ui/Backdrop";
+import { Backdrop, constellation } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
 import { KeyboardBar, KeyboardScroll } from "../components/ui/KeyboardBar";
 import { TextField } from "../components/ui/TextField";
@@ -100,7 +100,11 @@ export default function FeedbackScreen() {
    * feedback box that eats what you wrote is worse than no box.
    */
   const draft = useRef({ kind, text, ready: false });
-  draft.current = { kind, text, ready: loaded };
+  // Refreshed after each render, not during it, so the React Compiler
+  // can follow it. The unmount cleanup still reads the last values.
+  useEffect(() => {
+    draft.current = { kind, text, ready: loaded };
+  });
 
   useEffect(() => {
     void loadFeedbackDraft().then((saved) => {
@@ -153,19 +157,19 @@ export default function FeedbackScreen() {
         `This phone wouldn't open its mail app. Your note is saved here. Send it to ${FEEDBACK_ADDRESS} any way you like.`,
       );
     }
-  }, [kind, text]);
+  }, [kind, text, setError, setStage]);
 
   const onClear = useCallback(() => {
     setText("");
     setStage({ kind: "writing" });
     void clearFeedbackDraft();
-  }, []);
+  }, [setText, setStage]);
 
   const remaining = MAX_FEEDBACK_LENGTH - text.length;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={hueWash(theme.accent)} />
+      <Backdrop circles={constellation(theme.areas, { faint: true })} />
       <KeyboardScroll
         contentContainerStyle={[
           styles.container,

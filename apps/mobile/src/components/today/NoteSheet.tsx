@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Modal, StyleSheet, type TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,10 +41,13 @@ export function NoteSheet({
   const keyboardStyle = useKeyboardLift(insets.bottom + space.lg);
 
   // Re-seed each time it opens: blank for a new note, the existing
-  // text when rewriting one.
-  useEffect(() => {
+  // text when rewriting one. Done as the sheet opens, during render,
+  // rather than in an effect that would render it twice.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setBody(initialBody ?? "");
-  }, [visible, initialBody]);
+  }
 
   const commit = () => {
     const trimmed = body.trim();

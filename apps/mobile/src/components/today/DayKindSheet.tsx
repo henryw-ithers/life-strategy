@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -74,14 +74,16 @@ export function DayKindSheet({
   const [specialTitle, setSpecialTitle] = useState(title ?? "");
   const [rating, setRating] = useState<number | null>(satisfactionRating);
 
-  // Re-sync with the day each time the sheet opens.
-  useEffect(() => {
+  // Re-sync with the day each time the sheet opens, as it opens.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) {
       setChosen(kind);
       setSpecialTitle(title ?? "");
       setRating(satisfactionRating);
     }
-  }, [visible, kind, title, satisfactionRating]);
+  }
 
   const commit = () => {
     onCommit(chosen, {

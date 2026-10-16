@@ -11,6 +11,7 @@ import { rebalanceShares } from "@glide/scoring";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
+import type { PaletteKey } from "../theme/palette";
 import { db } from "./client";
 import {
   assertPoolSize,
@@ -600,3 +601,16 @@ function validationInput(
 }
 
 export { MAX_POOL_MEMBERS };
+
+// ── Colour ──────────────────────────────────────────────────────────
+
+/**
+ * Give a unit or commitment its own colour from the palette, or null to
+ * go back to its area's (ADR-0043 §4).
+ *
+ * Unlike every other write here, this does **not** mark grades stale:
+ * colour is presentation only and can never change a score (ADR-0021).
+ */
+export async function setUnitColour(id: string, colour: PaletteKey | null): Promise<void> {
+  await db.update(lifeUnit).set({ colour }).where(eq(lifeUnit.id, id));
+}
