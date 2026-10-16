@@ -37,17 +37,46 @@ interface ScreenLoad {
   retry: () => void;
   /**
    * Run a write the user asked for, then reload — or run `after`
-   * instead, when the screen is leaving. Fire-and-forget, for handlers.
+   * instead, when the screen is leaving. Fire-and-forget for handlers;
+   * the promise settles once the reload has landed, for anything that
+   * has to wait for it (`useUndoDelete`).
    *
    * A rejected write used to vanish: the tap did nothing, and the only
    * trace was an unhandled-rejection entry filed as `fatal`. Now it is
    * recorded as what it was, and the user is told once, plainly.
    */
-  save: (write: () => Promise<unknown>, after?: () => void) => void;
+  save: (write: () => Promise<unknown>, after?: () => unknown) => Promise<void>;
 }
 
 const asErrorOf = (thrown: unknown): Error =>
   thrown instanceof Error ? thrown : new Error(String(thrown));
+
+/**
+ * Runs a write, then `after`. A failure is recorded and shown in the
+ * same words on every screen, then `reload` runs anyway: the screen
+ * should show what is stored. For screens that load their own way
+ * (Home); the rest get it as `useScreenLoad`'s `save`.
+ */
+export function saveThen(
+  write: () => Promise<unknown>,
+  after: () => unknown,
+  reload: () => unknown = after,
+): Promise<void> {
+  // Started inside `then` so a synchronous throw is caught too. Settles
+  // once `after` (or the reload after a failure) has.
+  return Promise.resolve()
+    .then(write)
+    .then(after, (thrown: unknown) => {
+      recordProblem(asErrorOf(thrown), "save");
+      // About the app, never the person.
+      Alert.alert(
+        "That didn’t save",
+        "Nothing else changed. Try again, and if it keeps happening, the problem log in Settings has the details.",
+      );
+      return reload();
+    })
+    .then(() => undefined);
+}
 
 /**
  * Run `load` whenever the screen comes into focus, and keep whatever it
@@ -64,42 +93,29 @@ const asErrorOf = (thrown: unknown): Error =>
 export function useScreenLoad(load: () => Promise<void>): ScreenLoad {
   const [error, setError] = useState<Error | null>(null);
 
+  /** Never rejects: a failed load is shown, not thrown. */
   const run = useCallback(() => {
     setError(null);
-    void load().catch((thrown: unknown) => {
+    return load().catch((thrown: unknown) => {
       const asError = asErrorOf(thrown);
       recordProblem(asError, "load");
       setError(asError);
     });
   }, [load]);
+  const retry = useCallback(() => void run(), [run]);
 
   const save = useCallback(
-    (write: () => Promise<unknown>, after: () => void = run) => {
-      // Started inside `then` so a synchronous throw is caught too.
-      // A failure still reloads: the screen should show what is stored.
-      void Promise.resolve()
-        .then(write)
-        .then(after, (thrown: unknown) => {
-          recordProblem(asErrorOf(thrown), "save");
-          // About the app, never the person — and the same words on
-          // every screen.
-          Alert.alert(
-            "That didn’t save",
-            "Nothing else changed. Try again, and if it keeps happening, the problem log in Settings has the details.",
-          );
-          run();
-        });
-    },
+    (write: () => Promise<unknown>, after: () => unknown = run) => saveThen(write, after, run),
     [run],
   );
 
   useFocusEffect(
     useCallback(() => {
-      run();
+      void run();
     }, [run]),
   );
 
-  return { error, retry: run, save };
+  return { error, retry, save };
 }
 
 /**

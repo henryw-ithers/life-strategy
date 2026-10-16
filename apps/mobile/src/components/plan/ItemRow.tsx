@@ -54,22 +54,18 @@ export function ItemRow({
   item,
   detail,
   onPress,
-  onLongPress,
   theme,
   last,
 }: {
   item: ListedItem;
   detail: string;
   onPress?: () => void;
-  onLongPress?: () => void;
   theme: ThemeTokens;
   last?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={350}
       disabled={!onPress}
       style={({ pressed }) => [
         styles.row,

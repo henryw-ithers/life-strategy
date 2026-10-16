@@ -40,7 +40,7 @@ import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
-import { UndoToast } from "../../../components/ui/UndoToast";
+import { UndoBar } from "../../../components/ui/UndoBar";
 import { UNIT_INFO } from "../../../content/units";
 import { createGoal, setGoalMetric } from "../../../db/goals";
 import {
@@ -48,9 +48,9 @@ import {
   addTask,
   archiveTask,
   reorderUnitTasks,
-  restoreTask,
   setUnitScoring,
   updateEvent,
+  type PlanData,
   type PlanTask,
   type PlanUnit,
 } from "../../../db/tasks";
@@ -58,6 +58,7 @@ import { usePlanData } from "../../../hooks/usePlanData";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { useRetained } from "../../../hooks/useRetained";
+import { useUndoDelete } from "../../../hooks/useUndoDelete";
 
 interface EditTarget {
   task: PlanTask;
@@ -83,7 +84,19 @@ export default function PlanScreen() {
     add?: string;
   }>();
 
-  const { plan, commitmentDay, goalsByUnit, ratings, reload, save, error, retry } = usePlanData();
+  const {
+    plan: storedPlan,
+    commitmentDay,
+    goalsByUnit,
+    ratings,
+    reload,
+    save,
+    error,
+    retry,
+  } = usePlanData();
+  const undo = useUndoDelete(save);
+  /** The plan as shown: a task waiting on Undo is already gone from it. */
+  const plan = withoutTask(storedPlan, undo.hidden);
   const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
   /** `homeUnit: null` is the quick add from the top of the screen — the
    *  sheet opens with no unit chosen and asks for one. */
@@ -98,7 +111,6 @@ export default function PlanScreen() {
   const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
   /** The unit whose library ideas are open (ADR-0006 §3: pull). */
   const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
-  const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
   /** The task just created, tinted until the timer clears it. */
   const [justAdded, setJustAdded] = useState<string | null>(null);
   /** A task being dragged owns the finger; the page must hold still. */
@@ -143,8 +155,7 @@ export default function PlanScreen() {
     plan.areas.every((a) => a.units.every((u) => u.tasks.length === 0));
 
   const deleteTask = (t: PlanTask) => {
-    setUndo({ id: t.id, title: t.title });
-    save(() => archiveTask(t.id));
+    undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) });
   };
 
   /**
@@ -385,18 +396,7 @@ export default function PlanScreen() {
         onLog={() => openAdd("activity")}
       />
 
-      {undo ? (
-        <UndoToast
-          message={`Deleted “${undo.title}”`}
-          onUndo={() => {
-            const id = undo.id;
-            setUndo(null);
-            save(() => restoreTask(id));
-          }}
-          onDismiss={() => setUndo(null)}
-          theme={theme}
-        />
-      ) : null}
+      <UndoBar undo={undo} theme={theme} />
 
       {addingShown ? (
         <AddTaskModal
@@ -558,6 +558,23 @@ export default function PlanScreen() {
       ) : null}
     </View>
   );
+}
+
+/** The plan without the tasks whose delete is waiting or landing
+ *  (`useUndoDelete`), everywhere they're listed. */
+function withoutTask(plan: PlanData | null, hidden: ReadonlySet<string>): PlanData | null {
+  if (plan === null || hidden.size === 0) return plan;
+  return {
+    ...plan,
+    areas: plan.areas.map((a) => ({
+      ...a,
+      units: a.units.map((u) => ({ ...u, tasks: u.tasks.filter((t) => !hidden.has(t.id)) })),
+    })),
+    commitments: plan.commitments.map((c) => ({
+      ...c,
+      tasks: c.tasks.filter((t) => !hidden.has(t.id)),
+    })),
+  };
 }
 
 const styles = StyleSheet.create({

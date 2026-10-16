@@ -26,12 +26,20 @@ import * as Application from "expo-application";
 import * as Linking from "expo-linking";
 import { router, type Href } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, useColorScheme, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  useColorScheme,
+  View,
+} from "react-native";
 
-import { EraseDataModal } from "../components/settings/EraseDataModal";
 import { AppText } from "../components/ui/AppText";
 import { Chevron } from "../components/ui/Chevron";
-import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
+import { LoadFailure, saveThen, useScreenLoad } from "../components/ui/ScreenLoad";
 import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
@@ -76,7 +84,6 @@ export default function SettingsScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
-  const [eraseOpen, setEraseOpen] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,6 +163,48 @@ export default function SettingsScreen() {
         if (saveTimer.current === null) setDraftTime(null);
       });
     }, 500);
+  };
+
+  /**
+   * Reset everything: two native alerts (ADR-0043 §1), because a single
+   * mis-tap in Settings shouldn't be able to end a month of journal
+   * entries. The first says what goes and offers the export, since this
+   * is the last moment it's useful; the second asks once more. The
+   * titles match the Settings row, so it never reads as a different
+   * action mid-flow.
+   */
+  const confirmErase = () => {
+    Alert.alert(
+      "Reset everything?",
+      "Your diagnostics, goals, tasks, grades, journal entries, photos and check-ins are all deleted from this device, and the app starts again from the introduction. This can’t be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Export a backup first", onPress: () => router.push("/backup" as Href) },
+        { text: "Reset…", style: "destructive", onPress: confirmEraseAgain },
+      ],
+    );
+  };
+  const confirmEraseAgain = () => {
+    Alert.alert("Reset everything now?", "There’s no way back from this.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reset everything",
+        style: "destructive",
+        onPress: () =>
+          saveThen(
+            async () => {
+              await eraseAllData();
+              // Scheduled nudges live in the OS, not the database, so
+              // they have to be cancelled explicitly, or a wiped app
+              // keeps reminding you about a checklist that's gone.
+              await cancelAllNudges();
+              await resetOnboarding();
+            },
+            () => router.replace("/onboarding"),
+            () => undefined,
+          ),
+      },
+    ]);
   };
 
   return (
@@ -308,7 +357,7 @@ export default function SettingsScreen() {
             detail="Deletes every rating, task, grade, and journal entry on this phone."
             hint="Deletes everything on this device and starts over"
             destructive
-            onPress={() => setEraseOpen(true)}
+            onPress={confirmErase}
             theme={theme}
           />
         </Group>
@@ -326,21 +375,6 @@ export default function SettingsScreen() {
         ) : null}
       </ScrollView>
 
-      <EraseDataModal
-        visible={eraseOpen}
-        onClose={() => setEraseOpen(false)}
-        theme={theme}
-        onConfirm={async () => {
-          await eraseAllData();
-          // Scheduled nudges live in the OS, not the database, so they
-          // have to be cancelled explicitly — otherwise a wiped app
-          // keeps reminding you about a checklist that's gone.
-          await cancelAllNudges();
-          await resetOnboarding();
-          setEraseOpen(false);
-          router.replace("/onboarding");
-        }}
-      />
     </View>
   );
 }

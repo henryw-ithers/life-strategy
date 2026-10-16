@@ -82,7 +82,7 @@ table is the navigation aid; the strings themselves live in the files.
 | Screen | File | Copy it holds |
 |---|---|---|
 | Today / checklist | `src/app/(tabs)/(home)/index.tsx` | Section headings ("Done this week", "Completed"), empty states ("Run the diagnostic", "Plan your tasks"), day-record copy ("Today's notes", "From this day"), press-and-hold hints, accessibility labels |
-| Activity sheet | `src/components/today/ActivitySheet.tsx` | "Log an activity", size prompt ("How significant was it?"), day-off and special-day credit explanations, delete confirmation |
+| Activity sheet | `src/components/today/ActivitySheet.tsx` | "Log an activity", size prompt ("How significant was it?"), day-off and special-day credit explanations |
 | Day kind sheet | `src/components/today/DayKindSheet.tsx` | The three day-kind explanations, "Day satisfaction", "What made it special?" |
 | Note sheet | `src/components/today/NoteSheet.tsx` | Journal entry prompts |
 | Week strip / month grid | `src/components/today/WeekStrip.tsx`, `MonthGrid.tsx` | Spoken date labels, grade announcements |
@@ -104,11 +104,17 @@ table is the navigation aid; the strings themselves live in the files.
 |---|---|---|
 | Onboarding | `src/app/onboarding.tsx` | Welcome screens |
 | Notification pre-screen | `src/components/notifications/PermissionPrescreen.tsx` | The in-app ask before the OS prompt (ADR-0010 §4) |
-| Settings | `src/app/settings.tsx` | Reminder controls, recompute explanation, replay-welcome, erase-data description, support resources |
-| Erase data | `src/components/settings/EraseDataModal.tsx` | Destructive confirmation |
+| Settings | `src/app/settings.tsx` | Reminder controls, recompute explanation, replay-welcome, erase-data description and its two confirming alerts, support resources |
 | Backup | `src/app/backup.tsx` | Passphrase, seal/open, restore copy |
 | Feedback | `src/app/feedback.tsx` | Feedback form → `henrywithersfeedback@gmail.com` |
 | Problem report | `src/app/problem.tsx` | Crash-log sharing (ADR-0013) |
+
+**Alerts and the Undo bar.** Confirmations are native alerts, written
+where they're raised: delete goal (`[goalId].tsx`), delete a
+commitment from its own page (`commitment/[id].tsx`), reset everything
+(`settings.tsx`) and the drag question on Home ("Just today" or "From
+now on", `(home)/index.tsx`). Everyday deletes show the Undo bar
+instead; its message ("Note deleted") is set where the delete is.
 
 **Accessibility labels are content too.** `accessibilityLabel` strings
 are read aloud verbatim and are subject to the same rules — PRODUCT.md

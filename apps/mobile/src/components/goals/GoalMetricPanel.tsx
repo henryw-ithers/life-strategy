@@ -21,6 +21,7 @@ import {
 import type { GoalProgressEntry } from "../../db/goals";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
+import { ActionMenu } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { TextField } from "../ui/TextField";
@@ -275,33 +276,53 @@ export function GoalMetricPanel({
 
       {entries.length > 0 ? (
         <View style={styles.entries}>
-          {[...entries].reverse().map((e) => (
-            <Pressable
-              key={e.id}
-              onLongPress={editable ? () => onDelete(e.id) : undefined}
-              accessibilityRole="button"
-              accessibilityLabel={`${num(e.value)} ${label} on ${e.localDate}${
-                e.source === "task" ? ", counted from a task" : ""
-              }`}
-              accessibilityHint={editable ? "Press and hold to delete" : undefined}
-              style={[styles.entryRow, { borderTopColor: theme.hairline }]}
-            >
-              <AppText variant="caption" color={theme.muted} tabular>
-                {e.localDate}
-              </AppText>
-              {/* Auto-counted rows are marked, so a number the app added
-                  on your behalf is never mistaken for one you typed
-                  (ADR-0015 §2). */}
-              {e.source === "task" ? (
-                <AppText variant="footnote" color={theme.muted}>
-                  from a task
+          {[...entries].reverse().map((e) => {
+            const spoken = `${num(e.value)} ${label} on ${e.localDate}${
+              e.source === "task" ? ", counted from a task" : ""
+            }`;
+            const row = (
+              <View style={[styles.entryRow, { borderTopColor: theme.hairline }]}>
+                <AppText variant="caption" color={theme.muted} tabular>
+                  {e.localDate}
                 </AppText>
-              ) : null}
-              <AppText variant="label" color={theme.ink} tabular style={styles.entryValue}>
-                {kind === "cumulative" ? `+${num(e.value)}` : num(e.value)}
-              </AppText>
-            </Pressable>
-          ))}
+                {/* Auto-counted rows are marked, so a number the app added
+                    on your behalf is never mistaken for one you typed
+                    (ADR-0015 §2). */}
+                {e.source === "task" ? (
+                  <AppText variant="footnote" color={theme.muted}>
+                    from a task
+                  </AppText>
+                ) : null}
+                <AppText variant="label" color={theme.ink} tabular style={styles.entryValue}>
+                  {kind === "cumulative" ? `+${num(e.value)}` : num(e.value)}
+                </AppText>
+              </View>
+            );
+            // A tap opens a native menu with Delete (ADR-0043 §1); the
+            // screen offers Undo.
+            return editable ? (
+              <ActionMenu
+                key={e.id}
+                actions={[
+                  {
+                    label: "Delete reading",
+                    icon: "trash",
+                    destructive: true,
+                    onPress: () => onDelete(e.id),
+                  },
+                ]}
+                label={spoken}
+                moreColor={theme.muted}
+                more={false}
+              >
+                {row}
+              </ActionMenu>
+            ) : (
+              <View key={e.id} accessible accessibilityLabel={spoken}>
+                {row}
+              </View>
+            );
+          })}
         </View>
       ) : null}
     </View>

@@ -1,124 +1,82 @@
 /**
- * The two press-and-hold menus on a goal's screen: one for a condition,
- * one for a task under the goal. Each closes itself before acting, so
- * the screen only says what each choice does.
+ * The two menus on a goal's screen, as native menus (ADR-0043 §1): one
+ * for a condition, opened from its heading or its •••, and one for a
+ * task under the goal, opened by tapping the row. These build the
+ * actions; `ActionMenu` draws them.
+ *
+ * A move that can't happen (up from the top) is left out rather than
+ * greyed, as iOS menus do.
  */
 import type { GoalCondition, GoalTask } from "../../db/goals";
-import type { ThemeTokens } from "../../theme/colors";
-import { MenuSheet, type MenuRow } from "../ui/MenuSheet";
+import type { MenuAction } from "../ui/ActionMenu";
 
-/** Close the menu, then act on what it was opened for. */
-export const fromMenu =
-  <T,>(target: T | null, close: () => void, act: (t: T) => void) =>
-  () => {
-    close();
-    if (target) act(target);
-  };
-
-/** Rename · reorder · remove, held by a long press — the same gesture
- *  and card the day record uses. */
-export function ConditionMenu({
-  condition,
-  conditions,
-  onClose,
-  onRename,
-  onMove,
-  onRemove,
-  theme,
-}: {
-  /** The condition the menu is open for; null while closed. */
-  condition: GoalCondition | null;
+/** Rename · reorder · remove. */
+export function conditionActions(
+  c: GoalCondition,
   /** All the goal's conditions, in order, for the move bounds. */
-  conditions: GoalCondition[];
-  onClose: () => void;
-  onRename: (c: GoalCondition) => void;
-  onMove: (c: GoalCondition, delta: -1 | 1) => void;
-  onRemove: (c: GoalCondition) => void;
-  theme: ThemeTokens;
-}) {
-  const act = (fn: (c: GoalCondition) => void) => fromMenu(condition, onClose, fn);
-  return (
-    <MenuSheet
-      visible={condition !== null}
-      theme={theme}
-      onClose={onClose}
-      rows={[
-        { label: "Rename", onPress: act(onRename) },
-        {
-          label: "Move up",
-          disabled: conditions[0]?.id === condition?.id,
-          onPress: act((c) => onMove(c, -1)),
-        },
-        {
-          label: "Move down",
-          disabled: conditions[conditions.length - 1]?.id === condition?.id,
-          onPress: act((c) => onMove(c, 1)),
-        },
-        {
-          // A condition is a grouping, and removing a grouping must never
-          // delete the work in it (ADR-0030) — said on the button,
-          // because that is where the decision is made.
-          label: "Remove condition (keeps its tasks)",
-          destructive: true,
-          onPress: act(onRemove),
-        },
-      ]}
-    />
-  );
+  conditions: GoalCondition[],
+  on: {
+    rename: (c: GoalCondition) => void;
+    move: (c: GoalCondition, delta: -1 | 1) => void;
+    remove: (c: GoalCondition) => void;
+  },
+): MenuAction[] {
+  const first = conditions[0]?.id === c.id;
+  const last = conditions[conditions.length - 1]?.id === c.id;
+  return [
+    { label: "Rename", icon: "pencil", onPress: () => on.rename(c) },
+    ...(first ? [] : [{ label: "Move up", icon: "arrow.up" as const, onPress: () => on.move(c, -1) }]),
+    ...(last ? [] : [{ label: "Move down", icon: "arrow.down" as const, onPress: () => on.move(c, 1) }]),
+    {
+      // A condition is a grouping, and removing a grouping must never
+      // delete the work in it (ADR-0030), so the label says so: that is
+      // where the decision is made.
+      label: "Remove condition (keeps its tasks)",
+      icon: "trash",
+      destructive: true,
+      onPress: () => on.remove(c),
+    },
+  ];
 }
 
 /** Everything you might want to do to a task from a goal. Editing routes
  *  to the Plan screen rather than duplicating its edit sheet: task
  *  mechanics live in one place. */
-export function GoalTaskMenu({
-  task,
-  conditions,
-  onClose,
-  onEdit,
-  onMoveTo,
-  onDetach,
-  theme,
-}: {
-  /** The task the menu is open for; null while closed. */
-  task: GoalTask | null;
-  conditions: GoalCondition[];
-  onClose: () => void;
-  onEdit: (t: GoalTask) => void;
-  /** Into a condition, or out of one (`null`). */
-  onMoveTo: (t: GoalTask, conditionId: string | null) => void;
-  onDetach: (t: GoalTask) => void;
-  theme: ThemeTokens;
-}) {
-  const act = (fn: (t: GoalTask) => void) => fromMenu(task, onClose, fn);
-  const currentTitle = conditions.find((c) => c.id === task?.conditionId)?.title;
-
-  const rows: MenuRow[] = [
-    { label: "Edit in your plan", onPress: act(onEdit) },
+export function goalTaskActions(
+  t: GoalTask,
+  conditions: GoalCondition[],
+  on: {
+    edit: (t: GoalTask) => void;
+    /** Into a condition, or out of one (`null`). */
+    moveTo: (t: GoalTask, conditionId: string | null) => void;
+    detach: (t: GoalTask) => void;
+  },
+): MenuAction[] {
+  const current = conditions.find((c) => c.id === t.conditionId)?.title;
+  const actions: MenuAction[] = [
+    { label: "Edit in your plan", icon: "square.and.pencil", onPress: () => on.edit(t) },
     ...conditions
-      .filter((c) => c.id !== task?.conditionId)
-      .map((c) => ({ label: `Move to “${c.title}”`, onPress: act((t) => onMoveTo(t, c.id)) })),
+      .filter((c) => c.id !== t.conditionId)
+      .map((c) => ({
+        label: `Move to “${c.title}”`,
+        icon: "arrow.right" as const,
+        onPress: () => on.moveTo(t, c.id),
+      })),
   ];
-  if (task?.conditionId) {
-    rows.push({
-      label: currentTitle ? `Move out of “${currentTitle}”` : "Move out of its condition",
-      onPress: act((t) => onMoveTo(t, null)),
+  if (t.conditionId) {
+    actions.push({
+      label: current ? `Move out of “${current}”` : "Move out of its condition",
+      icon: "arrow.uturn.left",
+      onPress: () => on.moveTo(t, null),
     });
   }
-  rows.push({
-    // Destructive-coloured because it removes something, but the task
-    // survives — back on its own under its unit, still earning.
+  actions.push({
+    // Red because it removes something, but the task survives: back on
+    // its own under its unit, still earning.
     label: "Remove from this goal",
+    icon: "minus.circle",
     destructive: true,
-    onPress: act(onDetach),
+    onPress: () => on.detach(t),
   });
-
-  return (
-    <MenuSheet
-      visible={task !== null}
-      theme={theme}
-      onClose={onClose}
-      title={task?.title}
-      rows={rows}
-    />
-  );
+  return actions;
 }

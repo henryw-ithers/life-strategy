@@ -18,6 +18,7 @@ import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,7 +28,11 @@ import {
 } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
-import { type PartOfDay } from "../../../components/plan/planning";
+import {
+  ANYTIME_LABEL,
+  PART_OF_DAY_LABEL,
+  type PartOfDay,
+} from "../../../components/plan/planning";
 import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { ActivitySheet, type ExistingActivity } from "../../../components/today/ActivitySheet";
@@ -41,7 +46,6 @@ import {
   minuteOfToday,
   type SectionKey,
 } from "../../../components/today/daySections";
-import { DropScopeSheet } from "../../../components/today/DropScopeSheet";
 import { MoveTaskSheet } from "../../../components/today/MoveTaskSheet";
 import { NoteSheet } from "../../../components/today/NoteSheet";
 import { PartialSheet } from "../../../components/today/PartialSheet";
@@ -52,6 +56,8 @@ import { TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { WindowSheet } from "../../../components/today/WindowSheet";
 import { AppText } from "../../../components/ui/AppText";
+import { saveThen } from "../../../components/ui/ScreenLoad";
+import { UndoBar } from "../../../components/ui/UndoBar";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
@@ -64,12 +70,13 @@ import { addPhoto, deletePhoto } from "../../../db/photos";
 import { clearPlacementForDay, placeTaskForDay } from "../../../db/placements";
 import { loadDayLayout, setDayLayout, type DayLayout } from "../../../db/settings";
 import { reorderDayTasks, setTaskPartOfDay } from "../../../db/tasks";
-import type { TodayActivity, TodayTask } from "../../../db/today";
+import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { spokenDate } from "../../../lib/format";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { useRetained } from "../../../hooks/useRetained";
+import { useUndoDelete } from "../../../hooks/useUndoDelete";
 
 /** Uniform, because `ReorderableList` positions rows from their index.
  *  Fits a title plus its factual caption with the row's own padding. */
@@ -87,8 +94,21 @@ export default function TodayScreen() {
   /** Dynamic Type, so the grid's hours grow with its labels. */
   const { fontScale } = useWindowDimensions();
 
-  const { day, weekGrade, monthGrades, viewMonth, pools, refresh, select, changeMonth, toggle } =
-    useDayData();
+  const {
+    day: storedDay,
+    weekGrade,
+    monthGrades,
+    viewMonth,
+    pools,
+    refresh,
+    select,
+    changeMonth,
+    toggle,
+  } = useDayData();
+  const undo = useUndoDelete((write) => saveThen(write, refresh));
+  /** The day as shown: a note, photo or activity waiting on Undo is
+   *  already gone from it. */
+  const day = withoutRecord(storedDay, undo.hidden);
 
   const [monthOpen, setMonthOpen] = useState(false);
   const [kindSheet, setKindSheet] = useState(false);
@@ -145,12 +165,6 @@ export default function TodayScreen() {
     poolId: string | null;
     /** Unfinished options from windows that have ended (ADR-0033 §2). */
     carried: string[];
-  } | null>(null);
-  /** A cross-slot drop awaiting its scope answer. */
-  const [dropped, setDropped] = useState<{
-    task: TodayTask;
-    part: PartOfDay | null;
-    ordered: string[];
   } | null>(null);
   /** A task to move once the partial sheet has closed (its "Move it"). */
   const moveNext = useRef<TodayTask | null>(null);
@@ -246,15 +260,24 @@ export default function TodayScreen() {
       void reorderDayTasks(ordered).then(() => refresh());
       return;
     }
-    setDropped({ task: moved, part: toPart, ordered });
+    askDropScope({ task: moved, part: toPart, ordered });
+  };
+
+  /** The question a drag has nowhere to ask, in a native alert (ADR-0043
+   *  §1): is that where the task goes from now on, or just today? The
+   *  row is already where it was put, and Cancel returns it. */
+  const askDropScope = (d: Drop) => {
+    const where = d.part ? PART_OF_DAY_LABEL[d.part] : ANYTIME_LABEL.toLowerCase();
+    Alert.alert(d.task.title, `Moved to ${where}. Is that where it goes from now on?`, [
+      { text: "Just today", onPress: () => commitDrop(d, "today") },
+      { text: "From now on", onPress: () => commitDrop(d, "always") },
+      { text: "Cancel", style: "cancel", onPress: () => void refresh() },
+    ]);
   };
 
   /** Commit the drop's scope: a placement for today, or the task's own
    *  part of day — clearing any placement that would override it. */
-  const commitDrop = (scope: "today" | "always") => {
-    const d = dropped;
-    setDropped(null);
-    if (!d) return;
+  const commitDrop = (d: Drop, scope: "today" | "always") => {
     void (async () => {
       if (scope === "today") {
         await placeTaskForDay(d.task.id, day.date, d.part);
@@ -279,8 +302,12 @@ export default function TodayScreen() {
         day={day}
         theme={theme}
         onEditNote={openNoteEditor}
-        onDeleteNote={(id) => void deleteJournalEntry(id).then(() => refresh())}
-        onDeletePhoto={(id) => void deletePhoto(id).then(() => refresh())}
+        onDeleteNote={(id) =>
+          undo.remove({ id, message: "Note deleted", run: () => deleteJournalEntry(id) })
+        }
+        onDeletePhoto={(id) =>
+          undo.remove({ id, message: "Photo deleted", run: () => deletePhoto(id) })
+        }
       />
       {canRecord ? (
         <RecordActions
@@ -566,6 +593,8 @@ export default function TodayScreen() {
         </View>
       </ScrollView>
 
+      <UndoBar undo={undo} theme={theme} />
+
       {/* One sheet, both jobs: blank to add, seeded to rewrite. */}
       <NoteSheet
         visible={noteSheet}
@@ -582,17 +611,6 @@ export default function TodayScreen() {
             : addJournalEntry(day.date, body);
           void write.then(() => refresh());
         }}
-      />
-
-      <DropScopeSheet
-        drop={dropped ? { title: dropped.task.title, part: dropped.part } : null}
-        onJustToday={() => commitDrop("today")}
-        onFromNowOn={() => commitDrop("always")}
-        onCancel={() => {
-          setDropped(null);
-          void refresh();
-        }}
-        theme={theme}
       />
 
       {planningShown ? (
@@ -779,12 +797,39 @@ export default function TodayScreen() {
         }}
         onDelete={
           existingForSheet
-            ? () => void deleteActivity(existingForSheet.id, day.date).then(() => refresh())
+            ? () => {
+                const { id } = existingForSheet;
+                const { date } = day;
+                undo.remove({
+                  id,
+                  message: "Activity deleted",
+                  run: () => deleteActivity(id, date),
+                });
+              }
             : undefined
         }
       />
     </View>
   );
+}
+
+/** A cross-slot drop awaiting its scope answer. */
+interface Drop {
+  task: TodayTask;
+  part: PartOfDay | null;
+  ordered: string[];
+}
+
+/** The day without the notes, photos and activities whose delete is
+ *  waiting or landing (`useUndoDelete`). */
+function withoutRecord(day: DayData | null, hidden: ReadonlySet<string>): DayData | null {
+  if (day === null || hidden.size === 0) return day;
+  return {
+    ...day,
+    journal: day.journal.filter((j) => !hidden.has(j.id)),
+    photos: day.photos.filter((p) => !hidden.has(p.id)),
+    activities: day.activities.filter((a) => !hidden.has(a.id)),
+  };
 }
 
 const styles = StyleSheet.create({
