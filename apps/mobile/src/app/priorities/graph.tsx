@@ -13,13 +13,13 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { PortfolioGraphView, type GraphSnapshot } from "../../../components/portfolio-graph";
-import { AppText } from "../../../components/ui/AppText";
-import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
-import { Backdrop, constellation } from "../../../components/ui/Backdrop";
-import { loadGraphSnapshots } from "../../../db/graph";
-import { getTheme } from "../../../theme/colors";
-import { space } from "../../../theme/tokens";
+import { PortfolioGraphView, type GraphSnapshot } from "../../components/portfolio-graph";
+import { AppText } from "../../components/ui/AppText";
+import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
+import { Backdrop, constellation } from "../../components/ui/Backdrop";
+import { loadGraphSnapshots } from "../../db/graph";
+import { getTheme } from "../../theme/colors";
+import { space } from "../../theme/tokens";
 
 export default function PortfolioGraphScreen() {
   const scheme = useColorScheme();
@@ -44,7 +44,7 @@ export default function PortfolioGraphScreen() {
           style={styles.back}
         >
           <AppText variant="label" color={theme.muted}>
-            ‹ Portfolio
+            ‹ Back
           </AppText>
         </Pressable>
         <AppText variant="display" color={theme.ink} accessibilityRole="header">

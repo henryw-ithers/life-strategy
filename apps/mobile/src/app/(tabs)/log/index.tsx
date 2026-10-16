@@ -9,9 +9,8 @@
  *
  * It took Settings' place in the tab bar. Settings is the one
  * destination here that was never part of the product's loop, and no
- * app this wants to stand beside — Instagram, Apple Music, Netflix,
- * Uber — spends a primary tab on it; it now sits behind the gear in
- * this screen's header, for the reason given at that control.
+ * app this wants to stand beside spends a primary tab on it. Since
+ * Phase 3b it is a button in the nav bar on Home and Life (spec §2.1).
  *
  * **Memories lead, metrics follow** (design principle 5). A day's score
  * is a small trailing figure, never the headline: what you wrote and
@@ -37,7 +36,6 @@
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
-import { router, type Href } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Modal,
@@ -49,18 +47,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { MonthReview, monthName } from "../../components/log/MonthReview";
-import type { GraphSnapshot } from "../../components/portfolio-graph";
-import { AppText } from "../../components/ui/AppText";
-import { Backdrop, constellation } from "../../components/ui/Backdrop";
-import { Group, GroupDivider } from "../../components/ui/Group";
-import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
-import { ScreenHeader } from "../../components/ui/ScreenHeader";
-import { loadGraphSnapshots } from "../../db/graph";
-import { loadLog, type LogEntry, type LogMonth } from "../../db/log";
-import { currentLocalDate } from "../../lib/calendar";
-import { getTheme, SCRIM, type ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { MonthReview, monthName } from "../../../components/log/MonthReview";
+import type { GraphSnapshot } from "../../../components/portfolio-graph";
+import { AppText } from "../../../components/ui/AppText";
+import { Group, GroupDivider } from "../../../components/ui/Group";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
+import { loadGraphSnapshots } from "../../../db/graph";
+import { loadLog, type LogEntry, type LogMonth } from "../../../db/log";
+import { currentLocalDate } from "../../../lib/calendar";
+import { getTheme, SCRIM, type ThemeTokens } from "../../../theme/colors";
+import { radius, space } from "../../../theme/tokens";
 
 /** "2026-08-19" → "Wed 19". The month is already the section header, so
  *  repeating it on every row would be noise. */
@@ -215,69 +211,55 @@ export default function LogScreen() {
   const multiMonth = (months?.length ?? 0) > 1;
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      {/* Settings lives here rather than in the tab bar. Of the five
-          screens, this is the one that is *yours* — your record — which
-          makes it the nearest thing the app has to the profile surface
-          Instagram and Netflix hang settings from. Home's header is not
-          the place: the grade is its hero and a gear beside it competes. */}
-      <ScreenHeader
-        title="Log"
-        theme={theme}
-        right={
-          <Pressable
-            onPress={() => router.push("/settings" as Href)}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            style={({ pressed }) => [styles.gear, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <Ionicons name="settings-outline" size={22} color={theme.muted} />
-          </Pressable>
-        }
-      />
-
-      {/* Filters appear once there is something to filter. On a log with
-          one month in it they would be five controls over three days. */}
-      {months !== null && months.length > 0 ? (
-        <View style={styles.filters}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
-            {KINDS.map((k) => (
-              <Chip
-                key={k.id}
-                label={k.label}
-                selected={kind === k.id}
-                onPress={() => setKind(k.id)}
-                theme={theme}
-              />
-            ))}
-          </ScrollView>
-          {multiMonth ? (
+    <View style={styles.root}>
+      {/* The scroll view comes first so the large title and the tab bar
+          follow it; the filters scroll with the list for the same reason.
+          The backdrop is drawn behind the tabs (app/(tabs)/_layout.tsx),
+          and Settings moved to Home and Life (Phase 3b). */}
+      <ScrollView
+        style={styles.body}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.container}
+      >
+        {/* Filters appear once there is something to filter. On a log with
+            one month in it they would be five controls over three days. */}
+        {months !== null && months.length > 0 ? (
+          <View style={styles.filters}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipRow}
             >
-              {RANGES.map((r) => (
+              {KINDS.map((k) => (
                 <Chip
-                  key={r.id}
-                  label={r.label}
-                  selected={range === r.id}
-                  onPress={() => setRange(r.id)}
+                  key={k.id}
+                  label={k.label}
+                  selected={kind === k.id}
+                  onPress={() => setKind(k.id)}
                   theme={theme}
                 />
               ))}
             </ScrollView>
-          ) : null}
-        </View>
-      ) : null}
+            {multiMonth ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}
+              >
+                {RANGES.map((r) => (
+                  <Chip
+                    key={r.id}
+                    label={r.label}
+                    selected={range === r.id}
+                    onPress={() => setRange(r.id)}
+                    theme={theme}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+          </View>
+        ) : null}
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.container}>
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : shown === null ? null : months?.length === 0 ? (
@@ -537,7 +519,9 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxxl,
   },
 
-  filters: { gap: space.sm, paddingBottom: space.sm },
+  /** Edge to edge inside the padded list, so the chips scroll off the
+   *  screen's edges rather than the list's. */
+  filters: { gap: space.sm, paddingBottom: space.sm, marginHorizontal: -space.screen },
   chipRow: { gap: space.sm, paddingHorizontal: space.screen },
   chip: {
     minHeight: 32,
@@ -611,7 +595,6 @@ const styles = StyleSheet.create({
   viewerClose: { position: "absolute", right: space.xl },
 
   /** 44pt target around a 22pt glyph, per HIG. */
-  gear: { minWidth: 44, minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   empty: { marginTop: space.xxxl, gap: space.sm },
   emptyText: { maxWidth: 340 },
   clear: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },

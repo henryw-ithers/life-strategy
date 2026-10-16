@@ -32,13 +32,13 @@ import {
   type CommitmentSheetMode,
 } from "../../../components/commitments/CommitmentSheet";
 import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
+import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { Segmented } from "../../../components/plan/Segmented";
 import { AppText } from "../../../components/ui/AppText";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
-import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
-import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { SettingsRow } from "../../../components/ui/SettingsRow";
 import {
   loadCommitmentsScreen,
   type CommitmentsScreenData,
@@ -106,63 +106,77 @@ export default function GoalsScreen() {
   const { error, retry } = useScreenLoad(reload);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      <ScreenHeader title="Goals" theme={theme} />
+    <View style={styles.root}>
+      {/* The scroll view comes first so the large title and the tab bar
+          follow it (see app/(tabs)/_layout.tsx, which draws the
+          backdrop). */}
+      <ScrollView
+        style={styles.body}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.container}
+      >
+        {/* Priorities until Phase 6 rebuilds it as tiers: today's ranking
+            screen, which used to be the Portfolio tab (spec §5, Life). */}
+        <Group theme={theme} flush>
+          <SettingsRow
+            label="Priorities"
+            hint="Opens your priority order"
+            onPress={() => router.push("/priorities" as Href)}
+            theme={theme}
+          />
+        </Group>
 
-      <View style={styles.segment}>
-        <Segmented
-          segments={[
-            { value: "goals" as const, label: "Goals" },
-            { value: "commitments" as const, label: "Commitments" },
-          ]}
-          value={tab}
-          onChange={setTab}
-          accent={theme.accent}
-          theme={theme}
-          label="What to show"
-        />
-      </View>
-
-      {/* Furniture, like the header above it and the add bar on Tasks.
-          It is the only way to start a goal in a unit that has none,
-          now that the list shows goals rather than every place one
-          could go. */}
-      {areas !== null ? (
-        <View style={styles.addBar}>
-          {tab === "goals" ? (
-            <Button
-              variant="tonal"
-              icon="add"
-              label="Add goal"
-              onPress={() => {
-                setAdding(true);
-                setAddingTo(null);
-                setAddingToAreaId(null);
-              }}
-              theme={theme}
-            />
-          ) : commitments?.canAddMore === true ? (
-            <Button
-              variant="tonal"
-              icon="add"
-              label="Add commitment"
-              onPress={() => setSheetMode({ kind: "commitment" })}
-              theme={theme}
-            />
-          ) : (
-            /* The cap says why rather than showing a dead control.
-               A disabled button with no explanation is the version of
-               this that makes people tap twice and give up. */
-            <AppText variant="caption" color={theme.muted}>
-              Three commitments is the most at once. Archive one to add
-              another.
-            </AppText>
-          )}
+        <View style={styles.segment}>
+          <Segmented
+            segments={[
+              { value: "goals" as const, label: "Goals" },
+              { value: "commitments" as const, label: "Commitments" },
+            ]}
+            value={tab}
+            onChange={setTab}
+            accent={theme.accent}
+            theme={theme}
+            label="What to show"
+          />
         </View>
-      ) : null}
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.container}>
+        {/* Furniture, like the header above it and the add bar on Tasks.
+            It is the only way to start a goal in a unit that has none,
+            now that the list shows goals rather than every place one
+            could go. */}
+        {areas !== null ? (
+          <View style={styles.addBar}>
+            {tab === "goals" ? (
+              <Button
+                variant="tonal"
+                icon="add"
+                label="Add goal"
+                onPress={() => {
+                  setAdding(true);
+                  setAddingTo(null);
+                  setAddingToAreaId(null);
+                }}
+                theme={theme}
+              />
+            ) : commitments?.canAddMore === true ? (
+              <Button
+                variant="tonal"
+                icon="add"
+                label="Add commitment"
+                onPress={() => setSheetMode({ kind: "commitment" })}
+                theme={theme}
+              />
+            ) : (
+              /* The cap says why rather than showing a dead control.
+                 A disabled button with no explanation is the version of
+                 this that makes people tap twice and give up. */
+              <AppText variant="caption" color={theme.muted}>
+                Three commitments is the most at once. Archive one to add
+                another.
+              </AppText>
+            )}
+          </View>
+        ) : null}
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
         ) : areas === null ? (
@@ -293,6 +307,19 @@ export default function GoalsScreen() {
         )}
       </ScrollView>
 
+      <TabToolbar
+        onTask={() => openAdd("task")}
+        onEvent={() => openAdd("event")}
+        onLog={() => openAdd("activity")}
+        onGoal={() => {
+          setTab("goals");
+          setAdding(true);
+          setAddingTo(null);
+          setAddingToAreaId(null);
+        }}
+        settings
+      />
+
       {bandOpen ? (
         <BandSheet
           visible
@@ -364,11 +391,8 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  segment: {
-    paddingHorizontal: space.screen,
-    paddingBottom: space.md,
-  },
-  addBar: { paddingHorizontal: space.screen, paddingBottom: space.sm },
+  segment: { paddingTop: space.md, paddingBottom: space.md },
+  addBar: { paddingBottom: space.sm },
   empty: { marginTop: space.xxxl, gap: space.sm },
   emptyText: { maxWidth: 340 },
   root: { flex: 1, overflow: "hidden" },

@@ -30,7 +30,6 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeIn, LinearTransition, useReducedMotion } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AbandonGoalModal } from "../../../components/goals/AbandonGoalModal";
 import { AddExistingTaskSheet } from "../../../components/goals/AddExistingTaskSheet";
@@ -91,7 +90,6 @@ export default function GoalDetailScreen() {
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
 
@@ -171,19 +169,21 @@ export default function GoalDetailScreen() {
   return (
     <View
       style={[styles.root, { backgroundColor: theme.canvas }]}
-      // The screen ends at the tab bar; the keyboard bar needs to know
-      // by how much (see KeyboardBar).
+      // How far the screen's bottom sits above the window's, for the
+      // keyboard bar (see KeyboardBar). Under the native tab bar, which
+      // floats over content, this is normally 0.
       onLayout={(e) =>
         setTabBarGap(Math.max(0, windowHeight - e.nativeEvent.layout.y - e.nativeEvent.layout.height))
       }
     >
       <Backdrop circles={hueWash(accent)} />
       <KeyboardScroll
+        // The native tab bar floats over content; automatic insets keep
+        // the status bar above and the tab bar below clear of it.
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          // Pushed inside the Goals tab, so the bar is still on screen and
-          // owns the bottom inset. Back stays — this is a detail screen.
-          { paddingTop: insets.top + space.md, paddingBottom: space.xxxl },
+          { paddingTop: space.md, paddingBottom: space.xxxl },
         ]}
       >
         <Pressable

@@ -67,9 +67,9 @@ The app follows the **Prism** style, chosen on 2026-10-13
 the 12 unit colours and `tokens.ts` for type and spacing. Contrast is
 checked by `theme/__tests__/palette.test.ts`.
 
-Phase 3 of the redesign is still landing. Native tabs, native sheets,
-native menus and Liquid Glass arrive in its later steps; until then
-the app keeps its own tab bar and sheets, drawn in the Prism colours.
+Phase 3 of the redesign is still landing. Native tabs are in; native
+sheets, native menus and Liquid Glass arrive in its later steps, and
+until then the app keeps its own sheets, drawn in the Prism colours.
 
 ## 1. Overview
 
@@ -253,11 +253,23 @@ The backdrop never sits behind dense data such as a graph.
 
 ### Navigation
 
-Phase 3b replaces the custom tab bar with native iOS tabs: Home
-(`sun.max`), Plan (`calendar`), Life (`square.grid.2x2`) and Log
-(`book.closed`), a label on each, shrinking on scroll. Settings opens
-from a toolbar button, and adding things goes through a `+` menu.
-Focused flows (onboarding, backup) cover the tabs.
+Native iOS tabs (`app/(tabs)/_layout.tsx`): Home (`sun.max`), Plan
+(`calendar`), Life (`square.grid.2x2`) and Log (`book.closed`), a label
+on each, shrinking as you scroll down. Each tab is a native stack whose
+root has a large title (Home has none until Phase 9 rebuilds its own
+header). The nav bar carries a `+` pull-down menu (Task, Event, Log
+something, and Goal on Life) and, on Home and Life, Settings. A menu
+item another tab owns switches to that tab and opens it there.
+
+The backdrop is drawn once behind the tabs, and tab roots are
+transparent. iOS finds the scroll view that drives the large title, the
+glass edge and the shrinking tab bar by following each screen's first
+child, so a tab root's scroll view must come first, with
+`contentInsetAdjustmentBehavior="automatic"`.
+
+Focused flows (onboarding, the diagnostic, Settings, Backup,
+Priorities) are pushed by the root stack and cover the tabs. Pushed
+screens draw their own header until Phase 3d.
 
 ## 6. Do and don't
 

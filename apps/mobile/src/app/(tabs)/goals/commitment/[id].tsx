@@ -38,7 +38,6 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   CommitmentSheet,
@@ -95,7 +94,6 @@ export default function CommitmentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
 
   const [data, setData] = useState<CommitmentUnitScreen | null>(null);
   /** Its own colour, or its commitment's, or its area's (ADR-0043 §4). */
@@ -246,9 +244,12 @@ export default function CommitmentScreen() {
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Backdrop circles={hueWash(accent)} />
       <ScrollView
+        // The native tab bar floats over content; automatic insets keep
+        // the status bar above and the tab bar below clear of it.
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + space.md, paddingBottom: space.xxxl },
+          { paddingTop: space.md, paddingBottom: space.xxxl },
         ]}
       >
         <View style={styles.topBar}>
