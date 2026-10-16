@@ -3,16 +3,14 @@
  * hung underneath it. Conditions are parallel prerequisites — none
  * completes on its own.
  */
-import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Haptics from "expo-haptics";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import type { GoalCondition, GoalTask } from "../../db/goals";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
+import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
 import { Group, GroupDivider } from "../ui/Group";
-import type { MenuAction } from "../ui/ActionMenu";
 import { GoalAddRow, GoalTaskRow } from "./GoalTaskRow";
 
 export function ConditionGroup({
@@ -20,8 +18,8 @@ export function ConditionGroup({
   goalUnitId,
   editable,
   accent,
-  onOpenMenu,
-  onOpenTask,
+  menu,
+  taskActions,
   addChoices,
   theme,
 }: {
@@ -29,51 +27,34 @@ export function ConditionGroup({
   goalUnitId: string;
   editable: boolean;
   accent: string;
-  /** Rename, reorder or remove the condition. */
-  onOpenMenu: () => void;
-  onOpenTask: (task: GoalTask) => void;
+  /** Rename, reorder or remove the condition (`conditionActions`). */
+  menu: MenuAction[];
+  /** A task's menu (`goalTaskActions`). */
+  taskActions: (task: GoalTask) => MenuAction[];
   /** Write a new task, or add one you have (`GoalAddRow`). */
   addChoices: MenuAction[];
   theme: ThemeTokens;
 }) {
   return (
     <Group theme={theme} flush>
-      {/* A visible control, not only a hidden gesture: long press still
-          works and is faster once known, but a person new to the screen
-          has no reason to guess that holding a heading does anything. */}
-      <View style={styles.header}>
-        <Pressable
-          onLongPress={
-            editable
-              ? () => {
-                  void Haptics.selectionAsync();
-                  onOpenMenu();
-                }
-              : undefined
-          }
-          delayLongPress={350}
-          disabled={!editable}
-          accessibilityRole="header"
-          accessibilityLabel={c.title}
-          style={styles.grow}
-        >
-          <AppText variant="headline" color={theme.ink}>
+      {/* A native menu, from a tap on the heading or its •••: a
+          visible control, so nobody has to guess that the heading does
+          anything. */}
+      {editable ? (
+        <ActionMenu actions={menu} label={c.title} moreColor={theme.muted} heading>
+          <View style={styles.header}>
+            <AppText variant="headline" color={theme.ink}>
+              {c.title}
+            </AppText>
+          </View>
+        </ActionMenu>
+      ) : (
+        <View style={styles.header}>
+          <AppText variant="headline" color={theme.ink} accessibilityRole="header">
             {c.title}
           </AppText>
-        </Pressable>
-        {editable ? (
-          <Pressable
-            onPress={onOpenMenu}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit condition: ${c.title}`}
-            accessibilityHint="Rename, reorder or remove"
-            hitSlop={10}
-            style={({ pressed }) => [styles.more, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <Ionicons name="ellipsis-horizontal" size={18} color={theme.muted} />
-          </Pressable>
-        ) : null}
-      </View>
+        </View>
+      )}
 
       {c.tasks.map((t) => (
         <View key={t.id}>
@@ -83,7 +64,7 @@ export function ConditionGroup({
             goalUnitId={goalUnitId}
             areaColors={theme.areas}
             theme={theme}
-            onOpen={editable ? () => onOpenTask(t) : undefined}
+            actions={editable ? taskActions(t) : undefined}
           />
         </View>
       ))}
@@ -123,7 +104,5 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: space.sm,
   },
-  grow: { flex: 1 },
-  more: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   empty: { paddingVertical: space.md },
 });

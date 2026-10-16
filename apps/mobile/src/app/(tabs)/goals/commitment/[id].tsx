@@ -32,7 +32,6 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -55,15 +54,15 @@ import {
   pickableUnits,
   type PickableUnit,
 } from "../../../../components/plan/unitSelection";
+import { ActionMenu, type MenuAction } from "../../../../components/ui/ActionMenu";
 import { AppText } from "../../../../components/ui/AppText";
 import { hueWash, ScrollBackdrop } from "../../../../components/ui/Backdrop";
-import { Button } from "../../../../components/ui/Button";
 import { Group } from "../../../../components/ui/Group";
-import { MenuSheet } from "../../../../components/ui/MenuSheet";
 import {
   LoadFailure,
   useScreenLoad,
 } from "../../../../components/ui/ScreenLoad";
+import { UndoBar } from "../../../../components/ui/UndoBar";
 import { GENERAL_SUB_NAME } from "../../../../db/commitmentPlan";
 import {
   loadCommitmentUnit,
@@ -90,10 +89,11 @@ import {
   type PlanData,
   type PlanTask,
 } from "../../../../db/tasks";
-import { getTheme, SCRIM, unitHue } from "../../../../theme/colors";
+import { getTheme, unitHue } from "../../../../theme/colors";
 import { PALETTE, isPaletteKey } from "../../../../theme/palette";
-import { radius, space } from "../../../../theme/tokens";
+import { space } from "../../../../theme/tokens";
 import { useFirstRead } from "../../../../hooks/useFirstRead";
+import { useUndoDelete } from "../../../../hooks/useUndoDelete";
 import { useRetained } from "../../../../hooks/useRetained";
 
 export default function CommitmentScreen() {
@@ -101,25 +101,10 @@ export default function CommitmentScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
-  const [data, setData] = useState<CommitmentUnitScreen | null>(null);
+  const [loaded, setData] = useState<CommitmentUnitScreen | null>(null);
   const firstHeading = useFirstRead(() => readCommitmentHeading(id));
-  /** Its own colour, or its commitment's, or its area's (ADR-0043 §4). */
-  const accent = data
-    ? unitHue(theme, { areaId: data.areaId, colour: data.colour ?? data.parentColour })
-    : theme.accent;
   const [colourOpen, setColourOpen] = useState(false);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
-  /** What the delete confirm is about: this screen's own unit, or one
-   *  of its sub-commitments, from the press-and-hold menu. */
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: string;
-    name: string;
-    sub: boolean;
-    events: number;
-    tasks: number;
-  } | null>(null);
-  /** The sub-commitment whose press-and-hold menu is open. */
-  const [subMenu, setSubMenu] = useState<CommitmentUnitScreen["subs"][number] | null>(null);
   /** The sub-commitment being renamed from that menu. */
   const [renamingSubId, setRenamingSubId] = useState<string | null>(null);
   const [addingTask, setAddingTask] = useState(false);
@@ -147,7 +132,15 @@ export default function CommitmentScreen() {
   const planTask = (taskId: string): PlanTask | null =>
     plan?.commitments.flatMap((c) => c.tasks).find((t) => t.id === taskId) ?? null;
 
-  const { error, retry } = useScreenLoad(reload);
+  const { error, retry, save } = useScreenLoad(reload);
+  const undo = useUndoDelete(save);
+  /** The page as shown: a sub-commitment, event or task waiting on Undo
+   *  is already gone from it. */
+  const data = withoutItem(loaded, undo.hidden);
+  /** Its own colour, or its commitment's, or its area's (ADR-0043 §4). */
+  const accent = data
+    ? unitHue(theme, { areaId: data.areaId, colour: data.colour ?? data.parentColour })
+    : theme.accent;
   const archived = data !== null && data.archivedAt !== null;
   const isSub = data?.parent != null;
 
@@ -196,16 +189,58 @@ export default function CommitmentScreen() {
     );
   };
 
+  /** Deleting this page's own commitment or sub-commitment: it takes
+   *  history with it and the page goes too, so it asks, in a native
+   *  alert (ADR-0043 §1), and the copy says what survives. */
   const deleteThis = () => {
     if (!data) return;
-    setDeleteTarget({
-      id: data.id,
-      name: data.name,
-      sub: isSub,
-      events: data.events.length,
-      tasks: data.tasks.length,
-    });
+    const { id: unitId, name, events, tasks } = data;
+    Alert.alert(
+      `Delete ${name}?`,
+      isSub
+        ? `It goes for good, with its ${countOf(events.length, "event")} and ${countOf(tasks.length, "task")}. Days you have already scored keep their grades and everything in your log stays.`
+        : "It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, archive it instead.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          // Anything still waiting on Undo goes first, so nothing reloads
+          // a page that's gone.
+          onPress: () =>
+            void undo.settle().then(() =>
+              save(
+                () => deleteCommitment(unitId),
+                () => router.back(),
+              ),
+            ),
+        },
+      ],
+    );
   };
+  /** A sub-commitment's menu in the list: open, rename, delete. Deleting
+   *  from here gets Undo, like any everyday delete. */
+  const subActions = (sub: CommitmentUnitScreen["subs"][number]): MenuAction[] => [
+    {
+      label: "Rename",
+      icon: "pencil",
+      onPress: () => {
+        setRenamingSubId(sub.id);
+        setSheet({ kind: "sub", parentName: data?.name ?? "", name: sub.name });
+      },
+    },
+    {
+      label: "Delete",
+      icon: "trash",
+      destructive: true,
+      onPress: () =>
+        undo.remove({
+          id: sub.id,
+          message: `Deleted “${sub.name}”`,
+          run: () => deleteCommitment(sub.id),
+        }),
+    },
+  ];
   const archiveThis = () => {
     if (!data) return;
     Alert.alert(
@@ -313,8 +348,9 @@ export default function CommitmentScreen() {
                     value={summaryOf(sub.eventCount, sub.taskCount)}
                     theme={theme}
                     onPress={() => router.push(`/goals/commitment/${sub.id}` as Href)}
-                    // Rename and delete, one hold away (Henry, 2026-10-02).
-                    onLongPress={archived ? undefined : () => setSubMenu(sub)}
+                    // Rename and delete, one hold or the ••• away (Henry,
+                    // 2026-10-02).
+                    menu={archived ? undefined : subActions(sub)}
                     last={archived && i === data.subs.length - 1}
                   />
                 ))}
@@ -446,11 +482,14 @@ export default function CommitmentScreen() {
                   await applyTaskEdit(t, next);
                   await reload();
                 }}
-                onDelete={async () => {
+                onDelete={() => {
                   const t = editingTaskShown;
                   setEditingTask(null);
-                  await archiveTask(t.id);
-                  await reload();
+                  undo.remove({
+                    id: t.id,
+                    message: `Deleted “${t.title}”`,
+                    run: () => archiveTask(t.id),
+                  });
                 }}
               />
             ) : null}
@@ -484,10 +523,14 @@ export default function CommitmentScreen() {
                 onDelete={
                   eventSheetShown === "new"
                     ? undefined
-                    : async () => {
-                        await archiveTask(eventSheetShown.id);
+                    : () => {
+                        const { id: eventId, title } = eventSheetShown;
                         setEventSheet(null);
-                        await reload();
+                        undo.remove({
+                          id: eventId,
+                          message: `Deleted “${title}”`,
+                          run: () => archiveTask(eventId),
+                        });
                       }
                 }
               />
@@ -543,104 +586,10 @@ export default function CommitmentScreen() {
               }}
             />
 
-            <MenuSheet
-              visible={subMenu !== null}
-              title={subMenu?.name}
-              theme={theme}
-              onClose={() => setSubMenu(null)}
-              rows={[
-                {
-                  label: "Open",
-                  onPress: () => {
-                    const target = subMenu;
-                    setSubMenu(null);
-                    if (target) router.push(`/goals/commitment/${target.id}` as Href);
-                  },
-                },
-                {
-                  label: "Rename",
-                  onPress: () => {
-                    const target = subMenu;
-                    setSubMenu(null);
-                    if (!target) return;
-                    setRenamingSubId(target.id);
-                    setSheet({ kind: "sub", parentName: data.name, name: target.name });
-                  },
-                },
-                {
-                  label: "Delete",
-                  destructive: true,
-                  onPress: () => {
-                    const target = subMenu;
-                    setSubMenu(null);
-                    if (!target) return;
-                    setDeleteTarget({
-                      id: target.id,
-                      name: target.name,
-                      sub: true,
-                      events: target.eventCount,
-                      tasks: target.taskCount,
-                    });
-                  },
-                },
-              ]}
-            />
-
-            {/* The one irreversible act here, so the one that asks —
-                and the copy says what survives. */}
-            <Modal
-              visible={deleteTarget !== null}
-              transparent
-              statusBarTranslucent
-              animationType="fade"
-              onRequestClose={() => setDeleteTarget(null)}
-            >
-              <View style={styles.confirmBackdrop}>
-                <View
-                  style={[
-                    styles.confirmCard,
-                    { backgroundColor: theme.canvas, borderColor: theme.hairline },
-                  ]}
-                >
-                  <AppText variant="title" color={theme.ink}>
-                    Delete {deleteTarget?.name}?
-                  </AppText>
-                  <AppText color={theme.muted}>
-                    {deleteTarget?.sub
-                      ? `It goes for good, with its ${countOf(deleteTarget.events, "event")} and ${countOf(deleteTarget.tasks, "task")}. Days you have already scored keep their grades and everything in your log stays.`
-                      : `It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, archive it instead.`}
-                  </AppText>
-                  <View style={styles.confirmActions}>
-                    <View style={styles.grow}>
-                      <Button
-                        label="Cancel"
-                        variant="quiet"
-                        onPress={() => setDeleteTarget(null)}
-                        theme={theme}
-                      />
-                    </View>
-                    <View style={styles.grow}>
-                      <Button
-                        label="Delete"
-                        color={theme.danger}
-                        onPress={() => {
-                          const target = deleteTarget;
-                          setDeleteTarget(null);
-                          if (!target) return;
-                          void deleteCommitment(target.id).then(() =>
-                            target.id === data.id ? router.back() : reload(),
-                          );
-                        }}
-                        theme={theme}
-                      />
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </Modal>
           </>
         )}
       </ScrollView>
+      <UndoBar undo={undo} theme={theme} />
     </View>
   );
 }
@@ -663,7 +612,7 @@ function ActionRow({
   label,
   value,
   onPress,
-  onLongPress,
+  menu,
   theme,
   last,
   accent,
@@ -672,27 +621,20 @@ function ActionRow({
   label: string;
   value?: string;
   onPress: () => void;
-  onLongPress?: () => void;
+  /** A native menu, from a hold or the ••• at the end (`ActionMenu`). */
+  menu?: MenuAction[];
   theme: ReturnType<typeof getTheme>;
   last?: boolean;
   accent?: string;
   icon?: "add";
 }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={350}
-      style={({ pressed }) => [
-        styles.row,
-        last === true
-          ? null
-          : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.hairline },
-        { opacity: pressed ? 0.6 : 1 },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={value === undefined ? label : `${label}, ${value}`}
-    >
+  const divider =
+    last === true
+      ? null
+      : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.hairline };
+  const spoken = value === undefined ? label : `${label}, ${value}`;
+  const content = (
+    <>
       {icon === "add" ? (
         <Ionicons
           name="add"
@@ -721,8 +663,48 @@ function ActionRow({
           importantForAccessibility="no"
         />
       ) : null}
+    </>
+  );
+  if (menu) {
+    return (
+      <View style={divider}>
+        <ActionMenu
+          actions={menu}
+          onPress={onPress}
+          label={spoken}
+          hint="Opens it"
+          moreColor={theme.muted}
+        >
+          <View style={styles.row}>{content}</View>
+        </ActionMenu>
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, divider, { opacity: pressed ? 0.6 : 1 }]}
+      accessibilityRole="button"
+      accessibilityLabel={spoken}
+    >
+      {content}
     </Pressable>
   );
+}
+
+/** The page without the sub-commitments, events and tasks whose delete
+ *  is waiting or landing (`useUndoDelete`). */
+function withoutItem(
+  page: CommitmentUnitScreen | null,
+  hidden: ReadonlySet<string>,
+): CommitmentUnitScreen | null {
+  if (page === null || hidden.size === 0) return page;
+  return {
+    ...page,
+    subs: page.subs.filter((s) => !hidden.has(s.id)),
+    events: page.events.filter((e) => !hidden.has(e.id)),
+    tasks: page.tasks.filter((t) => !hidden.has(t.id)),
+  };
 }
 
 const styles = StyleSheet.create({
@@ -738,25 +720,4 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   grow: { flex: 1 },
-  confirmBackdrop: {
-    flex: 1,
-    backgroundColor: SCRIM,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: space.screen,
-  },
-  confirmCard: {
-    width: "100%",
-    maxWidth: 380,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: space.xl,
-    gap: space.md,
-  },
-  confirmActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    marginTop: space.sm,
-  },
 });

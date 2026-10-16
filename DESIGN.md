@@ -67,9 +67,9 @@ The app follows the **Prism** style, chosen on 2026-10-13
 the 12 unit colours and `tokens.ts` for type and spacing. Contrast is
 checked by `theme/__tests__/palette.test.ts`.
 
-Phase 3 of the redesign is still landing. Native tabs are in; native
-sheets, native menus and Liquid Glass arrive in its later steps, and
-until then the app keeps its own sheets, drawn in the Prism colours.
+Phase 3 of the redesign is still landing. Native tabs, sheets, menus
+and alerts are in; Liquid Glass and the app icon arrive in its last
+steps.
 
 ## 1. Overview
 
@@ -222,6 +222,24 @@ Every field is `TextField` (ADR-0043 §5). Its keyboard carries one
 round ⌄ button that hides it, attached through iOS's input accessory
 view so it stays on the keyboard in screens and sheets alike. Sheets
 keep their height when the keyboard opens.
+
+### Menus, alerts and Undo
+
+Menus are native (`ActionMenu`, `Stack.Toolbar.Menu`). Anything a long
+press opens is also reachable from a tap or a ••• button, and an
+action that can't apply is left out, not greyed.
+
+An everyday delete (a note, a photo, an activity, a task, an event, a
+goal reading, a condition, a sub-commitment from its parent's list)
+asks nothing. The thing goes at once and the Undo bar shows above the
+tab bar for about five seconds (`useUndoDelete`, `UndoBar`). The delete
+itself runs only when the bar goes, or when you leave the screen or the
+app, so Undo never has to rebuild anything. With VoiceOver on the bar
+waits until you leave.
+
+A native alert asks only where the loss can't be taken back: deleting
+a goal, deleting a commitment from its own page, and resetting
+everything, which asks twice.
 
 ### Date and time pickers
 

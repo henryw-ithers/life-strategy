@@ -23,6 +23,7 @@ export function ActionMenu({
   children,
   more = true,
   hint: _hint,
+  heading = false,
 }: ActionMenuProps) {
   // `sizing` only matters to the native host; plain views size to content.
   const scheme = useColorScheme();
@@ -33,7 +34,7 @@ export function ActionMenu({
       <View style={styles.row}>
         <Pressable
           onPress={onPress ?? (() => setOpen((o) => !o))}
-          accessibilityRole="button"
+          accessibilityRole={heading ? "header" : "button"}
           accessibilityLabel={label}
           style={styles.grow}
         >

@@ -28,9 +28,8 @@ import { AddExistingTaskSheet } from "../../../components/goals/AddExistingTaskS
 import { CompleteGoalModal } from "../../../components/goals/CompleteGoalModal";
 import { ConditionForm } from "../../../components/goals/ConditionForm";
 import { ConditionGroup } from "../../../components/goals/ConditionGroup";
-import { DeleteGoalModal } from "../../../components/goals/DeleteGoalModal";
 import { GoalHeader } from "../../../components/goals/GoalHeader";
-import { ConditionMenu, GoalTaskMenu } from "../../../components/goals/GoalMenus";
+import { conditionActions, goalTaskActions } from "../../../components/goals/GoalMenus";
 import { GoalToolbar } from "../../../components/goals/GoalToolbar";
 import { GoalMetricPanel } from "../../../components/goals/GoalMetricPanel";
 import { GoalMetricSheet } from "../../../components/goals/GoalMetricSheet";
@@ -44,6 +43,7 @@ import { Button } from "../../../components/ui/Button";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { KeyboardScroll } from "../../../components/ui/KeyboardScroll";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
+import { UndoBar } from "../../../components/ui/UndoBar";
 import {
   abandonGoal,
   addCondition,
@@ -67,6 +67,7 @@ import {
   setGoalTargetDate,
   setTaskCondition,
   type GoalCondition,
+  type GoalDetail,
   type GoalTask,
 } from "../../../db/goals";
 import { addTask } from "../../../db/tasks";
@@ -76,6 +77,7 @@ import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { useFirstRead } from "../../../hooks/useFirstRead";
 import { useRetained } from "../../../hooks/useRetained";
+import { useUndoDelete } from "../../../hooks/useUndoDelete";
 
 /** Where an add was started: straight off the goal (`null`), or from a
  *  condition. */
@@ -86,7 +88,20 @@ export default function GoalDetailScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();
-  const { goal, loaded, units, attachable, reload, save, error, retry } = useGoalDetail(goalId);
+  const {
+    goal: storedGoal,
+    loaded,
+    units,
+    attachable,
+    reload,
+    save,
+    error,
+    retry,
+  } = useGoalDetail(goalId);
+  const undo = useUndoDelete(save);
+  /** The goal as shown: a reading or condition waiting on Undo is
+   *  already gone from it. */
+  const goal = withoutPending(storedGoal, undo.hidden);
   /** The nav bar's title and menu, from the first frame of the push,
    *  then from the loaded goal (`useFirstRead`). */
   const firstHeading = useFirstRead(() => readGoalHeading(goalId));
@@ -96,8 +111,6 @@ export default function GoalDetailScreen() {
   const [abandoning, setAbandoning] = useState(false);
   const [revising, setRevising] = useState(false);
   const [editingMetric, setEditingMetric] = useState(false);
-  /** Deleting is the one irreversible act here, so the one that asks. */
-  const [deleting, setDeleting] = useState(false);
   /** The add-task sheet, and where it was opened from. */
   const [addingTask, setAddingTask] = useState<AddFrom | null>(null);
   /** The inline condition form, shared between adding and renaming —
@@ -105,8 +118,6 @@ export default function GoalDetailScreen() {
   const [conditionTitle, setConditionTitle] = useState("");
   const [editingCondition, setEditingCondition] = useState<string | null>(null);
   const [composingCondition, setComposingCondition] = useState(false);
-  const [conditionMenu, setConditionMenu] = useState<GoalCondition | null>(null);
-  const [movingTask, setMovingTask] = useState<GoalTask | null>(null);
   const [addingExisting, setAddingExisting] = useState<AddFrom | null>(null);
   const [metricShown, metricGone] = useRetained(editingMetric ? true : null);
   const [addingTaskShown, addingTaskGone] = useRetained(addingTask);
@@ -152,6 +163,55 @@ export default function GoalDetailScreen() {
     save(() => reorderConditions(ids));
   };
 
+  const conditionHandlers = {
+    rename: (c: GoalCondition) => {
+      setEditingCondition(c.id);
+      setConditionTitle(c.title);
+      setComposingCondition(true);
+    },
+    move: (c: GoalCondition, delta: -1 | 1) => moveCondition(c.id, delta),
+    remove: (c: GoalCondition) =>
+      undo.remove({
+        id: c.id,
+        message: `Removed “${c.title}”`,
+        run: () => deleteCondition(c.id),
+      }),
+  };
+  const taskActions = (t: GoalTask) =>
+    goalTaskActions(t, goal?.conditions ?? [], {
+      edit: (task) => router.push(`/plan?unit=${task.unitId}` as Href),
+      moveTo: (task, conditionId) => save(() => setTaskCondition(task.id, conditionId)),
+      detach: (task) => save(() => detachTaskFromGoal(task.id)),
+    });
+
+  /** Deleting is the one irreversible act here, so the one that asks,
+   *  in a native alert (ADR-0043 §1). The copy says what survives as
+   *  well as what goes, since "delete" reads worse than it is. */
+  const confirmDelete = () => {
+    if (!goal) return;
+    const { id, title } = goal;
+    Alert.alert(
+      "Delete this goal?",
+      `“${title}” and its conditions go for good. Anything you already achieved stays in your log, and its tasks stay in your plan. They just stop pointing at this goal.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          // A reading or condition still waiting on Undo goes first, so
+          // nothing reloads a goal that's gone.
+          onPress: () =>
+            void undo.settle().then(() =>
+              save(
+                () => deleteGoal(id),
+                () => router.back(),
+              ),
+            ),
+        },
+      ],
+    );
+  };
+
   /** "Add task" means two things, and a person shouldn't have to guess
    *  which one the button does: a native menu asks. */
   const addChoices = (conditionId: string | null): MenuAction[] => [
@@ -193,7 +253,7 @@ export default function GoalDetailScreen() {
           onPause={() => goal && save(() => pauseGoal(goal.id))}
           onRevise={() => setRevising(true)}
           onSetAside={() => setAbandoning(true)}
-          onDelete={() => setDeleting(true)}
+          onDelete={confirmDelete}
         />
       ) : null}
       <KeyboardScroll
@@ -260,9 +320,13 @@ export default function GoalDetailScreen() {
                 onAdd={(value, note) => {
                   save(() => addGoalProgress(goal.id, currentLocalDate(), value, note));
                 }}
-                onDelete={(entryId) => {
-                  save(() => deleteGoalProgress(entryId));
-                }}
+                onDelete={(entryId) =>
+                  undo.remove({
+                    id: entryId,
+                    message: "Reading deleted",
+                    run: () => deleteGoalProgress(entryId),
+                  })
+                }
               />
             ) : editable ? (
               <Group theme={theme} title="Measure">
@@ -300,7 +364,7 @@ export default function GoalDetailScreen() {
                       goalUnitId={goal.unitId}
                       areaColors={theme.areas}
                       theme={theme}
-                      onOpen={editable ? () => setMovingTask(t) : undefined}
+                      actions={editable ? taskActions(t) : undefined}
                     />
                   </View>
                 ))}
@@ -321,8 +385,8 @@ export default function GoalDetailScreen() {
                   goalUnitId={goal.unitId}
                   editable={editable}
                   accent={accent}
-                  onOpenMenu={() => setConditionMenu(c)}
-                  onOpenTask={setMovingTask}
+                  menu={conditionActions(c, goal.conditions, conditionHandlers)}
+                  taskActions={taskActions}
                   addChoices={addChoices(c.id)}
                   theme={theme}
                 />
@@ -499,30 +563,6 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            <ConditionMenu
-              condition={conditionMenu}
-              conditions={goal.conditions}
-              onClose={() => setConditionMenu(null)}
-              onRename={(c) => {
-                setEditingCondition(c.id);
-                setConditionTitle(c.title);
-                setComposingCondition(true);
-              }}
-              onMove={(c, delta) => moveCondition(c.id, delta)}
-              onRemove={(c) => save(() => deleteCondition(c.id))}
-              theme={theme}
-            />
-
-            <GoalTaskMenu
-              task={movingTask}
-              conditions={goal.conditions}
-              onClose={() => setMovingTask(null)}
-              onEdit={(t) => router.push(`/plan?unit=${t.unitId}` as Href)}
-              onMoveTo={(t, conditionId) => save(() => setTaskCondition(t.id, conditionId))}
-              onDetach={(t) => save(() => detachTaskFromGoal(t.id))}
-              theme={theme}
-            />
-
             {addingExistingShown ? (
               <AddExistingTaskSheet
                 visible={addingExisting !== null}
@@ -543,24 +583,30 @@ export default function GoalDetailScreen() {
               />
             ) : null}
 
-            <DeleteGoalModal
-              visible={deleting}
-              goalTitle={goal.title}
-              onCancel={() => setDeleting(false)}
-              onDelete={() => {
-                setDeleting(false);
-                save(
-                  () => deleteGoal(goal.id),
-                  () => router.back(),
-                );
-              }}
-              theme={theme}
-            />
           </>
         )}
       </KeyboardScroll>
+      <UndoBar undo={undo} theme={theme} />
     </View>
   );
+}
+
+/** The goal without the readings and conditions whose delete is
+ *  waiting or landing (`useUndoDelete`). */
+function withoutPending(goal: GoalDetail | null, hidden: ReadonlySet<string>): GoalDetail | null {
+  if (goal === null || hidden.size === 0) return goal;
+  // Removing a condition keeps its tasks (ADR-0030): they show under
+  // the goal's own tasks while the removal waits, as they will after.
+  const removed = goal.conditions.filter((c) => hidden.has(c.id));
+  return {
+    ...goal,
+    progress: goal.progress.filter((e) => !hidden.has(e.id)),
+    conditions: goal.conditions.filter((c) => !hidden.has(c.id)),
+    tasks: [
+      ...goal.tasks,
+      ...removed.flatMap((c) => c.tasks.map((t) => ({ ...t, conditionId: null }))),
+    ],
+  };
 }
 
 const styles = StyleSheet.create({

@@ -16,7 +16,13 @@
  * render there.
  */
 import { Button, HStack, Host, Image, Menu, RNHostView } from "@expo/ui/swift-ui";
-import { accessibilityHint, accessibilityLabel, frame } from "@expo/ui/swift-ui/modifiers";
+import {
+  accessibilityAddTraits,
+  accessibilityHidden,
+  accessibilityHint,
+  accessibilityLabel,
+  frame,
+} from "@expo/ui/swift-ui/modifiers";
 import { StyleSheet } from "react-native";
 import type { SFSymbol } from "sf-symbols-typescript";
 
@@ -47,6 +53,8 @@ export interface ActionMenuProps {
   /** "row" (the default) fills the width, for a list row; "content"
    *  sizes to the content, for a thumbnail in a horizontal strip. */
   sizing?: "row" | "content";
+  /** The row is a heading (a condition's title), for VoiceOver's rotor. */
+  heading?: boolean;
 }
 
 export function ActionMenu({
@@ -58,6 +66,7 @@ export function ActionMenu({
   more = true,
   sizing = "row",
   hint,
+  heading = false,
 }: ActionMenuProps) {
   const fits = sizing === "content";
   const items = actions.map((a) => (
@@ -80,6 +89,7 @@ export function ActionMenu({
           modifiers={[
             ...(fits ? [] : [frame({ maxWidth: Number.MAX_VALUE, alignment: "leading" })]),
             accessibilityLabel(label),
+            ...(heading ? [accessibilityAddTraits(["isHeader"])] : []),
             // A tap-to-open menu is announced as one by VoiceOver itself.
             ...(onPress
               ? [accessibilityHint(hint ? `${hint}. Hold for more.` : "Hold for more.")]
@@ -91,7 +101,13 @@ export function ActionMenu({
         {more ? (
           <Menu
             label={<Image systemName="ellipsis" size={16} color={moreColor} />}
-            modifiers={[frame({ width: 44, height: 44 }), accessibilityLabel(`More for ${label}`)]}
+            modifiers={[
+              frame({ width: 44, height: 44 }),
+              accessibilityLabel(`More for ${label}`),
+              // Where a tap on the row already opens this menu, the •••
+              // is for the eye; VoiceOver gets one stop, not two.
+              ...(onPress ? [] : [accessibilityHidden(true)]),
+            ]}
           >
             {items}
           </Menu>

@@ -21,9 +21,8 @@
  * sits.
  *
  * **Native sheets replaced it (Phase 3c).** Every form sheet is now a
- * `NativeSheet`. This frame remains for the web preview's stand-in and
- * for the one confirmation still drawn by the app (erasing data), which
- * becomes a native alert in Phase 3d.
+ * `NativeSheet`, and every confirmation a native alert (Phase 3d). This
+ * frame remains only for the web preview's stand-in.
  *
  * Three details are load-bearing:
  *

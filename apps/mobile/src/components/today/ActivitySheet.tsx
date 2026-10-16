@@ -1,7 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -241,19 +240,10 @@ export function ActivitySheet({
       {editing && onDelete ? (
         <Pressable
           onPress={() => {
-            // Deleting erases a line of the life log — same stakes as
-            // archiving a task, so it gets the same confirm.
-            Alert.alert("Delete this activity?", "It leaves the day's record.", [
-              { text: "Keep", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => {
-                  onDelete();
-                  onClose();
-                },
-              },
-            ]);
+            // No confirm: the day offers Undo instead (spec §2.2), the
+            // same as deleting a task.
+            onDelete();
+            onClose();
           }}
           accessibilityRole="button"
           style={({ pressed }) => [styles.delete, { opacity: pressed ? 0.5 : 1 }]}

@@ -2,15 +2,13 @@
  * A task under a goal, and the inline add row beneath a goal's lists.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, View, type ViewStyle } from "react-native";
-
-import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
 
 import type { GoalTask } from "../../db/goals";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { formatFrequency } from "../plan/frequency";
+import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
 
 /**
@@ -30,43 +28,24 @@ export function GoalTaskRow({
   goalUnitId,
   areaColors,
   theme,
-  onOpen,
+  actions,
 }: {
   task: GoalTask;
   goalUnitId: string;
   areaColors: Record<string, string>;
   theme: ThemeTokens;
-  /** Opens the task's actions. Undefined on a goal that is not
-   *  editable, where the row is a readout. */
-  onOpen?: () => void;
+  /** The task's menu (`goalTaskActions`). Undefined on a goal that is
+   *  not editable, where the row is a readout. */
+  actions?: MenuAction[];
 }) {
   const elsewhere = task.unitId !== goalUnitId;
   const meta = [formatFrequency(task.timesPerWeek), elsewhere ? task.unitName : null].filter(
     Boolean,
   );
+  const label = `${task.title}, ${meta.join(", ")}`;
 
-  return (
-    <Pressable
-      // Tap, not only long press: there is nowhere for a task to navigate
-      // to from inside a goal, so the tap opens the actions it does have.
-      // Holding does the same, for the muscle memory the day record
-      // teaches.
-      onPress={onOpen}
-      onLongPress={
-        onOpen
-          ? () => {
-              void Haptics.selectionAsync();
-              onOpen();
-            }
-          : undefined
-      }
-      delayLongPress={350}
-      disabled={!onOpen}
-      accessibilityRole={onOpen ? "button" : "text"}
-      accessibilityLabel={`${task.title}, ${meta.join(", ")}`}
-      accessibilityHint={onOpen ? "Edit, move, or remove from this goal" : undefined}
-      style={({ pressed }) => [styles.row, { opacity: pressed && onOpen ? 0.6 : 1 }]}
-    >
+  const row = (
+    <View style={styles.row}>
       <View style={styles.grow}>
         <AppText color={theme.ink} numberOfLines={2}>
           {task.title}
@@ -82,7 +61,19 @@ export function GoalTaskRow({
           </AppText>
         </View>
       </View>
-    </Pressable>
+    </View>
+  );
+
+  // A tap opens the menu: there is nowhere for a task to navigate to
+  // from inside a goal, so the tap opens the actions it does have.
+  return actions ? (
+    <ActionMenu actions={actions} label={label} moreColor={theme.muted} more={false}>
+      {row}
+    </ActionMenu>
+  ) : (
+    <View accessible accessibilityLabel={label}>
+      {row}
+    </View>
   );
 }
 
