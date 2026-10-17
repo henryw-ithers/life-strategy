@@ -12,6 +12,7 @@
       "web"
     ],
     "ios": {
+      "icon": "./assets/app.icon",
       "bundleIdentifier": "com.glidelifestrategy.app",
       "config": {
         "usesNonExemptEncryption": false
@@ -26,9 +27,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#D9B7AA",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 160,
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/images/splash-icon.png"
+          }
         }
       ],
       "expo-sqlite",

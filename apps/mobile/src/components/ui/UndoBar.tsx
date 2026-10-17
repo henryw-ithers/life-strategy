@@ -1,7 +1,7 @@
 /**
  * "Note deleted · Undo": the bar after a delete that can be taken back
- * (`useUndoDelete`). It floats just above the tab bar, like Mail's Undo
- * Send, and goes by itself after about five seconds.
+ * (`useUndoDelete`). It floats just above the tab bar in glass, like
+ * Mail's Undo Send, and goes by itself after about five seconds.
  *
  * It sits in react-native-screens' safe area, which on a tab's screen
  * includes the tab bar, so it clears the bar at any size, minimised or
@@ -10,13 +10,26 @@
  */
 import { useEffect } from "react";
 import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
-import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from "react-native-reanimated";
+import Animated, { Keyframe, useReducedMotion } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-screens/experimental";
 
 import type { UndoDelete } from "../../hooks/useUndoDelete";
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { space } from "../../theme/tokens";
 import { AppText } from "./AppText";
+import { Glass } from "./Glass";
+
+/** A short rise into place, and back down: the bar's own height and a
+ *  bit, not the whole screen (Reanimated's Slide starts off-screen). */
+const TRAVEL = 80;
+const RISE = new Keyframe({
+  0: { transform: [{ translateY: TRAVEL }] },
+  100: { transform: [{ translateY: 0 }] },
+}).duration(220);
+const SINK = new Keyframe({
+  0: { transform: [{ translateY: 0 }] },
+  100: { transform: [{ translateY: TRAVEL }] },
+}).duration(180);
 
 export function UndoBar({ undo, theme }: { undo: UndoDelete; theme: ThemeTokens }) {
   const reduceMotion = useReducedMotion();
@@ -36,26 +49,30 @@ export function UndoBar({ undo, theme }: { undo: UndoDelete; theme: ThemeTokens 
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <SafeAreaView edges={{ bottom: true }} style={styles.area} pointerEvents="box-none">
         {pending ? (
+          // Moves rather than fades: glass stops rendering while
+          // anything above it is see-through (`Glass`).
           <Animated.View
             key={pending.id}
-            entering={reduceMotion ? undefined : FadeInDown.duration(200)}
-            exiting={reduceMotion ? undefined : FadeOutDown.duration(200)}
-            style={[styles.bar, { backgroundColor: theme.surface }]}
+            entering={reduceMotion ? undefined : RISE}
+            exiting={reduceMotion ? undefined : SINK}
+            style={styles.slot}
           >
-            <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
-              {pending.message}
-            </AppText>
-            <Pressable
-              onPress={undo.undo}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Undo: ${pending.message}`}
-              style={({ pressed }) => [styles.undo, { opacity: pressed ? 0.5 : 1 }]}
-            >
-              <AppText variant="headline" color={theme.accent}>
-                Undo
+            <Glass style={styles.bar} fallback={theme.surface}>
+              <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
+                {pending.message}
               </AppText>
-            </Pressable>
+              <Pressable
+                onPress={undo.undo}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Undo: ${pending.message}`}
+                style={({ pressed }) => [styles.undo, { opacity: pressed ? 0.5 : 1 }]}
+              >
+                <AppText variant="headline" color={theme.accent}>
+                  Undo
+                </AppText>
+              </Pressable>
+            </Glass>
           </Animated.View>
         ) : null}
       </SafeAreaView>
@@ -65,17 +82,16 @@ export function UndoBar({ undo, theme }: { undo: UndoDelete; theme: ThemeTokens 
 
 const styles = StyleSheet.create({
   area: { justifyContent: "flex-end" },
+  slot: { marginHorizontal: space.screen, marginBottom: space.md },
+  /** A capsule, like iOS's own floating glass controls. */
   bar: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
     minHeight: 52,
-    marginHorizontal: space.screen,
-    marginBottom: space.md,
     paddingLeft: space.lg,
     paddingRight: space.sm,
-    borderRadius: radius.xl,
-    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.16)",
+    borderRadius: 26,
   },
   grow: { flex: 1 },
   undo: { minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: space.sm },

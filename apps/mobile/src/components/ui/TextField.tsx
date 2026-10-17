@@ -41,6 +41,7 @@ import { KeyboardController } from "react-native-keyboard-controller";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space, type as typeScale } from "../../theme/tokens";
+import { Glass } from "./Glass";
 
 export interface TextFieldProps extends TextInputProps {
   theme: ThemeTokens;
@@ -91,18 +92,23 @@ export function TextField({
                 accessibilityRole="button"
                 accessibilityLabel="Hide keyboard"
                 hitSlop={8}
-                style={({ pressed }) => [
-                  styles.hide,
-                  { backgroundColor: PlatformColor("secondarySystemGroupedBackground") },
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
               >
-                <SymbolView
-                  name="keyboard.chevron.compact.down"
-                  size={22}
-                  tintColor={PlatformColor("label")}
-                  fallback={<Ionicons name="chevron-down" size={22} color={theme.ink} />}
-                />
+                {({ pressed }) => (
+                  <Glass
+                    style={styles.hide}
+                    fallback={PlatformColor("secondarySystemGroupedBackground")}
+                    interactive
+                  >
+                    {/* Pressed feedback on the glyph, never on the glass. */}
+                    <SymbolView
+                      name="keyboard.chevron.compact.down"
+                      size={22}
+                      tintColor={PlatformColor("label")}
+                      style={{ opacity: pressed ? 0.5 : 1 }}
+                      fallback={<Ionicons name="chevron-down" size={22} color={theme.ink} />}
+                    />
+                  </Glass>
+                )}
               </Pressable>
             </View>
           </InputAccessoryView>
@@ -123,7 +129,8 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 88, textAlignVertical: "top" },
   /** Out of the layout: the accessory renders on the keyboard, not here. */
   accessoryHolder: { position: "absolute", width: 0, height: 0 },
-  /** A round button floating at the right, over the top of the keyboard. */
+  /** A round glass button floating at the right, over the top of the
+   *  keyboard, like iOS 26's own keyboard controls. */
   bar: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -136,6 +143,5 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 1px 4px rgba(0, 0, 0, 0.18)",
   },
 });

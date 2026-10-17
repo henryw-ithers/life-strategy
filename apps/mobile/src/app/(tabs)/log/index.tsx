@@ -38,25 +38,24 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MonthReview, monthName } from "../../../components/log/MonthReview";
 import type { GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../../components/ui/Group";
+import { PhotoViewer } from "../../../components/ui/PhotoViewer";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { loadGraphSnapshots } from "../../../db/graph";
 import { loadLog, type LogEntry, type LogMonth } from "../../../db/log";
 import { currentLocalDate } from "../../../lib/calendar";
-import { getTheme, SCRIM, type ThemeTokens } from "../../../theme/colors";
+import { getTheme, type ThemeTokens } from "../../../theme/colors";
 import { radius, space } from "../../../theme/tokens";
 
 /** "2026-08-19" → "Wed 19". The month is already the section header, so
@@ -163,7 +162,6 @@ function Chip({
 export default function LogScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
-  const insets = useSafeAreaInsets();
 
   const [months, setMonths] = useState<LogMonth[] | null>(null);
   const [snapshots, setSnapshots] = useState<GraphSnapshot[]>([]);
@@ -347,31 +345,7 @@ export default function LogScreen() {
           where the rest of that day is around it for context — the log
           is a record, and a record you can edit in passing is a worse
           one. Tapping anywhere closes, the way a camera roll does. */}
-      <Modal
-        visible={viewing !== null}
-        transparent
-        statusBarTranslucent
-        animationType="fade"
-        onRequestClose={() => setViewing(null)}
-      >
-        <Pressable
-          style={styles.photoViewer}
-          onPress={() => setViewing(null)}
-          accessibilityRole="button"
-          accessibilityLabel="Close photo"
-        >
-          {viewing !== null ? (
-            <Image
-              source={{ uri: viewing }}
-              style={styles.photoFull}
-              contentFit="contain"
-            />
-          ) : null}
-          <View style={[styles.viewerClose, { top: insets.top + space.lg }]}>
-            <Ionicons name="close" size={26} color="#ffffff" />
-          </View>
-        </Pressable>
-      </Modal>
+      <PhotoViewer uri={viewing} onClose={() => setViewing(null)} />
     </View>
   );
 }
@@ -587,14 +561,6 @@ const styles = StyleSheet.create({
     padding: space.xs,
   },
   centerText: { textAlign: "center" },
-  photoViewer: {
-    flex: 1,
-    backgroundColor: SCRIM,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoFull: { width: "100%", height: "100%" },
-  viewerClose: { position: "absolute", right: space.xl },
 
   /** 44pt target around a 22pt glyph, per HIG. */
   empty: { marginTop: space.xxxl, gap: space.sm },

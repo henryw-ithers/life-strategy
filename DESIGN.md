@@ -67,9 +67,9 @@ The app follows the **Prism** style, chosen on 2026-10-13
 the 12 unit colours and `tokens.ts` for type and spacing. Contrast is
 checked by `theme/__tests__/palette.test.ts`.
 
-Phase 3 of the redesign is still landing. Native tabs, sheets, menus
-and alerts are in; Liquid Glass and the app icon arrive in its last
-steps.
+Phase 3 of the redesign is nearly done. Native tabs, sheets, menus,
+alerts, Liquid Glass and the app icon are in; plain backups are its
+last step.
 
 ## 1. Overview
 
@@ -199,10 +199,14 @@ overlays are the only things that sit above the screen, and from Phase
 3c they are native sheets that draw their own edge. A card or button
 that needs emphasis gets colour or weight, never a shadow.
 
-Liquid Glass (Phase 3e) is for controls only: the tab bar, toolbars,
-sheets and buttons that float over content. Cards, rows and the score
-are never glass, glass never sits on glass, and custom glass turns
-solid when Reduce Transparency is on.
+Liquid Glass is for controls only: the tab bar, toolbars, sheets and
+buttons that float over content. iOS draws the bars, menus and sheets;
+the app's own floating controls use `Glass` (`expo-glass-effect`): the
+Undo bar, the keyboard's hide button and a photo viewer's buttons.
+Cards, rows and the score are never glass, and glass never sits on
+glass. `Glass` turns solid when Reduce Transparency is on, before iOS
+26 and in the web preview. Nothing above glass may fade, or it stops
+rendering: move it instead, as the Undo bar does.
 
 ## 5. Components
 
@@ -270,6 +274,17 @@ navigation bar has little to blur at rest (spec §2.2). Two modes:
   commitment, a goal).
 
 The backdrop never sits behind dense data such as a graph.
+
+### App icon
+
+The constellation: the six area colours as bubbles, the backdrop
+drawn as an icon. It is an Icon Composer `.icon` package
+(`assets/app.icon`), written by hand: `icon.json` and one SVG per
+bubble, in three glass groups (the two smallest at the front, the two
+largest at the back). White behind it in light mode, black in dark;
+iOS makes the tinted version. `assets/images/icon.png` is the same
+drawing flattened, for iOS before 26, and the launch screen and web
+favicon match it.
 
 ### Navigation
 
