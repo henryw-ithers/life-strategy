@@ -82,6 +82,20 @@ The shares of all commitments that day are added up and kept between
 10% and `commitmentBandMax` (60, 70 or 80%). Each commitment keeps its
 proportion inside that.
 
+> **Clarified 2026-10-17 (Henry).**
+>
+> - **The one-commitment limit is 70, not 60**, so §1's example, a full
+>   School day at about 69%, holds even when School is your only
+>   commitment. The limits are 70, 70 and 80 for one, two and three
+>   commitments (`shareLimit`). The user-set band keeps 60 until the app
+>   scores with the share.
+> - **An undated commitment one-off counts toward the share only on the
+>   day it's ticked.** It's open every day until done, so counting it on
+>   each would make every day a School day.
+> - **With no working time and no events**, the commitments are the
+>   whole day: each takes its part of their combined time, so their
+>   proportions still stand at the limit.
+
 A day you've set with no working hours, but with commitment work, gets
 the maximum, since the commitment is the whole of that day's planned
 time. Before any hours are set at all, the three default windows count
@@ -159,9 +173,11 @@ Removing the last one puts the work back, using the restore rule ADR-0035
 
 ## Action items
 
-1. [ ] `commitmentShare(day)` in `packages/scoring/src/bands.ts`, with
+1. [x] `commitmentShare(day)` in `packages/scoring/src/bands.ts`, with
        tests: the 44% example, the limits, the no-hours day, overrides,
        several commitments, and a mid-day window edit (EC-50, EC-56).
+       Done in Phase 4c, with `commitmentDayFromShare` and `shareLimit`
+       (§2's clarification).
 2. [ ] Store each day's starting hours alongside the grade, so the share
        can be recalculated exactly.
 3. [ ] "Share of your day" on the commitment screen. The old band sheet

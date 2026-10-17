@@ -154,6 +154,17 @@ describe("coverage — an early session stands in for the next (ADR-0032 §4)", 
     expect(coverage(mwf, [TUE])).toEqual(new Map([[TUE, WED]]));
   });
 
+  it("takes the next real session when the week ahead is skipped (EC-22)", () => {
+    // A Monday lecture, with next week skipped (reading week): a tick on
+    // Friday stands in for the Monday after it.
+    const lecture = {
+      plannedWeekdays: "1",
+      timesPerWeek: 1,
+      skippedDates: new Set([NEXT_MON]),
+    };
+    expect(coverage(lecture, [FRI])).toEqual(new Map([[FRI, "2026-10-12"]]));
+  });
+
   it("ignores completions on the task's own days", () => {
     expect(coverage(mwf, [MON, WED, FRI]).size).toBe(0);
   });

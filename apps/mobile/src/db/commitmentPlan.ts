@@ -13,6 +13,7 @@ import {
   MAX_COMMITMENTS,
   type CommitmentDay,
   type CommitmentGroup,
+  type ScheduleBounds,
 } from "@glide/scoring";
 
 /** The commitment fields these rules need. */
@@ -301,7 +302,7 @@ export function scheduledDateFor(
     plannedWeekdays: string | null;
     timesPerWeek: number;
     fortnightOffset?: number;
-  },
+  } & ScheduleBounds,
   date: string,
 ): string | null {
   if (task.oneOffSize != null) {
@@ -316,8 +317,10 @@ export function scheduledDateFor(
 
 // ── An early session stands in for the next one (ADR-0032 §4) ───────
 
-/** The schedule fields `isDueOn` reads. */
-export interface ScheduledTask {
+/** The schedule fields `isDueOn` reads, its bounds and skips included:
+ *  a skipped session isn't a session, so an early tick before a skipped
+ *  week takes the next real one (ADR-0040 §3, EC-22). */
+export interface ScheduledTask extends ScheduleBounds {
   plannedWeekdays: string | null;
   timesPerWeek: number;
   fortnightOffset?: number;
