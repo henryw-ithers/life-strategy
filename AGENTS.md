@@ -226,10 +226,12 @@ second one. What separates it is its **band**, not its table
 - **On a day with scheduled commitment work, the commitment band is
   that share of the whole day.** By default each commitment's share is
   its time that day (event hours plus the size-hours of its tasks
-  scheduled that day; pins and carried tasks never count) divided by
+  scheduled that day; pins and carried tasks never count, and an undated
+  one-off counts only on the day it's ticked) divided by
   the day's working hours as they stood at the start of the day
-  (ADR-0044). The total is kept between 10 and `commitmentBandMax` (60,
-  70 or 80 for one, two or three commitments), and a user-set share
+  (ADR-0044). The total is kept between 10 and `shareLimit` (70, 70 or
+  80 for one, two or three commitments; the user-set band still caps
+  at 60 for one until the app scores with the share), and a user-set share
   overrides the automatic one. It is
   paid as the share of today's commitment work done, and ADR-0029's
   whole day — planned 90, unplanned 10, extra runs — is scaled into

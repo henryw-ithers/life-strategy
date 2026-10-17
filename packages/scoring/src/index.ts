@@ -25,10 +25,16 @@ export type {
   BandUnit,
   CommitmentDay,
   CommitmentGroup,
+  CommitmentWorkToday,
+  DayShare,
   Pool,
+  ShareDayInput,
 } from "./bands";
 export {
   commitmentBandOn,
+  commitmentDayFromShare,
+  commitmentShare,
+  shareLimit,
   commitmentPointValues,
   lifeShare,
   normalizeBand,

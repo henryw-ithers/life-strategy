@@ -27,8 +27,11 @@
  * see there. Frequency decides how often something is due, not what it
  * is worth when it is.
  */
+import { sizeMinutes } from "./fill";
+import { merge, subtract, totalMinutes, type TimeRange } from "./hours";
 import { largestRemainder } from "./rounding";
 import { taskPointValues } from "./tasks";
+import type { TaskSize } from "./windows";
 
 /** Everything you planned: recurring tasks and one-offs alike. */
 export const PLANNED_BAND = 90;
@@ -155,6 +158,18 @@ export function commitmentBandMax(commitments: number): number {
   return 60;
 }
 
+/**
+ * The limit on the share worked out from the day (ADR-0044 §2, as
+ * clarified 2026-10-17): **70 with one or two commitments, 80 with
+ * three.** Henry raised the one-commitment limit from 60 so that a day
+ * full of School work is mostly a School day even when School is your
+ * only commitment. The user-set band (`commitmentBandMax`) keeps 60
+ * until the app scores with the share (Phase 5).
+ */
+export function shareLimit(commitments: number): number {
+  return commitments >= 3 ? 80 : 70;
+}
+
 /** At most three commitments (ADR-0035 §1). */
 export const MAX_COMMITMENTS = 3;
 
@@ -193,8 +208,12 @@ export interface Pool {
  */
 export interface CommitmentDay {
   /** 10 up to `commitmentBandMax(commitments.length)`. Clamped and
-   *  snapped to a step of 5 by `normalizeBand`. */
+   *  snapped to a step of 5 by `normalizeBand`, unless `fromDay`. */
   band: number;
+  /** The band was worked out from the day (`commitmentShare`,
+   *  ADR-0044) rather than set by hand: it is used as it is, clamped but
+   *  never snapped to a step of 5. */
+  fromDay?: boolean;
   commitments: readonly CommitmentGroup[];
   /** Ids of the commitment tasks scheduled or planned for this date. */
   eligibleTaskIds: readonly string[];
@@ -206,10 +225,16 @@ export interface CommitmentDay {
  *  nearest step of 5 (ADR-0032 §2). A setting above the cap — 80 kept
  *  from when there were three commitments, after one was archived — is
  *  read as the cap, never stored back down. */
-export function normalizeBand(band: number, commitments = 1): number {
+export function normalizeBand(band: number, commitments = 1, snap = true): number {
   if (!Number.isFinite(band)) return COMMITMENT_BAND_MIN;
-  const snapped =
-    Math.round(band / COMMITMENT_BAND_STEP) * COMMITMENT_BAND_STEP;
+  if (!snap) {
+    // Worked out from the day: `commitmentShare` already applied the
+    // limit for how many commitments you have. Only the outer bounds
+    // apply here, so a caller passing just today's commitments can't
+    // price the day below the share it shows.
+    return Math.min(COMMITMENT_BAND_MAX, Math.max(COMMITMENT_BAND_MIN, Math.round(band)));
+  }
+  const snapped = Math.round(band / COMMITMENT_BAND_STEP) * COMMITMENT_BAND_STEP;
   return Math.min(
     commitmentBandMax(commitments),
     Math.max(COMMITMENT_BAND_MIN, snapped),
@@ -258,7 +283,7 @@ export function rebalanceShares(
  */
 export function commitmentBandOn(day: CommitmentDay | null | undefined): number {
   if (!day || day.eligibleTaskIds.length === 0) return 0;
-  return normalizeBand(day.band, day.commitments.length);
+  return normalizeBand(day.band, day.commitments.length, day.fromDay !== true);
 }
 
 /**
@@ -358,7 +383,7 @@ export function commitmentPointValues(
   const shareTotal = active.reduce((a, c) => a + c.share, 0);
   if (shareTotal <= 0) return values;
 
-  const band = normalizeBand(day.band, day.commitments.length);
+  const band = normalizeBand(day.band, day.commitments.length, day.fromDay !== true);
   const budgets = largestRemainder(
     active.map((c) => (band * c.share) / shareTotal),
     band,
@@ -374,6 +399,144 @@ export function commitmentPointValues(
     );
   });
   return values;
+}
+
+// ── The share from the day (ADR-0044) ───────────────────────────────
+
+/** One commitment's work scheduled today, as the share reads it. */
+export interface CommitmentWorkToday {
+  readonly commitmentId: string;
+  /** Its events today, still due (skipped ones left out). */
+  readonly events: readonly TimeRange[];
+  /**
+   * The sizes of its tasks **scheduled** today: pinned to today's
+   * weekday, a one-off dated today, or that day's run of a repeating
+   * task. A pin into a window, or a task carried in from an earlier
+   * day, isn't scheduled today, so planning can't move the share
+   * (ADR-0044 §1). An undated one-off counts only on the day it's ticked
+   * (clarified 2026-10-17). After Clear today, only what was already
+   * ticked.
+   */
+  readonly taskSizes: readonly (TaskSize | null)[];
+  /** A share you set ("School at 60%"), in percent of the day, which
+   *  replaces the automatic one on every day it has work (§3). */
+  readonly fixedShare?: number | null;
+}
+
+export interface ShareDayInput {
+  /**
+   * The working time the day began with (`dayHours(...).working`: edits
+   * made ahead of time count, those made on the day don't; §5, EC-56).
+   * With no hours set, the default windows.
+   */
+  readonly working: readonly TimeRange[];
+  readonly commitments: readonly CommitmentWorkToday[];
+  /** How many commitments you have, for the limit (`shareLimit`: 70,
+   *  70 or 80). */
+  readonly commitmentCount: number;
+  /** Any other events today (life events): their time outside working
+   *  hours is part of your day too. */
+  readonly otherEvents?: readonly TimeRange[];
+}
+
+export interface DayShare {
+  /** The whole commitment band today, in percent: 0 on a day with no
+   *  commitment work, otherwise between 10 and the limit. */
+  readonly band: number;
+  /** Each commitment's part of the band, whole percents summing to it.
+   *  Only commitments with work today. */
+  readonly shares: ReadonlyMap<string, number>;
+  /** Each commitment's automatic share before an override or the
+   *  limits, rounded: what the screen shows beside a set share. */
+  readonly automatic: ReadonlyMap<string, number>;
+}
+
+/**
+ * A commitment's share of the day (ADR-0044 §§1–3).
+ *
+ *     commitment time = its events today + its tasks scheduled today
+ *                       (0.5, 1 or 2 hours each, by size)
+ *     your day        = today's working time + event time outside it
+ *     share           = commitment time ÷ your day
+ *
+ * The shares of the commitments with work today are added up and kept
+ * between 10% and the limit for how many commitments you have, each
+ * keeping its proportion. A day with commitment work and no working
+ * time is the commitment's whole day, so it takes the limit. A share you
+ * set replaces the automatic one, within the same limits.
+ *
+ * With 8 working hours, a 1.5-hour lecture and two Normal School tasks,
+ * School is (1.5 + 2) ÷ 8, about 44%. Size reaches the score only here,
+ * by sizing the share; it never prices one task against another
+ * (ADR-0026 §2).
+ */
+export function commitmentShare(input: ShareDayInput): DayShare {
+  const cap = shareLimit(input.commitmentCount);
+  const working = merge(input.working, false);
+  const allEvents = [...input.commitments.flatMap((c) => c.events), ...(input.otherEvents ?? [])];
+  let outside = merge(allEvents);
+  for (const w of working) outside = subtract(outside, w);
+  const dayMinutes = totalMinutes(working) + totalMinutes(outside);
+
+  const work = input.commitments
+    .map((c) => ({
+      c,
+      minutes: totalMinutes(c.events) + c.taskSizes.reduce((a, s) => a + sizeMinutes(s), 0),
+    }))
+    .filter((w) => w.minutes > 0);
+  // With no working time and no events, the commitments are the whole
+  // day: each takes its part of their combined time, so the total is
+  // 100 (held at the limit) and their proportions still stand.
+  const denominator = dayMinutes > 0 ? dayMinutes : work.reduce((a, w) => a + w.minutes, 0);
+
+  const automatic = new Map<string, number>();
+  const raw: { id: string; value: number }[] = [];
+  for (const { c, minutes } of work) {
+    const auto = (100 * minutes) / denominator;
+    automatic.set(c.commitmentId, Math.round(auto));
+    const fixed = c.fixedShare;
+    raw.push({
+      id: c.commitmentId,
+      value: fixed != null && Number.isFinite(fixed) && fixed > 0 ? fixed : auto,
+    });
+  }
+
+  const total = raw.reduce((a, r) => a + r.value, 0);
+  if (raw.length === 0 || total <= 0) {
+    return { band: 0, shares: new Map(), automatic };
+  }
+  const band = Math.round(Math.min(cap, Math.max(COMMITMENT_BAND_MIN, total)));
+  const parts = largestRemainder(
+    raw.map((r) => (band * r.value) / total),
+    band,
+  );
+  return {
+    band,
+    shares: new Map(raw.map((r, i) => [r.id, parts[i] ?? 0])),
+    automatic,
+  };
+}
+
+/**
+ * A day's `CommitmentDay` from its share: the band and each
+ * commitment's part, worked out from the day, ready for
+ * `commitmentPointValues` and the grade. Null on a day with no
+ * commitment work, which is an ordinary day (ADR-0032 §1).
+ */
+export function commitmentDayFromShare(
+  share: DayShare,
+  commitments: readonly CommitmentGroup[],
+  eligibleTaskIds: readonly string[],
+  pools?: readonly Pool[],
+): CommitmentDay | null {
+  if (share.band <= 0 || eligibleTaskIds.length === 0) return null;
+  return {
+    band: share.band,
+    fromDay: true,
+    commitments: commitments.map((c) => ({ ...c, share: share.shares.get(c.commitmentId) ?? 0 })),
+    eligibleTaskIds,
+    pools,
+  };
 }
 
 /**
