@@ -1,3 +1,5 @@
+import type { Tier } from "./weights";
+
 /**
  * Task-count guidance (ADR-0003 §6): recommendations, not enforcement.
  * A single source of truth for the weight → task-count band table,
@@ -24,4 +26,26 @@ export function recommendedTaskRange(weight: number): { min: number; max: number
   if (weight >= 4) return { min: 1, max: 2 };
   if (weight >= 2) return { min: 1, max: 1 };
   return { min: 0, max: 1 };
+}
+
+/**
+ * Task-count guidance by tier (ADR-0041, action item 4): the same four
+ * bands, read from the tier rather than from a point count, because a
+ * tier is what the user chose and the points follow from it. Not now
+ * holds no tasks at all (ADR-0041 §3).
+ *
+ * Dormant until tiers are stored (Phase 5): until then the app reads
+ * `recommendedTaskRange` from rank-derived weights.
+ */
+export function recommendedTaskRangeForTier(tier: Tier): { min: number; max: number } {
+  switch (tier) {
+    case "top":
+      return { min: 2, max: 3 };
+    case "important":
+      return { min: 1, max: 2 };
+    case "background":
+      return { min: 1, max: 1 };
+    case "notNow":
+      return { min: 0, max: 0 };
+  }
 }

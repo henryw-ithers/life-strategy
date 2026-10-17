@@ -35,6 +35,16 @@ export function localDateOf(now: Date, rolloverHour = ROLLOVER_HOUR): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Whether a string is a real local date in `YYYY-MM-DD` form: the shape
+ *  every comparison here relies on (plain string order is date order
+ *  only for zero-padded dates). */
+export function isLocalDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 0));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() + 1 === m && dt.getUTCDate() === d;
+}
+
 export function addDays(date: string, n: number): string {
   return format(new Date(parse(date).getTime() + n * DAY_MS));
 }

@@ -168,9 +168,11 @@ has used a build with the field, so nothing is moved into notes.
 
 ## Action items
 
-1. [ ] `inScheduleOn`, `untilForWeeks`, and repeat bounds and skips in
+1. [x] `inScheduleOn`, `untilForWeeks`, and repeat bounds and skips in
        `isDueOn`, `isAnchoredOn` and `weeklyGoal`. Tests for EC-21–EC-33
-       and EC-48–EC-51.
+       and EC-48–EC-51. Done in Phase 4a (`weeklyGoalFor`, Away days in
+       `computeDayLoad`, `emptiedToday` in `isRestDay`); the commitment
+       cases (EC-22, EC-29's share) come with the commitment share.
 2. [ ] Schema: `task.repeat_from`, `task.repeat_until`,
        `schedule_skip`, `day_clear`, `away_range`. Drop
        `task.location`. Record bounds and skips in `plan_snapshot`.

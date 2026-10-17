@@ -12,6 +12,7 @@ import {
   type LoadCompletion,
   type LoadTask,
   runsBefore,
+  weeklyGoalFor,
 } from "./dayLoad";
 import { addDays, fortnightStart, weekStart } from "./days";
 
@@ -88,8 +89,11 @@ export function deriveChecklist(
   date: string,
   /** The life share of the day (`lifeShare`); 1 on an ordinary day. */
   scale = 1,
+  /** Away days this week (`computeDayLoad`), so a row shows what the
+   *  day will pay. */
+  away?: ReadonlySet<string>,
 ): TaskDayStatus[] {
-  const load = computeDayLoad(tasks, completions, date);
+  const load = computeDayLoad(tasks, completions, date, away);
   return tasks.map((t) => {
     const window = windowFor(t, date);
     const inWindow = completions.filter(
@@ -103,7 +107,9 @@ export function deriveChecklist(
       t,
       inWindow.filter((c) => c.localDate !== date),
     );
-    const goalCount = t.oneOff ? 1 : t.timesPerWeek === 0 ? 1 : t.timesPerWeek;
+    // The same goal the load uses, so a bounded series shows what it
+    // can still owe this week (ADR-0040).
+    const goalCount = weeklyGoalFor(t, date);
     const extraToday = doneBeforeToday >= goalCount;
     const band: TaskBand = extraToday
       ? "doneThisWeek"
@@ -350,6 +356,14 @@ export interface RestDayInput {
   openThisWeek: boolean;
   /** Whether anything was done early today. */
   earlyToday: boolean;
+  /**
+   * Whether the day had something due when it began and was emptied on
+   * the day itself, by a same-day skip or Clear today (ADR-0040 §3).
+   * Such a day is ungraded, never a rest day: otherwise emptying a day
+   * would score 70, more than doing its work. Required, so no caller
+   * can forget it and let a cleared day score 70.
+   */
+  emptiedToday: boolean;
 }
 
 /**
@@ -362,13 +376,21 @@ export interface RestDayInput {
  * which makes it one (Henry: doing Friday's task on an empty Tuesday
  * makes Tuesday "70 + the task"). An empty day with work still open
  * and none of it done is ungraded, as ADR-0029 has it.
+ *
+ * **A rest day needs a day that had nothing due when it began**
+ * (ADR-0040 §3). Skipped ahead of time, an empty day can be one;
+ * emptied on the day (`emptiedToday`), it is ungraded instead (EC-24,
+ * EC-29).
  */
 export function isRestDay(
   load: DayLoad,
   commitmentBand: number,
-  rest: Pick<RestDayInput, "hasPlan" | "openThisWeek" | "earlyToday"> | undefined,
+  rest:
+    | Pick<RestDayInput, "hasPlan" | "openThisWeek" | "earlyToday" | "emptiedToday">
+    | undefined,
 ): boolean {
   if (!rest || load.expected > 0 || commitmentBand > 0 || !rest.hasPlan) return false;
+  if (rest.emptiedToday) return false;
   return !rest.openThisWeek || rest.earlyToday;
 }
 
@@ -395,9 +417,11 @@ export function plannedDayRunPoints(
   task: LoadTask,
   plannedDate: string,
   scale = 1,
+  /** Away days that week (`computeDayLoad`). */
+  away?: ReadonlySet<string>,
 ): number {
   const all = tasks.some((t) => t.taskId === task.taskId) ? tasks : [...tasks, task];
-  const load = computeDayLoad(all, completionsBefore, plannedDate);
+  const load = computeDayLoad(all, completionsBefore, plannedDate, away);
   return scale * runPoints(task.weight, load.expected);
 }
 
