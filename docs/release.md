@@ -64,15 +64,16 @@ and none of them is visible to a user:
 - **URL scheme `glide://`** — any link already shared would stop
   resolving.
 
-The internal package names (`@glide/scoring`, `@glide/backup`, the
-root workspace, and the `glide-crypto` native module) also stayed.
-Renaming the native module would mean touching the Swift module name,
-the podspec, and autolinking — real risk, zero user-visible benefit.
+The internal package names (`@glide/scoring`, `@glide/backup` and the
+root workspace) also stayed. The `glide-crypto` native module, which
+kept the name too, was removed with the backup encryption
+([ADR-0046](adr/0046-backups-are-plain-files.md)).
 
-**iOS only** since [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
-The Android package name is gone along with the `android` block; if
-Android ever returns it needs a new ADR, because the export exemption
-above is Apple-specific and a second platform forfeits it.
+**iOS only** since [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md),
+and still since [ADR-0046](adr/0046-backups-are-plain-files.md): the
+app is built from iOS-only parts (native tabs, SwiftUI sheets, Liquid
+Glass). The Android package name is gone along with the `android`
+block; if Android ever returns it needs a new ADR.
 
 The identifier is **not** `com.glide.app`, which was the intended one
 until the first build attempt (2026-08-04) failed: App IDs are unique
@@ -142,9 +143,9 @@ part of how this happened. The npm scripts sidestep it entirely.
 
 **The day-to-day workflow is a development build**
 ([ADR-0043](adr/0043-the-app-uses-native-ios-controls.md)). Expo Go
-can't run the app: the backup cryptography is a native module
-([ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md)), and
-from SDK 56 Expo Go isn't on the App Store anyway. The development
+can't run the app: it uses native modules Expo Go doesn't include
+(`@expo/ui`, `expo-glass-effect`), and from SDK 56 Expo Go isn't on the
+App Store anyway. The development
 build is the app with Expo's developer menu added. Install it once,
 then `npm run mobile` loads your current code into it over Wi-Fi, the
 same way Expo Go did. A new build is only needed when a native
@@ -164,11 +165,10 @@ package or the app config changes.
    development build. The phone and the Mac must be on the same Wi-Fi,
    or use `npx expo start --dev-client --tunnel`.
 
-Anything touching `packages/backup`, `src/backup/`, or
-`modules/glide-crypto` therefore needs a dev client to verify. That
-build is also the only place the Swift runs at all: the vitest suite
-pins the envelope format against Node's AES-GCM and PBKDF2, which
-catches format drift but never executes CryptoKit.
+The backup format in `packages/backup` is pure TypeScript and fully
+covered by its vitest suite. Writing and restoring a real file
+(`src/backup/`, the share sheet and the file picker) still needs the
+development build to check.
 
 ## First run through
 
@@ -201,18 +201,20 @@ answers App Store Connect's export-compliance question on every upload
 instead of leaving each build flagged "Missing Compliance" until
 someone clicks through the questionnaire.
 
-**It says `false` because every cryptographic operation in the app is
-Apple's own** — AES-256-GCM from CryptoKit and PBKDF2-HMAC-SHA256 from
-CommonCrypto, through the `glide-crypto` module in
-`apps/mobile/modules/`. Cryptography performed via Apple's frameworks
-is squarely inside the exemption, so there is no BIS filing, no
-self-classification report, and no annual return.
+**It says `false` because the app contains no encryption of its own.**
+Backups are plain files
+([ADR-0046](adr/0046-backups-are-plain-files.md)); their CRC-32 is a
+checksum, not cryptography. Until 2026-10-16 backups were encrypted
+with Apple's CryptoKit and CommonCrypto, which kept the app inside the
+exemption for Apple's own frameworks
+([ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md)).
+There is no BIS filing, no self-classification report and no annual
+return.
 
 **This is a decision, not a default, and it is load-bearing.** The same
-flag previously read `false` by inheritance while the app shipped
-Argon2id and AES from `@noble` — which was simply wrong, and would have
-been an inaccurate declaration attached to the developer account. The
-full reasoning is [ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md).
+flag once read `false` by inheritance while the app shipped Argon2id
+and AES from `@noble`, which was simply wrong, and would have been an
+inaccurate declaration attached to the developer account.
 
 **What would break it.** Adding *any* bundled third-party cryptographic
 implementation — a JS cipher, a hashing library used for anything
@@ -224,15 +226,15 @@ annual filing. Neither is onerous; both are silent failures if nobody
 notices the flag no longer matches the binary.
 
 So: **if a change adds a crypto dependency, it also changes this
-file.** `packages/backup` carries the same warning at the top of
-`envelope.ts` and in its package description, and
-`src/backup/crypto.ts` names the specific tempting mistake — adding a
-JS fallback so backup works in Expo Go again.
+file**, and needs an ADR (AGENTS.md;
+[ADR-0046](adr/0046-backups-are-plain-files.md)). The most tempting one
+is encrypting backups again; `packages/backup/src/envelope.ts` says so
+at the top.
 
 Apple declines to interpret the EAR and puts liability for an
-inaccurate claim on the developer, so if the crypto stack ever moves
-back off Apple's frameworks, confirm the classification with someone
-qualified rather than inheriting it from this file.
+inaccurate claim on the developer, so if any cryptography is ever
+added, confirm the classification with someone qualified rather than
+inheriting it from this file.
 
 ## Where tester feedback arrives
 

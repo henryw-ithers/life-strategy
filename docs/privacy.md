@@ -47,9 +47,10 @@ ways that can happen, and you start all three:
   wrote.
 - **Send log** opens the share sheet with the problem log's text and you
   choose where it goes. The text is plain and visible before you send.
-- **Backups** are encrypted with a passphrase you choose before they
-  leave the app, and go wherever you decide to put them. Without that
-  passphrase nobody can open one, including us.
+- **Backups** are one plain file with everything you've written in it,
+  and go wherever you decide to put them. A backup isn't locked with a
+  passphrase, so anyone who has the file can read it. Keep it
+  somewhere private. We never see it.
 
 Nothing in the app sends anything on its own, on a schedule, or in the
 background.

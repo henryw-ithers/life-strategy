@@ -21,7 +21,8 @@ wins.
 
 The app has its own design language and should feel like itself
 rather than like a system app. It targets iOS only
-([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md)).
+([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md),
+kept by [ADR-0046](docs/adr/0046-backups-are-plain-files.md)).
 
 ## Product Purpose
 

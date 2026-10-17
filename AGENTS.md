@@ -55,26 +55,23 @@ npm workspaces monorepo:
   All derivation/grading math lives here as pure functions with vitest
   tests — including which days a task is scheduled on (`schedule.ts`),
   which the app reads rather than reimplementing.
-- `packages/backup` — the pure backup envelope (`@glide/backup`):
-  header encode/decode and the seal/open flow. Same rule — **no React
-  Native imports** — so the format is testable off-device. It
-  **performs no cryptography**: AES-256-GCM and PBKDF2 arrive injected
-  as a `BackupCrypto` (ADR-0020). The device half (SQLite serialize,
-  share sheet, file picker) stays in `apps/mobile/src/backup/`.
-- `apps/mobile/modules/glide-crypto` — a local Expo module wrapping
-  **Apple's** CryptoKit and CommonCrypto. Swift, iOS-only, deliberately
-  thin. It is custom native code, so it only runs in a development or
-  TestFlight build, which is how the app is run anyway.
+- `packages/backup` — the pure backup file format (`@glide/backup`):
+  writing a backup and reading one back, with a header and a CRC-32.
+  Same rule, **no React Native imports**, so the format is testable
+  off-device. A backup is a **plain file, not encrypted** (ADR-0046).
+  The device half (SQLite serialize, share sheet, file picker) stays
+  in `apps/mobile/src/backup/`.
 
-**iOS is the only target** (ADR-0020 amended ADR-0001; Android was
+**iOS is the only target** (ADR-0020 amended ADR-0001, and ADR-0046
+kept it; Android was
 dropped along with its `android` block and adaptive icons). The app
 also runs in a browser as a **development preview only** — a way to
 look at UI without a device, never a target. Its setup is easy to
 break; read [docs/web-preview.md](docs/web-preview.md) before touching
 `metro.config.js`, `src/db/client.web.ts`, the `expo-sqlite` patch in
 `patches/`, or the web entry `index.web.js` (which loads Skia's
-WebAssembly build before the router starts). Backup does not work
-there: a browser can't run the native crypto module.
+WebAssembly build before the router starts). Backup is untested
+there; it is a device feature.
 
 Root commands: `npm test` (both packages, plus the app's pure-logic
 tests — every `__tests__` folder under `apps/mobile/src`; ADR-0013 put
@@ -258,14 +255,15 @@ second one. What separates it is its **band**, not its table
   copy rules and never count events.
 - The daily surface stays checklist-simple; complexity belongs in the
   periodic strategy layer.
-- **All cryptography is Apple's, and adding any bundled crypto library
-  is a decision with legal consequences** (ADR-0020). Shipping only
-  CryptoKit/CommonCrypto is what makes the app export-exempt and lets
-  `app.json` declare `usesNonExemptEncryption: false` honestly. A JS
-  cipher — most temptingly, a fallback so backup works in Expo Go
-  again — silently makes that declaration false and pulls the app back
-  under EAR reporting. If you genuinely need one, say so and update
-  [docs/release.md](docs/release.md); do not add it quietly.
+- **The app ships no cryptography of its own, and adding any is a
+  decision with legal consequences** (ADR-0020, ADR-0046). Backups are
+  plain files, so nothing in the app encrypts, which is what lets
+  `app.json` declare `usesNonExemptEncryption: false` honestly. A
+  bundled cipher, or encryption brought back for backups, silently
+  makes that declaration false and puts the app under EAR reporting.
+  If you genuinely need one, say so, write an ADR and update
+  [docs/release.md](docs/release.md); do not add it quietly. The
+  backup's CRC-32 is a checksum, not cryptography.
 
 ## Conventions
 
@@ -277,8 +275,8 @@ second one. What separates it is its **band**, not its table
   user-facing strings moved. **Every internal `glide` identifier
   deliberately stayed** — the bundle id `com.glidelifestrategy.app`
   (changing it costs every tester their data), the Expo slug, the
-  `glide://` URL scheme, the `@glide/*` package names, and the
-  `glide-crypto` native module. Do not "finish" the rename by
+  `glide://` URL scheme and the `@glide/*` package names. Do not
+  "finish" the rename by
   changing them; the reasoning for each is in
   [docs/release.md](docs/release.md). The feedback address **did**
   move, separately, to `henrywithersfeedback@gmail.com`.

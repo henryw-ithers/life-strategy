@@ -17,7 +17,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | # | Decision | Status |
 |---|----------|--------|
 | [0001](0001-platform-and-tech-stack.md) | Expo (React Native) and TypeScript, chosen over a web app, Flutter, or native Swift and Kotlin | Accepted; EAS builds instead of Expo Go per 0043 |
-| [0002](0002-data-model-and-persistence.md) | Local SQLite schema for the taxonomy, diagnostics, goals, tasks and grades | Accepted; decision 4 and goal history amended by 0041 and 0042 |
+| [0002](0002-data-model-and-persistence.md) | Local SQLite schema for the taxonomy, diagnostics, goals, tasks and grades | Accepted; decision 4 and goal history amended by 0041 and 0042; Backup v1 amended by 0046 |
 | [0003](0003-scoring-and-weight-derivation.md) | First weight formula, rounding, overrides, and pricing tasks by rank | Accepted; §1 amended by 0028 |
 | [0004](0004-grade-lifecycle-and-aggregation.md) | When a day closes, day kinds, and weekly and monthly totals | Accepted; §2 superseded by 0014; Away and emptied days per 0040 |
 | [0005](0005-diagnostic-snapshots-and-history.md) | Monthly diagnostic, snapshots that never destroy data, measured bubble size | Accepted; §1 amended and §§3–4 removed by 0041 |
@@ -31,7 +31,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0014](0014-partial-credit.md) | Tasks can opt in to partial completion in 25% steps | Accepted |
 | [0015](0015-metric-linked-goals.md) | Goals that track a number or a habit streak | Accepted; metric kinds replaced by 0042 |
 | [0019](0019-multi-unit-tasks.md) | One task can serve up to three units | Accepted |
-| [0020](0020-backup-cryptography-and-export-exemption.md) | Backups use only Apple's cryptography, which keeps the app export-exempt; iOS only | Accepted |
+| [0020](0020-backup-cryptography-and-export-exemption.md) | Backups use only Apple's cryptography, which keeps the app export-exempt; iOS only | Superseded by 0046 |
 | [0021](0021-areas-are-presentational.md) | Life areas affect colour and grouping, never scores | Accepted; §2 colours amended by 0043 |
 | [0022](0022-satisfaction-is-rated-not-ranked.md) | Priority is ranked; satisfaction is rated 1–10 | Accepted; satisfaction no longer asked (0041) |
 | [0023](0023-planned-work-is-what-pays.md) | Unplanned credit is capped; only your own plan pays above 100 | Accepted |
@@ -57,6 +57,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Accepted |
 | [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Accepted |
+| [0046](0046-backups-are-plain-files.md) | Backups are plain files: no passphrase, no encryption, a CRC-32 check | Accepted |
 
 ## Reading guide
 
@@ -105,7 +106,7 @@ when its trigger happens.
 | # | Title | Write it when… | Decides |
 |---|-------|----------------|---------|
 | 0012 | Backup service and identity | cloud backup is enabled in a real build | Where encrypted backups are stored, how restore works without an account, passphrase recovery, cost |
-| 0016 | Multi-device sync | a second device becomes a real need | Sync approach, conflict handling, sharing keys between devices. Since 0020 made the app iOS-only, any second platform would lose the export exemption |
+| 0016 | Multi-device sync | a second device becomes a real need | Sync approach, conflict handling, sharing keys between devices. 0020 made the app iOS-only and 0046 kept it; a second platform needs its own ADR |
 | 0017 | Opt-in AI personalisation | the curated library starts to feel generic | Provider, disclosure, what is redacted, cost; must keep contentment data excluded (0008) |
 | 0018 | Templates and sharing | the core loop is stable | Package format, import and export, attribution |
 

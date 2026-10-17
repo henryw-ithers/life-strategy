@@ -1,16 +1,11 @@
 /**
- * Export and restore (ADR-0002 "Backup (v1)", action item 3).
+ * Export and restore (ADR-0002 "Backup (v1)", action item 3, as amended
+ * by ADR-0046).
  *
- * The envelope format lives in `@glide/backup` and the cryptography in
- * the `glide-crypto` native module (ADR-0020); this file is only the
- * device half — getting a consistent database image out, handing the
- * sealed bytes to the share sheet, and putting a restored image back
- * safely.
- *
- * Because the crypto is a native module, **backup and restore need a
- * development or TestFlight build** — Expo Go cannot load custom native
- * code. `isCryptoAvailable` is re-exported so the UI can say so plainly
- * instead of failing at the moment someone types a passphrase.
+ * The file format lives in `@glide/backup`; this file is only the
+ * device half: getting a consistent database image out, handing the
+ * file to the share sheet, and putting a restored image back safely.
+ * A backup is a plain file, not encrypted (ADR-0046).
  *
  * Scope, deliberately: **manual, local, database-only.** No storage
  * provider, no account, no automatic upload — those are ADR-0012's
@@ -19,23 +14,13 @@
  * survive a restore pointing at files that do not, which the day view
  * renders as a missing-photo placeholder rather than crashing.
  */
-import {
-  BackupError,
-  openBackup,
-  readHeader,
-  sealBackup,
-  type BackupMeta,
-} from "@glide/backup";
+import { BackupError, readBackup, readHeader, writeBackup, type BackupMeta } from "@glide/backup";
 import Constants from "expo-constants";
-import * as Crypto from "expo-crypto";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
 import migrations from "../../drizzle/migrations";
 import { sqlite } from "../db/client";
-import { deviceCrypto } from "./crypto";
-
-export { isCryptoAvailable } from "./crypto";
 
 /** `drizzle/migrations.js` ships `{ journal, migrations }`; the
  *  journal's entry count is the schema generation a file was written
@@ -59,28 +44,21 @@ export interface ExportResult {
 }
 
 /**
- * Seal the database and hand it to the share sheet. `serializeAsync`
- * is SQLite's own serialize: it yields a consistent image of the live
- * connection, so there is no file copy to race and no `-wal` sidecar
- * to miss.
- *
- * The passphrase is not stored anywhere. That is the whole point — a
- * key sitting in this device's keychain would die with this device,
- * which is the case a backup exists for.
+ * Write the database to a backup file and hand it to the share sheet.
+ * `serializeAsync` is SQLite's own serialize: it yields a consistent
+ * image of the live connection, so there is no file copy to race and
+ * no `-wal` sidecar to miss.
  */
-export async function exportBackup(passphrase: string): Promise<ExportResult> {
+export async function exportBackup(): Promise<ExportResult> {
   const payload = await sqlite.serializeAsync();
 
-  const sealed = await sealBackup({
+  const file = writeBackup({
     payload,
-    passphrase,
     meta: {
       appVersion: appVersion(),
       migrationCount: migrationCount(),
       createdAt: new Date().toISOString(),
     },
-    crypto: deviceCrypto,
-    randomBytes: Crypto.getRandomBytes,
   });
 
   // `.lsbk` predates both renames and stays — see the MAGIC note in
@@ -92,7 +70,7 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
   const target = new File(Paths.cache, fileName);
   if (target.exists) target.delete();
   target.create();
-  target.write(sealed);
+  target.write(file);
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(target.uri, {
@@ -102,7 +80,7 @@ export async function exportBackup(passphrase: string): Promise<ExportResult> {
     });
   }
 
-  return { fileName, bytes: sealed.length };
+  return { fileName, bytes: file.length };
 }
 
 export interface BackupPreview {
@@ -115,10 +93,9 @@ export interface BackupPreview {
 }
 
 /**
- * Let the user pick a backup and read its provenance — deliberately
- * before asking for a passphrase, so "wrong file" is discovered by
- * looking rather than by failing to decrypt. Returns null if the
- * picker was dismissed.
+ * Let the user pick a backup and read its provenance, so "wrong file"
+ * is discovered by looking before anything is replaced. Returns null
+ * if the picker was dismissed.
  */
 export async function pickBackup(): Promise<BackupPreview | null> {
   // Since SDK 57 this returns `{ canceled, result }` rather than the
@@ -142,12 +119,13 @@ export type RestoreOutcome =
   | { status: "refused"; reason: string };
 
 /**
- * Decrypt, verify, and swap in the restored database.
+ * Check, then swap in the restored database.
  *
  * Order matters, and it is chosen so a failure never costs data:
  *
- * 1. Decrypt and authenticate **before** touching anything on disk —
- *    a wrong passphrase leaves the device untouched.
+ * 1. Read and check the whole file (length, checksum, a SQLite image)
+ *    **before** touching anything on disk: a damaged file leaves the
+ *    device untouched.
  * 2. Refuse a schema newer than this build.
  * 3. Write the current database beside itself as `.pre-restore` — the
  *    undo for someone who restores the wrong file.
@@ -160,12 +138,8 @@ export type RestoreOutcome =
  * returns having invalidated it: the caller's only correct next move
  * is to tell the user to relaunch.
  */
-export async function restoreBackup(
-  preview: BackupPreview,
-  passphrase: string,
-): Promise<RestoreOutcome> {
-  const envelope = await new File(preview.uri).bytes();
-  const opened = await openBackup(envelope, passphrase, deviceCrypto); // throws BackupError
+export async function restoreBackup(preview: BackupPreview): Promise<RestoreOutcome> {
+  const opened = readBackup(await new File(preview.uri).bytes()); // throws BackupError
 
   if (opened.meta.migrationCount > migrationCount()) {
     return {
@@ -178,11 +152,14 @@ export async function restoreBackup(
   const dbPath = sqlite.databasePath;
   const live = new File(dbPath);
 
+  // The rescue copy comes from SQLite's own serialize, like a backup
+  // does: copying the database file would miss whatever is still in its
+  // `-wal` journal, and the file is deleted below.
+  const current = await sqlite.serializeAsync();
   const rescue = new File(`${dbPath}.pre-restore`);
   if (rescue.exists) rescue.delete();
-  // `copy()` became async in Expo SDK 56. Without the await, the live
-  // database could be deleted below before its rescue copy is written.
-  if (live.exists) await live.copy(rescue);
+  rescue.create();
+  rescue.write(current);
 
   await sqlite.closeAsync();
 
@@ -207,7 +184,9 @@ export function describeBackupError(error: unknown): string | null {
       return "That file isn't a Life Strategy backup.";
     case "unsupported-format":
       return "This backup was written by a newer version of the app. Update first, then restore.";
-    case "bad-passphrase-or-corrupt":
-      return "That passphrase didn't open this backup. If you're sure it's right, the file may be damaged.";
+    case "encrypted-format":
+      return "This backup was made with a passphrase, before backups became plain files. This version of the app can’t open it.";
+    case "damaged":
+      return "This backup is damaged and can’t be restored. If you have another copy of it, try that one.";
   }
 }
