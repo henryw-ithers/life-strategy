@@ -345,9 +345,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   input: {
-    // Same reasoning as the backup screen's passphrase fields: a bare
-    // TextInput renders in the system face, which is the one way to get
-    // two typefaces onto a screen by accident.
+    // A bare TextInput renders in the system face, which is the one way
+    // to get two typefaces onto a screen by accident.
     ...typeScale.body,
     minHeight: 140,
     borderWidth: StyleSheet.hairlineWidth,

@@ -105,7 +105,7 @@ table is the navigation aid; the strings themselves live in the files.
 | Onboarding | `src/app/onboarding.tsx` | Welcome screens |
 | Notification pre-screen | `src/components/notifications/PermissionPrescreen.tsx` | The in-app ask before the OS prompt (ADR-0010 §4) |
 | Settings | `src/app/settings.tsx` | Reminder controls, recompute explanation, replay-welcome, erase-data description and its two confirming alerts, support resources |
-| Backup | `src/app/backup.tsx` | Passphrase, seal/open, restore copy |
+| Backup | `src/app/backup.tsx` | Back up and restore copy, the "anyone with the file can read it" note, the restore alert; error sentences in `src/backup/backupFile.ts` |
 | Feedback | `src/app/feedback.tsx` | Feedback form → `henrywithersfeedback@gmail.com` |
 | Problem report | `src/app/problem.tsx` | Crash-log sharing (ADR-0013) |
 

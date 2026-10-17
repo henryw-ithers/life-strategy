@@ -1,16 +1,19 @@
 /**
- * Your data (ADR-0002 "Backup (v1)"). Manual, local, database-only:
- * export seals the database with a passphrase and hands it to the
- * share sheet; restore reads one back.
+ * Your data (ADR-0002 "Backup (v1)", as amended by ADR-0046). Manual,
+ * local, database-only: Back up writes the database to one file and
+ * hands it to the share sheet; Restore reads one back.
  *
- * Copy rules (docs/design/copy-guide.md) still hold — nothing here
- * nags or conditions on how the user has been doing. But restore
- * replaces data, and the passphrase genuinely cannot be recovered, so
- * both say so plainly. Clarity about consequences is not shame.
+ * A backup is a plain file with no passphrase (ADR-0046), so the
+ * screen says plainly that anyone with the file can read it. Restore
+ * replaces data, so it asks first, in a native alert that shows where
+ * the file came from (ADR-0043 §1). Clarity about consequences is not
+ * shame (docs/design/copy-guide.md).
  */
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  ScrollView,
   StyleSheet,
   useColorScheme,
   View,
@@ -19,7 +22,6 @@ import {
 import {
   describeBackupError,
   exportBackup,
-  isCryptoAvailable,
   pickBackup,
   restoreBackup,
   type BackupPreview,
@@ -27,85 +29,49 @@ import {
 import { AppText } from "../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
-import { KeyboardScroll } from "../components/ui/KeyboardScroll";
-import { TextField } from "../components/ui/TextField";
-import { getTheme, type ThemeTokens } from "../theme/colors";
-import { radius, space, type as typeScale } from "../theme/tokens";
-
-const MIN_PASSPHRASE = 8;
+import { getTheme } from "../theme/colors";
+import { radius, space } from "../theme/tokens";
 
 type Mode =
   | { kind: "idle" }
   | { kind: "exporting" }
-  | { kind: "export-passphrase" }
-  | { kind: "restore-passphrase"; preview: BackupPreview }
   | { kind: "restoring" }
   | { kind: "done"; message: string };
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 }
 
+const kilobytes = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
 export default function BackupScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
-  const [passphrase, setPassphrase] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
-    setPassphrase("");
-    setConfirm("");
     setError(null);
     setMode({ kind: "idle" });
   };
 
   const onExport = async () => {
     setError(null);
-    if (passphrase.length < MIN_PASSPHRASE) {
-      setError(`Use at least ${MIN_PASSPHRASE} characters.`);
-      return;
-    }
-    if (passphrase !== confirm) {
-      setError("Those two don't match.");
-      return;
-    }
     setMode({ kind: "exporting" });
     try {
-      const result = await exportBackup(passphrase);
-      setPassphrase("");
-      setConfirm("");
+      const result = await exportBackup();
       setMode({
         kind: "done",
-        message: `Saved ${result.fileName}, ${Math.max(1, Math.round(result.bytes / 1024))} KB. Keep it somewhere you'll still have it if this phone doesn't.`,
+        message: `Saved ${result.fileName}, ${kilobytes(result.bytes)}. Keep it somewhere you’ll still have it if this phone doesn’t, and somewhere private.`,
       });
     } catch (e) {
-      setError(describeBackupError(e) ?? "The backup couldn't be written.");
-      setMode({ kind: "export-passphrase" });
-    }
-  };
-
-  const onPick = async () => {
-    setError(null);
-    try {
-      const preview = await pickBackup();
-      if (!preview) return;
-      if (preview.tooNew) {
-        setError(
-          "That backup came from a newer version of the app. Update first, then restore.",
-        );
-        return;
-      }
-      setMode({ kind: "restore-passphrase", preview });
-    } catch (e) {
-      setError(describeBackupError(e) ?? "That file couldn't be read.");
+      setError(describeBackupError(e) ?? "The backup couldn’t be written.");
+      setMode({ kind: "idle" });
     }
   };
 
@@ -113,8 +79,7 @@ export default function BackupScreen() {
     setError(null);
     setMode({ kind: "restoring" });
     try {
-      const outcome = await restoreBackup(preview, passphrase);
-      setPassphrase("");
+      const outcome = await restoreBackup(preview);
       if (outcome.status === "refused") {
         setError(outcome.reason);
         setMode({ kind: "idle" });
@@ -122,11 +87,39 @@ export default function BackupScreen() {
       }
       setMode({
         kind: "done",
-        message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again. It's still running on the old data until you do.`,
+        message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again. It’s still running on the old data until you do.`,
       });
     } catch (e) {
-      setError(describeBackupError(e) ?? "The backup couldn't be restored.");
-      setMode({ kind: "restore-passphrase", preview });
+      setError(describeBackupError(e) ?? "The backup couldn’t be restored.");
+      setMode({ kind: "idle" });
+    }
+  };
+
+  /** Pick a file, show where it came from, and ask before replacing. */
+  const onPick = async () => {
+    setError(null);
+    try {
+      const preview = await pickBackup();
+      if (!preview) return;
+      if (preview.tooNew) {
+        setError("That backup came from a newer version of the app. Update first, then restore.");
+        return;
+      }
+      const { createdAt, appVersion, payloadBytes } = preview.meta;
+      Alert.alert(
+        "Restore this backup?",
+        `Backed up ${formatDate(createdAt)}, app version ${appVersion}, ${kilobytes(payloadBytes)}.\n\nEverything in the app now is replaced by what’s in this file. Anything logged since it was made won’t be here afterward.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Replace my data",
+            style: "destructive",
+            onPress: () => void onRestore(preview),
+          },
+        ],
+      );
+    } catch (e) {
+      setError(describeBackupError(e) ?? "That file couldn’t be read.");
     }
   };
 
@@ -134,14 +127,11 @@ export default function BackupScreen() {
 
   return (
     <View style={styles.root}>
-      <KeyboardScroll
+      <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
-          {
-            paddingTop: space.md,
-            paddingBottom: space.xl,
-          },
+          { paddingTop: space.md, paddingBottom: space.xl },
         ]}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
@@ -160,9 +150,7 @@ export default function BackupScreen() {
           <View style={styles.busy}>
             <ActivityIndicator color={theme.muted} />
             <AppText variant="caption" color={theme.muted}>
-              {mode.kind === "exporting"
-                ? "Sealing your backup. This takes a few seconds."
-                : "Restoring…"}
+              {mode.kind === "exporting" ? "Writing your backup…" : "Restoring…"}
             </AppText>
           </View>
         ) : null}
@@ -174,37 +162,22 @@ export default function BackupScreen() {
           </View>
         ) : null}
 
-        {/* Only ever true in Expo Go or the web preview: the crypto is a
-            native module (ADR-0020), which neither can load. A tester on
-            a real build never sees this. */}
-        {!isCryptoAvailable ? (
-          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-            <AppText variant="headline" color={theme.ink}>
-              Not available here
-            </AppText>
-            <AppText color={theme.ink}>
-              Backup and restore need a development or TestFlight build. This
-              one can’t do the encryption.
-            </AppText>
-          </View>
-        ) : null}
-
-        {mode.kind === "idle" && isCryptoAvailable ? (
+        {mode.kind === "idle" ? (
           <>
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
               <AppText variant="headline" color={theme.ink}>
                 Back up
               </AppText>
               <AppText variant="caption" color={theme.muted}>
-                Writes one encrypted file you can put in Files, iCloud Drive,
-                or anywhere else you keep things. Photos aren’t included yet.
-                Everything else is.
+                Writes one file you can put in Files, iCloud Drive, or anywhere
+                else you keep things. Photos aren’t included yet. Everything
+                else is.
               </AppText>
-              <Button
-                label="Back up now"
-                onPress={() => setMode({ kind: "export-passphrase" })}
-                theme={theme}
-              />
+              <AppText variant="caption" color={theme.muted}>
+                The file isn’t locked with a passphrase, so anyone who has it
+                can read what’s in it. Keep it somewhere private.
+              </AppText>
+              <Button label="Back up now" onPress={() => void onExport()} theme={theme} />
             </View>
 
             <View style={[styles.section, { borderTopColor: theme.hairline }]}>
@@ -225,100 +198,8 @@ export default function BackupScreen() {
             </View>
           </>
         ) : null}
-
-        {mode.kind === "export-passphrase" ? (
-          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-            <AppText variant="headline" color={theme.ink}>
-              Choose a passphrase
-            </AppText>
-            <AppText variant="caption" color={theme.muted}>
-              This is what unlocks the backup. It isn’t stored anywhere and
-              can’t be looked up or reset. If you lose it, the file can’t be
-              opened again. Write it down somewhere real.
-            </AppText>
-            <Field
-              theme={theme}
-              value={passphrase}
-              onChange={setPassphrase}
-              placeholder="Passphrase"
-              autoFocus
-            />
-            <Field
-              theme={theme}
-              value={confirm}
-              onChange={setConfirm}
-              placeholder="Type it again"
-            />
-            <Button label="Create backup" onPress={() => void onExport()} theme={theme} />
-            <Button label="Cancel" variant="quiet" onPress={reset} theme={theme} />
-          </View>
-        ) : null}
-
-        {mode.kind === "restore-passphrase" ? (
-          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-            <AppText variant="headline" color={theme.ink}>
-              Restore this backup?
-            </AppText>
-            <View style={[styles.provenance, { borderColor: theme.hairline }]}>
-              <AppText color={theme.ink}>
-                Backed up {formatDate(mode.preview.meta.createdAt)}
-              </AppText>
-              <AppText variant="caption" color={theme.muted}>
-                App version {mode.preview.meta.appVersion} ·{" "}
-                {Math.max(1, Math.round(mode.preview.meta.payloadBytes / 1024))} KB
-              </AppText>
-            </View>
-            <AppText variant="caption" color={theme.muted}>
-              Everything currently in the app is replaced by what’s in this
-              file. Anything logged since it was made won’t be here afterward.
-            </AppText>
-            <Field
-              theme={theme}
-              value={passphrase}
-              onChange={setPassphrase}
-              placeholder="Passphrase for this backup"
-              autoFocus
-            />
-            <Button
-              label="Replace my data"
-              color={theme.danger}
-              onPress={() => void onRestore(mode.preview)}
-              theme={theme}
-            />
-            <Button label="Cancel" variant="quiet" onPress={reset} theme={theme} />
-          </View>
-        ) : null}
-      </KeyboardScroll>
+      </ScrollView>
     </View>
-  );
-}
-
-function Field({
-  theme,
-  value,
-  onChange,
-  placeholder,
-  autoFocus,
-}: {
-  theme: ThemeTokens;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  autoFocus?: boolean;
-}) {
-  return (
-    <TextField
-      theme={theme}
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      secureTextEntry
-      autoCapitalize="none"
-      autoCorrect={false}
-      autoFocus={autoFocus}
-      accessibilityLabel={placeholder}
-      style={[styles.input, { borderColor: theme.hairline }]}
-    />
   );
 }
 
@@ -339,19 +220,4 @@ const styles = StyleSheet.create({
     padding: space.lg,
   },
   busy: { marginTop: space.xl, gap: space.sm, alignItems: "center" },
-  provenance: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: space.lg,
-    gap: space.xs,
-  },
-  input: {
-    // Passphrase fields had no type styling at all, so they were the
-    // one place still rendering in the system face.
-    ...typeScale.body,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    paddingHorizontal: space.md,
-    minHeight: 48,
-  },
 });

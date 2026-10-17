@@ -7,12 +7,10 @@ EAS development build; nothing here implies a
 supported web build, and no product decision should be made to
 accommodate a browser.
 
-**Backup and restore do not work here.** The cryptography is a native
-module wrapping Apple's frameworks
-([ADR-0020](adr/0020-backup-cryptography-and-export-exemption.md)),
-which a browser has no equivalent of. The screen detects this and says
-so. Do not "fix" it with a JavaScript cipher — that would put the app
-back under export control (see [release.md](release.md)).
+**Backup and restore are untested here.** Backups are plain files
+([ADR-0046](adr/0046-backups-are-plain-files.md)), so nothing native
+stands in the way, but saving and picking files in a browser isn't
+something the preview has been checked for. They are device features.
 
 ```bash
 npm run start -w apps/mobile -- --web

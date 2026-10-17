@@ -49,9 +49,8 @@ Also built:
   ([ADR-0037](docs/adr/0037-rest-days.md)).
 - Partial credit, tasks that serve several units, goals that track a
   number, and a daily journal with photos.
-- **Encrypted backup** using only Apple's CryptoKit and CommonCrypto,
-  which keeps the app exempt from US export-control reporting
-  ([ADR-0020](docs/adr/0020-backup-cryptography-and-export-exemption.md)).
+- **Backup** to one plain file, with no passphrase, that you keep
+  wherever you like ([ADR-0046](docs/adr/0046-backups-are-plain-files.md)).
 
 Scores are private and presented as guidelines. The app has no streak
 penalties, leaderboards or alarm colours. See [vision.md](vision.md)
@@ -66,10 +65,9 @@ apps/mobile              Expo app (React Native, TypeScript, Expo Router)
   src/hooks              screen-level state
   src/db                 SQLite via Drizzle, one module per concern
   src/lib                pure helpers (calendar, formatting, redaction)
-  modules/glide-crypto   Swift native module wrapping Apple's crypto
   drizzle/               forward-only schema migrations
 packages/scoring         the scoring engine: pure functions, no React Native
-packages/backup          the backup file format: pure, crypto passed in
+packages/backup          the backup file format: pure, plain, with a checksum
 docs/adr                 34 architecture decision records
 ```
 

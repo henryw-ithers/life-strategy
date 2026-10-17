@@ -1,6 +1,7 @@
 # ADR-0020: Backup cryptography and export exemption
 
-> **Status:** Accepted\
+> **Status:** Superseded by [ADR-0046](0046-backups-are-plain-files.md)
+> (backups are plain files; `glide-crypto` removed)\
 > **Date:** 2026-08-01\
 > **Deciders:** Henry\
 > **Amends:** [ADR-0002](0002-data-model-and-persistence.md) (Backup v1
