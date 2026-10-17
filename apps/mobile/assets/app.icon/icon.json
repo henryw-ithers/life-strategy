@@ -1,0 +1,92 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "work-money.svg",
+          "name": "work-money"
+        },
+        {
+          "glass": true,
+          "image-name": "home-environment.svg",
+          "name": "home-environment"
+        }
+      ],
+      "name": "front",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "relationships.svg",
+          "name": "relationships"
+        },
+        {
+          "glass": true,
+          "image-name": "leisure-creativity.svg",
+          "name": "leisure-creativity"
+        }
+      ],
+      "name": "middle",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "mental-wellbeing.svg",
+          "name": "mental-wellbeing"
+        },
+        {
+          "glass": true,
+          "image-name": "physical-health.svg",
+          "name": "physical-health"
+        }
+      ],
+      "name": "back",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

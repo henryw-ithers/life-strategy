@@ -34,17 +34,16 @@
  * Since Phase 3c both open a native iOS menu (`ActionMenu`), the same
  * kind as the + menu, in place of the app's own card.
  */
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { AppText } from "../ui/AppText";
 import type { DayData, TodayActivity } from "../../db/today";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { ActionMenu } from "../ui/ActionMenu";
+import { PhotoViewer } from "../ui/PhotoViewer";
 
 export function DayRecord({
   day,
@@ -59,7 +58,6 @@ export function DayRecord({
   onDeleteNote: (id: string) => void;
   onDeletePhoto: (id: string) => void;
 }) {
-  const insets = useSafeAreaInsets();
   const [viewing, setViewing] = useState<string | null>(null);
   const [missingPhotos, setMissingPhotos] = useState<Set<string>>(new Set());
   if (day.journal.length === 0 && day.photos.length === 0) return null;
@@ -148,50 +146,14 @@ export function DayRecord({
         </ActionMenu>
       ))}
 
-      <Modal
-        visible={viewing !== null}
-        transparent
-        statusBarTranslucent
-        animationType="fade"
-        onRequestClose={() => setViewing(null)}
-      >
-        <Pressable
-          style={styles.photoViewer}
-          onPress={() => setViewing(null)}
-          accessibilityRole="button"
-          accessibilityLabel="Close photo"
-        >
-          {viewing ? (
-            <Image
-              source={{ uri: viewing }}
-              style={styles.photoFull}
-              contentFit="contain"
-            />
-          ) : null}
-          {/* Where a photo's options belong: on the photo, full screen,
-              the way every camera roll on the phone does it. Absolute so
-              it sits over the image without changing how it fits, and
-              inset by the safe area because a viewer is edge to edge. */}
-          {viewing ? (
-            <Pressable
-              onPress={() => {
-                const id = day.photos.find((p) => p.uri === viewing)?.id;
-                setViewing(null);
-                if (id) onDeletePhoto(id);
-              }}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Delete this photo"
-              style={({ pressed }) => [
-                styles.photoDelete,
-                { top: insets.top + space.lg, opacity: pressed ? 0.5 : 1 },
-              ]}
-            >
-              <Ionicons name="trash-outline" size={22} color="#ffffff" />
-            </Pressable>
-          ) : null}
-        </Pressable>
-      </Modal>
+      <PhotoViewer
+        uri={viewing}
+        onClose={() => setViewing(null)}
+        onDelete={() => {
+          const id = day.photos.find((p) => p.uri === viewing)?.id;
+          if (id) onDeletePhoto(id);
+        }}
+      />
     </View>
   );
 }
@@ -271,14 +233,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: space.xs,
   },
-  photoViewer: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoFull: { width: "100%", height: "100%" },
-  photoDelete: { position: "absolute", right: space.screen, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   noteRow: { flexDirection: "row", alignItems: "flex-start", gap: space.sm },
   noteText: { flex: 1 },
   /** Shared with the Today screen's own drop confirmation; small enough
