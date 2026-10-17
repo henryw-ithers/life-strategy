@@ -109,6 +109,12 @@ A day's share uses the working hours as they stood when the day began.
 Adding, moving or removing a window that day changes where tasks go,
 not the share.
 
+> **Clarified 2026-10-17 (Henry).** "As they stood when the day began"
+> includes window edits made for that day ahead of time, and not those
+> made on the day itself. A Wednesday evening window added on Monday
+> counts toward Wednesday's hours; one added at lunch on Wednesday
+> doesn't (EC-56; docs/design/windows-and-pins.md §1.4).
+
 The share can still change during the day when what's due changes:
 skipping an event, Clear today (ADR-0040), or adding commitment work
 for today. The share is fixed for good when the day's grade settles

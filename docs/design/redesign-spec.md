@@ -328,6 +328,12 @@ Run 30 times". A pinned row shows a pin.
 
 ### 4.4 Pinning
 
+> **Extended 2026-10-17.** Pins come in two kinds (a window pin, and
+> pinned until done), can repeat weekly, can be set from the task
+> itself, and hold on to a time in the day rather than a window. Every
+> case is in [windows-and-pins.md](windows-and-pins.md), which is newer
+> than this section where they differ.
+
 Pinning is part of planning, so it happens in planning views: Plan's
 day view (also reached by swiping Home to a future day), the weekly
 pass, and the list of all open tasks ("Add from open"), which you can

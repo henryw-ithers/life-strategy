@@ -103,6 +103,58 @@ export {
   PARTIAL_FRACTIONS,
 } from "./partial";
 export type { Block, PartOfDay, TaskSize, Window } from "./windows";
+export type {
+  DayEdit,
+  DayHours,
+  DayHoursInput,
+  DayPhase,
+  HoursVersion,
+  NamedGap,
+  TimeRange,
+  WorkSchedule,
+} from "./hours";
+export {
+  addedWindowPieces,
+  applyEdits,
+  currentWindow,
+  dayHours,
+  dayMinute,
+  dayPhase,
+  normalizeWindows,
+  rangeError,
+  totalMinutes,
+  versionFor,
+  DAY_END_LIMIT,
+  DEFAULT_RANGES,
+  EVENT_BUFFER,
+  MIN_WINDOW,
+} from "./hours";
+export type { CarryContext, DayPin, PinKind, PinRule } from "./pins";
+export { appliesOn, nextPinState, pinsOn, resolvePin } from "./pins";
+export type {
+  DoneToday,
+  OpenSort,
+  OpenTask,
+  PlacedPin,
+  PlanDayInput,
+  PlannedDay,
+  PlannedWindow,
+  Suggestion,
+  SuggestionReason,
+  SuggestOrder,
+  TierRank,
+} from "./fill";
+export {
+  partOfDayOf,
+  planDay,
+  sizeMinutes,
+  sortOpenTasks,
+  spreadFlexibleRuns,
+  DEFAULT_FILL,
+  FILL_RANGE,
+  MAX_ROWS,
+  TASK_SIZE_HOURS,
+} from "./fill";
 export {
   formatMinutes,
   gridExtent,

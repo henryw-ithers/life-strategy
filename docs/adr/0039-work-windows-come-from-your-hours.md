@@ -160,6 +160,31 @@ when you move a task.
 rules: up to 3 tasks, all of equal value, and the planned count sets
 the ceiling. Only the user can create one.
 
+> **Amended 2026-10-17 (Henry).** A pin is an option you chose to
+> prioritise in a window, not a promise to finish it there, so a window
+> may hold more pins than it has time for, and nothing says so. The
+> rest is in [windows-and-pins.md](../design/windows-and-pins.md):
+>
+> - **Two kinds.** A window pin holds the task in that window; a pin
+>   until done moves with you until it's ticked. Tapping the pin icon
+>   cycles not pinned, window pin, until done.
+> - **Every pin is a pin to a window**, and it holds the task in that
+>   window only.
+> - **Pins can repeat** on one weekday, several, or every day; a change
+>   on one day asks
+>   "Just this day" or "This and following".
+> - **Any future date**, and from the task itself ("Plan it…"). On
+>   Home, moving a task pins it, and each window has "Pin a task" from
+>   every open task, today's and future.
+> - **A pin holds a time in its day**, and goes to the window
+>   containing it, else the next that day, else Other open tasks.
+> - **Spare pins step aside** once the week's runs are done; pinning
+>   after that is an extra run on purpose, and shows.
+> - **A timed task** pinned elsewhere asks to move its time for that
+>   day or keep it.
+>
+> None of it changes a score (§12).
+
 ### 7. Refilling
 
 When the visible tasks in the current window are done and there's
