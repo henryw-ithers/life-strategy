@@ -61,6 +61,127 @@ export function deriveWeights(ratings: readonly UnitRating[]): DerivedWeight[] {
   }));
 }
 
+// ── Tiers (ADR-0041) ────────────────────────────────────────────────
+
+/**
+ * The four tiers Priorities sorts the 18 units into (ADR-0041 §1).
+ * `notNow` is out of the plan: no weight, no tasks, no points.
+ */
+export type Tier = "top" | "important" | "background" | "notNow";
+/** The tiers that are in the plan. */
+export type PlannedTier = Exclude<Tier, "notNow">;
+
+/** The tiers, top first. */
+export const TIERS: readonly Tier[] = ["top", "important", "background", "notNow"];
+const PLANNED_TIERS: readonly PlannedTier[] = ["top", "important", "background"];
+
+/** For the data layer, reading a text column: a stored value that isn't
+ *  a tier must not reach the arithmetic as one. */
+export function isTier(value: unknown): value is Tier {
+  return typeof value === "string" && (TIERS as readonly string[]).includes(value);
+}
+
+/** Each planned tier's base value (ADR-0041 §2). Only the ratios
+ *  matter: the results are scaled to `DAILY_BUDGET`. Not now has no
+ *  base; it is out of the plan. */
+export const TIER_BASE: Readonly<Record<PlannedTier, number>> = {
+  top: 1.6,
+  important: 1.0,
+  background: 0.6,
+};
+
+/** The first unit in a tier gets ×(1 + this) and the last ×(1 − this),
+ *  spread evenly between; a lone unit gets ×1 (ADR-0041 §2). */
+export const TIER_ORDER_SPREAD = 0.1;
+
+export interface TieredUnit {
+  readonly unitId: string;
+  readonly tier: Tier;
+}
+
+/** Whether Priorities can save: at least one unit in the plan
+ *  (ADR-0041 §3). The same rule `deriveTierWeights` enforces. */
+export function hasPlannedUnit(units: readonly TieredUnit[]): boolean {
+  return units.some((u) => u.tier !== "notNow");
+}
+
+/**
+ * Weights from tiers, then order within the tier (ADR-0041 §2; the
+ * next formula version, with ADR-0044):
+ *
+ *   raw(u)    = TIER_BASE[tier] × (1.1 down to 0.9 by place in the tier)
+ *   weight(u) = DAILY_BUDGET × raw(u) / Σ raw
+ *
+ * **Tier and order are the only inputs**, as rank was for formula v8.
+ * `units` is in Priorities order: a unit's place inside its tier is
+ * where it stands among the units of that tier in this list. There is
+ * no floor (Henry, 2026-10-13): a unit in Background has tasks worth a
+ * little less, and that is the point of putting it there.
+ *
+ * Not now is out of the plan, so it gets exactly 0 and takes no part
+ * in the scaling: the units in the plan still sum to exactly
+ * `DAILY_BUDGET`, by largest remainder. At least one unit must be in
+ * the plan (`hasPlannedUnit`; Priorities won't save otherwise,
+ * ADR-0041 §3); with none, or with a value that isn't a tier, or a unit
+ * listed twice, this throws rather than inventing weights. An empty
+ * list returns no weights, as `deriveWeights` does; it is not a plan.
+ *
+ * Order is the list's order, so whatever stores tiers must store each
+ * unit's place in its tier and read them back sorted.
+ *
+ * Dormant until the data layer stores tiers (Phase 5): the app still
+ * derives weights from rank (`deriveWeights`), and `FORMULA_VERSION`
+ * moves when this is what scores a day.
+ */
+export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[] {
+  if (units.length === 0) return [];
+  const seen = new Set<string>();
+  for (const u of units) {
+    if (!isTier(u.tier)) {
+      throw new Error(`deriveTierWeights: unit "${u.unitId}" has no tier, got ${String(u.tier)}`);
+    }
+    if (seen.has(u.unitId)) {
+      throw new Error(`deriveTierWeights: unit "${u.unitId}" is listed twice`);
+    }
+    seen.add(u.unitId);
+  }
+  if (!hasPlannedUnit(units)) {
+    throw new Error("deriveTierWeights: keep at least one unit in the plan");
+  }
+
+  const placeInTier = new Map<string, { index: number; count: number }>();
+  for (const tier of PLANNED_TIERS) {
+    const members = units.filter((u) => u.tier === tier);
+    members.forEach((u, index) => placeInTier.set(u.unitId, { index, count: members.length }));
+  }
+
+  const raws = units.map((u) => {
+    if (u.tier === "notNow") return 0;
+    const place = placeInTier.get(u.unitId);
+    const factor =
+      !place || place.count === 1
+        ? 1
+        : 1 + TIER_ORDER_SPREAD - (2 * TIER_ORDER_SPREAD * place.index) / (place.count - 1);
+    return TIER_BASE[u.tier] * factor;
+  });
+
+  const rawSum = raws.reduce((a, b) => a + b, 0);
+  const exacts = raws.map((raw) => (DAILY_BUDGET * raw) / rawSum);
+  const planIndexes = units.flatMap((u, i) => (u.tier === "notNow" ? [] : [i]));
+  const rounded = largestRemainder(
+    planIndexes.map((i) => exacts[i] ?? 0),
+    DAILY_BUDGET,
+  );
+  const weights = new Map(planIndexes.map((i, k) => [i, rounded[k] ?? 0]));
+
+  return units.map((u, i) => ({
+    unitId: u.unitId,
+    raw: raws[i] ?? 0,
+    exact: exacts[i] ?? 0,
+    weight: weights.get(i) ?? 0,
+  }));
+}
+
 /**
  * `spendableWeights` **retired 2026-08-26 (ADR-0028 §3, ADR-0029 §1).**
  *

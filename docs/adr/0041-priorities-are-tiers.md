@@ -157,9 +157,10 @@ Priorities is also always available from Life.
 
 ## Action items
 
-1. [ ] `deriveWeights` from tiers, with tests: weights add to 100,
+1. [x] `deriveWeights` from tiers, with tests: weights add to 100,
        Not now gives 0, a lone unit, and all units in one tier
-       (EC-39, EC-40).
+       (EC-39, EC-40). Done in Phase 4a as `deriveTierWeights`, beside
+       the rank derivation until tiers are stored.
 2. [ ] Schema: `life_unit.tier` and the tier on snapshots.
 3. [ ] The Priorities screen. Remove the satisfaction steps and the
        portfolio graph. Add the effort bars on Life.

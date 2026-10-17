@@ -48,6 +48,7 @@ const REST: RestDayInput = {
   hasPlan: true,
   openThisWeek: false,
   earlyToday: false,
+  emptiedToday: false,
 };
 
 const score = (over: Partial<DayScoreInput> = {}, rest: Partial<RestDayInput> = {}) =>

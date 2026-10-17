@@ -172,5 +172,12 @@ export const REST_DAY_UNPLANNED = 30;
  *    in the week — or something done early — is a rest day: 70,
  *    activities up to 30, early work on top at its planned day's worth
  *    (ADR-0037). Before, it was ungraded. */
+/*  v11 (not yet): Phase 4 added the next formula's pieces beside v10,
+ *  unused until the data layer stores what they read (Phase 5). The
+ *  bump to 11 lands when the app scores with them, and covers all of
+ *  them at once: tier weights (`deriveTierWeights`, ADR-0041), the
+ *  commitment share from the day (ADR-0044), and ADR-0040's due rules
+ *  (repeat bounds and skips, Away days, and a day emptied on the day
+ *  being ungraded rather than a rest day). */
 export const FORMULA_VERSION = 10;
 export const DAILY_BUDGET = 100;

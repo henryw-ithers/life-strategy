@@ -9,7 +9,16 @@ export {
 } from "./constants";
 export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
-export { deriveWeights } from "./weights";
+export type { PlannedTier, Tier, TieredUnit } from "./weights";
+export {
+  deriveTierWeights,
+  deriveWeights,
+  hasPlannedUnit,
+  isTier,
+  TIER_BASE,
+  TIER_ORDER_SPREAD,
+  TIERS,
+} from "./weights";
 export { rankShares, taskPointValues } from "./tasks";
 export type {
   BandTask,
@@ -42,9 +51,19 @@ export {
   daysLeftInWeek,
   isAnchoredOn,
   isPinnedElsewhere,
+  weeklyGoalFor,
 } from "./dayLoad";
-export type { Weekday } from "./schedule";
-export { isDueOn, isoWeekday, parseWeekdays, pinnedOn } from "./schedule";
+export type { ScheduleBounds, Weekday } from "./schedule";
+export {
+  boundsError,
+  inScheduleOn,
+  isBounded,
+  isDueOn,
+  isoWeekday,
+  parseWeekdays,
+  pinnedOn,
+  untilForWeeks,
+} from "./schedule";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
 export type {
@@ -74,7 +93,7 @@ export {
   combineHierarchicalRank,
   weightsForPriorityOrder,
 } from "./ranking";
-export { recommendedTaskRange } from "./taskGuidance";
+export { recommendedTaskRange, recommendedTaskRangeForTier } from "./taskGuidance";
 export type { PartialFraction } from "./partial";
 export {
   isSettled,
@@ -117,6 +136,7 @@ export {
   editWindowStart,
   isEditable,
   isFinalized,
+  isLocalDate,
 } from "./days";
 export type {
   ChecklistTask,

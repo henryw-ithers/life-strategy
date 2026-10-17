@@ -681,7 +681,10 @@ export async function loadDay(
     [...earlyValue.keys()].some((id) => fractionToday.has(id)) ||
     offSchedule.some((t) => fractionToday.has(t.id));
   const restDay =
-    kind !== "rest" && isRestDay(load, band, { hasPlan, openThisWeek, earlyToday });
+    kind !== "rest" &&
+    // Skips and Clear today aren't stored until the data layer adds
+    // them (Phase 5), so no day can be emptied on the day yet.
+    isRestDay(load, band, { hasPlan, openThisWeek, earlyToday, emptiedToday: false });
   /** Early life work done today, at its planned day's worth. */
   const earlyCredit = [...earlyValue].reduce(
     (a, [id, v]) => a + paidToday(id, v),
@@ -941,7 +944,7 @@ export async function loadDay(
           offScheduleCredit,
           activities: activityCredits,
           earlyCredit,
-          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday },
+          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday, emptiedToday: false },
         });
 
 

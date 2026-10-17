@@ -44,9 +44,12 @@
  * under the user while they are working through the list.
  */
 import { addDays, fortnightStart, weekStart } from "./days";
-import { pinnedOn } from "./schedule";
+import { inScheduleOn, isBounded, pinnedOn, type ScheduleBounds } from "./schedule";
 
-export interface LoadTask {
+/** A task as the day's arithmetic sees it. The `ScheduleBounds` fields
+ *  (first and last day, skipped dates) are optional; a task without
+ *  them runs every week as it always has (ADR-0040). */
+export interface LoadTask extends ScheduleBounds {
   taskId: string;
   /** One run's share of the portfolio's 100 (`taskWeights`). */
   weight: number;
@@ -101,19 +104,57 @@ export interface DayLoad {
 
 /** How many days of the week remain, counting `date` itself. Weeks open
  *  on Sunday (`weekStart`), so this runs 7 on Sunday down to 1 on
- *  Saturday — the divisor that spreads flexible work evenly. */
-export function daysLeftInWeek(date: string): number {
-  const ws = weekStart(date);
-  let index = 0;
-  for (let d = ws; d < date; d = addDays(d, 1)) index++;
-  return 7 - index;
+ *  Saturday — the divisor that spreads flexible work evenly.
+ *
+ *  Away days (ADR-0040 §5) are left out: flexible work is spread over
+ *  the days you're here. A cleared day stays in (ADR-0040 §4). */
+export function daysLeftInWeek(date: string, away?: ReadonlySet<string>): number {
+  return remainingDays(date, away).length;
 }
 
-/** Runs a task owes in the window `date` falls in: its frequency, or one
- *  for a fortnightly task and for a one-off. */
-function weeklyGoal(task: LoadTask): number {
-  if (task.oneOff) return 1;
-  return task.timesPerWeek === 0 ? 1 : task.timesPerWeek;
+/** The days from `date` to the end of its week, without Away days. */
+function remainingDays(date: string, away?: ReadonlySet<string>): string[] {
+  const end = addDays(weekStart(date), 6);
+  const days: string[] = [];
+  for (let d = date; d <= end; d = addDays(d, 1)) if (!away?.has(d)) days.push(d);
+  return days;
+}
+
+/** The first day of the counting window `date` falls in: the fortnight
+ *  for a fortnightly task, the week otherwise. */
+function windowStartFor(task: LoadTask, date: string): string {
+  return task.timesPerWeek === 0 && !task.oneOff ? fortnightStart(date) : weekStart(date);
+}
+
+/**
+ * Runs a task owes in the window `date` falls in: its frequency, or one
+ * for a fortnightly task and for a one-off.
+ *
+ * Bounds and skips take runs away, never add them (ADR-0040 §3):
+ *
+ * - **Anchored work** (every day, or pinned to weekdays) loses one run
+ *   for each of its due days the bounds remove. A Monday session that
+ *   is skipped is simply not owed, so it doesn't sit open all week.
+ * - **Flexible work** owes no more runs than the series has days in the
+ *   window: one that starts on a Friday owes at most two that week.
+ *
+ * Only the days a bound actually removes count, so a first day long
+ * past, or a skip outside the window, changes nothing.
+ */
+export function weeklyGoalFor(task: LoadTask, date: string): number {
+  const goal = task.oneOff ? 1 : task.timesPerWeek === 0 ? 1 : task.timesPerWeek;
+  if (task.oneOff || !isBounded(task)) return goal;
+  const start = windowStartFor(task, date);
+  const length = task.timesPerWeek === 0 ? 14 : 7;
+  const days = Array.from({ length }, (_, i) => addDays(start, i));
+  const unbounded: LoadTask = { ...task, repeatFrom: null, repeatUntil: null, skippedDates: undefined };
+  if (task.timesPerWeek === 7 || task.pinnedWeekdays.length > 0) {
+    const removed =
+      days.filter((d) => isAnchoredOn(unbounded, d)).length -
+      days.filter((d) => isAnchoredOn(task, d)).length;
+    return Math.max(0, goal - removed);
+  }
+  return Math.min(goal, days.filter((d) => inScheduleOn(task, d)).length);
 }
 
 /**
@@ -123,9 +164,15 @@ function weeklyGoal(task: LoadTask): number {
  *
  * A flexible task is never "due here" — it is due *some day* this week,
  * which is the pool's business rather than this function's.
+ *
+ * Outside its bounds or on a skipped date, nothing is anchored
+ * (ADR-0040 §3), which is how a skip reaches the grade, the checklist
+ * and the rest-day rule without any of them knowing about skips.
  */
 export function isAnchoredOn(task: LoadTask, date: string): boolean {
   if (task.oneOff) return false;
+  // Outside its bounds or skipped, a task isn't due (ADR-0040 §3).
+  if (!inScheduleOn(task, date)) return false;
   if (task.timesPerWeek === 7) return true;
   return pinnedOn(task.pinnedWeekdays, task.timesPerWeek, task.fortnightOffset, date);
 }
@@ -190,10 +237,14 @@ export function computeDayLoad(
   tasks: readonly LoadTask[],
   completions: readonly LoadCompletion[],
   date: string,
+  /** Days you're away (ADR-0040 §5): flexible work is spread over the
+   *  other days of the week, and lapses if none are left (EC-30). Dates
+   *  outside the week are ignored. An Away day is itself a day off and
+   *  is never scored, so `date` is not expected to be in it. */
+  away?: ReadonlySet<string>,
 ): DayLoad {
-  const ws = weekStart(date);
-  const fs = fortnightStart(date);
-  const remaining = daysLeftInWeek(date);
+  const ahead = remainingDays(date, away);
+  const remaining = ahead.length;
 
   const anchored = new Map<string, number>();
   let flexibleDemand = 0;
@@ -201,7 +252,7 @@ export function computeDayLoad(
   let extra = 0;
 
   for (const task of tasks) {
-    const windowStart = task.timesPerWeek === 0 && !task.oneOff ? fs : ws;
+    const windowStart = windowStartFor(task, date);
     const inWindow = completions.filter(
       (c) =>
         c.taskId === task.taskId &&
@@ -214,7 +265,7 @@ export function computeDayLoad(
       task,
       inWindow.filter((c) => c.localDate !== date),
     );
-    const goal = weeklyGoal(task);
+    const goal = weeklyGoalFor(task, date);
     const owed = Math.max(0, goal - doneBefore);
 
     // A completion counts toward the day's earned weight while the week
@@ -232,8 +283,12 @@ export function computeDayLoad(
     if (isAnchoredOn(task, date)) {
       anchored.set(task.taskId, task.weight);
     } else if (!isPinnedElsewhere(task, date)) {
-      // Flexible: every run it still owes joins the pool.
-      flexibleDemand += task.weight * owed;
+      // Flexible: every run it still owes joins the pool. A bounded
+      // series can only owe runs on days it still runs this week, so a
+      // series ending Tuesday doesn't load Wednesday (ADR-0040).
+      const runsAhead = ahead.filter((d) => inScheduleOn(task, d)).length;
+      const runnable = runsAhead < ahead.length ? Math.min(owed, runsAhead) : owed;
+      flexibleDemand += task.weight * runnable;
     }
   }
 
