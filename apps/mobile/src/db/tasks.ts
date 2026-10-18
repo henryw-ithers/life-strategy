@@ -39,6 +39,7 @@ import {
   taskUnit,
   unitWeight,
 } from "./schema";
+import { forgetPinsOf } from "./pins";
 import { markGradesStale, markGradesStaleIn } from "./settings";
 
 export interface PlanTask {
@@ -747,6 +748,9 @@ export async function setTaskDetails(
 
 export async function archiveTask(taskId: string): Promise<void> {
   db.transaction((tx) => {
+    // An archived task's pins go, and restoring it doesn't bring them
+    // back (windows-and-pins §2.11).
+    forgetPinsOf(tx, [taskId]);
     tx.update(task)
       .set({ active: false, archivedAt: new Date().toISOString() })
       .where(eq(task.id, taskId))

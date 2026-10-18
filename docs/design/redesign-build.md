@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-17, at the end of Phase 4.
+Last updated 2026-10-17, during Phase 5a.
 
 ## Phases
 
@@ -25,8 +25,10 @@ Last updated 2026-10-17, at the end of Phase 4.
 | 4a | Tier weights; due rules for bounds, skips and Away | Merged, PR #10 |
 | 4b | Windows, pins and live suggestions | Merged, PR #11 |
 | 4c | The commitment share from the day | Merged, PR #12 |
-| 4d | The four goal kinds | PR #13 |
-| **5** | **Schema and data layer** | **Next** |
+| 4d | The four goal kinds | Merged, PR #13 |
+| **5a** | **Windows and schedule data: hours, edits, pins, choices, skips, Clear today, Away** | **In progress** |
+| 5b | Scoring from the stored data; formula 11 | |
+| 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | |
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | |
@@ -76,41 +78,64 @@ what 11 covers.
 ## Phase 5 checklist
 
 The plan's list, updated with everything decided since. Sources in
-brackets.
+brackets. Phase 5 ships as three PRs (5a, 5b, 5c). Henry's calls on
+2026-10-17:
+
+- Tiers are seeded once from the current priority order, in thirds:
+  the first 6 Top, the next 6 Important, the last 6 Background, and
+  excluded units Not now, keeping the order inside each tier (5b).
+- Commitment shares are all automatic. The old `commitment.band`
+  setting and the relative `commitment_share` are retired (5b).
+- The goal screens are hidden from 5c until Phase 10 rebuilds them,
+  with no interim UI.
+- Database tests run on better-sqlite3 (a dev dependency) through
+  `src/db/__tests__/harness.ts`, which runs the real migrations.
+- **Old placements and pools move with their screens**, not in 5a. A
+  placement can say "Anytime, just today", which has no window to pin
+  to, so `planned_occurrence` is copied and retired in Phase 9 and
+  `pool` in Phase 8, when the screens that write them go. Until then
+  5b scores "Do N of these" from `pool`.
+
+Found in 5a: drizzle's expo-sqlite driver commits a transaction as
+soon as its callback returns, so an `async` callback commits after its
+first statement and an error after an `await` never rolls back. The 5a
+writers use synchronous callbacks (`.run()`, `.all()`), which are
+atomic on both drivers. The older writers were converted the same way
+in PR #15, and a test in `db/__tests__/transactions.test.ts` fails if
+an async callback comes back.
 
 ### New tables
 
-- [ ] `work_block`: working-hour groups (weekdays, ranges), versioned
-      by first day so earlier days keep their hours; named gaps
-      (`HoursVersion`, `NamedGap`) [ADR-0039 §1]
-- [ ] `work_day_override`: one date's own ranges ("Just this week")
-      [ADR-0039 §1]
-- [ ] Day window edits (add, remove, change), **in sequence**, each
-      marked when made on the day itself (`DayEdit.onTheDay`): edits
-      made ahead count toward the commitment share's hours, those made
-      on the day don't [ADR-0044 §5 clarification]
-- [ ] `window_placement`: pins, replacing `planned_occurrence` and
-      `pool_member`. Task, kind (window or until done), one
-      date or a set of weekdays with first and last day and exception
-      dates, the time it holds, whether it's an extra run (one-date pins
-      only), order. **One live pin per task per day** (`PinRule`)
-      [windows-and-pins.md §2]
-- [ ] `window_choice`: "Do N of these", replacing `pool` [ADR-0039 §6]
-- [ ] `schedule_skip`: skipped occurrences, one event's weeks, a whole
-      commitment's weeks; expanded to dates for `skippedDates`
-      [ADR-0040 §2]
-- [ ] `day_clear`: Clear today, with Undo until the day ends
-      [ADR-0040 §4]
-- [ ] `away_range`: start, end, optional label [ADR-0040 §5]
+- [x] `work_hours`: working-hour groups and named gaps, one row per
+      version keyed by its first day, stored as JSON since a version
+      is read and written whole (`HoursVersion`, `NamedGap`). Saving
+      from a date replaces later versions [ADR-0039 §1] (5a)
+- [x] `work_day_override`: one date's own ranges ("Just this week")
+      [ADR-0039 §1] (5a)
+- [x] `day_window_edit`: add, remove, change, **in sequence**, with
+      `made_on` so an edit made on the day itself reads as
+      `onTheDay` [ADR-0044 §5 clarification] (5a)
+- [x] `window_placement` and `window_placement_exception`: pins, with
+      **one live pin per task per day** kept by `db/pins.ts`
+      [windows-and-pins.md §2] (5a)
+- [x] `window_choice` and `window_choice_member`: "Do N of these"
+      [ADR-0039 §6] (5a)
+- [x] `schedule_skip`: skipped occurrences, one task's weeks, a whole
+      commitment's weeks, with `made_on`; `skippedDatesFor` expands
+      them [ADR-0040 §2] (5a)
+- [x] `day_clear`: Clear today, with Undo until the day ends
+      [ADR-0040 §4] (5a)
+- [x] `away_range`: start, end, optional label [ADR-0040 §5] (5a)
 - [ ] Goal entries: each counted tick saved when made (`GoalEntry`)
-      [ADR-0042 §1]
+      [ADR-0042 §1] (5c)
 
 ### New columns
 
-- [ ] `task.repeat_from`, `task.repeat_until` [ADR-0040 §1]
+- [x] `task.repeat_from`, `task.repeat_until`, set by `setRepeatBounds`
+      [ADR-0040 §1] (5a)
 - [ ] `task_completion.actual_minutes` ("Took about…") [ADR-0042 §5]
-- [ ] `life_unit.tier`, with each unit's place in its tier; the tier on
-      snapshots [ADR-0041]. (`life_unit.colour` already shipped in 3a.)
+- [x] `life_unit.tier` and `tier_order` (5a). Seeding them and the
+      tier on snapshots come with the weights in 5b [ADR-0041]
 - [ ] Goal kind, scope and target; goal–task links; a commitment's set
       share [ADR-0042, ADR-0044 §3]
 - [ ] Each day's starting working hours stored beside its grade, so the
@@ -120,16 +145,21 @@ brackets.
 ### Migrations and data
 
 - [ ] Copy old placements and pools into the new tables; retire, don't
-      drop, the old ones, as was done when milestones were retired
+      drop, the old ones. **Moved:** pools in Phase 8, placements in
+      Phase 9, with the screens that write them
 - [ ] **Erase existing goals** with their progress, conditions,
       milestones and achievements; keep the tasks, clearing `goal_id`
       and `condition_id`; drop `goal_condition` and `milestone`
       [ADR-0042 §6]
 - [ ] `plan_snapshot` records repeat bounds and skips [ADR-0040]
-- [ ] New tables in `db/reset.ts`
-- [ ] **Delete a pin for one date once its day has ended**, unless it's
+- [x] New tables in `db/reset.ts` (5a)
+- [x] **Delete a pin for one date once its day has ended**, unless it's
       a pin until done still carrying an open task, so no "how often
-      pins were kept" figure can be derived [windows-and-pins.md §7]
+      pins were kept" figure can be derived: `pruneEndedPins` at
+      launch [windows-and-pins.md §7] (5a)
+- [x] Archiving a task or commitment removes its pins; deleting a
+      commitment removes its pins, choices and skips
+      [windows-and-pins.md §2.11] (5a)
 - [ ] Forward-only migrations via `npm run db:generate -w apps/mobile`;
       never hand-edit one [ADR-0002]
 

@@ -37,6 +37,20 @@ import { syncTaxonomy } from "./seed";
 const TABLES_IN_DELETE_ORDER = [
   "activity_tag",
   "activity",
+  // Before `window_placement`, which it references.
+  "window_placement_exception",
+  // Before `task`, which it references.
+  "window_placement",
+  // Before `window_choice` and `task`, both of which it references.
+  "window_choice_member",
+  "window_choice",
+  // Before `task` and `life_unit`, both of which it references.
+  "schedule_skip",
+  "day_window_edit",
+  "work_day_override",
+  "work_hours",
+  "day_clear",
+  "away_range",
   // Before `pool` and `task`, both of which it references.
   "pool_member",
   // Before `task`, which it references.
