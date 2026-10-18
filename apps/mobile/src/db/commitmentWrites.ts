@@ -24,7 +24,7 @@ import {
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
 import { forgetPinsOf } from "./pins";
-import { markGradesStale } from "./settings";
+import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import { forgetSkipsOf } from "./skips";
 import { recomputeAllUnitPoints, setTaskUnitsIn, type Tx } from "./tasks";
 
@@ -62,26 +62,30 @@ export interface CreateCommitmentInput {
 export async function createCommitment(
   input: CreateCommitmentInput,
 ): Promise<string> {
-  const existing = await db
-    .select({ id: lifeUnit.id, parentUnitId: lifeUnit.parentUnitId })
-    .from(lifeUnit)
-    .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)));
-  if (!canAddCommitment(existing)) {
-    throw new Error(
-      `At most three commitments (ADR-0035 §1); archive one to add another.`,
-    );
-  }
-
   const id = newId();
-  const [{ next } = { next: 0 }] = await db
-    .select({ next: sql<number>`coalesce(max(${lifeUnit.sortOrder}), 0) + 1` })
-    .from(lifeUnit);
-  const others = await liveCommitmentShares();
-  const shares = rebalanceShares(
-    others,
-    input.percent ?? Math.round(100 / (others.length + 1)),
-  );
-  db.transaction((tx) => {
+  // The cap is read inside the transaction, so two quick taps can't both
+  // pass it: the second one's transaction sees the first's commitment.
+  writeAndMarkStale((tx) => {
+    const existing = tx
+      .select({ id: lifeUnit.id, parentUnitId: lifeUnit.parentUnitId })
+      .from(lifeUnit)
+      .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)))
+      .all();
+    if (!canAddCommitment(existing)) {
+      throw new Error(
+        `At most three commitments (ADR-0035 §1); archive one to add another.`,
+      );
+    }
+
+    const [{ next } = { next: 0 }] = tx
+      .select({ next: sql<number>`coalesce(max(${lifeUnit.sortOrder}), 0) + 1` })
+      .from(lifeUnit)
+      .all();
+    const others = liveCommitmentShares(tx);
+    const shares = rebalanceShares(
+      others,
+      input.percent ?? Math.round(100 / (others.length + 1)),
+    );
     tx.insert(lifeUnit)
       .values({
         id,
@@ -102,7 +106,6 @@ export async function createCommitment(
     // Made split, it starts with its General sub-commitment.
     if (input.usesSubCommitments) createSubCommitmentIn(tx, id, GENERAL_SUB_NAME);
   });
-  await markGradesStale();
   return id;
 }
 
@@ -176,8 +179,8 @@ export interface UpdateCommitmentInput {
 
 /** Live commitments' shares — what a new or changed percentage is
  *  balanced against. */
-async function liveCommitmentShares(exceptId?: string): Promise<{ id: string; share: number }[]> {
-  const rows = await db
+function liveCommitmentShares(tx: Tx, exceptId?: string): { id: string; share: number }[] {
+  const rows = tx
     .select({ id: lifeUnit.id, share: lifeUnit.commitmentShare })
     .from(lifeUnit)
     .where(
@@ -186,7 +189,8 @@ async function liveCommitmentShares(exceptId?: string): Promise<{ id: string; sh
         isNull(lifeUnit.archivedAt),
         isNull(lifeUnit.parentUnitId),
       ),
-    );
+    )
+    .all();
   return rows
     .filter((r) => r.share !== null && r.id !== exceptId)
     .map((r) => ({ id: r.id, share: r.share ?? 0 }));
@@ -197,27 +201,28 @@ export async function updateCommitment(
   id: string,
   input: UpdateCommitmentInput,
 ): Promise<void> {
-  const [row] = await db.select().from(lifeUnit).where(eq(lifeUnit.id, id));
-  if (!row) throw new Error(`No such unit: ${id}`);
-
-  const patch: { name?: string; commitmentShare?: number } = {};
-  if (input.name !== undefined) patch.name = input.name.trim();
-  // A share on a sub-commitment would be a stored number that does
-  // nothing, which is worse than ignoring the argument: sub-commitments
-  // price nothing (ADR-0035 §1).
-  const others =
-    input.percent !== undefined && row.parentUnitId === null && row.archivedAt === null
-      ? rebalanceShares(await liveCommitmentShares(id), input.percent)
-      : null;
-  if (others) patch.commitmentShare = others.self;
-  if (Object.keys(patch).length === 0) return;
   db.transaction((tx) => {
+    const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
+    if (!row) throw new Error(`No such unit: ${id}`);
+
+    const patch: { name?: string; commitmentShare?: number } = {};
+    if (input.name !== undefined) patch.name = input.name.trim();
+    // A share on a sub-commitment would be a stored number that does
+    // nothing, which is worse than ignoring the argument: sub-commitments
+    // price nothing (ADR-0035 §1).
+    const others =
+      input.percent !== undefined && row.parentUnitId === null && row.archivedAt === null
+        ? rebalanceShares(liveCommitmentShares(tx, id), input.percent)
+        : null;
+    if (others) patch.commitmentShare = others.self;
+    // Nothing to change, so nothing to mark.
+    if (Object.keys(patch).length === 0) return;
     tx.update(lifeUnit).set(patch).where(eq(lifeUnit.id, id)).run();
     for (const o of others?.others ?? []) {
       tx.update(lifeUnit).set({ commitmentShare: o.share }).where(eq(lifeUnit.id, o.id)).run();
     }
+    markGradesStaleIn(tx);
   });
-  await markGradesStale();
 }
 
 /**
@@ -495,16 +500,15 @@ export interface CreatePoolInput {
  * could be read as ticking one task twice (ADR-0033 §3).
  */
 export async function createPool(input: CreatePoolInput): Promise<string> {
-  const existing = poolsInWindow(
-    db,
-    input.localDate,
-    input.afterTaskId ?? null,
-    input.partOfDay ?? null,
-  );
-  assertPoolSize(validationInput(input, existing));
-
   const id = newId();
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
+    const existing = poolsInWindow(
+      tx,
+      input.localDate,
+      input.afterTaskId ?? null,
+      input.partOfDay ?? null,
+    );
+    assertPoolSize(validationInput(input, existing));
     tx.insert(pool)
       .values({
         id,
@@ -521,7 +525,6 @@ export async function createPool(input: CreatePoolInput): Promise<string> {
       .values(input.taskIds.map((taskId, i) => ({ poolId: id, taskId, sortOrder: i })))
       .run();
   });
-  await markGradesStale();
   return id;
 }
 
@@ -533,7 +536,7 @@ export async function updatePool(
   const [row] = await db.select().from(pool).where(eq(pool.id, id));
   if (!row) throw new Error(`No such pool: ${id}`);
 
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     let members = input.taskIds;
     if (members) {
       const others = poolsInWindow(tx, row.localDate, row.afterTaskId, row.partOfDay).filter(
@@ -564,7 +567,6 @@ export async function updatePool(
         .run();
     }
   });
-  await markGradesStale();
 }
 
 /**
@@ -573,11 +575,10 @@ export async function updatePool(
  * than destroying them.
  */
 export async function deletePool(id: string): Promise<void> {
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     tx.delete(poolMember).where(eq(poolMember.poolId, id)).run();
     tx.delete(pool).where(eq(pool.id, id)).run();
   });
-  await markGradesStale();
 }
 
 /** Remove one task from a pool, dissolving the pool if it empties. */
@@ -585,7 +586,7 @@ export async function removeFromPool(
   poolId: string,
   taskId: string,
 ): Promise<void> {
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     tx.delete(poolMember)
       .where(and(eq(poolMember.poolId, poolId), eq(poolMember.taskId, taskId)))
       .run();
@@ -605,12 +606,11 @@ export async function removeFromPool(
       .where(eq(pool.id, poolId))
       .run();
   });
-  await markGradesStale();
 }
 
 /** Every pool in one window, with its members. */
 function poolsInWindow(
-  tx: Tx | typeof db,
+  tx: Tx,
   localDate: string,
   afterTaskId: string | null,
   partOfDay: string | null,

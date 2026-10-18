@@ -20,7 +20,7 @@ import type { HoursVersion, NamedGap, TimeRange, WorkSchedule, DayEdit } from "@
 import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import { dayWindowEdit, workDayOverride, workHours } from "./schema";
-import { markGradesStale } from "./settings";
+import { writeAndMarkStale } from "./settings";
 import {
   dayEditProblem,
   hoursProblem,
@@ -56,7 +56,7 @@ export async function saveHoursFrom(
 ): Promise<void> {
   const problem = hoursProblem(fromDate, schedules, gaps);
   if (problem !== null) throw new Error(problem);
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     tx.delete(workHours).where(gte(workHours.fromDate, fromDate)).run();
     tx.insert(workHours)
       .values({
@@ -66,7 +66,6 @@ export async function saveHoursFrom(
       })
       .run();
   });
-  await markGradesStale();
 }
 
 /** One date's own ranges, or null if it follows the template. */
@@ -87,17 +86,20 @@ export async function setDayOverride(
   const problem = overrideProblem(localDate, ranges);
   if (problem !== null) throw new Error(problem);
   const value = serializeRanges(ranges);
-  await db
-    .insert(workDayOverride)
-    .values({ localDate, ranges: value })
-    .onConflictDoUpdate({ target: workDayOverride.localDate, set: { ranges: value } });
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx
+      .insert(workDayOverride)
+      .values({ localDate, ranges: value })
+      .onConflictDoUpdate({ target: workDayOverride.localDate, set: { ranges: value } })
+      .run(),
+  );
 }
 
 /** Return a date to the template's hours. */
 export async function clearDayOverride(localDate: string): Promise<void> {
-  await db.delete(workDayOverride).where(eq(workDayOverride.localDate, localDate));
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx.delete(workDayOverride).where(eq(workDayOverride.localDate, localDate)).run(),
+  );
 }
 
 /** One date's window edits, in the order they were made. */
@@ -124,7 +126,7 @@ export async function addDayEdit(localDate: string, edit: DayEditInput): Promise
     edit.kind === "change"
       ? [edit.from.start, edit.from.end, edit.to]
       : [edit.range.start, edit.range.end, null];
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     const [last] = tx
       .select({ seq: max(dayWindowEdit.seq) })
       .from(dayWindowEdit)
@@ -144,13 +146,11 @@ export async function addDayEdit(localDate: string, edit: DayEditInput): Promise
       })
       .run();
   });
-  await markGradesStale();
   return id;
 }
 
 /** Take back one edit (Undo after removing a window on Home). Later
  *  edits stay, applied in their order as before. */
 export async function deleteDayEdit(id: string): Promise<void> {
-  await db.delete(dayWindowEdit).where(eq(dayWindowEdit.id, id));
-  await markGradesStale();
+  writeAndMarkStale((tx) => tx.delete(dayWindowEdit).where(eq(dayWindowEdit.id, id)).run());
 }

@@ -40,7 +40,7 @@ import {
   unitWeight,
 } from "./schema";
 import { forgetPinsOf } from "./pins";
-import { markGradesStale, markGradesStaleIn } from "./settings";
+import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 
 export interface PlanTask {
   id: string;
@@ -805,11 +805,9 @@ export async function setTaskPlanning(
   plannedWeekdays: string | null,
   partOfDay: "morning" | "afternoon" | "evening" | null,
 ): Promise<void> {
-  await db
-    .update(task)
-    .set({ plannedWeekdays, partOfDay })
-    .where(eq(task.id, taskId));
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx.update(task).set({ plannedWeekdays, partOfDay }).where(eq(task.id, taskId)).run(),
+  );
 }
 
 /**
@@ -983,8 +981,9 @@ export async function setTaskFortnightOffset(
   taskId: string,
   offset: 0 | 1,
 ): Promise<void> {
-  await db.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId));
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx.update(task).set({ fortnightOffset: offset }).where(eq(task.id, taskId)).run(),
+  );
 }
 
 /**
