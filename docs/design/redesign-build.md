@@ -100,7 +100,9 @@ Found in 5a: drizzle's expo-sqlite driver commits a transaction as
 soon as its callback returns, so an `async` callback commits after its
 first statement and an error after an `await` never rolls back. The 5a
 writers use synchronous callbacks (`.run()`, `.all()`), which are
-atomic on both drivers. The older writers still use async callbacks.
+atomic on both drivers. The older writers were converted the same way
+in PR #15, and a test in `db/__tests__/transactions.test.ts` fails if
+an async callback comes back.
 
 ### New tables
 

@@ -26,32 +26,32 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
   const defaultAreaIds = new Set(DEFAULT_TAXONOMY.map((a) => a.id));
   const defaultUnitIds = new Set(defaultUnits.map((u) => u.id));
 
-  await db.transaction(async (tx) => {
-    const existingAreas = await tx.select().from(lifeArea);
-    const existingUnits = await tx.select().from(lifeUnit);
+  db.transaction((tx) => {
+    const existingAreas = tx.select().from(lifeArea).all();
+    const existingUnits = tx.select().from(lifeUnit).all();
 
     for (const [index, area] of DEFAULT_TAXONOMY.entries()) {
       const existing = existingAreas.find((e) => e.id === area.id);
       if (!existing) {
-        await tx
-          .insert(lifeArea)
-          .values({ id: area.id, name: area.name, sortOrder: index });
+        tx.insert(lifeArea)
+          .values({ id: area.id, name: area.name, sortOrder: index })
+          .run();
       } else if (
         existing.name !== area.name ||
         existing.sortOrder !== index ||
         existing.archivedAt !== null
       ) {
-        await tx
-          .update(lifeArea)
+        tx.update(lifeArea)
           .set({ name: area.name, sortOrder: index, archivedAt: null })
-          .where(eq(lifeArea.id, area.id));
+          .where(eq(lifeArea.id, area.id))
+          .run();
       }
     }
 
     for (const unit of defaultUnits) {
       const existing = existingUnits.find((e) => e.id === unit.id);
       if (!existing) {
-        await tx.insert(lifeUnit).values(unit);
+        tx.insert(lifeUnit).values(unit).run();
       } else if (
         existing.name !== unit.name ||
         existing.areaId !== unit.areaId ||
@@ -59,8 +59,7 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
         existing.motivationKind !== unit.motivationKind ||
         existing.archivedAt !== null
       ) {
-        await tx
-          .update(lifeUnit)
+        tx.update(lifeUnit)
           .set({
             name: unit.name,
             areaId: unit.areaId,
@@ -74,16 +73,17 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
             motivationKind: unit.motivationKind,
             archivedAt: null,
           })
-          .where(eq(lifeUnit.id, unit.id));
+          .where(eq(lifeUnit.id, unit.id))
+          .run();
       }
     }
 
     for (const area of existingAreas) {
       if (!defaultAreaIds.has(area.id) && area.archivedAt === null) {
-        await tx
-          .update(lifeArea)
+        tx.update(lifeArea)
           .set({ archivedAt: now })
-          .where(eq(lifeArea.id, area.id));
+          .where(eq(lifeArea.id, area.id))
+          .run();
       }
     }
     for (const unit of existingUnits) {
@@ -92,10 +92,10 @@ export async function syncTaxonomy(db: typeof Db): Promise<void> {
         !unit.isCustom &&
         unit.archivedAt === null
       ) {
-        await tx
-          .update(lifeUnit)
+        tx.update(lifeUnit)
           .set({ archivedAt: now })
-          .where(eq(lifeUnit.id, unit.id));
+          .where(eq(lifeUnit.id, unit.id))
+          .run();
       }
     }
   });

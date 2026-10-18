@@ -164,12 +164,18 @@ const KEY_GRADES_STALE = "grades.stale";
  * db/dayGrades.ts) re-scores them on the next read. Stored, not held in
  * memory, so a change made just before the app is closed still lands.
  */
-export async function markGradesStale(executor: Tx | typeof db = db): Promise<void> {
-  // An upsert, so a pricing pass can mark inside its own transaction.
-  await executor
+export async function markGradesStale(): Promise<void> {
+  markGradesStaleIn(db);
+}
+
+/** `markGradesStale` inside a transaction, which has to be synchronous
+ *  (see `Tx`). An upsert, so a pricing pass can mark inside its own. */
+export function markGradesStaleIn(executor: Tx | typeof db): void {
+  executor
     .insert(appSetting)
     .values({ key: KEY_GRADES_STALE, value: "1" })
-    .onConflictDoUpdate({ target: appSetting.key, set: { value: "1" } });
+    .onConflictDoUpdate({ target: appSetting.key, set: { value: "1" } })
+    .run();
 }
 
 /** Whether grades are marked stale. */

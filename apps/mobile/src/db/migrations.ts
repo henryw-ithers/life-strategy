@@ -96,8 +96,8 @@ export async function backfillTaskUnits(): Promise<void> {
  */
 export async function repriceTasksWithFloor(): Promise<void> {
   if ((await getSetting(KEY_TASK_POINT_FLOOR)) === "done") return;
-  await db.transaction(async (tx) => {
-    await recomputeAllUnitPoints(tx);
+  db.transaction((tx) => {
+    recomputeAllUnitPoints(tx);
   });
   await setSetting(KEY_TASK_POINT_FLOOR, "done");
 }

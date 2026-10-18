@@ -113,12 +113,12 @@ export async function eraseAllData(): Promise<void> {
   // app would be a lie in the place that can least afford one.
   clearLog();
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // `task` and `goal` reference each other — `task.goal_id` one way,
     // `goal.autocount_task_id` (ADR-0015 §2) the other — so no ordering
     // of the list can satisfy both. Nulling the optional side first
     // breaks the cycle; the rows are about to go anyway.
-    await tx.run(sql.raw(`UPDATE goal SET autocount_task_id = NULL`));
+    tx.run(sql.raw(`UPDATE goal SET autocount_task_id = NULL`));
 
     for (const table of TABLES_IN_DELETE_ORDER) {
       // `life_unit` references itself (`parent_unit_id`, ADR-0035), so
@@ -127,11 +127,11 @@ export async function eraseAllData(): Promise<void> {
       // Clearing the children first makes the order hold inside the
       // table as well as between tables.
       if (table === "life_unit") {
-        await tx.run(
+        tx.run(
           sql.raw(`DELETE FROM life_unit WHERE parent_unit_id IS NOT NULL`),
         );
       }
-      await tx.run(sql.raw(`DELETE FROM ${table}`));
+      tx.run(sql.raw(`DELETE FROM ${table}`));
     }
   });
 

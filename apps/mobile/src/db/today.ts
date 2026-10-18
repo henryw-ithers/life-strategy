@@ -317,7 +317,7 @@ export async function loadDay(
   // still loads: a leftover pin is smaller than a day that won't open.
   await pruneEndedPinsToday(today).catch((e: unknown) => recordProblem(e, "load"));
 
-  const weights = await latestWeights(db);
+  const weights = latestWeights(db);
 
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
   const unitById = new Map(units.map((u) => [u.id, u]));

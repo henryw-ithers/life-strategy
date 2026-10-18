@@ -39,7 +39,7 @@ export async function unitVariableShares(
   pool: number = UNPLANNED_BAND,
 ): Promise<Map<string, number>> {
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
-  const weights = await latestWeights(db);
+  const weights = latestWeights(db);
   const shares = new Map<string, number>();
   for (const u of units) {
     if (!u.includeInScoring) continue;
