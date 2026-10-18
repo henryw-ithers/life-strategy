@@ -18,7 +18,7 @@ import { boundsError, weekStart } from "@glide/scoring";
 import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import { awayRange, dayClear, scheduleSkip, task } from "./schema";
-import { markGradesStale } from "./settings";
+import { writeAndMarkStale } from "./settings";
 import type { Tx } from "./tasks";
 import { awayProblem, skipProblem, type SkipInput, type SkipRow } from "./windowRules";
 
@@ -35,9 +35,10 @@ export async function setRepeatBounds(
 ): Promise<void> {
   const problem = boundsError({ repeatFrom, repeatUntil });
   if (problem !== null) throw new Error(problem);
-  const result = await db.update(task).set({ repeatFrom, repeatUntil }).where(eq(task.id, taskId));
-  if (result.changes === 0) throw new Error(`No such task: ${taskId}`);
-  await markGradesStale();
+  writeAndMarkStale((tx) => {
+    const result = tx.update(task).set({ repeatFrom, repeatUntil }).where(eq(task.id, taskId)).run();
+    if (result.changes === 0) throw new Error(`No such task: ${taskId}`);
+  });
 }
 
 // ── Skips (ADR-0040 §2) ─────────────────────────────────────────────
@@ -57,7 +58,7 @@ export async function addSkip(skip: SkipInput): Promise<string> {
   const unitId = skip.kind === "commitmentWeek" ? skip.unitId : null;
 
   let id = Crypto.randomUUID();
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     const [existing] = tx
       .select({ id: scheduleSkip.id })
       .from(scheduleSkip)
@@ -77,14 +78,12 @@ export async function addSkip(skip: SkipInput): Promise<string> {
       .values({ id, kind: skip.kind, taskId, unitId, localDate, madeOn: today })
       .run();
   });
-  await markGradesStale();
   return id;
 }
 
 /** Take a skip back. */
 export async function removeSkip(id: string): Promise<void> {
-  await db.delete(scheduleSkip).where(eq(scheduleSkip.id, id));
-  await markGradesStale();
+  writeAndMarkStale((tx) => tx.delete(scheduleSkip).where(eq(scheduleSkip.id, id)).run());
 }
 
 /** The skips that touch `start`..`end`: runs on those dates, and weeks
@@ -134,15 +133,15 @@ export function forgetSkipsOf(
 
 /** Set today's windows and unticked events aside. */
 export async function clearToday(): Promise<void> {
-  await db.insert(dayClear).values({ localDate: currentLocalDate() }).onConflictDoNothing();
-  await markGradesStale();
+  const localDate = currentLocalDate();
+  writeAndMarkStale((tx) => tx.insert(dayClear).values({ localDate }).onConflictDoNothing().run());
 }
 
 /** Undo Clear today. Only today's can be undone: once the day has
  *  ended, it stands. */
 export async function undoClearToday(): Promise<void> {
-  await db.delete(dayClear).where(eq(dayClear.localDate, currentLocalDate()));
-  await markGradesStale();
+  const localDate = currentLocalDate();
+  writeAndMarkStale((tx) => tx.delete(dayClear).where(eq(dayClear.localDate, localDate)).run());
 }
 
 /** Whether a day was cleared. */
@@ -184,8 +183,9 @@ export async function addAway(
   const problem = awayProblem(startDate, endDate, currentLocalDate());
   if (problem !== null) throw new Error(problem);
   const id = Crypto.randomUUID();
-  await db.insert(awayRange).values({ id, startDate, endDate, label: cleanLabel(label) });
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx.insert(awayRange).values({ id, startDate, endDate, label: cleanLabel(label) }).run(),
+  );
   return id;
 }
 
@@ -198,14 +198,15 @@ export async function updateAway(
 ): Promise<void> {
   const problem = awayProblem(startDate, endDate, currentLocalDate());
   if (problem !== null) throw new Error(problem);
-  await db
-    .update(awayRange)
-    .set({ startDate, endDate, label: cleanLabel(label) })
-    .where(eq(awayRange.id, id));
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    tx
+      .update(awayRange)
+      .set({ startDate, endDate, label: cleanLabel(label) })
+      .where(eq(awayRange.id, id))
+      .run(),
+  );
 }
 
 export async function removeAway(id: string): Promise<void> {
-  await db.delete(awayRange).where(eq(awayRange.id, id));
-  await markGradesStale();
+  writeAndMarkStale((tx) => tx.delete(awayRange).where(eq(awayRange.id, id)).run());
 }

@@ -14,7 +14,14 @@ import * as path from "node:path";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteCommitment, setUsesSubCommitments, updatePool } from "../commitmentWrites";
+import {
+  createCommitment,
+  createPool,
+  deleteCommitment,
+  setUsesSubCommitments,
+  updateCommitment,
+  updatePool,
+} from "../commitmentWrites";
 import { applyPriorityOrder, loadRankingBoard } from "../ranking";
 import {
   appSetting,
@@ -28,7 +35,8 @@ import {
   taskUnit,
   unitWeight,
 } from "../schema";
-import { archiveTask, restoreTask } from "../tasks";
+import { loadCommitmentBand, setCommitmentBand } from "../settings";
+import { archiveTask, restoreTask, setTaskPlanning } from "../tasks";
 import { resetTestDb, testDb } from "./harness";
 
 const recache = vi.hoisted(() => vi.fn(() => Promise.resolve()));
@@ -39,15 +47,20 @@ vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
 vi.mock("../dayGrades", () => ({ recacheAllDayScores: recache }));
 
 /** Make every `op` on `table` fail, the way a full disk or a broken
- *  constraint would part way through a write. */
-function failOn(table: string, op: "INSERT" | "UPDATE" | "DELETE") {
+ *  constraint would part way through a write. `when` narrows it to
+ *  some rows, as SQL on `NEW` or `OLD`. */
+function failOn(table: string, op: "INSERT" | "UPDATE" | "DELETE", when?: string) {
   testDb().run(
     sql.raw(
       `CREATE TRIGGER fail_${table}_${op} BEFORE ${op} ON ${table} ` +
+        (when ? `WHEN ${when} ` : "") +
         `BEGIN SELECT RAISE(ABORT, 'injected failure'); END`,
     ),
   );
 }
+
+/** Fail only the grades-stale mark. */
+const failStaleMark = () => failOn("app_setting", "INSERT", "NEW.key = 'grades.stale'");
 
 function gradesStale(): string | undefined {
   return testDb()
@@ -323,5 +336,100 @@ describe("applyPriorityOrder", () => {
     expect(taskRow("call")?.pointValue).toBe(0);
     // Nothing is re-scored from a plan that was never saved.
     expect(recache).not.toHaveBeenCalled();
+  });
+});
+
+describe("grades are marked stale in the same transaction as the write", () => {
+  it("marks them when the write lands", async () => {
+    seedPlan();
+    await setTaskPlanning("gym", "1,3", "morning");
+    expect(taskRow("gym")?.plannedWeekdays).toBe("1,3");
+    expect(gradesStale()).toBe("1");
+  });
+
+  it("a task's days roll back when the mark fails", async () => {
+    seedPlan();
+    failStaleMark();
+    await expect(setTaskPlanning("gym", "1,3", "morning")).rejects.toThrow(/injected failure/);
+    expect(taskRow("gym")?.plannedWeekdays).toBeNull();
+  });
+
+  it("the commitment band rolls back when the mark fails", async () => {
+    failStaleMark();
+    await expect(setCommitmentBand(40)).rejects.toThrow(/injected failure/);
+    expect(await loadCommitmentBand()).toBeNull();
+  });
+
+  it("a new pool rolls back when the mark fails", async () => {
+    seedPlan();
+    failStaleMark();
+    await expect(
+      createPool({ localDate: "2026-10-19", taskIds: ["gym", "call"], partOfDay: "evening" }),
+    ).rejects.toThrow(/injected failure/);
+    expect(testDb().select().from(pool).all()).toEqual([]);
+    expect(testDb().select().from(poolMember).all()).toEqual([]);
+  });
+
+  it("a renamed commitment rolls back when the mark fails", async () => {
+    seedCommitment();
+    failStaleMark();
+    await expect(updateCommitment("school", { name: "Uni" })).rejects.toThrow(/injected failure/);
+    expect(testDb().select().from(lifeUnit).all().find((u) => u.id === "school")?.name).toBe("School");
+  });
+
+  it("a change to nothing marks nothing", async () => {
+    seedCommitment();
+    await updateCommitment("school", {});
+    expect(gradesStale()).toBeUndefined();
+  });
+});
+
+describe("createCommitment", () => {
+  function seedCommitments(n: number) {
+    const db = testDb();
+    db.insert(lifeArea).values({ id: "work-money", name: "Work", sortOrder: 0 }).run();
+    for (let i = 0; i < n; i++) {
+      db.insert(lifeUnit)
+        .values({
+          id: `c${i}`,
+          areaId: "work-money",
+          name: `C${i}`,
+          sortOrder: i,
+          isCustom: true,
+          includeInScoring: false,
+          commitmentShare: 100 / n,
+        })
+        .run();
+    }
+  }
+  const liveCommitments = () =>
+    testDb()
+      .select()
+      .from(lifeUnit)
+      .all()
+      .filter((u) => u.isCustom && u.parentUnitId === null && u.archivedAt === null);
+
+  it("refuses a fourth", async () => {
+    seedCommitments(3);
+    await expect(createCommitment({ name: "Gym club" })).rejects.toThrow(/At most three/);
+    expect(liveCommitments()).toHaveLength(3);
+  });
+
+  it("lets only one of two quick taps take the last place", async () => {
+    seedCommitments(2);
+    const results = await Promise.allSettled([
+      createCommitment({ name: "Gym club" }),
+      createCommitment({ name: "Gym club" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(liveCommitments()).toHaveLength(3);
+  });
+
+  it("starts a split one with its General, and marks grades stale", async () => {
+    seedCommitments(0);
+    const id = await createCommitment({ name: "School", usesSubCommitments: true });
+    const general = testDb().select().from(lifeUnit).all().filter((u) => u.parentUnitId === id);
+    expect(general).toHaveLength(1);
+    expect(gradesStale()).toBe("1");
   });
 });

@@ -18,11 +18,16 @@ export async function getSetting(key: string): Promise<string | null> {
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  const [existing] = await db.select().from(appSetting).where(eq(appSetting.key, key));
+  setSettingIn(db, key, value);
+}
+
+/** `setSetting` inside a transaction (see `Tx`). */
+export function setSettingIn(executor: Tx | typeof db, key: string, value: string): void {
+  const [existing] = executor.select().from(appSetting).where(eq(appSetting.key, key)).all();
   if (existing) {
-    await db.update(appSetting).set({ value }).where(eq(appSetting.key, key));
+    executor.update(appSetting).set({ value }).where(eq(appSetting.key, key)).run();
   } else {
-    await db.insert(appSetting).values({ key, value });
+    executor.insert(appSetting).values({ key, value }).run();
   }
 }
 
@@ -146,14 +151,14 @@ export async function loadCommitmentBand(): Promise<number | null> {
  *  even if this is called with one (ADR-0032 §2: 10 up to 60, 70 or 80
  *  for one, two or three commitments). */
 export async function setCommitmentBand(band: number): Promise<void> {
-  await setSetting(KEY_COMMITMENT_BAND, String(normalizeBand(band, MAX_COMMITMENTS)));
-  await markGradesStale();
+  writeAndMarkStale((tx) =>
+    setSettingIn(tx, KEY_COMMITMENT_BAND, String(normalizeBand(band, MAX_COMMITMENTS))),
+  );
 }
 
 /** Forget the band entirely — every day goes back to two bands. */
 export async function clearCommitmentBand(): Promise<void> {
-  await setSetting(KEY_COMMITMENT_BAND, "");
-  await markGradesStale();
+  writeAndMarkStale((tx) => setSettingIn(tx, KEY_COMMITMENT_BAND, ""));
 }
 
 const KEY_GRADES_STALE = "grades.stale";
@@ -176,6 +181,19 @@ export function markGradesStaleIn(executor: Tx | typeof db): void {
     .values({ key: KEY_GRADES_STALE, value: "1" })
     .onConflictDoUpdate({ target: appSetting.key, set: { value: "1" } })
     .run();
+}
+
+/**
+ * Run a plan change and mark grades stale in one transaction, so a
+ * crash between the two can never save the change without the mark.
+ * `write` must be synchronous (see `Tx`). Returns what it returns.
+ */
+export function writeAndMarkStale<T>(write: (tx: Tx) => T): T {
+  return db.transaction((tx) => {
+    const result = write(tx);
+    markGradesStaleIn(tx);
+    return result;
+  });
 }
 
 /** Whether grades are marked stale. */

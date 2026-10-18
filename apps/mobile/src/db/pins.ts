@@ -43,7 +43,7 @@ import {
   windowPlacement,
   windowPlacementException,
 } from "./schema";
-import { markGradesStale } from "./settings";
+import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import type { Tx } from "./tasks";
 import {
   choiceProblem,
@@ -335,8 +335,9 @@ export function forgetPinsOf(tx: SyncTx, taskIds: readonly string[]): boolean {
 
 /** Pins of these tasks go (archive, delete, Not now). */
 export async function removePinsForTasks(taskIds: readonly string[]): Promise<void> {
-  const choiceChanged = db.transaction((tx) => forgetPinsOf(tx, taskIds));
-  if (choiceChanged) await markGradesStale();
+  db.transaction((tx) => {
+    if (forgetPinsOf(tx, taskIds)) markGradesStaleIn(tx);
+  });
 }
 
 // ── Old pins aren't kept (§7) ───────────────────────────────────────
@@ -574,7 +575,7 @@ export async function createChoice(input: {
   plannedCount: number;
 }): Promise<string> {
   const id = Crypto.randomUUID();
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     const problem = choiceProblem({
       taskIds: input.taskIds,
       plannedCount: input.plannedCount,
@@ -592,7 +593,6 @@ export async function createChoice(input: {
       .run();
     writeMembers(tx, id, input.taskIds);
   });
-  await markGradesStale();
   return id;
 }
 
@@ -601,7 +601,7 @@ export async function updateChoice(
   id: string,
   change: { taskIds?: readonly string[]; plannedCount?: number },
 ): Promise<void> {
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     const [row] = tx.select().from(windowChoice).where(eq(windowChoice.id, id)).all();
     if (!row) throw new Error(`No such choice: ${id}`);
     const taskIds =
@@ -627,14 +627,12 @@ export async function updateChoice(
       .where(eq(windowChoice.id, id))
       .run();
   });
-  await markGradesStale();
 }
 
 /** Undo a choice. Its tasks stay pinned where they were. */
 export async function deleteChoice(id: string): Promise<void> {
-  db.transaction((tx) => {
+  writeAndMarkStale((tx) => {
     tx.delete(windowChoiceMember).where(eq(windowChoiceMember.choiceId, id)).run();
     tx.delete(windowChoice).where(eq(windowChoice.id, id)).run();
   });
-  await markGradesStale();
 }
