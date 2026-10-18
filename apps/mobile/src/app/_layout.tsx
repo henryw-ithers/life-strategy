@@ -22,6 +22,7 @@ import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
+import { pruneEndedPinsToday } from "../db/pins";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
@@ -200,6 +201,10 @@ function MigrationGate() {
     // Taxonomy first: data fixups may reference units it seeds.
     syncTaxonomy(db)
       .then(runDataMigrations)
+      // Old pins aren't kept (windows-and-pins §7). A cleanup that fails
+      // is logged and the app opens anyway: a leftover pin is a smaller
+      // problem than an app that won't start.
+      .then(() => pruneEndedPinsToday().catch((e: unknown) => recordProblem(e, "load")))
       .then(() => setSeeded(true))
       .catch((e: unknown) =>
         setSeedError(e instanceof Error ? e : new Error(String(e))),
