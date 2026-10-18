@@ -21,6 +21,7 @@ import * as Crypto from "expo-crypto";
 
 import { habitRungTitle, rungDaysOf } from "../lib/habitRungs";
 import { db } from "./client";
+import { forgetPinsOf } from "./pins";
 import { recomputeAllUnitPoints, type Tx } from "./tasks";
 import {
   achievement,
@@ -501,6 +502,8 @@ export async function abandonGoal(
       if (action === "detach") {
         await tx.update(task).set({ goalId: null }).where(eq(task.id, taskId));
       } else {
+        // An archived task's pins go (windows-and-pins §2.11).
+        forgetPinsOf(tx, [taskId]);
         await tx
           .update(task)
           .set({ active: false, archivedAt: now() })
@@ -583,6 +586,8 @@ export async function completeGoal(
 
     const tasks = await goalTasks(tx, goalId);
     if (path === "archive") {
+      // Archived tasks' pins go (windows-and-pins §2.11).
+      forgetPinsOf(tx, tasks.map((t) => t.id));
       for (const t of tasks) {
         await tx
           .update(task)

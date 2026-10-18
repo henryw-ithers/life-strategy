@@ -117,11 +117,21 @@ export const lifeUnit = sqliteTable("life_unit", {
    * (ADR-0021).
    */
   colour: text("colour"),
+  /**
+   * The unit's Priorities tier (ADR-0041): `top`, `important`,
+   * `background` or `notNow`. Weights are derived from this and
+   * `tier_order`, and nothing else. Null until the tiers are seeded
+   * (Phase 5b) or set on Priorities (Phase 6). Meaningless on a
+   * commitment, which is scored from its own share of the day.
+   */
+  tier: text("tier", { enum: ["top", "important", "background", "notNow"] }),
+  /** The unit's place inside its tier, 0 first. */
+  tierOrder: integer("tier_order"),
   archivedAt: text("archived_at"),
   ...timestamps,
 });
 
-// ── Diagnostic (ADR-0005) ───────────────────────────────────────────
+// ── Diagnostic (ADR-0005)───────────────────────────────────────────
 
 export const snapshot = sqliteTable("snapshot", {
   id: text("id").primaryKey(),
@@ -509,6 +519,14 @@ export const task = sqliteTable("task", {
    */
   kind: text("kind", { enum: ["task", "event"] }).notNull().default("task"),
   /**
+   * First and last day a repeating task or event runs, inclusive, or
+   * null for no bound (ADR-0040 §1). "For N weeks" is saved as the last
+   * day (`untilForWeeks`). Checked with `boundsError` on write; a bad
+   * stored value only makes the series run never, it can't break a day.
+   */
+  repeatFrom: text("repeat_from"),
+  repeatUntil: text("repeat_until"),
+  /**
    * The sub-commitment this task lived in before its commitment stopped
    * using sub-commitments, so turning them back on puts it home again
    * (ADR-0035 §1 as amended 2026-10-02). Null otherwise, and cleared
@@ -643,6 +661,12 @@ export const taskCompletionTag = sqliteTable(
  * No adherence statistic is computed from this table — ADR-0024 §2
  * makes that an invariant, and this is the table that would tempt
  * someone to break it.
+ *
+ * **To be retired in Phase 9**, when Home's windows replace the
+ * part-of-day sections. A placement can say "Anytime, just today",
+ * which has no window to pin to, so rows are copied to
+ * `window_placement` and this table retired (not dropped) only when the
+ * screens that write it go.
  */
 export const plannedOccurrence = sqliteTable("planned_occurrence", {
   id: text("id").primaryKey(),
@@ -673,6 +697,10 @@ export const plannedOccurrence = sqliteTable("planned_occurrence", {
  * **divisor** when the band is shared out, not the payout: every member
  * is worth one slot, so doing more than planned is beyond-plan work
  * rather than a discount on each.
+ *
+ * **To be retired in Phase 8**, when Plan's day view writes
+ * `window_choice` instead. Until then this is what scores "Do N of
+ * these"; the two mean the same thing, so moving over changes no grade.
  */
 export const pool = sqliteTable("pool", {
   id: text("id").primaryKey(),
@@ -715,6 +743,199 @@ export const poolMember = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.poolId, t.taskId] })],
 );
+
+// ── Working hours and windows (ADR-0039) ────────────────────────────
+
+/**
+ * One version of the working-hours template (ADR-0039 §1), from its
+ * first day on. "This week and after" writes a new version, so earlier
+ * days keep the hours they had (EC-15). The version for a date is the
+ * latest one that has started (`versionFor`).
+ *
+ * Each version is read and written whole, so its groups and gaps are
+ * JSON rather than child rows:
+ * `schedules`: `[{ weekdays: [1,2,3,4,5], ranges: [{ start, end }] }]`;
+ * `gaps`: `[{ weekdays, range: { start, end }, name }]`. Minutes from
+ * local midnight, as on `task.start_minute`. Checked with `rangeError`
+ * on write and read tolerantly: a bad range is dropped, never thrown.
+ * No rows at all means no hours have been set, so days use
+ * `DEFAULT_RANGES` (EC-13).
+ */
+export const workHours = sqliteTable("work_hours", {
+  fromDate: text("from_date").primaryKey(),
+  schedules: text("schedules").notNull(),
+  gaps: text("gaps").notNull().default("[]"),
+  ...timestamps,
+});
+
+/**
+ * One date's own working ranges, replacing the template's and its named
+ * gaps ("Just this week", ADR-0039 §1). `ranges` is JSON like a
+ * schedule's; `[]` is a day with no working hours.
+ */
+export const workDayOverride = sqliteTable("work_day_override", {
+  localDate: text("local_date").primaryKey(),
+  ranges: text("ranges").notNull(),
+  ...timestamps,
+});
+
+/**
+ * One change to one day's windows (§1.4 of windows-and-pins.md),
+ * applied in `seq` order (`applyEdits`). Edits are by time, so removing
+ * a range the day no longer has changes nothing.
+ *
+ * `made_on` is the local date the edit was made. One made on the day
+ * itself doesn't count toward the commitment share's hours, which are
+ * the hours as they stood when the day began (ADR-0044 §5, EC-56).
+ */
+export const dayWindowEdit = sqliteTable("day_window_edit", {
+  id: text("id").primaryKey(),
+  localDate: text("local_date").notNull(),
+  seq: integer("seq").notNull(),
+  kind: text("kind", { enum: ["add", "remove", "change"] }).notNull(),
+  startMinute: integer("start_minute").notNull(),
+  endMinute: integer("end_minute").notNull(),
+  /** A `change`'s new range; null on add and remove. */
+  toStartMinute: integer("to_start_minute"),
+  toEndMinute: integer("to_end_minute"),
+  madeOn: text("made_on").notNull(),
+  ...timestamps,
+});
+
+/**
+ * A pin (windows-and-pins.md §2): a task held in the window at one time
+ * of day, on one date or on chosen weekdays every week. Replaces
+ * `planned_occurrence` and `pool_member` once the screens that write
+ * those move over (Phases 8 and 9).
+ *
+ * **One live pin per task per day** (§2.7), kept by `db/pins.ts`:
+ * pinning a task on a day it already has a pin moves it. `pinsOn`
+ * still settles anything that slips through.
+ *
+ * **Old pins aren't kept** (§7). A pin for one date is deleted once its
+ * day has ended, unless it's a pin until done still carrying an open
+ * task, and a repeating pin keeps only its pattern and exceptions.
+ * Finished pins kept beside completion times would let someone work
+ * out how often pins were kept, which ADR-0029 §3 says must not be
+ * derivable from what's stored. Pins never change a score (ADR-0039
+ * §12).
+ */
+export const windowPlacement = sqliteTable("window_placement", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => task.id),
+  kind: text("kind", { enum: ["window", "untilDone"] }).notNull(),
+  /** The time it holds: the start of the window it was pinned into,
+   *  in minutes from local midnight (§2.6). */
+  anchorMinute: integer("anchor_minute").notNull(),
+  repeat: text("repeat", { enum: ["once", "weekly"] }).notNull(),
+  /** `once`: the date. Null on a weekly pin. */
+  localDate: text("local_date"),
+  /** `once` only: pinned after the week's runs were done, so an extra
+   *  run on purpose (§2.8). */
+  extra: integer("extra", { mode: "boolean" }).notNull().default(false),
+  /** `weekly`: ISO weekdays, e.g. `"1,3,5"`. */
+  weekdays: text("weekdays"),
+  /** `weekly`: first and last day, inclusive; null until for no end. */
+  fromDate: text("from_date"),
+  untilDate: text("until_date"),
+  /** Order inside its window, lower first. */
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+});
+
+/** A date a weekly pin skips: "Just this day" changes and removals
+ *  (§2.5). A change also writes a pin for that date. */
+export const windowPlacementException = sqliteTable(
+  "window_placement_exception",
+  {
+    placementId: text("placement_id")
+      .notNull()
+      .references(() => windowPlacement.id),
+    localDate: text("local_date").notNull(),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.placementId, t.localDate] })],
+);
+
+/**
+ * "Do N of these" (ADR-0039 §6, ADR-0033 §3): up to three tasks pinned
+ * in one window, from one commitment, any `planned_count` of which
+ * satisfy it. Replaces `pool` once the screens move over. The window is
+ * named by the time it holds, like a pin's. One of the two things about
+ * windows that can change a score, so writes mark grades stale.
+ */
+export const windowChoice = sqliteTable("window_choice", {
+  id: text("id").primaryKey(),
+  localDate: text("local_date").notNull(),
+  anchorMinute: integer("anchor_minute").notNull(),
+  plannedCount: integer("planned_count").notNull().default(1),
+  ...timestamps,
+});
+
+export const windowChoiceMember = sqliteTable(
+  "window_choice_member",
+  {
+    choiceId: text("choice_id")
+      .notNull()
+      .references(() => windowChoice.id),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => task.id),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.choiceId, t.taskId] })],
+);
+
+// ── Skips, Clear today and Away (ADR-0040) ──────────────────────────
+
+/**
+ * A skipped occurrence or week (ADR-0040 §2), expanded to dates for
+ * `ScheduleBounds.skippedDates` by `skippedDatesFor`.
+ *
+ * - `occurrence`: one task's run on `local_date`.
+ * - `taskWeek`: one task's (usually an event's) whole week starting
+ *   `local_date`.
+ * - `commitmentWeek`: every task in commitment `unit_id`, its
+ *   sub-commitments included, for the week starting `local_date`.
+ *
+ * `made_on` is the local date the skip was made. A skip made on the day
+ * it empties makes that day ungraded rather than a rest day
+ * (`emptiedToday`, ADR-0040 §3).
+ */
+export const scheduleSkip = sqliteTable("schedule_skip", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["occurrence", "taskWeek", "commitmentWeek"] }).notNull(),
+  taskId: text("task_id").references(() => task.id),
+  unitId: text("unit_id").references(() => lifeUnit.id),
+  localDate: text("local_date").notNull(),
+  madeOn: text("made_on").notNull(),
+  ...timestamps,
+});
+
+/**
+ * Clear today (ADR-0040 §4): the day's windows and unticked events are
+ * set aside, and the day is still graded (or ungraded if nothing is
+ * left due). Nothing else is written: window pins are hidden while this
+ * row exists, so Undo, which deletes it, brings them back. Undo lasts
+ * until the day ends.
+ */
+export const dayClear = sqliteTable("day_clear", {
+  localDate: text("local_date").primaryKey(),
+  ...timestamps,
+});
+
+/** Days away (ADR-0040 §5), inclusive. Every day in one is ungraded,
+ *  and its pins are kept and hidden (EC-33). */
+export const awayRange = sqliteTable("away_range", {
+  id: text("id").primaryKey(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  label: text("label"),
+  ...timestamps,
+});
 
 export const dayGrade = sqliteTable("day_grade", {
   localDate: text("local_date").primaryKey(),

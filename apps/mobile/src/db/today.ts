@@ -61,6 +61,8 @@ import {
 } from "./commitmentPlan";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { resolvePhotoUri } from "./photos";
+import { recordProblem } from "../lib/problemLog";
+import { pruneEndedPinsToday } from "./pins";
 import { loadPlacements } from "./placements";
 import {
   activity,
@@ -310,6 +312,10 @@ export async function loadDay(
 ): Promise<DayData> {
   const today = currentLocalDate();
   await finalizePastDays(today);
+  // Old pins aren't kept (windows-and-pins §7), and the app can stay
+  // open across a rollover. A cleanup that fails is logged and the day
+  // still loads: a leftover pin is smaller than a day that won't open.
+  await pruneEndedPinsToday(today).catch((e: unknown) => recordProblem(e, "load"));
 
   const weights = await latestWeights(db);
 

@@ -21,6 +21,8 @@ import * as Sharing from "expo-sharing";
 
 import migrations from "../../drizzle/migrations";
 import { sqlite } from "../db/client";
+import { pruneEndedPins } from "../db/pins";
+import { recordProblem } from "../lib/problemLog";
 
 /** `drizzle/migrations.js` ships `{ journal, migrations }`; the
  *  journal's entry count is the schema generation a file was written
@@ -50,6 +52,9 @@ export interface ExportResult {
  * no `-wal` sidecar to miss.
  */
 export async function exportBackup(): Promise<ExportResult> {
+  // Old pins aren't kept, so they don't go into a backup either
+  // (windows-and-pins §7). A failed cleanup is logged, not fatal.
+  await pruneEndedPins().catch((e: unknown) => recordProblem(e, "save"));
   const payload = await sqlite.serializeAsync();
 
   const file = writeBackup({

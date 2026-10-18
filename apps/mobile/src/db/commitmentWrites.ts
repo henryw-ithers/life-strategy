@@ -23,7 +23,9 @@ import {
   homeOnSplit,
 } from "./commitmentPlan";
 import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
+import { forgetPinsOf } from "./pins";
 import { markGradesStale } from "./settings";
+import { forgetSkipsOf } from "./skips";
 import { recomputeAllUnitPoints, setTaskUnits } from "./tasks";
 
 const newId = () => Crypto.randomUUID();
@@ -321,7 +323,11 @@ async function rehomeTask(taskId: string, from: string, to: string): Promise<voi
 export async function archiveCommitment(id: string): Promise<void> {
   const now = new Date().toISOString();
   const ids = await subtreeIds(id);
+  const taskRows = await db.select({ id: task.id }).from(task).where(inArray(task.unitId, ids));
   await db.transaction(async (tx) => {
+    // Its tasks are archived, so their pins go (windows-and-pins §2.11).
+    // First, so it runs inside the transaction.
+    forgetPinsOf(tx, taskRows.map((t) => t.id));
     await tx
       .update(lifeUnit)
       .set({ archivedAt: now })
@@ -419,9 +425,14 @@ export async function deleteCommitment(
         .set({ afterTaskId: null })
         .where(inArray(pool.afterTaskId, taskIds));
 
+      // Pins, choices and skips reference these tasks too.
+      forgetPinsOf(tx, taskIds);
+      forgetSkipsOf(tx, taskIds);
       await tx.delete(taskUnit).where(inArray(taskUnit.taskId, taskIds));
       await tx.delete(task).where(inArray(task.id, taskIds));
     }
+    // A skipped commitment week names the unit itself.
+    forgetSkipsOf(tx, [], ids);
     // Children before parents, inside the table as well as between.
     await tx.delete(lifeUnit).where(
       and(inArray(lifeUnit.id, ids), eq(lifeUnit.isCustom, true), sql`${lifeUnit.parentUnitId} is not null`),
