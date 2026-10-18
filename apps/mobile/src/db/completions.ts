@@ -242,17 +242,17 @@ export async function setCompletionTags(
   // between opening the sheet and saving it.
   if (!completion) return;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(taskCompletionTag)
-      .where(eq(taskCompletionTag.completionId, completion.id));
+  db.transaction((tx) => {
+    tx.delete(taskCompletionTag)
+      .where(eq(taskCompletionTag.completionId, completion.id))
+      .run();
     if (unitIds.length > 0) {
-      await tx.insert(taskCompletionTag).values(
+      tx.insert(taskCompletionTag).values(
         [...new Set(unitIds)].map((unitId) => ({
           completionId: completion.id,
           unitId,
         })),
-      );
+      ).run();
     }
   });
   // Since v6 a tag moves the number, so the cache has to follow it.

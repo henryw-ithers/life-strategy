@@ -39,14 +39,16 @@ export async function placeTaskForDay(
   date: string,
   partOfDay: "morning" | "afternoon" | "evening" | null,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await deletePlacement(tx, taskId, date);
-    await tx.insert(plannedOccurrence).values({
-      id: Crypto.randomUUID(),
-      taskId,
-      localDate: date,
-      partOfDay,
-    });
+  db.transaction((tx) => {
+    deletePlacement(tx, taskId, date);
+    tx.insert(plannedOccurrence)
+      .values({
+        id: Crypto.randomUUID(),
+        taskId,
+        localDate: date,
+        partOfDay,
+      })
+      .run();
   });
 }
 
@@ -55,26 +57,22 @@ export async function clearPlacementForDay(
   taskId: string,
   date: string,
 ): Promise<void> {
-  await deletePlacement(db, taskId, date);
+  deletePlacement(db, taskId, date);
 }
 
 /** Scoped to live rows, matching what `loadPlacements` reads back: an
  *  archived row belongs to an archived task and is a record, not an
  *  override in play. */
-async function deletePlacement(
-  tx: Tx | typeof db,
-  taskId: string,
-  date: string,
-): Promise<void> {
-  await tx
-    .delete(plannedOccurrence)
+function deletePlacement(tx: Tx | typeof db, taskId: string, date: string): void {
+  tx.delete(plannedOccurrence)
     .where(
       and(
         eq(plannedOccurrence.taskId, taskId),
         eq(plannedOccurrence.localDate, date),
         isNull(plannedOccurrence.archivedAt),
       ),
-    );
+    )
+    .run();
 }
 
 /**

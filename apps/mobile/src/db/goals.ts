@@ -439,52 +439,49 @@ export async function createGoal(
   return id;
 }
 
-async function setGoalStatus(
-  tx: Tx,
-  goalId: string,
-  status: GoalStatus,
-): Promise<void> {
-  await tx
-    .update(goal)
+function setGoalStatus(tx: Tx, goalId: string, status: GoalStatus): void {
+  tx.update(goal)
     .set({ status, statusChangedAt: now() })
-    .where(eq(goal.id, goalId));
+    .where(eq(goal.id, goalId))
+    .run();
 }
 
 /** Tasks currently attached to a goal, excluding permanently archived
  *  ones — resuming a paused goal must never resurrect a task the user
  *  archived independently. */
-async function goalTasks(tx: Tx, goalId: string) {
+function goalTasks(tx: Tx, goalId: string) {
   return tx
     .select()
     .from(task)
-    .where(and(eq(task.goalId, goalId), isNull(task.archivedAt)));
+    .where(and(eq(task.goalId, goalId), isNull(task.archivedAt)))
+    .all();
 }
 
 export async function pauseGoal(goalId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) return;
     const next = nextGoalStatus(row.status as GoalStatus, "pause");
-    await setGoalStatus(tx, goalId, next);
-    const tasks = await goalTasks(tx, goalId);
+    setGoalStatus(tx, goalId, next);
+    const tasks = goalTasks(tx, goalId);
     for (const t of tasks) {
-      await tx.update(task).set({ active: false }).where(eq(task.id, t.id));
+      tx.update(task).set({ active: false }).where(eq(task.id, t.id)).run();
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
 export async function resumeGoal(goalId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) return;
     const next = nextGoalStatus(row.status as GoalStatus, "resume");
-    await setGoalStatus(tx, goalId, next);
-    const tasks = await goalTasks(tx, goalId);
+    setGoalStatus(tx, goalId, next);
+    const tasks = goalTasks(tx, goalId);
     for (const t of tasks) {
-      await tx.update(task).set({ active: true }).where(eq(task.id, t.id));
+      tx.update(task).set({ active: true }).where(eq(task.id, t.id)).run();
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -492,31 +489,31 @@ export async function abandonGoal(
   goalId: string,
   taskDecisions: { taskId: string; action: "detach" | "archive" }[],
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) return;
     const next = nextGoalStatus(row.status as GoalStatus, "abandon");
-    await setGoalStatus(tx, goalId, next);
+    setGoalStatus(tx, goalId, next);
     for (const { taskId, action } of taskDecisions) {
       if (action === "detach") {
-        await tx.update(task).set({ goalId: null }).where(eq(task.id, taskId));
+        tx.update(task).set({ goalId: null }).where(eq(task.id, taskId)).run();
       } else {
-        await tx
-          .update(task)
+        tx.update(task)
           .set({ active: false, archivedAt: now() })
-          .where(eq(task.id, taskId));
+          .where(eq(task.id, taskId))
+          .run();
       }
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
 export async function reviveGoal(goalId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) return;
     const next = nextGoalStatus(row.status as GoalStatus, "revive");
-    await setGoalStatus(tx, goalId, next);
+    setGoalStatus(tx, goalId, next);
   });
 }
 
@@ -527,17 +524,17 @@ export async function reviseGoal(
   taskCarry: { taskId: string; carry: boolean }[],
 ): Promise<string> {
   const newId = Crypto.randomUUID();
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) throw new Error(`reviseGoal: goal ${goalId} not found`);
     if (row.status !== "active") {
       throw new Error(`reviseGoal: cannot revise a ${row.status} goal`);
     }
-    await tx
-      .update(goal)
+    tx.update(goal)
       .set({ status: "revised", statusChangedAt: now() })
-      .where(eq(goal.id, goalId));
-    await tx.insert(goal).values({
+      .where(eq(goal.id, goalId))
+      .run();
+    tx.insert(goal).values({
       id: newId,
       unitId: row.unitId,
       title: newTitle,
@@ -547,14 +544,14 @@ export async function reviseGoal(
       statusChangedAt: now(),
       linkedFromGoalId: goalId,
       linkKind: "revision",
-    });
+    }).run();
     for (const { taskId, carry } of taskCarry) {
-      await tx
-        .update(task)
+      tx.update(task)
         .set({ goalId: carry ? newId : null, active: true })
-        .where(eq(task.id, taskId));
+        .where(eq(task.id, taskId))
+        .run();
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
   return newId;
 }
@@ -575,30 +572,30 @@ export async function completeGoal(
   opts: CompleteGoalOptions = {},
 ): Promise<{ successorGoalId: string | null }> {
   let successorGoalId: string | null = null;
-  await db.transaction(async (tx) => {
-    const [row] = await tx.select().from(goal).where(eq(goal.id, goalId));
+  db.transaction((tx) => {
+    const [row] = tx.select().from(goal).where(eq(goal.id, goalId)).all();
     if (!row) throw new Error(`completeGoal: goal ${goalId} not found`);
     const next = nextGoalStatus(row.status as GoalStatus, "complete");
-    await setGoalStatus(tx, goalId, next);
+    setGoalStatus(tx, goalId, next);
 
-    const tasks = await goalTasks(tx, goalId);
+    const tasks = goalTasks(tx, goalId);
     if (path === "archive") {
       for (const t of tasks) {
-        await tx
-          .update(task)
+        tx.update(task)
           .set({ active: false, archivedAt: now() })
-          .where(eq(task.id, t.id));
+          .where(eq(task.id, t.id))
+          .run();
       }
     } else if (path === "maintenance") {
       for (const t of tasks) {
-        await tx.update(task).set({ goalId: null }).where(eq(task.id, t.id));
+        tx.update(task).set({ goalId: null }).where(eq(task.id, t.id)).run();
       }
     } else {
       if (!opts.newTitle) {
         throw new Error("completeGoal: follow_up requires opts.newTitle");
       }
       const newId = Crypto.randomUUID();
-      await tx.insert(goal).values({
+      tx.insert(goal).values({
         id: newId,
         unitId: row.unitId,
         title: opts.newTitle,
@@ -608,27 +605,27 @@ export async function completeGoal(
         statusChangedAt: now(),
         linkedFromGoalId: goalId,
         linkKind: "follow_up",
-      });
+      }).run();
       const carrySet = new Set(
         (opts.taskCarry ?? []).filter((c) => c.carry).map((c) => c.taskId),
       );
       for (const t of tasks) {
-        await tx
-          .update(task)
+        tx.update(task)
           .set({ goalId: carrySet.has(t.id) ? newId : null })
-          .where(eq(task.id, t.id));
+          .where(eq(task.id, t.id))
+          .run();
       }
       successorGoalId = newId;
     }
 
-    await recomputeAllUnitPoints(tx);
-    await tx.insert(achievement).values({
+    recomputeAllUnitPoints(tx);
+    tx.insert(achievement).values({
       id: Crypto.randomUUID(),
       goalId,
       milestoneId: null,
       titleSnapshot: row.title,
       achievedAt: now(),
-    });
+    }).run();
   });
   return { successorGoalId };
 }
@@ -828,24 +825,24 @@ export async function renameCondition(
  * from their units either way.
  */
 export async function deleteCondition(conditionId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({ conditionId: null })
-      .where(eq(task.conditionId, conditionId));
-    await tx.delete(goalCondition).where(eq(goalCondition.id, conditionId));
+      .where(eq(task.conditionId, conditionId))
+      .run();
+    tx.delete(goalCondition).where(eq(goalCondition.id, conditionId)).run();
   });
 }
 
 /** Persist a drag-reorder. `orderedIds` is the full set for the goal,
  *  in the order it should read; anything missing is left alone. */
 export async function reorderConditions(orderedIds: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const [i, id] of orderedIds.entries()) {
-      await tx
-        .update(goalCondition)
+      tx.update(goalCondition)
         .set({ sortOrder: i + 1 })
-        .where(eq(goalCondition.id, id));
+        .where(eq(goalCondition.id, id))
+        .run();
     }
   });
 }
@@ -884,8 +881,8 @@ export async function attachTaskToGoal(
   goalId: string,
   conditionId: string | null,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.update(task).set({ goalId, conditionId }).where(eq(task.id, taskId));
+  db.transaction((tx) => {
+    tx.update(task).set({ goalId, conditionId }).where(eq(task.id, taskId)).run();
   });
 }
 
@@ -901,11 +898,11 @@ export async function attachTaskToGoal(
  * down.
  */
 export async function detachTaskFromGoal(taskId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({ goalId: null, conditionId: null })
-      .where(eq(task.id, taskId));
+      .where(eq(task.id, taskId))
+      .run();
   });
 }
 
@@ -954,43 +951,44 @@ export async function detachTaskFromGoal(taskId: string): Promise<void> {
  *   whether or not it still points at a goal.
  */
 export async function deleteGoal(goalId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // Detach first: the achievement's own row is the record, and a
     // dangling id would point at nothing after the delete. Both ends
     // matter — the rungs go too, so an achievement earned on one would
     // otherwise keep a `milestone_id` for a row that no longer exists.
-    const rungs = await tx
+    const rungs = tx
       .select({ id: milestone.id })
       .from(milestone)
-      .where(eq(milestone.goalId, goalId));
+      .where(eq(milestone.goalId, goalId))
+      .all();
     if (rungs.length > 0) {
-      await tx
-        .update(achievement)
+      tx.update(achievement)
         .set({ milestoneId: null })
         .where(
           inArray(
             achievement.milestoneId,
             rungs.map((m) => m.id),
           ),
-        );
+        )
+        .run();
     }
-    await tx
-      .update(achievement)
+    tx.update(achievement)
       .set({ goalId: null })
-      .where(eq(achievement.goalId, goalId));
+      .where(eq(achievement.goalId, goalId))
+      .run();
     // Anything nominated to auto-count for this goal stops doing so.
-    await tx
-      .update(goal)
+    tx.update(goal)
       .set({ autocountTaskId: null })
-      .where(eq(goal.id, goalId));
-    await tx.update(task).set({ goalId: null }).where(eq(task.goalId, goalId));
-    await tx.delete(goalProgress).where(eq(goalProgress.goalId, goalId));
-    await tx.delete(milestone).where(eq(milestone.goalId, goalId));
-    await tx.delete(goal).where(eq(goal.id, goalId));
+      .where(eq(goal.id, goalId))
+      .run();
+    tx.update(task).set({ goalId: null }).where(eq(task.goalId, goalId)).run();
+    tx.delete(goalProgress).where(eq(goalProgress.goalId, goalId)).run();
+    tx.delete(milestone).where(eq(milestone.goalId, goalId)).run();
+    tx.delete(goal).where(eq(goal.id, goalId)).run();
     // Tasks changed hands but not rank or count, so points are
     // unchanged — this only guards against a goal delete racing a plan
     // edit that did move them.
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 

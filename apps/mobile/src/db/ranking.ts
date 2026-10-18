@@ -201,19 +201,19 @@ export async function applyPriorityOrder(
 ): Promise<void> {
   const weights = weightsForOrder(board, order);
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const [unitId, weight] of weights) {
-      await tx
-        .update(unitWeight)
+      tx.update(unitWeight)
         .set({ override: weight })
         .where(
           and(
             eq(unitWeight.snapshotId, board.snapshotId),
             eq(unitWeight.unitId, unitId),
           ),
-        );
+        )
+        .run();
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 
   // Outside the transaction: `cacheDayScore` re-enters through `loadDay`
@@ -228,12 +228,12 @@ export async function applyPriorityOrder(
 
 /** Drops every override, returning to what the diagnostic derived. */
 export async function resetToDiagnostic(board: RankingBoard): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(unitWeight)
+  db.transaction((tx) => {
+    tx.update(unitWeight)
       .set({ override: null })
-      .where(eq(unitWeight.snapshotId, board.snapshotId));
-    await recomputeAllUnitPoints(tx);
+      .where(eq(unitWeight.snapshotId, board.snapshotId))
+      .run();
+    recomputeAllUnitPoints(tx);
   });
   await recacheAllDayScores();
   await setSetting(ORDER_KEY, "");

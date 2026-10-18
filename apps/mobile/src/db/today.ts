@@ -311,7 +311,7 @@ export async function loadDay(
   const today = currentLocalDate();
   await finalizePastDays(today);
 
-  const weights = await latestWeights(db);
+  const weights = latestWeights(db);
 
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
   const unitById = new Map(units.map((u) => [u.id, u]));

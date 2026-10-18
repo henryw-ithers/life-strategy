@@ -283,13 +283,13 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
     new Map(weights.map((w) => [w.unitId, w.weight])),
   );
 
-  await db.transaction(async (tx) => {
-    await tx.insert(snapshot).values({
+  db.transaction((tx) => {
+    tx.insert(snapshot).values({
       id: snapshotId,
       takenAt,
       formulaVersion: FORMULA_VERSION,
-    });
-    await tx.insert(rating).values(
+    }).run();
+    tx.insert(rating).values(
       entries.map((e) => ({
         snapshotId,
         unitId: e.unitId,
@@ -299,21 +299,21 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         // history-free first snapshot leaves effort null (uniform).
         effortPoints: effort ? (effort.get(e.unitId) ?? 0) : null,
       })),
-    );
+    ).run();
     if (weights.length > 0) {
-      await tx.insert(unitWeight).values(
+      tx.insert(unitWeight).values(
         weights.map((w) => ({
           snapshotId,
           unitId: w.unitId,
           derived: w.weight,
         })),
-      );
+      ).run();
     }
     // New weights mean new task points. `loadPlan` and `loadDay` read
     // the stored `task.point_value`, so without this the checklist
     // keeps scoring against the previous diagnostic until some
     // unrelated task edit happens to refresh the unit.
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 
   // And the cached day scores those points feed — the calendar, the

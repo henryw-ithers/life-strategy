@@ -39,7 +39,7 @@ import {
   taskUnit,
   unitWeight,
 } from "./schema";
-import { markGradesStale } from "./settings";
+import { markGradesStale, markGradesStaleIn } from "./settings";
 
 export interface PlanTask {
   id: string;
@@ -148,18 +148,27 @@ export interface PlanData {
  * not. Being archived does not make School stop being a commitment, and
  * the membership rule has to hold for a task being edited either way.
  */
-async function commitmentUnitIdsIn(tx: Tx | typeof db): Promise<Set<string>> {
-  const rows = await tx
+function commitmentUnitIdsIn(tx: Tx | typeof db): Set<string> {
+  const rows = tx
     .select({
       id: lifeUnit.id,
       isCustom: lifeUnit.isCustom,
       parentUnitId: lifeUnit.parentUnitId,
       commitmentShare: lifeUnit.commitmentShare,
     })
-    .from(lifeUnit);
+    .from(lifeUnit)
+    .all();
   return new Set(rows.filter(isCommitmentUnit).map((u) => u.id));
 }
 
+/**
+ * A transaction handle. **Transaction callbacks must be synchronous**:
+ * drizzle's expo-sqlite driver commits as soon as the callback returns,
+ * so an async callback commits before its first awaited statement runs
+ * and nothing after that rolls back. Use `.run()`, `.all()` and `.get()`
+ * inside one, never `await`. Helpers that take a `Tx` are synchronous
+ * for the same reason.
+ */
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
@@ -178,25 +187,24 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * Integer weights summing to exactly 100, via the same largest-remainder
  * rounding the derivation uses (ADR-0003 §3).
  */
-export async function latestWeights(
-  dbOrTx: Tx | typeof db,
-): Promise<Map<string, number>> {
-  const [latest] = await dbOrTx
+export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
+  const [latest] = dbOrTx
     .select()
     .from(snapshot)
     .orderBy(desc(snapshot.takenAt))
-    .limit(1);
+    .limit(1)
+    .all();
   if (!latest) return new Map();
-  const rows = await dbOrTx
+  const rows = dbOrTx
     .select()
     .from(unitWeight)
-    .where(eq(unitWeight.snapshotId, latest.id));
+    .where(eq(unitWeight.snapshotId, latest.id))
+    .all();
   const included = new Set(
-    (
-      await dbOrTx
-        .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
-        .from(lifeUnit)
-    )
+    dbOrTx
+      .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
+      .from(lifeUnit)
+      .all()
       .filter((u) => u.includeInScoring)
       .map((u) => u.id),
   );
@@ -212,7 +220,7 @@ export async function latestWeights(
 }
 
 export async function loadPlan(): Promise<PlanData> {
-  const weights = await latestWeights(db);
+  const weights = latestWeights(db);
   const areas = await db
     .select()
     .from(lifeArea)
@@ -367,17 +375,18 @@ const ONE_OFF_SIZE_RATE: Record<"quick" | "normal" | "big", number> = {
   big: 1,
 };
 
-export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
-  const weights = await latestWeights(tx);
-  const units = await tx
+export function recomputeAllUnitPoints(tx: Tx): void {
+  const weights = latestWeights(tx);
+  const units = tx
     .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
-    .from(lifeUnit);
-  const commitmentUnitIds = await commitmentUnitIdsIn(tx);
+    .from(lifeUnit)
+    .all();
+  const commitmentUnitIds = commitmentUnitIdsIn(tx);
   // Scoring rows only. A `note` row earns nothing and holds no rank
   // (ADR-0025 §5); weighted as a slot it would pay a commitment task a
   // second time from a life unit, which is the one way to inflate a day
   // (ADR-0035 §3).
-  const memberships = await tx
+  const memberships = tx
     .select({
       taskId: taskUnit.taskId,
       unitId: taskUnit.unitId,
@@ -387,10 +396,11 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     .from(taskUnit)
     .innerJoin(task, eq(task.id, taskUnit.taskId))
     .where(and(eq(task.active, true), eq(taskUnit.membership, "scoring")))
-    .orderBy(asc(taskUnit.rankInUnit));
+    .orderBy(asc(taskUnit.rankInUnit))
+    .all();
   // One read of the per-task columns this pass needs. `unitId` is the
   // home unit, which decides whose rank lands back on `task`.
-  const taskRows = await tx
+  const taskRows = tx
     .select({
       id: task.id,
       timesPerWeek: task.timesPerWeek,
@@ -399,7 +409,8 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
       pointValue: task.pointValue,
       rankInUnit: task.rankInUnit,
     })
-    .from(task);
+    .from(task)
+    .all();
   const oneOffSizeByTask = new Map(taskRows.map((t) => [t.id, t.oneOffSize]));
   const homeUnitByTask = new Map(taskRows.map((t) => [t.id, t.unitId]));
   const taskById = new Map(taskRows.map((t) => [t.id, t]));
@@ -478,10 +489,10 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     const rank = normalizedRank.get(key) ?? m.rankInUnit;
     totalByTask.set(m.taskId, (totalByTask.get(m.taskId) ?? 0) + value);
     if (value === m.pointValue && rank === m.rankInUnit) continue;
-    await tx
-      .update(taskUnit)
+    tx.update(taskUnit)
       .set({ pointValue: value, rankInUnit: rank })
-      .where(and(eq(taskUnit.taskId, m.taskId), eq(taskUnit.unitId, m.unitId)));
+      .where(and(eq(taskUnit.taskId, m.taskId), eq(taskUnit.unitId, m.unitId)))
+      .run();
   }
 
   for (const [taskId, total] of totalByTask) {
@@ -497,54 +508,55 @@ export async function recomputeAllUnitPoints(tx: Tx): Promise<void> {
     ) {
       continue;
     }
-    await tx
-      .update(task)
+    tx.update(task)
       .set({ pointValue: total, ...(homeRank ? { rankInUnit: homeRank } : {}) })
-      .where(eq(task.id, taskId));
+      .where(eq(task.id, taskId))
+      .run();
   }
 
   // Every plan change that moves a price passes through here, so this
   // is the one place stored day grades learn they are out of date.
-  await markGradesStale(tx);
+  markGradesStaleIn(tx);
 }
 
 /** Append the task to each unit's ranking, then recompute those units. */
-async function attachUnits(
+function attachUnits(
   tx: Tx,
   taskId: string,
   unitIds: string[],
   rankByUnit?: Record<string, number>,
   membershipOf: ReadonlyMap<string, Membership> = new Map(),
-): Promise<void> {
+): void {
   for (const unitId of unitIds) {
     const membership = membershipOf.get(unitId) ?? "scoring";
     if (membership === "note") {
       // No rank, no points, no shuffling anybody else's order: a note
       // takes no slot (ADR-0025 §5). Both columns are written 0 and
       // ignored, as the schema's comment requires.
-      await tx
-        .insert(taskUnit)
-        .values({ taskId, unitId, rankInUnit: 0, pointValue: 0, membership });
+      tx.insert(taskUnit)
+        .values({ taskId, unitId, rankInUnit: 0, pointValue: 0, membership })
+        .run();
       continue;
     }
-    const siblings = await tx
+    const siblings = tx
       .select()
       .from(taskUnit)
-      .where(and(eq(taskUnit.unitId, unitId), eq(taskUnit.membership, "scoring")));
+      .where(and(eq(taskUnit.unitId, unitId), eq(taskUnit.membership, "scoring")))
+      .all();
     const rank = rankByUnit?.[unitId] ?? siblings.length + 1;
     for (const s of siblings) {
       if (s.rankInUnit >= rank) {
-        await tx
-          .update(taskUnit)
+        tx.update(taskUnit)
           .set({ rankInUnit: s.rankInUnit + 1 })
-          .where(and(eq(taskUnit.taskId, s.taskId), eq(taskUnit.unitId, unitId)));
+          .where(and(eq(taskUnit.taskId, s.taskId), eq(taskUnit.unitId, unitId)))
+          .run();
       }
     }
-    await tx
-      .insert(taskUnit)
-      .values({ taskId, unitId, rankInUnit: rank, pointValue: 0 });
+    tx.insert(taskUnit)
+      .values({ taskId, unitId, rankInUnit: rank, pointValue: 0 })
+      .run();
   }
-  await recomputeAllUnitPoints(tx);
+  recomputeAllUnitPoints(tx);
 }
 
 /**
@@ -609,20 +621,21 @@ export async function addTask(
   const home = unitIds[0];
   if (!home) return null;
   const id = Crypto.randomUUID();
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // Decided before anything is written, so a refused shape — a
     // commitment as a second unit — leaves no half-made task behind.
     const membershipOf = new Map(
-      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
+      membershipsFor(unitIds, commitmentUnitIdsIn(tx)).map((m) => [
         m.unitId,
         m.membership,
       ]),
     );
-    const siblings = await tx
+    const siblings = tx
       .select()
       .from(taskUnit)
-      .where(eq(taskUnit.unitId, home));
-    await tx.insert(task).values({
+      .where(eq(taskUnit.unitId, home))
+      .all();
+    tx.insert(task).values({
       id,
       unitId: home,
       title,
@@ -646,8 +659,8 @@ export async function addTask(
       kind: detail?.kind ?? "task",
       pointValue: 0,
       rankInUnit: siblings.length + 1,
-    });
-    await attachUnits(tx, id, unitIds, undefined, membershipOf);
+    }).run();
+    attachUnits(tx, id, unitIds, undefined, membershipOf);
   });
   return id;
 }
@@ -657,45 +670,48 @@ export async function setTaskUnits(
   taskId: string,
   unitIds: string[],
 ): Promise<void> {
+  db.transaction((tx) => setTaskUnitsIn(tx, taskId, unitIds));
+}
+
+/** `setTaskUnits` inside a caller's transaction. */
+export function setTaskUnitsIn(tx: Tx, taskId: string, unitIds: string[]): void {
   const home = unitIds[0];
   if (!home) return;
-  await db.transaction(async (tx) => {
-    const desired = new Map(
-      membershipsFor(unitIds, await commitmentUnitIdsIn(tx)).map((m) => [
-        m.unitId,
-        m.membership,
-      ]),
-    );
-    const current = await tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId));
-    // A unit kept but changing kind — Learning going from a scoring
-    // slot to a note because the task moved under School — is removed
-    // and re-attached, so it gains or loses its rank properly rather
-    // than keeping one it no longer has a right to.
-    const changed = current
-      .filter((m) => desired.has(m.unitId) && desired.get(m.unitId) !== m.membership)
-      .map((m) => m.unitId);
-    const currentIds = current.map((m) => m.unitId);
-    const removed = [
-      ...currentIds.filter((id) => !unitIds.includes(id)),
-      ...changed,
-    ];
-    const added = [
-      ...unitIds.filter((id) => !currentIds.includes(id)),
-      ...changed,
-    ];
+  const desired = new Map(
+    membershipsFor(unitIds, commitmentUnitIdsIn(tx)).map((m) => [
+      m.unitId,
+      m.membership,
+    ]),
+  );
+  const current = tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId)).all();
+  // A unit kept but changing kind — Learning going from a scoring
+  // slot to a note because the task moved under School — is removed
+  // and re-attached, so it gains or loses its rank properly rather
+  // than keeping one it no longer has a right to.
+  const changed = current
+    .filter((m) => desired.has(m.unitId) && desired.get(m.unitId) !== m.membership)
+    .map((m) => m.unitId);
+  const currentIds = current.map((m) => m.unitId);
+  const removed = [
+    ...currentIds.filter((id) => !unitIds.includes(id)),
+    ...changed,
+  ];
+  const added = [
+    ...unitIds.filter((id) => !currentIds.includes(id)),
+    ...changed,
+  ];
 
-    for (const unitId of removed) {
-      await tx
-        .delete(taskUnit)
-        .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
-    }
-    await tx.update(task).set({ unitId: home }).where(eq(task.id, taskId));
-    // One pricing pass either way — `attachUnits` ends in one. It closes
-    // the rank gap in the units the task left, rescales the plan if it
-    // left one of them with nothing, and writes the task's total.
-    if (added.length) await attachUnits(tx, taskId, added, undefined, desired);
-    else await recomputeAllUnitPoints(tx);
-  });
+  for (const unitId of removed) {
+    tx.delete(taskUnit)
+      .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)))
+      .run();
+  }
+  tx.update(task).set({ unitId: home }).where(eq(task.id, taskId)).run();
+  // One pricing pass either way — `attachUnits` ends in one. It closes
+  // the rank gap in the units the task left, rescales the plan if it
+  // left one of them with nothing, and writes the task's total.
+  if (added.length) attachUnits(tx, taskId, added, undefined, desired);
+  else recomputeAllUnitPoints(tx);
 }
 
 /** Reorder one unit's tasks; `orderedTaskIds` is rank 1 first. */
@@ -703,14 +719,14 @@ export async function reorderUnitTasks(
   unitId: string,
   orderedTaskIds: string[],
 ): Promise<void> {
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const [i, taskId] of orderedTaskIds.entries()) {
-      await tx
-        .update(taskUnit)
+      tx.update(taskUnit)
         .set({ rankInUnit: i + 1 })
-        .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)));
+        .where(and(eq(taskUnit.taskId, taskId), eq(taskUnit.unitId, unitId)))
+        .run();
     }
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -730,25 +746,25 @@ export async function setTaskDetails(
 }
 
 export async function archiveTask(taskId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({ active: false, archivedAt: new Date().toISOString() })
-      .where(eq(task.id, taskId));
+      .where(eq(task.id, taskId))
+      .run();
     // Deleting the last task in a unit hands its weight to the rest of
     // the plan, so this reaches past the units the task belonged to.
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
 /** Undo an archive — the same rank slots reopen (ADR-0002 soft delete). */
 export async function restoreTask(taskId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({ active: true, archivedAt: null })
-      .where(eq(task.id, taskId));
-    await recomputeAllUnitPoints(tx);
+      .where(eq(task.id, taskId))
+      .run();
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -764,9 +780,9 @@ export async function setTaskFrequency(
   taskId: string,
   timesPerWeek: number,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.update(task).set({ timesPerWeek }).where(eq(task.id, taskId));
-    await recomputeAllUnitPoints(tx);
+  db.transaction((tx) => {
+    tx.update(task).set({ timesPerWeek }).where(eq(task.id, taskId)).run();
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -818,15 +834,15 @@ export async function setUnitScoring(
   unitId: string,
   includeInScoring: boolean,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(lifeUnit)
+  db.transaction((tx) => {
+    tx.update(lifeUnit)
       .set({ includeInScoring })
-      .where(eq(lifeUnit.id, unitId));
+      .where(eq(lifeUnit.id, unitId))
+      .run();
     // A unit joining or leaving the 100 rescales every task in the
     // plan — the routine band is a share of each unit's weight and the
     // variable band is one pool across all of them.
-    await recomputeAllUnitPoints(tx);
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -891,9 +907,9 @@ export async function latestRatings(): Promise<
 export async function reorderDayTasks(
   orderedTaskIds: readonly string[],
 ): Promise<void> {
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const [i, taskId] of orderedTaskIds.entries()) {
-      await tx.update(task).set({ dayOrder: i + 1 }).where(eq(task.id, taskId));
+      tx.update(task).set({ dayOrder: i + 1 }).where(eq(task.id, taskId)).run();
     }
   });
 }
@@ -950,12 +966,12 @@ export async function setTaskOneOff(
   date: string | null,
   due: string | null,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({ oneOffSize: size, size, oneOffDate: date, oneOffDue: due })
-      .where(eq(task.id, taskId));
-    await recomputeAllUnitPoints(tx);
+      .where(eq(task.id, taskId))
+      .run();
+    recomputeAllUnitPoints(tx);
   });
 }
 
@@ -1102,9 +1118,8 @@ export async function updateEvent(
   const problem = eventProblem(input);
   if (problem) throw new Error(problem);
   const repeating = input.weekdays.length > 0;
-  await db.transaction(async (tx) => {
-    await tx
-      .update(task)
+  db.transaction((tx) => {
+    tx.update(task)
       .set({
         title: input.title.trim(),
         timesPerWeek: repeating ? eventTimesPerWeek(input.weekdays) : 1,
@@ -1117,7 +1132,8 @@ export async function updateEvent(
         kind: "event",
         description: optionalText(input.notes),
       })
-      .where(eq(task.id, taskId));
-    await recomputeAllUnitPoints(tx);
+      .where(eq(task.id, taskId))
+      .run();
+    recomputeAllUnitPoints(tx);
   });
 }
