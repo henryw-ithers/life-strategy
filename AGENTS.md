@@ -28,7 +28,9 @@ build runs in phases: Expo upgrade, fixes, native shell, scoring
 engine, data layer, then the screens. The vocabulary and invariants
 below describe the accepted design. Where a phase hasn't landed yet,
 the code still follows the older rule its ADR amends. Change it in the
-phase that owns it, not along the way.
+phase that owns it, not along the way. Which phases are done and what
+the next one must do is tracked in
+[docs/design/redesign-build.md](docs/design/redesign-build.md).
 
 ## Repository layout
 
