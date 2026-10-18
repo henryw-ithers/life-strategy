@@ -89,6 +89,28 @@ export {
 export type { GoalStatus, GoalAction } from "./goals";
 export { nextGoalStatus } from "./goals";
 export type {
+  GoalDefinition,
+  GoalEntry,
+  GoalKind,
+  GoalMeasure,
+  GoalProgress,
+  GoalTaskFacts,
+  GoalTick,
+  StreakContext,
+} from "./goalKinds";
+export {
+  clampTookAbout,
+  countsToward,
+  entryFor,
+  goalProblem,
+  goalProgress,
+  goalStreak,
+  streakRungs,
+  streakShown,
+  STREAK_SHOWN_FROM,
+  TOOK_ABOUT_RANGE,
+} from "./goalKinds";
+export type {
   AreaRank,
   UnitRank,
   OverallUnitRank,

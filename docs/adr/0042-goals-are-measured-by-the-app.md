@@ -76,6 +76,19 @@ The first three kinds have a target. A streak has none.
 Points earned is a running total only. It is never a percentage of the
 points on offer, since that would measure plan completion (AGENTS.md).
 
+> **Clarified 2026-10-17 (Henry).**
+>
+> - **Events can count** toward times done and time spent, not only
+>   tasks. A target is always the number you set: the app never
+>   suggests, defaults to or shows the number of sessions scheduled, so
+>   "18 / 30" is progress toward your own goal and never attended out
+>   of scheduled (ADR-0038 §5). Templates must not fill a target from a
+>   schedule. An event's time is its own length.
+> - **Points earned counts only the units a task scores in.** A unit a
+>   task merely tags as a note earns nothing there (ADR-0035 §3), so it
+>   adds nothing to that unit's points goal, and a task scoring in two
+>   units gives each goal its own unit's share.
+
 ### 2. Streak goals keep the existing streak rules
 
 Streak goals use the existing rules (ADR-0004 §5, ADR-0015's
@@ -90,6 +103,9 @@ Streak goals use the existing rules (ADR-0004 §5, ADR-0015's
 - Nothing is said when a run ends, a past best never sits beside a
   shorter current run, and nothing shows under 7 days.
 - A cleared day (ADR-0040) is not a day off, so it can end a run.
+- If the task stops being every day after the goal is made, the run
+  counts only the days it's due, and skips the rest like days off
+  (Henry, 2026-10-17).
 
 ### 3. Progress and completion
 
@@ -173,8 +189,10 @@ scratch" is the same sheet, empty.
 
 ## Action items
 
-1. [ ] Goal kinds and progress functions in `packages/scoring/src/goals.ts`,
-       with tests (EC-36, EC-37, EC-41, EC-51).
+1. [x] Goal kinds and progress functions in `packages/scoring/src/goals.ts`,
+       with tests (EC-36, EC-37, EC-41, EC-51). Done in Phase 4d, in
+       `goalKinds.ts` beside the goal state machine, with the
+       2026-10-17 clarifications above.
 2. [ ] Schema: goal kind, scope and target fields, the goal–task
        links, and `task_completion.actual_minutes`. A migration erases
        existing goals and drops `goal_condition`, `milestone` and
