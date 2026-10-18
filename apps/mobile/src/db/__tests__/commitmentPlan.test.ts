@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildCommitmentDay,
   eligibleTaskIds,
   groupCommitments,
   type CommitmentUnitRow,
@@ -119,30 +118,3 @@ describe("eligibleTaskIds — ADR-0032 §3", () => {
   });
 });
 
-describe("buildCommitmentDay — the three routes to an ordinary day", () => {
-  const groups = groupCommitments([unit("school", null, 50)]);
-
-  it("is null when no band is set", () => {
-    expect(buildCommitmentDay(null, groups, ["lecture"])).toBeNull();
-  });
-
-  it("is null when there are no commitments", () => {
-    expect(buildCommitmentDay(40, [], ["lecture"])).toBeNull();
-  });
-
-  it("is null when nothing is scheduled today — ADR-0032 §1", () => {
-    // The band exists only on days it can be earned. This is what stops
-    // an empty Sunday capping below 100 through someone else's
-    // timetable, and it is the case most likely to be broken by a
-    // refactor, because the other two are obvious.
-    expect(buildCommitmentDay(40, groups, [])).toBeNull();
-  });
-
-  it("builds a day when all three hold", () => {
-    expect(buildCommitmentDay(40, groups, ["lecture"])).toEqual({
-      band: 40,
-      commitments: groups,
-      eligibleTaskIds: ["lecture"],
-    });
-  });
-});

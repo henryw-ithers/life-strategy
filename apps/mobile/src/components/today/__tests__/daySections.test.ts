@@ -46,6 +46,9 @@ function task(id: string, over: Partial<TodayTask> = {}): TodayTask {
     endMinute: null,
     size: null,
     kind: "task",
+    repeatFrom: null,
+    repeatUntil: null,
+    skippedToday: false,
     ...over,
   };
 }

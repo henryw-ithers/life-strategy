@@ -94,10 +94,24 @@ export const lifeUnit = sqliteTable("life_unit", {
    * (`rebalanceShares`); the engine still reads them only relative to
    * one another, so older rows that sum to anything keep working.
    *
-   * The band's own size is a single number and lives in `app_setting`
-   * under `commitment.band` — see `db/settings.ts`.
+   * **Since formula v11 its value prices nothing**: each day's share
+   * comes from that day (ADR-0044), or from `set_share`. The column
+   * stays because a non-null value is what marks a unit as a
+   * commitment (`isCommitmentUnit`).
    */
   commitmentShare: real("commitment_share"),
+  /**
+   * A share of the day you set for this commitment ("School at 60%"),
+   * in percent, replacing the automatic one on every day it has work
+   * (ADR-0044 §3). Null, the default, is automatic: the commitment's
+   * time that day over the day's working hours.
+   *
+   * Since formula v11 this, not `commitment_share`, is what a user sets.
+   * `commitment_share` stays as the column that marks a unit as a
+   * commitment (`isCommitmentUnit`); its value no longer prices
+   * anything, and neither does the old `commitment.band` setting.
+   */
+  setShare: real("set_share"),
   /**
    * Whether a commitment is split into sub-commitments (ADR-0035 §1 as
    * amended 2026-10-02). On, its work lives in its sub-commitments and
@@ -973,6 +987,15 @@ export const dayGrade = sqliteTable("day_grade", {
    * for days never touched (which score zero regardless of the plan).
    */
   planSnapshot: text("plan_snapshot"),
+  /**
+   * The working hours the day began with, JSON ranges as in
+   * `work_day_override` (ADR-0044 §5, action item 2). The commitment
+   * share reads these, so changing the hours on the day itself, or
+   * later, never moves that day's share. Written the first time the day
+   * is scored and just before any change to the hours that reaches it.
+   * Null for days before formula v11, and for days not yet begun.
+   */
+  startingHours: text("starting_hours"),
   ...timestamps,
 });
 

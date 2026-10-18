@@ -35,7 +35,6 @@ import {
   taskUnit,
   unitWeight,
 } from "../schema";
-import { loadCommitmentBand, setCommitmentBand } from "../settings";
 import { archiveTask, restoreTask, setTaskPlanning } from "../tasks";
 import { resetTestDb, testDb } from "./harness";
 
@@ -80,8 +79,9 @@ function seedPlan() {
   db.insert(lifeArea).values({ id: "area", name: "Area", sortOrder: 0 }).run();
   db.insert(lifeUnit)
     .values([
-      { id: "fitness", areaId: "area", name: "Fitness", sortOrder: 0 },
-      { id: "friends", areaId: "area", name: "Friends", sortOrder: 1 },
+      // Weights come from tiers (ADR-0041).
+      { id: "fitness", areaId: "area", name: "Fitness", sortOrder: 0, tier: "top", tierOrder: 0 },
+      { id: "friends", areaId: "area", name: "Friends", sortOrder: 1, tier: "important", tierOrder: 0 },
     ])
     .run();
   db.insert(snapshot).values({ id: "snap", takenAt: "2026-10-01T00:00:00Z", formulaVersion: 10 }).run();
@@ -306,23 +306,22 @@ describe("updatePool", () => {
 });
 
 describe("applyPriorityOrder", () => {
-  it("writes the overrides and reprices the plan", async () => {
+  it("sets tiers from the order and reprices the plan", async () => {
     seedPlan();
     const board = await loadRankingBoard();
     if (!board) throw new Error("no board");
 
     await applyPriorityOrder(board, ["friends", "fitness"]);
 
-    const weights = testDb().select().from(unitWeight).all();
-    const friends = weights.find((w) => w.unitId === "friends");
-    const fitness = weights.find((w) => w.unitId === "fitness");
-    expect(friends?.override).not.toBeNull();
-    expect(friends?.override ?? 0).toBeGreaterThan(fitness?.override ?? 0);
+    const units = testDb().select().from(lifeUnit).all();
+    expect(units.find((u) => u.id === "friends")?.tier).toBe("top");
+    expect(units.find((u) => u.id === "fitness")?.tier).toBe("important");
+    expect(testDb().select().from(unitWeight).all().every((w) => w.override === null)).toBe(true);
     expect(taskRow("call")?.pointValue).toBeGreaterThan(0);
     expect(recache).toHaveBeenCalledOnce();
   });
 
-  it("rolls the overrides back when the pricing pass fails", async () => {
+  it("rolls the tiers back when the pricing pass fails", async () => {
     seedPlan();
     const board = await loadRankingBoard();
     if (!board) throw new Error("no board");
@@ -332,7 +331,7 @@ describe("applyPriorityOrder", () => {
       /injected failure/,
     );
 
-    expect(testDb().select().from(unitWeight).all().every((w) => w.override === null)).toBe(true);
+    expect(testDb().select().from(lifeUnit).all().find((u) => u.id === "fitness")?.tier).toBe("top");
     expect(taskRow("call")?.pointValue).toBe(0);
     // Nothing is re-scored from a plan that was never saved.
     expect(recache).not.toHaveBeenCalled();
@@ -352,12 +351,6 @@ describe("grades are marked stale in the same transaction as the write", () => {
     failStaleMark();
     await expect(setTaskPlanning("gym", "1,3", "morning")).rejects.toThrow(/injected failure/);
     expect(taskRow("gym")?.plannedWeekdays).toBeNull();
-  });
-
-  it("the commitment band rolls back when the mark fails", async () => {
-    failStaleMark();
-    await expect(setCommitmentBand(40)).rejects.toThrow(/injected failure/);
-    expect(await loadCommitmentBand()).toBeNull();
   });
 
   it("a new pool rolls back when the mark fails", async () => {

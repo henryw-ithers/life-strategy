@@ -5,8 +5,6 @@
  */
 import { eq } from "drizzle-orm";
 
-import { MAX_COMMITMENTS, normalizeBand } from "@glide/scoring";
-
 import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
 import { appSetting } from "./schema";
@@ -117,49 +115,10 @@ export async function clearFeedbackDraft(): Promise<void> {
  * table is the app's own record of what it was once asked to do.
  */
 
-const KEY_COMMITMENT_BAND = "commitment.band";
-
-/**
- * How much of a **scheduled** day belongs to commitments (ADR-0032 §2).
- *
- * One number for the whole app, so it lives here rather than on a
- * table — there is no row it belongs to. The per-commitment *shares*
- * do have a row and live on `life_unit.commitment_share`.
- *
- * `null` means the user has not set one, which is not the same as
- * zero: with no band set, `loadDay` passes no `CommitmentDay` and every
- * day is the ordinary two-band day (planned 90, unplanned 10). That is what keeps the
- * feature invisible until it is used.
- *
- * > **Known limitation.** `app_setting` is device-scoped by intent —
- * > its header notes these keys would not sync if ADR-0016 ever lands.
- * > A scoring input that does not sync would be a real problem then,
- * > and the fix at that point is to move this to a synced row rather
- * > than to special-case the key. Recorded here so it is found.
- */
-export async function loadCommitmentBand(): Promise<number | null> {
-  const value = await getSetting(KEY_COMMITMENT_BAND);
-  if (value === null || value === "") return null;
-  const parsed = Number(value);
-  // Normalised against the highest cap, three commitments' 80. The cap
-  // for however many there are today is applied where the band is used
-  // (`commitmentBandOn`), so archiving one never rewrites the setting.
-  return Number.isFinite(parsed) ? normalizeBand(parsed, MAX_COMMITMENTS) : null;
-}
-
-/** Stored normalised, so a value out of range cannot reach the engine
- *  even if this is called with one (ADR-0032 §2: 10 up to 60, 70 or 80
- *  for one, two or three commitments). */
-export async function setCommitmentBand(band: number): Promise<void> {
-  writeAndMarkStale((tx) =>
-    setSettingIn(tx, KEY_COMMITMENT_BAND, String(normalizeBand(band, MAX_COMMITMENTS))),
-  );
-}
-
-/** Forget the band entirely — every day goes back to two bands. */
-export async function clearCommitmentBand(): Promise<void> {
-  writeAndMarkStale((tx) => setSettingIn(tx, KEY_COMMITMENT_BAND, ""));
-}
+// `commitment.band`, the old hand-set commitment band (ADR-0032 §2), is
+// retired: since formula v11 the band is each day's commitment share
+// (ADR-0044, `loadCommitmentDay`). A stored value is left in place and
+// read by nothing.
 
 const KEY_GRADES_STALE = "grades.stale";
 

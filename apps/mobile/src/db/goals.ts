@@ -22,6 +22,8 @@ import * as Crypto from "expo-crypto";
 import { habitRungTitle, rungDaysOf } from "../lib/habitRungs";
 import { db } from "./client";
 import { forgetPinsOf } from "./pins";
+import { loadAwayRanges } from "./skips";
+import { awayDatesBetween } from "./windowRules";
 import { recomputeAllUnitPoints, type Tx } from "./tasks";
 import {
   achievement,
@@ -254,7 +256,11 @@ async function habitStreak(
       ...completions.map((c) => c.localDate),
       ...progress.map((p) => p.localDate),
     ],
-    daysOff: off.map((d) => d.localDate),
+    // Away days are days off too (ADR-0040 §5).
+    daysOff: [
+      ...off.map((d) => d.localDate),
+      ...awayDatesBetween(await loadAwayRanges(), "0000-01-01", "9999-12-31"),
+    ],
     today: new Date().toISOString().slice(0, 10),
   };
   // The input travels with the result so a rung can be *dated*, not

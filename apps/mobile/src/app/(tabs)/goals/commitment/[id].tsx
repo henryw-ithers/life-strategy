@@ -185,7 +185,7 @@ export default function CommitmentScreen() {
     setSheet(
       isSub
         ? { kind: "sub", parentName: data.parent!.name, name: data.name }
-        : { kind: "commitment", name: data.name, percent: data.sharePercent },
+        : { kind: "commitment", name: data.name },
     );
   };
 
@@ -197,7 +197,9 @@ export default function CommitmentScreen() {
     const { id: unitId, name, events, tasks } = data;
     Alert.alert(
       `Delete ${name}?`,
-      isSub
+      isSub && data.lastSub
+        ? `Its ${countOf(events.length, "event")} and ${countOf(tasks.length, "task")} move back to ${data.parent!.name}.`
+        : isSub
         ? `It goes for good, with its ${countOf(events.length, "event")} and ${countOf(tasks.length, "task")}. Days you have already scored keep their grades and everything in your log stays.`
         : "It goes for good, with everything inside it. Days you have already scored keep their grades and everything in your log stays. To keep it and stop scoring it, archive it instead.",
       [
@@ -236,7 +238,11 @@ export default function CommitmentScreen() {
       onPress: () =>
         undo.remove({
           id: sub.id,
-          message: `Deleted “${sub.name}”`,
+          // The last one's work moves back here (ADR-0044 §7).
+          message:
+            data?.subs.length === 1
+              ? `Removed “${sub.name}”. Its work is back here.`
+              : `Deleted “${sub.name}”`,
           run: () => deleteCommitment(sub.id),
         }),
     },
@@ -293,9 +299,7 @@ export default function CommitmentScreen() {
                 ? "Archived"
                 : isSub
                   ? `Part of ${data.parent!.name}`
-                  : data.others.length > 0
-                    ? `${data.sharePercent}% of commitment points`
-                    : "Takes all of the commitment band"}
+                  : "Its share of a day comes from its time that day"}
             </AppText>
 
             {archived ? (
@@ -313,18 +317,6 @@ export default function CommitmentScreen() {
                 theme={theme}
                 onPress={openRename}
               />
-              {/* Only worth a row when there is something to share
-                  with: a lone commitment takes the whole band. */}
-              {!archived && !isSub && data.others.length > 0 ? (
-                <ActionRow
-                  label="Share"
-                  value={`${data.sharePercent}% of commitment points`}
-                  theme={theme}
-                  onPress={() =>
-                    setSheet({ kind: "commitment", name: data.name, percent: data.sharePercent })
-                  }
-                />
-              ) : null}
               <ActionRow
                 label="Colour"
                 value={isPaletteKey(data.colour) ? PALETTE[data.colour].name : "Automatic"}
@@ -541,15 +533,14 @@ export default function CommitmentScreen() {
                 visible={sheet !== null}
                 onDismissed={sheetGone}
                 mode={sheetShown}
-                others={data.others}
                 theme={theme}
                 onClose={() => {
                   setSheet(null);
                   setRenamingSubId(null);
                 }}
-                onSave={async ({ name, percent }) => {
+                onSave={async ({ name }) => {
                   if (sheetShown.kind === "commitment") {
-                    await updateCommitment(data.id, { name, percent });
+                    await updateCommitment(data.id, { name });
                   } else if (renamingSubId !== null) {
                     await updateCommitment(renamingSubId, { name });
                   } else if (sheetShown.name !== undefined) {

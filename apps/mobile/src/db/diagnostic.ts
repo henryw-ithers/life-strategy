@@ -27,7 +27,8 @@ import {
 } from "./schema";
 import { currentLocalDate } from "../lib/calendar";
 import { recacheAllDayScores } from "./dayGrades";
-import { loadPlan, recomputeAllUnitPoints } from "./tasks";
+import { loadPlan, setTiersFromOrder } from "./tasks";
+import { tierWeightsForOrder } from "./tierRules";
 
 export interface DiagnosticUnit {
   id: string;
@@ -309,11 +310,14 @@ export async function saveDiagnostic(entries: DiagnosticEntry[]): Promise<string
         })),
       ).run();
     }
-    // New weights mean new task points. `loadPlan` and `loadDay` read
-    // the stored `task.point_value`, so without this the checklist
-    // keeps scoring against the previous diagnostic until some
-    // unrelated task edit happens to refresh the unit.
-    recomputeAllUnitPoints(tx);
+    // The diagnostic's order sets the tiers, in thirds, until Phase 6's
+    // tiers screen (ADR-0041); weights come from the tiers alone. This
+    // also reprices every task: `loadPlan` and `loadDay` read the
+    // stored `task.point_value`.
+    setTiersFromOrder(
+      tx,
+      [...entries].sort((a, b) => b.importance - a.importance).map((e) => e.unitId),
+    );
   });
 
   // And the cached day scores those points feed — the calendar, the
@@ -341,23 +345,18 @@ export async function loadWeightSummary(
   snapshotId: string,
 ): Promise<AreaWeightGroup[]> {
   const areas = await loadDiagnosticAreas();
-  const weights = await db
-    .select()
-    .from(unitWeight)
-    .where(eq(unitWeight.snapshotId, snapshotId));
-  const byUnit = new Map(weights.map((w) => [w.unitId, w]));
+  // The weights that score, from tiers (ADR-0041); the snapshot's own
+  // rank weights are a record only.
+  const weights = await snapshotTierWeights(snapshotId);
 
   return areas.map((area) => ({
     areaId: area.id,
     areaName: area.name,
-    rows: area.units.map((u) => {
-      const w = byUnit.get(u.id);
-      return {
-        unitId: u.id,
-        name: u.name,
-        weight: w ? Math.round(w.override ?? w.derived) : null,
-      };
-    }),
+    rows: area.units.map((u) => ({
+      unitId: u.id,
+      name: u.name,
+      weight: weights.get(u.id) ?? null,
+    })),
   }));
 }
 
@@ -401,6 +400,26 @@ const MOVED_THRESHOLD = 2;
  * never written anywhere in the app yet (no override-editing UI
  * exists), so there's nothing there to compare.
  */
+/**
+ * The tier weights a snapshot's order gives (the interim thirds rule,
+ * `tierWeightsForOrder`): its units by importance, those with a stored
+ * weight row in the plan.
+ */
+async function snapshotTierWeights(
+  snapshotId: string,
+  weightRows?: readonly { unitId: string }[],
+): Promise<Map<string, number>> {
+  const ratings = await db
+    .select({ unitId: rating.unitId, importance: rating.importance })
+    .from(rating)
+    .where(eq(rating.snapshotId, snapshotId));
+  const rows =
+    weightRows ??
+    (await db.select({ unitId: unitWeight.unitId }).from(unitWeight).where(eq(unitWeight.snapshotId, snapshotId)));
+  const order = [...ratings].sort((a, b) => b.importance - a.importance).map((r) => r.unitId);
+  return tierWeightsForOrder(order, new Set(rows.map((r) => r.unitId)));
+}
+
 export async function loadDiagnosticDiff(
   newSnapshotId: string,
 ): Promise<DiagnosticDiff | null> {
@@ -426,8 +445,9 @@ export async function loadDiagnosticDiff(
     loadGoals(),
   ]);
 
-  const oldByUnit = new Map(oldWeights.map((w) => [w.unitId, w]));
-  const newByUnit = new Map(newWeights.map((w) => [w.unitId, w]));
+  // Compared as tier weights, the ones that score (ADR-0041).
+  const oldByUnit = await snapshotTierWeights(previous.id, oldWeights);
+  const newByUnit = await snapshotTierWeights(newSnapshotId, newWeights);
   const unitMeta = new Map(
     areas.flatMap((a) =>
       a.units.map((u) => [u.id, { name: u.name, areaId: a.id }] as const),
@@ -463,9 +483,9 @@ export async function loadDiagnosticDiff(
     const newW = newByUnit.get(unitId);
     const taskCount = taskCountByUnit.get(unitId) ?? 0;
 
-    if (oldW && newW) {
-      const oldEffective = oldW.override ?? oldW.derived;
-      const newEffective = newW.override ?? newW.derived;
+    if (oldW !== undefined && newW !== undefined) {
+      const oldEffective = oldW;
+      const newEffective = newW;
       const delta = newEffective - oldEffective;
       if (Math.abs(delta) >= MOVED_THRESHOLD) {
         moved.push({
@@ -478,15 +498,15 @@ export async function loadDiagnosticDiff(
             delta > 0 && taskCount < recommendedTaskRange(newEffective).min,
         });
       }
-    } else if (oldW && !newW) {
+    } else if (oldW !== undefined && newW === undefined) {
       excluded.push({
         unitId,
         name: meta.name,
         areaId: meta.areaId,
         goalIds: activeGoalIdsByUnit.get(unitId) ?? [],
       });
-    } else if (!oldW && newW) {
-      const newEffective = newW.override ?? newW.derived;
+    } else if (oldW === undefined && newW !== undefined) {
+      const newEffective = newW;
       included.push({
         unitId,
         name: meta.name,

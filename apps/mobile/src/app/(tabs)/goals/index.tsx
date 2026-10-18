@@ -26,7 +26,6 @@ import {
 } from "react-native";
 
 import { AddGoalModal } from "../../../components/goals/AddGoalModal";
-import { BandSheet } from "../../../components/commitments/BandSheet";
 import {
   CommitmentSheet,
   type CommitmentSheetMode,
@@ -51,7 +50,6 @@ import {
   type GoalListItem,
   type GoalsUnit,
 } from "../../../db/goals";
-import { setCommitmentBand, clearCommitmentBand } from "../../../db/settings";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { useRetained } from "../../../hooks/useRetained";
@@ -83,7 +81,6 @@ export default function GoalsScreen() {
   const [commitments, setCommitments] = useState<CommitmentsScreenData | null>(
     null,
   );
-  const [bandOpen, setBandOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState<CommitmentSheetMode | null>(null);
 
   const reload = useCallback(async () => {
@@ -105,7 +102,6 @@ export default function GoalsScreen() {
   );
 
   const { error, retry } = useScreenLoad(reload);
-  const [bandShown, bandGone] = useRetained(bandOpen ? true : null);
   const [sheetModeShown, sheetModeGone] = useRetained(sheetMode);
   const [addingShown, addingGone] = useRetained(adding ? true : null);
 
@@ -187,12 +183,10 @@ export default function GoalsScreen() {
         ) : tab === "commitments" ? (
           commitments === null ? null : (
             <CommitmentsList
-              band={commitments.band}
               commitments={commitments.commitments}
               archived={commitments.archived}
               hue={theme.areas["work-money"] ?? theme.accent}
               theme={theme}
-              onOpenBand={() => setBandOpen(true)}
               onOpen={(id) =>
                 router.push(`/goals/commitment/${id}` as Href)
               }
@@ -321,37 +315,16 @@ export default function GoalsScreen() {
         settings
       />
 
-      {bandShown ? (
-        <BandSheet
-          visible={bandOpen}
-          onDismissed={bandGone}
-          band={commitments?.band ?? null}
-          commitments={commitments?.commitments.length ?? 0}
-          theme={theme}
-          onClose={() => setBandOpen(false)}
-          onSave={async (band) => {
-            if (band === null) await clearCommitmentBand();
-            else await setCommitmentBand(band);
-            setBandOpen(false);
-            await reload();
-          }}
-        />
-      ) : null}
 
       {sheetModeShown !== null ? (
         <CommitmentSheet
           visible={sheetMode !== null}
           onDismissed={sheetModeGone}
           mode={sheetModeShown}
-          others={(commitments?.commitments ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            percent: c.sharePercent,
-          }))}
           theme={theme}
           onClose={() => setSheetMode(null)}
-          onSave={async ({ name, percent, usesSubCommitments }) => {
-            await createCommitment({ name, percent, usesSubCommitments });
+          onSave={async ({ name, usesSubCommitments }) => {
+            await createCommitment({ name, usesSubCommitments });
             setSheetMode(null);
             await reload();
           }}

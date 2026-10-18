@@ -11,8 +11,10 @@ import {
   addDays,
   isDueOn,
   MAX_COMMITMENTS,
-  type CommitmentDay,
   type CommitmentGroup,
+  type CommitmentWorkToday,
+  type TaskSize,
+  type TimeRange,
   type ScheduleBounds,
 } from "@glide/scoring";
 
@@ -86,29 +88,6 @@ export function eligibleTaskIds(
       return isDueOn(t, date);
     })
     .map((t) => t.id);
-}
-
-/**
- * A `CommitmentDay`, or **`null` for an ordinary two-band day**.
- *
- * Three distinct routes to null, and the third is the one that matters
- * most: **no commitment work scheduled today.** ADR-0032 §1 — the band
- * exists only on days it can be earned, which is what stops an empty
- * Sunday capping below 100 through somebody else's timetable.
- */
-export function buildCommitmentDay(
-  band: number | null,
-  groups: readonly CommitmentGroup[],
-  eligible: readonly string[],
-): CommitmentDay | null {
-  if (band === null) return null;
-  if (groups.length === 0) return null;
-  if (eligible.length === 0) return null;
-  return {
-    band,
-    commitments: [...groups],
-    eligibleTaskIds: [...eligible],
-  };
 }
 
 // ── Write-seam rules (ADR-0035 §1, ADR-0033 §3) ─────────────────────
@@ -406,3 +385,73 @@ export function doneAheadOn(
  * off-schedule ticks.
  */
 export const COVERAGE_LOOKBACK_DAYS = SCHEDULE_HORIZON_DAYS * 2;
+
+// ── The share from the day (ADR-0044) ───────────────────────────────
+
+/** The task fields the share reads. */
+export interface ShareRow {
+  id: string;
+  unitId: string;
+  kind: "task" | "event";
+  startMinute: number | null;
+  endMinute: number | null;
+  size: TaskSize | null;
+  oneOffSize: TaskSize | null;
+  oneOffDate: string | null;
+}
+
+/**
+ * Each commitment's work today, as `commitmentShare` reads it
+ * (ADR-0044 §1): its events still due, and the sizes of its tasks
+ * **scheduled** today.
+ *
+ * - A recurring task counts on the days it's due (it is eligible
+ *   because it is).
+ * - A one-off counts on the day it's dated. An undated one counts only
+ *   on the day it's ticked (Henry, 2026-10-17), so leaving it open
+ *   doesn't size every day.
+ * - Pins and carried work never count: `eligible` holds neither.
+ *
+ * `setShareOf` is each commitment's own set share, or null for the
+ * automatic one (ADR-0044 §3).
+ */
+export function shareWorkFor(
+  groups: readonly CommitmentGroup[],
+  rows: readonly ShareRow[],
+  eligible: ReadonlySet<string>,
+  tickedToday: ReadonlySet<string>,
+  date: string,
+  setShareOf: ReadonlyMap<string, number | null>,
+): CommitmentWorkToday[] {
+  const groupOf = new Map<string, string>();
+  for (const g of groups) for (const u of g.unitIds) groupOf.set(u, g.commitmentId);
+  const work = new Map(
+    groups.map((g) => [
+      g.commitmentId,
+      { events: [] as TimeRange[], taskSizes: [] as (TaskSize | null)[] },
+    ]),
+  );
+  for (const t of rows) {
+    if (!eligible.has(t.id)) continue;
+    const w = work.get(groupOf.get(t.unitId) ?? "");
+    if (!w) continue;
+    if (t.kind === "event") {
+      if (t.startMinute !== null && t.endMinute !== null && t.endMinute > t.startMinute) {
+        w.events.push({ start: t.startMinute, end: t.endMinute });
+      }
+      continue;
+    }
+    if (t.oneOffSize != null) {
+      const counts = t.oneOffDate === date || (t.oneOffDate == null && tickedToday.has(t.id));
+      if (counts) w.taskSizes.push(t.size ?? t.oneOffSize);
+      continue;
+    }
+    w.taskSizes.push(t.size);
+  }
+  return groups.map((g) => ({
+    commitmentId: g.commitmentId,
+    events: work.get(g.commitmentId)?.events ?? [],
+    taskSizes: work.get(g.commitmentId)?.taskSizes ?? [],
+    fixedShare: setShareOf.get(g.commitmentId) ?? null,
+  }));
+}

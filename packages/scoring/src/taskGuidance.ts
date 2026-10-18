@@ -34,8 +34,9 @@ export function recommendedTaskRange(weight: number): { min: number; max: number
  * tier is what the user chose and the points follow from it. Not now
  * holds no tasks at all (ADR-0041 §3).
  *
- * Dormant until tiers are stored (Phase 5): until then the app reads
- * `recommendedTaskRange` from rank-derived weights.
+ * Tiers are stored since Phase 5b, but the diagnostic still reads
+ * `recommendedTaskRange` from weights until Phase 6 replaces it with the
+ * tiers screen.
  */
 export function recommendedTaskRangeForTier(tier: Tier): { min: number; max: number } {
   switch (tier) {

@@ -421,6 +421,7 @@ export async function unarchiveCommitment(id: string): Promise<void> {
 export async function deleteCommitment(
   id: string,
 ): Promise<{ units: number; tasks: number; pools: number }> {
+  if (await isLastSub(id)) return removeLastSub(id);
   const ids = await subtreeIds(id);
   const taskRows = await db
     .select({ id: task.id })
@@ -470,6 +471,45 @@ export async function deleteCommitment(
   });
 
   return { units: ids.length, tasks: taskIds.length, pools };
+}
+
+/** Whether `id` is a sub-commitment with no live sibling. */
+async function isLastSub(id: string): Promise<boolean> {
+  const [row] = await db.select().from(lifeUnit).where(eq(lifeUnit.id, id));
+  if (!row?.parentUnitId) return false;
+  const siblings = await db
+    .select({ id: lifeUnit.id })
+    .from(lifeUnit)
+    .where(and(eq(lifeUnit.parentUnitId, row.parentUnitId), isNull(lifeUnit.archivedAt)));
+  return siblings.every((s) => s.id === id);
+}
+
+/**
+ * Remove a commitment's last sub-commitment: its work moves back onto
+ * the commitment, which holds its own work again (ADR-0044 §7, the
+ * restore rule of ADR-0035 §1). Nothing is deleted but the
+ * sub-commitment itself. Archived tasks move too, so restoring one
+ * later finds it a home.
+ */
+async function removeLastSub(id: string): Promise<{ units: number; tasks: number; pools: number }> {
+  writeAndMarkStale((tx) => {
+    const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
+    const parent = row?.parentUnitId;
+    if (!parent) throw new Error(`Not a sub-commitment: ${id}`);
+    const tasks = tx.select({ id: task.id }).from(task).where(eq(task.unitId, id)).all();
+    for (const t of tasks) {
+      rehomeTask(tx, t.id, id, parent);
+      tx.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id)).run();
+    }
+    // Anything still pointing at it: remembered homes and tagged notes.
+    tx.update(task).set({ movedFromUnitId: null }).where(eq(task.movedFromUnitId, id)).run();
+    tx.delete(taskUnit).where(eq(taskUnit.unitId, id)).run();
+    forgetSkipsOf(tx, [], [id]);
+    tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
+    tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
+    recomputeAllUnitPoints(tx);
+  });
+  return { units: 1, tasks: 0, pools: 0 };
 }
 
 /** A commitment and its sub-commitments, as ids. */

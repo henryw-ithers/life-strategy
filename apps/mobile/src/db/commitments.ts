@@ -7,21 +7,31 @@
  * band rather than from the 18 life units' pool — **what separates a
  * commitment from a life unit is its band, not its table.**
  */
-import { MAX_COMMITMENTS, type CommitmentDay } from "@glide/scoring";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+  commitmentDayFromShare,
+  commitmentShare,
+  isDueOn,
+  MAX_COMMITMENTS,
+  type CommitmentDay,
+} from "@glide/scoring";
+import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 
 import { db } from "./client";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import {
-  buildCommitmentDay,
   doneAheadOn,
   eligibleTaskIds,
   groupCommitments,
+  shareWorkFor,
   subCommitmentsOn,
+  type EligibilityRow,
+  type ScheduledTask,
 } from "./commitmentPlan";
+import { startingHours } from "./hours";
+import { loadSchedule } from "./schedule";
+import { withSchedule } from "./windowRules";
 import { completionDatesAround } from "./sessionCoverage";
-import { lifeUnit, pool, poolMember, task } from "./schema";
-import { loadCommitmentBand } from "./settings";
+import { lifeUnit, pool, poolMember, task, taskCompletion } from "./schema";
 
 export interface CommitmentRow {
   id: string;
@@ -52,40 +62,37 @@ export async function loadCommitments(): Promise<CommitmentRow[]> {
 }
 
 /**
- * The commitment work eligible on `date` — scheduled sessions and work
- * planned for that day (ADR-0032 §3).
+ * The commitment work eligible on `date`: scheduled sessions and work
+ * planned for that day (ADR-0032 §3), from rows that already carry
+ * their bounds and skips (`withSchedule`).
  *
- * Eligibility is deliberately the same test the checklist already
- * uses, so a task the day shows and a task the band pays for cannot
- * diverge:
+ * Eligibility is deliberately the same test the checklist uses, so a
+ * task the day shows and a task the band pays for cannot diverge:
  *
- * - **pinned to this weekday** (`isDueOn`, ADR-0024 §1), or
- * - **an outstanding one-off** dated on or before this date — the same
- *   rule `loadDay` uses to decide a one-off is still owed.
+ * - **due on this date** (`isDueOn`: its weekday, inside its bounds,
+ *   not skipped), or
+ * - **an outstanding one-off** dated this day, or undated.
  *
- * A commitment task with no pin and no date is not eligible on any
- * particular day, which is why ADR-0033 requires commitment sessions
- * to be scheduled: an unscheduled one belongs to no day, so no day's
- * band could ever pay it.
+ * **A one-off dated earlier and still open is carried, not eligible**
+ * (formula v11). A carried task is never added to a later day's load:
+ * done late, it is paid what its own day would have paid, outside the
+ * band (`loadDay`'s off-schedule work).
  */
 async function eligibleOn(
   date: string,
-  unitIds: string[],
+  rows: readonly (EligibilityRow & ScheduledTask)[],
   includeCovered: boolean,
 ): Promise<string[]> {
-  if (unitIds.length === 0) return [];
-
-  const rows = await db
-    .select()
-    .from(task)
-    .where(and(eq(task.active, true), inArray(task.unitId, unitIds)));
   if (rows.length === 0) return [];
 
   // The checklist's own rule, from the one place it now lives: settled
   // means finished, so a part-done assignment is still owed today.
   const oneOffIds = rows.filter((t) => t.oneOffSize != null).map((t) => t.id);
   const settledBefore = settledOf(await fractionsBefore(oneOffIds, date));
-  const eligible = eligibleTaskIds(rows, settledBefore, date);
+  const eligible = eligibleTaskIds(rows, settledBefore, date).filter((id) => {
+    const t = rows.find((r) => r.id === id);
+    return !(t?.oneOffSize != null && t.oneOffDate != null && t.oneOffDate < date);
+  });
   if (includeCovered) return eligible;
 
   // **A session done early is done** (ADR-0032 §4, amended 2026-10-01).
@@ -105,18 +112,23 @@ async function eligibleOn(
 
 /**
  * What `commitmentPointValues` needs to price `date`, or **`null` for an
- * ordinary two-band day**.
+ * ordinary day**.
  *
- * Null in three cases, and the distinction matters: no band set, no
- * commitments, or no commitment work scheduled today. The last is
- * ADR-0032 §1 — the band exists only on days it can be earned, which
- * is what stops an empty Sunday capping below 100 through somebody
- * else's timetable.
+ * The band is **the commitments' share of the day** (ADR-0044, formula
+ * v11): each one's events and scheduled task sizes over the working
+ * hours the day began with (`startingHours`), kept between 10 and the
+ * limit for how many commitments there are. A share set on the
+ * commitment replaces the automatic one. The old `commitment.band`
+ * setting and relative shares no longer price anything.
+ *
+ * Null when there are no commitments, the day is Away, or no
+ * commitment work is scheduled (ADR-0032 §1): the band exists only on
+ * days it can be earned. After Clear today only what was ticked counts
+ * (ADR-0040 §4), so a cleared day with none ticked has no share.
  *
  * Pools (ADR-0033 §3) are read for the date and passed through. A pool
  * contributes its **planned count** to the divisor rather than its
- * member count, so planning three options you mean to pick one of does
- * not inflate the day's ceiling.
+ * member count.
  */
 export async function loadCommitmentDay(
   date: string,
@@ -129,25 +141,70 @@ export async function loadCommitmentDay(
    */
   options: { includeCovered?: boolean } = {},
 ): Promise<CommitmentDay | null> {
-  const band = await loadCommitmentBand();
-  if (band === null) return null;
-
   const units = await db
     .select()
     .from(lifeUnit)
     .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)));
   const groups = groupCommitments(units);
   if (groups.length === 0) return null;
+  const commitmentUnits = new Set(groups.flatMap((g) => [...g.unitIds]));
 
-  const eligible = await eligibleOn(
-    date,
-    groups.flatMap((g) => [...g.unitIds]),
-    options.includeCovered === true,
+  // Commitment work, and the life events whose time outside working
+  // hours is part of the day too.
+  const raw = await db
+    .select()
+    .from(task)
+    .where(
+      and(
+        eq(task.active, true),
+        or(inArray(task.unitId, [...commitmentUnits]), eq(task.kind, "event")),
+      ),
+    );
+  const schedule = await loadSchedule(date, raw);
+  if (schedule.away.has(date)) return null;
+  const rows = raw.map((t) => withSchedule(t, schedule.skipped));
+  const work = rows.filter((t) => commitmentUnits.has(t.unitId));
+
+  let eligible = await eligibleOn(date, work, options.includeCovered === true);
+  const ticked = new Set(
+    work.length
+      ? (
+          await db
+            .select({ taskId: taskCompletion.taskId })
+            .from(taskCompletion)
+            .where(
+              and(
+                eq(taskCompletion.localDate, date),
+                inArray(taskCompletion.taskId, work.map((t) => t.id)),
+              ),
+            )
+        ).map((r) => r.taskId)
+      : [],
   );
-  const day = buildCommitmentDay(band, groups, eligible);
-  if (day === null) return null;
+  if (schedule.cleared) eligible = eligible.filter((id) => ticked.has(id));
+  if (eligible.length === 0) return null;
 
-  return { ...day, pools: await poolsOn(date, new Set(eligible)) };
+  const setShareOf = new Map(units.map((u) => [u.id, u.setShare]));
+  const share = commitmentShare({
+    working: await startingHours(date),
+    commitments: shareWorkFor(groups, work, new Set(eligible), ticked, date, setShareOf),
+    commitmentCount: groups.length,
+    otherEvents: rows
+      .filter(
+        (t) =>
+          !commitmentUnits.has(t.unitId) &&
+          t.startMinute !== null &&
+          t.endMinute !== null &&
+          isDueOn(t, date),
+      )
+      .map((t) => ({ start: t.startMinute!, end: t.endMinute! })),
+  });
+  return commitmentDayFromShare(
+    share,
+    groups,
+    eligible,
+    await poolsOn(date, new Set(eligible)),
+  );
 }
 
 /**
@@ -242,9 +299,6 @@ export interface CommitmentDetail {
   areaId: string;
   /** Its own palette key, or null to use its area's (ADR-0043 §4). */
   colour: string | null;
-  share: number;
-  /** This commitment's share as a whole-number percent of the band. */
-  sharePercent: number;
   archivedAt: string | null;
   subCommitments: { id: string; name: string; taskCount: number }[];
   /** Tasks hanging off the commitment itself, not off a class. */
@@ -253,25 +307,17 @@ export interface CommitmentDetail {
 }
 
 export interface CommitmentsScreenData {
-  /** Null when the user has never set one — every day is two-band. */
-  band: number | null;
   commitments: CommitmentDetail[];
   archived: CommitmentDetail[];
   /** False once three are held, so the add control can say why. */
   canAddMore: boolean;
 }
 
-/**
- * Everything the Commitments surface renders, in one read.
- *
- * Shares are relative and need not sum to anything (ADR-0032 §3), so
- * the percentage shown beside each one is normalised here — the screen
- * should show what a commitment actually claims, not the raw number
- * behind it.
- */
+/** Everything the Commitments surface renders, in one read. A
+ *  commitment's share comes from each day (ADR-0044), so none is shown
+ *  here. */
 export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
-  const [band, units, taskRows] = await Promise.all([
-    loadCommitmentBand(),
+  const [units, taskRows] = await Promise.all([
     db.select().from(lifeUnit).where(eq(lifeUnit.isCustom, true)),
     db
       .select({ unitId: task.unitId })
@@ -287,9 +333,6 @@ export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
   const parents = units.filter(
     (u) => u.parentUnitId === null && u.commitmentShare !== null,
   );
-  const liveTotal = parents
-    .filter((p) => p.archivedAt === null)
-    .reduce((a, p) => a + (p.commitmentShare ?? 0), 0);
 
   const detail = (p: (typeof parents)[number]): CommitmentDetail => {
     const subs = units
@@ -305,11 +348,6 @@ export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
       name: p.name,
       areaId: p.areaId,
       colour: p.colour,
-      share: p.commitmentShare ?? 0,
-      sharePercent:
-        liveTotal > 0 && p.archivedAt === null
-          ? Math.round(((p.commitmentShare ?? 0) / liveTotal) * 100)
-          : 0,
       archivedAt: p.archivedAt,
       subCommitments: subs,
       directTaskCount: direct,
@@ -319,7 +357,6 @@ export async function loadCommitmentsScreen(): Promise<CommitmentsScreenData> {
 
   const live = parents.filter((p) => p.archivedAt === null).map(detail);
   return {
-    band,
     commitments: live,
     archived: parents.filter((p) => p.archivedAt !== null).map(detail),
     canAddMore: live.length < MAX_COMMITMENTS,
@@ -356,10 +393,9 @@ export interface CommitmentUnitScreen {
   archivedAt: string | null;
   /** The commitment this belongs to, for a sub-commitment; else null. */
   parent: { id: string; name: string } | null;
-  /** This commitment's share as a percent of the band. Commitments only. */
-  sharePercent: number;
-  /** The other live commitments, for the share question. */
-  others: { id: string; name: string; percent: number }[];
+  /** A sub-commitment that is its commitment's only one: removing it
+   *  moves its work back onto the commitment (ADR-0044 §7). */
+  lastSub: boolean;
   /** Split into sub-commitments (ADR-0035 §1). Commitments only. */
   subsOn: boolean;
   subs: { id: string; name: string; eventCount: number; taskCount: number }[];
@@ -442,12 +478,6 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
   const byStart = (a: UnitItem, b: UnitItem) =>
     (a.startMinute ?? 0) - (b.startMinute ?? 0) || a.title.localeCompare(b.title);
 
-  const parents = units.filter(
-    (u) => u.parentUnitId === null && u.commitmentShare !== null && u.archivedAt === null,
-  );
-  const total = parents.reduce((a, p) => a + (p.commitmentShare ?? 0), 0);
-  const percentOf = (share: number | null) =>
-    total > 0 ? Math.round(((share ?? 0) / total) * 100) : 0;
 
   return {
     id,
@@ -457,12 +487,9 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
     parentColour: parentRow?.colour ?? null,
     archivedAt: row.archivedAt,
     parent: parentRow ? { id: parentRow.id, name: parentRow.name } : null,
-    sharePercent: parentRow ? 0 : percentOf(row.commitmentShare),
-    others: parentRow
-      ? []
-      : parents
-          .filter((p) => p.id !== id)
-          .map((p) => ({ id: p.id, name: p.name, percent: percentOf(p.commitmentShare) })),
+    lastSub:
+      parentRow !== null &&
+      !units.some((u) => u.parentUnitId === parentRow.id && u.id !== id && u.archivedAt === null),
     subsOn,
     subs: subsOn
       ? liveSubs.map((s) => ({

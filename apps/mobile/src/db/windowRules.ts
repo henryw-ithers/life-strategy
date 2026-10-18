@@ -26,6 +26,7 @@ import {
   type NamedGap,
   type PinKind,
   type PinRule,
+  type ScheduleBounds,
   type TimeRange,
   type Weekday,
   type WorkSchedule,
@@ -515,4 +516,81 @@ export function awayProblem(startDate: string, endDate: string, today: string): 
   if (endDate < startDate) return "The end is before the start.";
   if (isFinalized(startDate, today)) return "Away can only start from last week on.";
   return null;
+}
+
+// ── Each task's schedule (ADR-0040 §§1–5) ───────────────────────────
+
+/** What takes a task's runs away, besides its own bounds. */
+export interface ScheduleInputs {
+  readonly skips: readonly SkipRow[];
+  /** Away days. No events are due on one (ADR-0040 §5). */
+  readonly away: ReadonlySet<string>;
+  /** Days cleared with Clear today: their unticked events are skipped
+   *  (ADR-0040 §4). */
+  readonly cleared: ReadonlySet<string>;
+  /** `taskId|date` for each event ticked on a cleared day: a ticked
+   *  event stays due, so its tick still counts. */
+  readonly eventDoneOn: ReadonlySet<string>;
+}
+
+/**
+ * Each task's skipped dates: its skips, its commitment's skipped weeks,
+ * and for an event, Away days and cleared days it wasn't ticked on.
+ *
+ * With `startOf`, the skips and the clear made on that day itself are
+ * left out: what the day asked for when it began, which decides whether
+ * an empty day was emptied on the day (`emptiedToday`, ADR-0040 §3).
+ */
+export function skippedByTask(
+  tasks: readonly { id: string; kind: "task" | "event" }[],
+  commitmentOf: ReadonlyMap<string, string | null>,
+  inputs: ScheduleInputs,
+  { startOf }: { startOf?: string } = {},
+): Map<string, Set<string>> {
+  const skips = startOf
+    ? inputs.skips.filter((s) => !(s.madeOn === startOf && s.kind === "occurrence" && s.localDate === startOf))
+    : inputs.skips;
+  const out = skippedDatesFor(skips, commitmentOf);
+  for (const t of tasks) {
+    if (t.kind !== "event") continue;
+    const set = out.get(t.id) ?? new Set<string>();
+    for (const d of inputs.away) set.add(d);
+    for (const d of inputs.cleared) {
+      if (d === startOf) continue;
+      if (!inputs.eventDoneOn.has(`${t.id}|${d}`)) set.add(d);
+    }
+    if (set.size > 0) out.set(t.id, set);
+  }
+  return out;
+}
+
+const NO_DATES: ReadonlySet<string> = new Set();
+
+/**
+ * A task row with every `ScheduleBounds` field filled in, so whatever
+ * asks "is this due" sees its bounds and skips. One mapper, typed with
+ * `Required`, so no field can be forgotten on the way to the engine.
+ */
+export function withSchedule<T extends { id: string; repeatFrom: string | null; repeatUntil: string | null }>(
+  row: T,
+  skipped: ReadonlyMap<string, ReadonlySet<string>>,
+): T & Required<ScheduleBounds> {
+  return {
+    ...row,
+    repeatFrom: row.repeatFrom,
+    repeatUntil: row.repeatUntil,
+    skippedDates: skipped.get(row.id) ?? NO_DATES,
+  };
+}
+
+/** Each unit's commitment (its root), or null for a life unit. */
+export function commitmentRoots(
+  units: readonly { id: string; parentUnitId: string | null; isCustom: boolean; commitmentShare: number | null }[],
+): Map<string, string | null> {
+  return new Map(
+    units.map((u) => [
+      u.id,
+      u.parentUnitId ?? (u.isCustom && u.commitmentShare !== null ? u.id : null),
+    ]),
+  );
 }

@@ -8,9 +8,9 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
+  deriveTierWeights,
+  hasPlannedUnit,
   taskWeights,
-  DAILY_BUDGET,
-  largestRemainder,
   type BandTask,
   type BandUnit,
 } from "@glide/scoring";
@@ -37,9 +37,9 @@ import {
   snapshot,
   task,
   taskUnit,
-  unitWeight,
 } from "./schema";
 import { forgetPinsOf } from "./pins";
+import { tieredUnits, tiersFromOrder } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 
 export interface PlanTask {
@@ -173,51 +173,40 @@ function commitmentUnitIdsIn(tx: Tx | typeof db): Set<string> {
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * The latest snapshot's weights, **renormalized over the units that are
- * currently in scoring** (ADR-0027 §2).
+ * Each life unit's weight, from its tier and its place in the tier
+ * (ADR-0041, formula v11): `deriveTierWeights` over the units in the
+ * plan, integers summing to exactly 100.
  *
- * Exclusion is a property of the unit, not of a snapshot, so this is
- * where it takes effect: the stored rows are never edited and the
- * portfolio history stays a record of what was diagnosed, while today's
- * plan reads the same weights spread across whatever is still included.
- * Without this step, excluding a 12-point unit would leave the plan
- * totalling 88 rather than handing those points to the rest — and §2
- * only works because "this doesn't apply to me" genuinely removes a
- * unit from the 100.
- *
- * Integer weights summing to exactly 100, via the same largest-remainder
- * rounding the derivation uses (ADR-0003 §3).
+ * Tier and order are the only inputs. The snapshot's stored rank
+ * weights (`unit_weight`) stay a record of the diagnostic that made
+ * them and no longer decide anything; "Not in my plan" is Not now
+ * (`tieredUnits`). Commitments are scored from their own share of the
+ * day and take no part. Empty until a unit has a tier, which is what
+ * "no plan yet" means.
  */
 export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
-  const [latest] = dbOrTx
-    .select()
-    .from(snapshot)
-    .orderBy(desc(snapshot.takenAt))
-    .limit(1)
-    .all();
-  if (!latest) return new Map();
   const rows = dbOrTx
-    .select()
-    .from(unitWeight)
-    .where(eq(unitWeight.snapshotId, latest.id))
-    .all();
-  const included = new Set(
-    dbOrTx
-      .select({ id: lifeUnit.id, includeInScoring: lifeUnit.includeInScoring })
-      .from(lifeUnit)
-      .all()
-      .filter((u) => u.includeInScoring)
-      .map((u) => u.id),
+    .select({
+      id: lifeUnit.id,
+      tier: lifeUnit.tier,
+      tierOrder: lifeUnit.tierOrder,
+      sortOrder: lifeUnit.sortOrder,
+      includeInScoring: lifeUnit.includeInScoring,
+      isCustom: lifeUnit.isCustom,
+      parentUnitId: lifeUnit.parentUnitId,
+      commitmentShare: lifeUnit.commitmentShare,
+    })
+    .from(lifeUnit)
+    .where(isNull(lifeUnit.archivedAt))
+    .all()
+    .filter((u) => !isCommitmentUnit(u));
+  const units = tieredUnits(rows);
+  if (units === null || !hasPlannedUnit(units)) return new Map();
+  return new Map(
+    deriveTierWeights(units)
+      .filter((w) => w.weight > 0)
+      .map((w) => [w.unitId, w.weight]),
   );
-
-  const kept = rows.filter((w) => included.has(w.unitId));
-  const raw = kept.map((w) => w.override ?? w.derived);
-  const total = raw.reduce((a, b) => a + b, 0);
-  if (total <= 0) return new Map();
-
-  const exacts = raw.map((v) => (DAILY_BUDGET * v) / total);
-  const scaled = largestRemainder(exacts, DAILY_BUDGET);
-  return new Map(kept.map((w, i) => [w.unitId, scaled[i] ?? 0]));
 }
 
 export async function loadPlan(): Promise<PlanData> {
@@ -518,6 +507,38 @@ export function recomputeAllUnitPoints(tx: Tx): void {
   // Every plan change that moves a price passes through here, so this
   // is the one place stored day grades learn they are out of date.
   markGradesStaleIn(tx);
+}
+
+/**
+ * Set every life unit's tier from a ranked order, in thirds
+ * (`tiersFromOrder`), then reprice the plan. Units missing from `order`
+ * are placed after it. The seed from the old ranking uses this, and so
+ * do the old Priorities and diagnostic screens until Phase 6 gives
+ * tiers a screen of their own (ADR-0041).
+ */
+export function setTiersFromOrder(tx: Tx, order: readonly string[]): void {
+  const units = tx
+    .select({
+      id: lifeUnit.id,
+      includeInScoring: lifeUnit.includeInScoring,
+      isCustom: lifeUnit.isCustom,
+      parentUnitId: lifeUnit.parentUnitId,
+      commitmentShare: lifeUnit.commitmentShare,
+    })
+    .from(lifeUnit)
+    .where(isNull(lifeUnit.archivedAt))
+    .orderBy(asc(lifeUnit.sortOrder))
+    .all()
+    .filter((u) => !isCommitmentUnit(u));
+  const known = new Set(units.map((u) => u.id));
+  const ranked = order.filter((id) => known.has(id));
+  const placed = new Set(ranked);
+  const full = [...ranked, ...units.map((u) => u.id).filter((id) => !placed.has(id))];
+  const included = new Set(units.filter((u) => u.includeInScoring).map((u) => u.id));
+  for (const [id, t] of tiersFromOrder(full, included)) {
+    tx.update(lifeUnit).set({ tier: t.tier, tierOrder: t.tierOrder }).where(eq(lifeUnit.id, id)).run();
+  }
+  recomputeAllUnitPoints(tx);
 }
 
 /** Append the task to each unit's ranking, then recompute those units. */

@@ -171,13 +171,21 @@ export const REST_DAY_UNPLANNED = 30;
  *  - A day with nothing due, a plan behind it, and nothing open later
  *    in the week — or something done early — is a rest day: 70,
  *    activities up to 30, early work on top at its planned day's worth
- *    (ADR-0037). Before, it was ungraded. */
-/*  v11 (not yet): Phase 4 added the next formula's pieces beside v10,
- *  unused until the data layer stores what they read (Phase 5). The
- *  bump to 11 lands when the app scores with them, and covers all of
- *  them at once: tier weights (`deriveTierWeights`, ADR-0041), the
- *  commitment share from the day (ADR-0044), and ADR-0040's due rules
- *  (repeat bounds and skips, Away days, and a day emptied on the day
- *  being ungraded rather than a rest day). */
-export const FORMULA_VERSION = 10;
+ *    (ADR-0037). Before, it was ungraded.
+ *  v11 (2026-10-18, Phase 5b): the app scores from stored tiers,
+ *  hours and skips.
+ *  - Weights come from tier and order within the tier
+ *    (`deriveTierWeights`, ADR-0041), seeded once from the old ranking.
+ *  - The commitment band is the commitments' share of the day: their
+ *    events and scheduled task sizes over the working hours the day
+ *    began with (`commitmentShare`, ADR-0044). A share set on a
+ *    commitment replaces it; the hand-set band is retired.
+ *  - Repeat bounds, skipped runs and weeks, and Away days change what's
+ *    due (ADR-0040). A day emptied on the day itself, by a same-day skip
+ *    or Clear today, is ungraded rather than a rest day.
+ *  - A commitment one-off carried past its day is no longer added to a
+ *    later day's band; done late it is paid what its own day would have
+ *    paid (ADR-0039 §8).
+ *  Settled grades keep the version they were scored under. */
+export const FORMULA_VERSION = 11;
 export const DAILY_BUDGET = 100;

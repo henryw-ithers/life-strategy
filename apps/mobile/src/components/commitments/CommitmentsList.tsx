@@ -1,19 +1,16 @@
 /**
- * The Commitments surface: the band, what holds it, and a way in.
+ * The Commitments surface: what holds a share of your days, and a way
+ * in.
  *
- * **The band leads.** It is the number that decides what every
- * commitment task is worth, it is invisible everywhere else, and a
- * setting that consequential should not be buried behind a gear. So it
- * is the first row, it states its own effect in words, and it is
- * tappable — the shape Apple Music uses for the row that opens the
- * thing the screen is about.
+ * Each commitment's share of a day comes from that day (ADR-0044,
+ * formula v11), so there is no band to set here. The first block says
+ * how it's worked out, in words.
  *
  * Every row here goes somewhere. A row that looks like a list item and
  * does nothing is the commonest small lie in an app, and the fastest
  * way to teach someone that tapping is not worth trying.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { commitmentBandMax } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { CommitmentDetail } from "../../db/commitments";
@@ -23,63 +20,34 @@ import { AppText } from "../ui/AppText";
 import { Group } from "../ui/Group";
 
 interface CommitmentsListProps {
-  band: number | null;
   commitments: CommitmentDetail[];
   archived: CommitmentDetail[];
   hue: string;
   theme: ThemeTokens;
-  onOpenBand: () => void;
   onOpen: (id: string) => void;
 }
 
 export function CommitmentsList({
-  band: setting,
   commitments,
   archived,
   hue,
   theme,
-  onOpenBand,
   onOpen,
 }: CommitmentsListProps) {
-  // What the band actually is today: the setting, held to the cap for
-  // how many commitments there are (ADR-0032 §2). A setting of 80 kept
-  // from three commitments reads 70 once one is archived.
-  const band = setting === null ? null : Math.min(setting, commitmentBandMax(commitments.length));
   return (
     <>
-      {/* The band, stated as what it does rather than as a number
-          needing interpretation. Off is a real state and says so. */}
-      <Pressable
-        onPress={onOpenBand}
-        style={({ pressed }) => [
-          styles.band,
-          {
-            backgroundColor: wash(hue, theme),
-            opacity: pressed ? 0.7 : 1,
-          },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={
-          band === null
-            ? "Commitments scoring is off. Turn it on."
-            : `Commitments take ${band} percent of a scheduled day. Change.`
-        }
-      >
-        <View style={styles.grow}>
-          <AppText variant="caption" color={theme.muted}>
-            {band === null ? "Not scoring yet" : "On a scheduled day"}
-          </AppText>
-          <AppText variant="title" color={theme.ink}>
-            {band === null ? "Set a share" : `${band}% of the day`}
+      {commitments.length > 0 ? (
+        <View style={[styles.band, { backgroundColor: wash(hue, theme) }]}>
+          <AppText variant="headline" color={theme.ink}>
+            Shares come from your day
           </AppText>
           <AppText variant="caption" color={theme.muted}>
-            {band === null
-              ? "Choose how much of a day your commitments are worth."
-              : `The rest of your life keeps ${100 - band}%. Free days are unchanged.`}
+            On a day with commitment work, each commitment takes its time
+            that day: its events and scheduled tasks, out of your working
+            hours. The rest of your life keeps what is left.
           </AppText>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.muted} />
-      </Pressable>
+      ) : null}
 
       {commitments.length === 0 ? (
         <View style={styles.empty}>
@@ -191,11 +159,6 @@ function Row({
           {detail}
         </AppText>
       </View>
-      {dimmed !== true ? (
-        <AppText variant="label" color={theme.muted}>
-          {commitment.sharePercent}%
-        </AppText>
-      ) : null}
       <Ionicons name="chevron-forward" size={18} color={theme.muted} />
     </Pressable>
   );
@@ -203,9 +166,7 @@ function Row({
 
 const styles = StyleSheet.create({
   band: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
+    gap: space.xs,
     borderRadius: radius.lg,
     padding: space.lg,
     // Nothing below it: a Group carries its own top margin, and the
