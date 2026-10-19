@@ -17,7 +17,13 @@ import { assertEditable, currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import { COVERAGE_LOOKBACK_DAYS, isCommitmentUnit } from "./commitmentPlan";
 import { cacheDayScore } from "./dayGrades";
-import { autocountForTask, removeAutocountForTask } from "./goals";
+import {
+  carriedFrom,
+  carryGoalEntries,
+  forgetGoalEntries,
+  recordGoalEntries,
+  type CarriedTick,
+} from "./goals";
 import { dayGrade, lifeUnit, task, taskCompletion, taskCompletionTag } from "./schema";
 import { loadDay, type DayData } from "./today";
 
@@ -53,8 +59,10 @@ export async function setCompletionFraction(
   fraction: number,
 ): Promise<DayData | null> {
   assertEditable(date);
-  await clearCompletion(taskId, date);
-  await writeCompletion(taskId, date, fraction);
+  // The rewritten tick keeps the old one's goals and "Took about…": a
+  // new fraction changes how much was done, not what it counted toward.
+  const carried = await clearCompletion(taskId, date);
+  await writeCompletion(taskId, date, fraction, carried);
   return afterCompletionEdit(taskId, date);
 }
 
@@ -129,27 +137,29 @@ async function recacheCoveredSessions(
   }
 }
 
-/** Removes the day's completion if there is one. Returns whether there was. */
-async function clearCompletion(taskId: string, date: string): Promise<boolean> {
-  const existing = await db
-    .select()
-    .from(taskCompletion)
-    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
-  if (existing.length === 0) return false;
-  // Tags hang off the completion, so unchecking takes them with it —
-  // otherwise the row would be orphaned against its foreign key and
-  // a re-check would silently inherit yesterday's tags.
-  await db.delete(taskCompletionTag).where(
-    inArray(
-      taskCompletionTag.completionId,
-      existing.map((c) => c.id),
-    ),
-  );
-  await db
-    .delete(taskCompletion)
-    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
-  await removeAutocountForTask(taskId, date);
-  return true;
+/**
+ * Removes the day's completion if there is one. Returns what it counted
+ * toward, for a rewrite to carry, or null if there was none.
+ */
+async function clearCompletion(taskId: string, date: string): Promise<CarriedTick | null> {
+  return db.transaction((tx) => {
+    const existing = tx
+      .select()
+      .from(taskCompletion)
+      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
+      .all();
+    if (existing.length === 0) return null;
+    const ids = existing.map((c) => c.id);
+    const carried = carriedFrom(tx, existing);
+    // Tags and goal entries hang off the completion, so unchecking
+    // takes them with it — otherwise they'd be orphaned against their
+    // foreign key, a re-check would silently inherit yesterday's tags,
+    // and a goal would keep a tick that was taken back.
+    tx.delete(taskCompletionTag).where(inArray(taskCompletionTag.completionId, ids)).run();
+    forgetGoalEntries(tx, ids);
+    tx.delete(taskCompletion).where(inArray(taskCompletion.id, ids)).run();
+    return carried;
+  });
 }
 
 /**
@@ -160,6 +170,8 @@ async function writeCompletion(
   taskId: string,
   date: string,
   fraction: number,
+  /** A rewritten tick's goals and "Took about…" (`clearCompletion`). */
+  carried: CarriedTick | null = null,
 ): Promise<void> {
   const find = (d: DayData) =>
     [...d.due, ...d.week, ...d.doneThisWeek].find((t) => t.id === taskId);
@@ -167,7 +179,12 @@ async function writeCompletion(
   // tick from "Planned for other days" prices it from the full list.
   const status =
     find(await loadDay(date)) ?? find(await loadDay(date, { includeAhead: true }));
-  if (!status) return;
+  if (!status) {
+    // Nothing to tick. Reached on a rewrite, the old tick is already
+    // gone, so say so rather than return as if it were saved.
+    if (carried) throw new Error(`Couldn't rewrite the tick of ${taskId} on ${date}`);
+    return;
+  }
   // What a partial completion pays: the rounded running total minus
   // what earlier fractions already paid (ADR-0014 §3). Never more
   // than the task is worth, however it is split up.
@@ -178,34 +195,32 @@ async function writeCompletion(
       ? status.pointsIfCompletedNow
       : partialPoints(status.pointsIfCompletedNow, settled, applied);
 
+  const completion = {
+    id: Crypto.randomUUID(),
+    taskId,
+    localDate: date,
+    completedAt: new Date().toISOString(),
+    pointsEarned: points,
+    fraction: applied,
+    actualMinutes: carried?.actualMinutes ?? null,
+  };
   // Pricing awaited `loadDay`, so an overlapping tap may have written
   // the day's completion since this one cleared it. The check and the
   // insert share one synchronous transaction, so only one of them
   // lands, and the first wins.
-  const wrote = db.transaction((tx) => {
+  db.transaction((tx) => {
     const existing = tx
       .select({ id: taskCompletion.id })
       .from(taskCompletion)
       .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
       .all();
-    if (existing.length > 0) return false;
-    tx.insert(taskCompletion)
-      .values({
-        id: Crypto.randomUUID(),
-        taskId,
-        localDate: date,
-        completedAt: new Date().toISOString(),
-        pointsEarned: points,
-        fraction: applied,
-      })
-      .run();
-    return true;
+    if (existing.length > 0) return;
+    tx.insert(taskCompletion).values(completion).run();
+    // The goals it counts toward keep it (ADR-0042 §1). The completion
+    // scores; the entries never do (§4).
+    if (carried) carryGoalEntries(tx, completion, carried.goalIds);
+    else recordGoalEntries(tx, completion);
   });
-  if (!wrote) return;
-  // ADR-0015 §2. A goal that nominated this task gets a visible,
-  // deletable progress row — the completion scores, the row does not
-  // (§7 keeps the two meanings apart).
-  await autocountForTask(taskId, date);
 }
 
 /**

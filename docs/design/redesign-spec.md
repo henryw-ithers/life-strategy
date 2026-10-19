@@ -1070,7 +1070,7 @@ the phone.
 
 | ID | Case | Behaviour | Test |
 |---|---|---|---|
-| EC-42 | Restoring a backup from before the migration | Old placements and pools are copied to the new tables, and the backup's goals are erased. Past grades don't change | D + M |
+| EC-42 | Restoring a backup from before the migration | **Withdrawn 2026-10-19**: nobody uses the app yet, so old placements, pools and goals are dropped, not copied (Henry). The migration erases a restored backup's goals like any other | — |
 | EC-43 | App closed during the weekly pass | Each pin was saved as it was made. The pass starts again at step 1 | M |
 | EC-44 | Clock or time zone changes while the app is open | "Now" is worked out again when the app comes back to the front | M |
 | EC-45 | Reduce Transparency or Increase Contrast | Glass becomes solid and higher-contrast colours are used | M |

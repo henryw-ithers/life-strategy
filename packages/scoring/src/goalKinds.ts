@@ -92,6 +92,10 @@ export interface GoalTick {
   readonly durationMinutes?: number | null;
   /** "Took about…", in minutes, if set (`clampTookAbout`). */
   readonly tookMinutes?: number | null;
+  /** How much of the task this tick did (ADR-0014): a half-done Big
+   *  task is an hour, not two. Omitted, it's a whole tick. "Took
+   *  about…" is already the real time, so it isn't scaled. */
+  readonly fraction?: number;
 }
 
 /**
@@ -139,29 +143,36 @@ export function countsToward(goal: GoalDefinition, tick: GoalTick): boolean {
 }
 
 /**
+ * The time a tick counts for, in minutes: "Took about…" when set, else
+ * an event's own length, else the task's size (0.5, 1 or 2 hours; no
+ * size is Normal), either of the last two scaled by how much was done.
+ */
+export function tickMinutes(
+  tick: Pick<GoalTick, "size" | "durationMinutes" | "tookMinutes" | "fraction">,
+): number {
+  const took = tick.tookMinutes;
+  if (took != null) return clampTookAbout(took);
+  const duration = tick.durationMinutes;
+  const whole = duration != null && duration > 0 ? duration : sizeMinutes(tick.size);
+  return whole * Math.min(1, Math.max(0, tick.fraction ?? 1));
+}
+
+/**
  * The entry a tick leaves on a goal, or null if it doesn't count.
  *
- * - **Time** is "Took about…" when set, else an event's own length, else
- *   the task's size (0.5, 1 or 2 hours; no size is Normal).
+ * - **Time** is `tickMinutes`.
  * - **Points** are what the tick earned in the goal's own units only,
  *   so one task scoring in two units gives each unit's goal its own
  *   share, and a note tag gives nothing.
  */
 export function entryFor(goal: GoalDefinition, tick: GoalTick): GoalEntry | null {
   if (!countsToward(goal, tick)) return null;
-  const took = tick.tookMinutes;
-  const duration = tick.durationMinutes;
   let points = 0;
   for (const [unitId, p] of tick.pointsByUnit) if (goal.unitIds.has(unitId)) points += Math.max(0, p);
   return {
     taskId: tick.taskId,
     localDate: tick.localDate,
-    minutes:
-      took != null
-        ? clampTookAbout(took)
-        : duration != null && duration > 0
-          ? duration
-          : sizeMinutes(tick.size),
+    minutes: tickMinutes(tick),
     points,
   };
 }

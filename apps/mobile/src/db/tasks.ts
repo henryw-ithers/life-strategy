@@ -55,9 +55,6 @@ export interface PlanTask {
   partOfDay: "morning" | "afternoon" | "evening" | null;
   /** Which half of the fortnight a fortnightly task falls in. */
   fortnightOffset: number;
-  /** The goal this serves, or null. A grouping, never a scoring
-   *  input (ADR-0007) — points come from the unit either way. */
-  goalId: string | null;
   /** Total across every unit this task serves. */
   pointValue: number;
   /** Rank within the unit it's being listed under. */
@@ -260,7 +257,6 @@ export async function loadPlan(): Promise<PlanData> {
       size: t.size,
       allowsPartial: t.allowsPartial,
       kind: t.kind,
-      goalId: t.goalId,
       pointValue: t.pointValue,
       rankInUnit: rank,
       unitIds: [
@@ -632,12 +628,7 @@ export async function addTask(
   timesPerWeek: number,
   plannedWeekdays: string | null = null,
   partOfDay: "morning" | "afternoon" | "evening" | null = null,
-  goalId: string | null = null,
   oneOff: OneOff | null = null,
-  /** Which of the goal's conditions this task was written under
-   *  (ADR-0030 §1). Grouping only — it never affects what the task is
-   *  worth, which still comes from its units and its rank there. */
-  conditionId: string | null = null,
   detail: TaskDetail | null = null,
 ): Promise<string | null> {
   const home = unitIds[0];
@@ -668,8 +659,6 @@ export async function addTask(
       timesPerWeek: oneOff ? 1 : timesPerWeek,
       plannedWeekdays: oneOff ? null : plannedWeekdays,
       partOfDay,
-      goalId,
-      conditionId: goalId ? conditionId : null,
       oneOffSize: oneOff?.size ?? null,
       oneOffDate: oneOff?.date ?? null,
       oneOffDue: oneOff?.due ?? null,
@@ -867,26 +856,6 @@ export async function setUnitScoring(
     // variable band is one pool across all of them.
     recomputeAllUnitPoints(tx);
   });
-}
-
-/**
- * Point a task at a goal, or detach it (`null`).
- *
- * `task.goal_id` has been in the schema since ADR-0002 and was read in
- * four places — the goal screen lists what serves it, abandonment and
- * completion detach it — but **nothing ever wrote it**, so a task
- * could only ever arrive at a goal by being created there. This is the
- * other half: an existing task can join one, or leave.
- *
- * Points do not move. A goal is a grouping, never a scoring input
- * (ADR-0007): a task earns from its unit's band share whether or not
- * it serves a goal, so there is nothing to recompute here.
- */
-export async function setTaskGoal(
-  taskId: string,
-  goalId: string | null,
-): Promise<void> {
-  await db.update(task).set({ goalId }).where(eq(task.id, taskId));
 }
 
 /**
@@ -1110,9 +1079,7 @@ export async function addEvent(
     repeating ? eventTimesPerWeek(input.weekdays) : 1,
     repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
     null,
-    null,
     repeating ? null : { size: "normal", date: input.date, due: null },
-    null,
     {
       startMinute: input.startMinute,
       endMinute: input.endMinute,

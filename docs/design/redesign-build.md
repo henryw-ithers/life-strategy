@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-18, during Phase 5b.
+Last updated 2026-10-19, during Phase 5c.
 
 ## Phases
 
@@ -29,7 +29,7 @@ Last updated 2026-10-18, during Phase 5b.
 | 5a | Windows and schedule data: hours, edits, pins, choices, skips, Clear today, Away | Merged, PR #14 |
 | 5a+ | Every transaction in `src/db` atomic | Merged, PRs #15, #16 |
 | **5b** | **Scoring from the stored data; formula 11** | **In progress** |
-| 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | |
+| **5c** | **Goal kinds stored; old goals erased; goal screens hidden until Phase 10** | **In progress**, on top of 5b |
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | |
@@ -91,11 +91,27 @@ brackets. Phase 5 ships as three PRs (5a, 5b, 5c). Henry's calls on
   with no interim UI.
 - Database tests run on better-sqlite3 (a dev dependency) through
   `src/db/__tests__/harness.ts`, which runs the real migrations.
-- **Old placements and pools move with their screens**, not in 5a. A
-  placement can say "Anytime, just today", which has no window to pin
-  to, so `planned_occurrence` is copied and retired in Phase 9 and
-  `pool` in Phase 8, when the screens that write them go. Until then
-  5b scores "Do N of these" from `pool`.
+- **Old placements and pools go with their screens**, not in 5a:
+  `planned_occurrence` in Phase 9 and `pool` in Phase 8, when the
+  screens that write them go. Until then 5b scores "Do N of these"
+  from `pool`.
+
+**No users yet (Henry, 2026-10-19):** "nobody is using the app right
+now so migration is not a concern." Every remaining phase plans on
+that:
+
+- Nothing on a device is copied, kept or converted. An old table or
+  column is **dropped** with the screen that used it, not retired, and
+  its rows go with it. Phases 8 and 9 drop `pool` and
+  `planned_occurrence` rather than copying them into windows.
+- Schema changes still ship as generated, forward-only migrations
+  (`npm run db:generate -w apps/mobile`, never hand-edited), so an
+  install upgrades cleanly. When a change would need data moved first,
+  the migrations drop the old table and create the new one instead.
+- EC-42 (restoring a backup from before a migration) is withdrawn: no
+  backup from before the redesign holds anything to keep.
+- Rules about grades are not migration rules and still hold: settled
+  grades are never restated.
 
 Found in 5a: drizzle's expo-sqlite driver commits a transaction as
 soon as its callback returns, so an `async` callback commits after its
@@ -151,6 +167,69 @@ reach them:
   could, on unarchive, hold its own work and a sub at once. Rare; check
   when Phase 10 reworks the commitment screen.
 
+Decided while building 5c (the plan Henry approved on 2026-10-19):
+
+- `task.goal_id` is dropped. A goal reaches its tasks through
+  `goal_task` only, and a task can count toward several goals.
+- **Only active goals collect ticks.** A paused, finished or set-aside
+  goal doesn't. Pausing or finishing a goal leaves its tasks exactly as
+  they were: they belong to their units, and a goal only watches them
+  (the old goals deactivated their tasks).
+- A tick's points are its stored `points_earned`, split across the
+  units it scores in by its weight there, so a goal's total and the
+  days it came from agree. A part-done tick counts that part of its
+  size or event length toward a time goal; "Took about…" counts as
+  entered.
+- Every achievement was erased with the old goals: only goals ever
+  made them. An end date stays a month (ADR-0015 §4).
+- A streak counts the days its task is due by its repeat bounds;
+  skipped occurrences aren't yet read, which Phase 7 should add with
+  the skip screens.
+- Suggestions boost **linked** tasks only (`loadGoalLinkedTaskIds`,
+  for `planDay` in Phase 9), not every task under a points goal.
+- Deleting a commitment deletes its goals; removing its last
+  sub-commitment moves that sub's goals onto it.
+- A goal links only its own unit's tasks, a commitment's
+  sub-commitments included (EC-41), and is never left counting
+  nothing: its last chosen task, or a streak's one task, can't be
+  unlinked.
+- Changing how much of a task was done rewrites its tick, and the new
+  tick keeps the old one's goals and "Took about…"
+  (`carryGoalEntries`), whatever the goals' status or links are now.
+
+Open from the 5c reviews (`silent-failure-hunter`,
+`invariant-reviewer`; no invariant broken):
+
+- **A paused streak goal** collects no ticks, so resuming it finds the
+  run broken (Phase 10). Either let a paused streak keep collecting,
+  or read a streak from completions rather than entries.
+- **Activity credit and points goals:** ADR-0042 §1 says a points goal
+  counts "the whole unit, always", but only task ticks reach it. No
+  ADR says whether activity credit should (Phase 10).
+- **Revise** is still a goal status (ADR-0007), but nothing revises
+  until Phase 10's goal screen.
+- **Two older issues the review found, not 5c's, fixed in PR #18:**
+  two quick taps could write two ticks, and `deleteCommitment` read
+  outside its transaction. A unique index on a tick's task and day was
+  left until 5c's migrations landed, and is still to generate.
+- The tests run with foreign keys on (better-sqlite3); the app's
+  expo-sqlite connection doesn't turn them on, so a device can hold an
+  orphan the tests would refuse.
+- The goal half of the content library (`content/library.ts`) stays
+  until Phase 10 rewrites it as templates; the Ideas sheet shows its
+  tasks only.
+- **The erase is two generated migrations, no hand-written SQL.**
+  0022 only drops (`goal`, `goal_condition`, `goal_progress`,
+  `milestone`, `achievement`, and `task.goal_id`/`condition_id`);
+  0023 only creates (the new `goal`, `goal_task`, `goal_entry`,
+  `achievement`, and `task_completion.actual_minutes`). Splitting
+  them keeps drizzle-kit from asking whether a new table renames an
+  old one, which it can only ask in a terminal. Dropping the tables is
+  what erases the old goals. Checked on a database holding old goals,
+  conditions, milestones, progress and achievements, migrated the way
+  drizzle does (one transaction, foreign keys off): the goals and
+  achievements go, tasks and ticks stay, nothing is left dangling.
+
 ### New tables
 
 - [x] `work_hours`: working-hour groups and named gaps, one row per
@@ -173,32 +252,36 @@ reach them:
 - [x] `day_clear`: Clear today, with Undo until the day ends
       [ADR-0040 §4] (5a)
 - [x] `away_range`: start, end, optional label [ADR-0040 §5] (5a)
-- [ ] Goal entries: each counted tick saved when made (`GoalEntry`)
-      [ADR-0042 §1] (5c)
+- [x] Goal entries: each counted tick saved when made (`goal_entry`),
+      in the tick's own transaction and removed with it [ADR-0042 §1]
+      (5c)
 
 ### New columns
 
 - [x] `task.repeat_from`, `task.repeat_until`, set by `setRepeatBounds`
       [ADR-0040 §1] (5a)
-- [ ] `task_completion.actual_minutes` ("Took about…") [ADR-0042 §5]
+- [x] `task_completion.actual_minutes` ("Took about…", `setTookAbout`)
+      [ADR-0042 §5] (5c)
 - [x] `life_unit.tier` and `tier_order` (5a). Seeding them and the
       tier on snapshots come with the weights in 5b [ADR-0041]
 - [x] A commitment's set share (`life_unit.set_share`) [ADR-0044 §3]
       (5b)
-- [ ] Goal kind, scope and target; goal–task links [ADR-0042] (5c)
+- [x] Goal kind, scope and target (`goal.kind`, `unit_id`,
+      `target_value`, `counts_whole_unit`); goal–task links
+      (`goal_task`) [ADR-0042] (5c)
 - [x] Each day's starting working hours stored beside its grade
       (`day_grade.starting_hours`), so the commitment share can be
       worked out again exactly [ADR-0044 action item 2] (5b)
 
 ### Migrations and data
 
-- [ ] Copy old placements and pools into the new tables; retire, don't
-      drop, the old ones. **Moved:** pools in Phase 8, placements in
-      Phase 9, with the screens that write them
-- [ ] **Erase existing goals** with their progress, conditions,
-      milestones and achievements; keep the tasks, clearing `goal_id`
-      and `condition_id`; drop `goal_condition` and `milestone`
-      [ADR-0042 §6]
+- [ ] Drop old placements and pools with the screens that write them:
+      pools in Phase 8, placements in Phase 9. Nothing is copied (no
+      users yet, 2026-10-19)
+- [x] **Erase existing goals** with their progress, conditions,
+      milestones and achievements; keep the tasks, dropping `goal_id`
+      and `condition_id`; drop `goal_condition`, `milestone` and
+      `goal_progress` [ADR-0042 §6] (5c, migrations 0022 and 0023)
 - [x] `plan_snapshot` records repeat bounds and skips [ADR-0040] (5b)
 - [x] New tables in `db/reset.ts` (5a)
 - [x] **Delete a pin for one date once its day has ended**, unless it's
@@ -208,9 +291,9 @@ reach them:
 - [x] Archiving a task or commitment removes its pins; deleting a
       commitment removes its pins, choices and skips
       [windows-and-pins.md §2.11] (5a)
-- [ ] Forward-only migrations via `npm run db:generate -w apps/mobile`;
-      never hand-edit one [ADR-0002] (0020 in 5a and 0021 in 5b were
-      generated; 5c still to come)
+- [x] Forward-only migrations via `npm run db:generate -w apps/mobile`;
+      never hand-edit one [ADR-0002] (0020 in 5a, 0021 in 5b, 0022 and
+      0023 in 5c, all generated)
 
 ### Wiring the engine in
 
@@ -236,8 +319,11 @@ reach them:
 - [x] EC-20: the same day, scored from stored rows with two different
       sets of pins, gives the same `DayScore` [ADR-0039 §12] (5b,
       `db/__tests__/scoringFromStore.test.ts`)
-- [ ] Restoring a backup from before the migration on the dev build:
-      old placements copied, goals erased, past grades unchanged (EC-42)
+- [x] ~~Restoring a backup from before the migration (EC-42)~~:
+      withdrawn, no users yet (2026-10-19)
+- [x] Goals from stored rows: entries with ticks, links from now on,
+      the four kinds, "Took about…", goals going with a deleted
+      commitment, EC-36, EC-38, EC-41 (5c, `db/__tests__/goals.test.ts`)
 
 ### Commands
 

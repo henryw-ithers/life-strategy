@@ -648,9 +648,7 @@ export default function PlanDayScreen() {
               timesPerWeek,
               weekdays,
               part,
-              null,
               oneOff,
-              null,
               detail,
             );
             await load();

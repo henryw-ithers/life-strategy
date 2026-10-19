@@ -286,6 +286,12 @@ A test checks that the same day with different pins scores the same.
 2. [ ] Schema: `work_block`, `work_day_override`, `window_placement`
        and `window_choice`, copying data across from
        `planned_occurrence`, `pool` and `pool_member`.
+
+       > **Amended 2026-10-19 (Henry):** "nobody is using the app
+       > right now so migration is not a concern." Nothing is copied
+       > across: the old tables are dropped with the screens that
+       > write them, `pool` in Phase 8 and `planned_occurrence` in
+       > Phase 9 ([redesign-build.md](../design/redesign-build.md)).
 3. [ ] Home, Plan, the hours editor and the weekly pass (spec §5).
 4. [ ] Remove `DayGrid`, `dayGridLayout`, the `today.layout` setting
        and the old Plan ahead screen.

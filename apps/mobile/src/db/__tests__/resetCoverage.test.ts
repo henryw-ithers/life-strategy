@@ -93,21 +93,14 @@ describe("children are deleted before their parents", () => {
     // would pass vacuously and prove nothing.
     const deps = dependencies();
     expect(deps.length).toBeGreaterThan(10);
-    expect(deps).toContainEqual({ child: "goal_progress", parent: "goal" });
+    expect(deps).toContainEqual({ child: "goal_entry", parent: "goal" });
+    expect(deps).toContainEqual({ child: "goal_task", parent: "task" });
     expect(deps).toContainEqual({
       child: "task_completion_tag",
       parent: "task_completion",
     });
     expect(deps).toContainEqual({ child: "planned_occurrence", parent: "task" });
   });
-
-  /**
-   * `task.goal_id` and `goal.autocount_task_id` (ADR-0015 §2) point at
-   * each other, so **no ordering of the list can satisfy both.** The
-   * cycle is broken in the loop instead, by nulling the optional side
-   * before anything is deleted. Exempted here, and asserted below.
-   */
-  const CYCLE = [{ child: "goal", parent: "task" }];
 
   it("orders every child ahead of every table it references", () => {
     const order = deleteOrder();
@@ -116,16 +109,18 @@ describe("children are deleted before their parents", () => {
       ({ child, parent }) =>
         at(child) !== -1 &&
         at(parent) !== -1 &&
-        at(child) > at(parent) &&
-        !CYCLE.some((c) => c.child === child && c.parent === parent),
+        at(child) > at(parent),
     );
     expect(wrong).toEqual([]);
   });
 
-  it("breaks the one cycle it cannot order around", () => {
-    expect(read("reset.ts")).toContain(
-      "UPDATE goal SET autocount_task_id = NULL",
-    );
+  /**
+   * Self-references can't be ordered by the list, so the loop clears
+   * them first. `task.goal_id` and `goal.autocount_task_id` used to
+   * make a cycle between two tables too; both went in Phase 5c.
+   */
+  it("clears the self-references it cannot order around", () => {
+    expect(read("reset.ts")).toContain("UPDATE goal SET linked_from_goal_id = NULL");
   });
 });
 

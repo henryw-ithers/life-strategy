@@ -12,7 +12,6 @@ import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { isCommitmentUnit } from "./commitmentPlan";
-import { loadGoals } from "./goals";
 import {
   activity,
   activityTag,
@@ -372,10 +371,9 @@ export interface MovedRow extends DiffRowBase {
   suggestAddTask: boolean;
 }
 
-export interface ExcludedRow extends DiffRowBase {
-  /** Active goals on this unit — a "pause its goal?" prompt candidate. */
-  goalIds: string[];
-}
+/** A unit moved to Not now. Goals are hidden until Phase 10, so it no
+ *  longer offers to pause one. */
+export type ExcludedRow = DiffRowBase;
 
 export interface IncludedRow extends DiffRowBase {
   newWeight: number;
@@ -437,12 +435,11 @@ export async function loadDiagnosticDiff(
     .limit(1);
   if (!previous) return null;
 
-  const [oldWeights, newWeights, areas, plan, goals] = await Promise.all([
+  const [oldWeights, newWeights, areas, plan] = await Promise.all([
     db.select().from(unitWeight).where(eq(unitWeight.snapshotId, previous.id)),
     db.select().from(unitWeight).where(eq(unitWeight.snapshotId, newSnapshotId)),
     loadDiagnosticAreas(),
     loadPlan(),
-    loadGoals(),
   ]);
 
   // Compared as tier weights, the ones that score (ADR-0041).
@@ -456,17 +453,6 @@ export async function loadDiagnosticDiff(
   const taskCountByUnit = new Map(
     plan.areas.flatMap((a) =>
       a.units.map((u) => [u.id, u.tasks.length] as const),
-    ),
-  );
-  const activeGoalIdsByUnit = new Map(
-    goals.areas.flatMap((a) =>
-      a.units.map(
-        (u) =>
-          [
-            u.id,
-            u.goals.filter((g) => g.status === "active").map((g) => g.id),
-          ] as const,
-      ),
     ),
   );
 
@@ -503,7 +489,6 @@ export async function loadDiagnosticDiff(
         unitId,
         name: meta.name,
         areaId: meta.areaId,
-        goalIds: activeGoalIdsByUnit.get(unitId) ?? [],
       });
     } else if (oldW === undefined && newW !== undefined) {
       const newEffective = newW;

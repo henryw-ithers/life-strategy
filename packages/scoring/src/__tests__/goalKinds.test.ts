@@ -78,6 +78,13 @@ describe("time spent", () => {
     expect(e?.minutes).toBe(90);
   });
 
+  it("counts part of a part-done tick, but Took about… as it stands", () => {
+    const half = { taskId: "study", unit: "school", fraction: 0.5 };
+    expect(entryFor(chosen, tick({ ...half, size: "big" }))?.minutes).toBe(60);
+    expect(entryFor(chosen, tick({ ...half, durationMinutes: 90 }))?.minutes).toBe(45);
+    expect(entryFor(chosen, tick({ ...half, tookMinutes: 50 }))?.minutes).toBe(50);
+  });
+
   it("uses Took about… when set", () => {
     const e = entryFor(chosen, tick({ taskId: "study", tookMinutes: 90, unit: "school" }));
     expect(e?.minutes).toBe(90);

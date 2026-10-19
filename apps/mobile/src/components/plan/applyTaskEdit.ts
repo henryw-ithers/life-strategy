@@ -9,7 +9,6 @@ import {
   setTaskDetails,
   setTaskFortnightOffset,
   setTaskFrequency,
-  setTaskGoal,
   setTaskOneOff,
   setTaskPlanning,
   setTaskSize,
@@ -28,7 +27,6 @@ export function editableFrom(t: PlanTask): EditableTask {
     unitIds: t.unitIds,
     plannedWeekdays: t.plannedWeekdays,
     partOfDay: t.partOfDay,
-    goalId: t.goalId,
     fortnightOffset: t.fortnightOffset,
     oneOffSize: t.oneOffSize,
     oneOffDate: t.oneOffDate,
@@ -56,9 +54,6 @@ export async function applyTaskEdit(t: PlanTask, next: TaskEditResult): Promise<
   }
   if (next.plannedWeekdays !== t.plannedWeekdays || next.partOfDay !== t.partOfDay) {
     await setTaskPlanning(t.id, next.plannedWeekdays, next.partOfDay);
-  }
-  if (next.goalId !== t.goalId) {
-    await setTaskGoal(t.id, next.goalId);
   }
   if (next.fortnightOffset !== t.fortnightOffset) {
     await setTaskFortnightOffset(t.id, next.fortnightOffset === 1 ? 1 : 0);
