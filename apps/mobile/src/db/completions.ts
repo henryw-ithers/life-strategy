@@ -152,7 +152,10 @@ async function clearCompletion(taskId: string, date: string): Promise<boolean> {
   return true;
 }
 
-/** Writes one completion for `date`, priced per ADR-0014 §3. */
+/**
+ * Writes one completion for `date`, priced per ADR-0014 §3, unless the
+ * day already has one.
+ */
 async function writeCompletion(
   taskId: string,
   date: string,
@@ -175,14 +178,30 @@ async function writeCompletion(
       ? status.pointsIfCompletedNow
       : partialPoints(status.pointsIfCompletedNow, settled, applied);
 
-  await db.insert(taskCompletion).values({
-    id: Crypto.randomUUID(),
-    taskId,
-    localDate: date,
-    completedAt: new Date().toISOString(),
-    pointsEarned: points,
-    fraction: applied,
+  // Pricing awaited `loadDay`, so an overlapping tap may have written
+  // the day's completion since this one cleared it. The check and the
+  // insert share one synchronous transaction, so only one of them
+  // lands, and the first wins.
+  const wrote = db.transaction((tx) => {
+    const existing = tx
+      .select({ id: taskCompletion.id })
+      .from(taskCompletion)
+      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
+      .all();
+    if (existing.length > 0) return false;
+    tx.insert(taskCompletion)
+      .values({
+        id: Crypto.randomUUID(),
+        taskId,
+        localDate: date,
+        completedAt: new Date().toISOString(),
+        pointsEarned: points,
+        fraction: applied,
+      })
+      .run();
+    return true;
   });
+  if (!wrote) return;
   // ADR-0015 §2. A goal that nominated this task gets a visible,
   // deletable progress row — the completion scores, the row does not
   // (§7 keeps the two meanings apart).

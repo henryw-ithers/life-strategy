@@ -348,7 +348,7 @@ function rehomeTask(tx: Tx, taskId: string, from: string, to: string): void {
  */
 export async function archiveCommitment(id: string): Promise<void> {
   const now = new Date().toISOString();
-  const ids = await subtreeIds(id);
+  const ids = subtreeIds(db, id);
   const taskRows = await db.select({ id: task.id }).from(task).where(inArray(task.unitId, ids));
   db.transaction((tx) => {
     // Its tasks are archived, so their pins go (windows-and-pins §2.11).
@@ -376,7 +376,7 @@ export async function archiveCommitment(id: string): Promise<void> {
  * own before finishing the commitment stays archived, as you left it.
  */
 export async function unarchiveCommitment(id: string): Promise<void> {
-  const ids = await subtreeIds(id);
+  const ids = subtreeIds(db, id);
   const [row] = await db
     .select({ archivedAt: lifeUnit.archivedAt })
     .from(lifeUnit)
@@ -421,16 +421,23 @@ export async function unarchiveCommitment(id: string): Promise<void> {
 export async function deleteCommitment(
   id: string,
 ): Promise<{ units: number; tasks: number; pools: number }> {
-  if (await isLastSub(id)) return removeLastSub(id);
-  const ids = await subtreeIds(id);
-  const taskRows = await db
-    .select({ id: task.id })
-    .from(task)
-    .where(inArray(task.unitId, ids));
-  const taskIds = taskRows.map((t) => t.id);
+  // What it reads to decide what to delete — whether this is the last
+  // sub-commitment, the subtree, its tasks — is read in the same
+  // transaction as the delete, so a change made meanwhile can't be
+  // missed. Its days lose their work, so grades are marked stale here
+  // too, as `removeLastSub` always has, rather than relying on the
+  // pricing pass to do it.
+  return writeAndMarkStale((tx) => {
+    if (isLastSub(tx, id)) return removeLastSub(tx, id);
+    const ids = subtreeIds(tx, id);
+    const taskIds = tx
+      .select({ id: task.id })
+      .from(task)
+      .where(inArray(task.unitId, ids))
+      .all()
+      .map((t) => t.id);
 
-  let pools = 0;
-  db.transaction((tx) => {
+    let pools = 0;
     if (taskIds.length > 0) {
       // Pools first: they reference tasks, and a pool left holding a
       // deleted task is a window that cannot render.
@@ -468,19 +475,19 @@ export async function deleteCommitment(
       .run();
     tx.delete(lifeUnit).where(inArray(lifeUnit.id, ids)).run();
     recomputeAllUnitPoints(tx);
+    return { units: ids.length, tasks: taskIds.length, pools };
   });
-
-  return { units: ids.length, tasks: taskIds.length, pools };
 }
 
 /** Whether `id` is a sub-commitment with no live sibling. */
-async function isLastSub(id: string): Promise<boolean> {
-  const [row] = await db.select().from(lifeUnit).where(eq(lifeUnit.id, id));
+function isLastSub(tx: Tx, id: string): boolean {
+  const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
   if (!row?.parentUnitId) return false;
-  const siblings = await db
+  const siblings = tx
     .select({ id: lifeUnit.id })
     .from(lifeUnit)
-    .where(and(eq(lifeUnit.parentUnitId, row.parentUnitId), isNull(lifeUnit.archivedAt)));
+    .where(and(eq(lifeUnit.parentUnitId, row.parentUnitId), isNull(lifeUnit.archivedAt)))
+    .all();
   return siblings.every((s) => s.id === id);
 }
 
@@ -491,33 +498,32 @@ async function isLastSub(id: string): Promise<boolean> {
  * sub-commitment itself. Archived tasks move too, so restoring one
  * later finds it a home.
  */
-async function removeLastSub(id: string): Promise<{ units: number; tasks: number; pools: number }> {
-  writeAndMarkStale((tx) => {
-    const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
-    const parent = row?.parentUnitId;
-    if (!parent) throw new Error(`Not a sub-commitment: ${id}`);
-    const tasks = tx.select({ id: task.id }).from(task).where(eq(task.unitId, id)).all();
-    for (const t of tasks) {
-      rehomeTask(tx, t.id, id, parent);
-      tx.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id)).run();
-    }
-    // Anything still pointing at it: remembered homes and tagged notes.
-    tx.update(task).set({ movedFromUnitId: null }).where(eq(task.movedFromUnitId, id)).run();
-    tx.delete(taskUnit).where(eq(taskUnit.unitId, id)).run();
-    forgetSkipsOf(tx, [], [id]);
-    tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
-    tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
-    recomputeAllUnitPoints(tx);
-  });
+function removeLastSub(tx: Tx, id: string): { units: number; tasks: number; pools: number } {
+  const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
+  const parent = row?.parentUnitId;
+  if (!parent) throw new Error(`Not a sub-commitment: ${id}`);
+  const tasks = tx.select({ id: task.id }).from(task).where(eq(task.unitId, id)).all();
+  for (const t of tasks) {
+    rehomeTask(tx, t.id, id, parent);
+    tx.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id)).run();
+  }
+  // Anything still pointing at it: remembered homes and tagged notes.
+  tx.update(task).set({ movedFromUnitId: null }).where(eq(task.movedFromUnitId, id)).run();
+  tx.delete(taskUnit).where(eq(taskUnit.unitId, id)).run();
+  forgetSkipsOf(tx, [], [id]);
+  tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
+  tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
+  recomputeAllUnitPoints(tx);
   return { units: 1, tasks: 0, pools: 0 };
 }
 
 /** A commitment and its sub-commitments, as ids. */
-async function subtreeIds(id: string): Promise<string[]> {
-  const children = await db
+function subtreeIds(executor: Tx | typeof db, id: string): string[] {
+  const children = executor
     .select({ id: lifeUnit.id })
     .from(lifeUnit)
-    .where(eq(lifeUnit.parentUnitId, id));
+    .where(eq(lifeUnit.parentUnitId, id))
+    .all();
   return [id, ...children.map((c) => c.id)];
 }
 
