@@ -162,7 +162,10 @@ async function clearCompletion(taskId: string, date: string): Promise<CarriedTic
   });
 }
 
-/** Writes one completion for `date`, priced per ADR-0014 §3. */
+/**
+ * Writes one completion for `date`, priced per ADR-0014 §3, unless the
+ * day already has one.
+ */
 async function writeCompletion(
   taskId: string,
   date: string,
@@ -201,7 +204,17 @@ async function writeCompletion(
     fraction: applied,
     actualMinutes: carried?.actualMinutes ?? null,
   };
+  // Pricing awaited `loadDay`, so an overlapping tap may have written
+  // the day's completion since this one cleared it. The check and the
+  // insert share one synchronous transaction, so only one of them
+  // lands, and the first wins.
   db.transaction((tx) => {
+    const existing = tx
+      .select({ id: taskCompletion.id })
+      .from(taskCompletion)
+      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
+      .all();
+    if (existing.length > 0) return;
     tx.insert(taskCompletion).values(completion).run();
     // The goals it counts toward keep it (ADR-0042 §1). The completion
     // scores; the entries never do (§4).

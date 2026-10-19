@@ -208,11 +208,10 @@ Open from the 5c reviews (`silent-failure-hunter`,
   ADR says whether activity credit should (Phase 10).
 - **Revise** is still a goal status (ADR-0007), but nothing revises
   until Phase 10's goal screen.
-- **Two older issues the review found, not 5c's:** two quick taps on a
-  task can race in `toggleCompletion` and write two ticks, since the
-  check and the insert aren't one transaction; and `deleteCommitment`
-  doesn't mark grades stale in its transaction, as `removeLastSub`
-  does (PR #16's rule). Worth one small fix PR.
+- **Two older issues the review found, not 5c's, fixed in PR #18:**
+  two quick taps could write two ticks, and `deleteCommitment` read
+  outside its transaction. A unique index on a tick's task and day was
+  left until 5c's migrations landed, and is still to generate.
 - The tests run with foreign keys on (better-sqlite3); the app's
   expo-sqlite connection doesn't turn them on, so a device can hold an
   orphan the tests would refuse.
