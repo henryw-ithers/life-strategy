@@ -12,14 +12,24 @@
  * on the app's driver (an async callback commits after its first
  * statement there).
  */
-import { asc, eq, gte, max } from "drizzle-orm";
+import { asc, eq, gte, isNull, max } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
-import type { HoursVersion, NamedGap, TimeRange, WorkSchedule, DayEdit } from "@glide/scoring";
+import {
+  addDays,
+  dayHours,
+  editWindowStart,
+  isFinalized,
+  type DayEdit,
+  type HoursVersion,
+  type NamedGap,
+  type TimeRange,
+  type WorkSchedule,
+} from "@glide/scoring";
 
 import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
-import { dayWindowEdit, workDayOverride, workHours } from "./schema";
+import { dayGrade, dayWindowEdit, workDayOverride, workHours } from "./schema";
 import { writeAndMarkStale } from "./settings";
 import {
   dayEditProblem,
@@ -34,6 +44,59 @@ import {
   unreadableVersion,
   type DayEditInput,
 } from "./windowRules";
+
+// ── The hours a day began with (ADR-0044 §5) ───────────────────────
+
+/** The working time `date` has now: its template or own hours, less
+ *  named gaps, with the edits made ahead of the day (`dayHours`). */
+export async function workingHoursNow(date: string): Promise<TimeRange[]> {
+  const [versions, override, edits] = await Promise.all([
+    loadHoursVersions(),
+    loadDayOverride(date),
+    loadDayEdits(date),
+  ]);
+  return [...dayHours({ date, versions, override, edits }).working];
+}
+
+/**
+ * The working time the commitment share reads for `date`: what was
+ * stored when the day began, else what it is now. A day's share then
+ * never moves when its hours change on the day or after (EC-56).
+ */
+export async function startingHours(date: string): Promise<TimeRange[]> {
+  const [row] = await db
+    .select({ startingHours: dayGrade.startingHours })
+    .from(dayGrade)
+    .where(eq(dayGrade.localDate, date));
+  return parseRanges(row?.startingHours) ?? workingHoursNow(date);
+}
+
+/**
+ * Keep the hours `date` began with, if they aren't kept already. Only
+ * for a day that has begun: a future day's hours can still change, and
+ * changes made ahead count. Called when a day is scored, and before
+ * any change to the hours that reaches today.
+ */
+export async function freezeStartingHours(date: string): Promise<void> {
+  const today = currentLocalDate();
+  // A day not begun can still change; a settled one keeps its grade.
+  if (date > today || isFinalized(date, today)) return;
+  const [row] = await db
+    .select({ startingHours: dayGrade.startingHours })
+    .from(dayGrade)
+    .where(eq(dayGrade.localDate, date));
+  if (row?.startingHours != null) return;
+  const value = serializeRanges(await workingHoursNow(date));
+  await db
+    .insert(dayGrade)
+    .values({ localDate: date, startingHours: value })
+    // Never over a value already kept.
+    .onConflictDoUpdate({
+      target: dayGrade.localDate,
+      set: { startingHours: value },
+      setWhere: isNull(dayGrade.startingHours),
+    });
+}
 
 /** Every version of the template, oldest first. */
 export async function loadHoursVersions(): Promise<HoursVersion[]> {
@@ -56,6 +119,12 @@ export async function saveHoursFrom(
 ): Promise<void> {
   const problem = hoursProblem(fromDate, schedules, gaps);
   if (problem !== null) throw new Error(problem);
+  // Days already begun keep the hours they began with (ADR-0044 §5):
+  // "This week and after" starts on a week's first day, which can be
+  // before today.
+  const today = currentLocalDate();
+  const first = fromDate > editWindowStart(today) ? fromDate : editWindowStart(today);
+  for (let d = first; d <= today; d = addDays(d, 1)) await freezeStartingHours(d);
   writeAndMarkStale((tx) => {
     tx.delete(workHours).where(gte(workHours.fromDate, fromDate)).run();
     tx.insert(workHours)
@@ -85,6 +154,7 @@ export async function setDayOverride(
 ): Promise<void> {
   const problem = overrideProblem(localDate, ranges);
   if (problem !== null) throw new Error(problem);
+  await freezeStartingHours(localDate);
   const value = serializeRanges(ranges);
   writeAndMarkStale((tx) =>
     tx
@@ -97,6 +167,7 @@ export async function setDayOverride(
 
 /** Return a date to the template's hours. */
 export async function clearDayOverride(localDate: string): Promise<void> {
+  await freezeStartingHours(localDate);
   writeAndMarkStale((tx) =>
     tx.delete(workDayOverride).where(eq(workDayOverride.localDate, localDate)).run(),
   );

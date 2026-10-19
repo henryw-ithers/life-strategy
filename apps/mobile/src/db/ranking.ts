@@ -19,14 +19,14 @@
  * Only **priority** is re-orderable. Satisfaction is an assessment,
  * not a preference, and stays with the diagnostic that captured it.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
-import { weightsForPriorityOrder } from "@glide/scoring";
 
 import { db } from "./client";
 import { lifeArea, lifeUnit, rating, snapshot, unitWeight } from "./schema";
 import { getSetting, setSetting } from "./settings";
-import { recomputeAllUnitPoints } from "./tasks";
+import { latestWeights, setTiersFromOrder } from "./tasks";
+import { tierWeightsForOrder } from "./tierRules";
 import { recacheAllDayScores } from "./dayGrades";
 
 /** Manual order, scoped to the snapshot it was made against. A fresh
@@ -68,33 +68,34 @@ export async function loadRankingBoard(): Promise<RankingBoard | null> {
     .limit(1);
   if (!latest) return null;
 
-  const [ratings, weights, units, areas, savedRaw] = await Promise.all([
+  const [ratings, units, areas, savedRaw] = await Promise.all([
     db.select().from(rating).where(eq(rating.snapshotId, latest.id)),
-    db.select().from(unitWeight).where(eq(unitWeight.snapshotId, latest.id)),
     db.select().from(lifeUnit),
     db.select().from(lifeArea),
     getSetting(ORDER_KEY),
   ]);
 
   const areaName = new Map(areas.map((a) => [a.id, a.name]));
+  const current = latestWeights(db);
   const unitRow = new Map(units.map((u) => [u.id, u]));
-  const weightRow = new Map(weights.map((w) => [w.unitId, w]));
 
   const byId = new Map<string, RankedUnit>();
   for (const r of ratings) {
     const u = unitRow.get(r.unitId);
     if (!u) continue;
-    const w = weightRow.get(r.unitId);
+    // Weights come from tiers now (ADR-0041); the snapshot's stored
+    // rank weights are a record only.
+    const weight = current.get(r.unitId) ?? null;
     byId.set(r.unitId, {
       unitId: r.unitId,
       name: u.name,
       areaId: u.areaId,
       areaName: areaName.get(u.areaId) ?? "",
-      includeInScoring: w != null,
+      includeInScoring: u.includeInScoring,
       satisfaction: r.satisfaction,
-      weight: w ? Math.round(w.override ?? w.derived) : null,
-      derived: w ? Math.round(w.derived) : null,
-      overridden: w?.override != null,
+      weight,
+      derived: weight,
+      overridden: false,
     });
   }
 
@@ -168,9 +169,10 @@ function parseSavedOrder(
  */
 
 /**
- * The weights a given order would produce. The maths lives in
- * `@glide/scoring` (`weightsForPriorityOrder`) so the rank-denominator
- * rule it depends on is covered by tests; this only adapts the board.
+ * The weights a given order would produce: the tiers it sets, in
+ * thirds (`tiersFromOrder`), then `deriveTierWeights` (ADR-0041). The
+ * same path `applyPriorityOrder` saves through, so the preview and the
+ * saved weights agree.
  */
 export function weightsForOrder(
   board: RankingBoard,
@@ -180,10 +182,7 @@ export function weightsForOrder(
   for (const [unitId, u] of board.byId) {
     if (u.includeInScoring) scored.add(unitId);
   }
-
-  return new Map(
-    weightsForPriorityOrder({ order, scored }).map((w) => [w.unitId, w.weight]),
-  );
+  return tierWeightsForOrder(order, scored);
 }
 
 /**
@@ -199,22 +198,9 @@ export async function applyPriorityOrder(
   board: RankingBoard,
   order: readonly string[],
 ): Promise<void> {
-  const weights = weightsForOrder(board, order);
-
-  db.transaction((tx) => {
-    for (const [unitId, weight] of weights) {
-      tx.update(unitWeight)
-        .set({ override: weight })
-        .where(
-          and(
-            eq(unitWeight.snapshotId, board.snapshotId),
-            eq(unitWeight.unitId, unitId),
-          ),
-        )
-        .run();
-    }
-    recomputeAllUnitPoints(tx);
-  });
+  // Until Phase 6's tiers screen, an order sets tiers in thirds
+  // (ADR-0041); weights follow from the tiers alone.
+  db.transaction((tx) => setTiersFromOrder(tx, order));
 
   // Outside the transaction: `cacheDayScore` re-enters through `loadDay`
   // on the live connection, so it cannot run on `tx`.
@@ -226,14 +212,20 @@ export async function applyPriorityOrder(
   );
 }
 
-/** Drops every override, returning to what the diagnostic derived. */
+/** Goes back to the diagnostic's own order, and the tiers it gives. */
 export async function resetToDiagnostic(board: RankingBoard): Promise<void> {
+  const ratings = await db
+    .select({ unitId: rating.unitId, importance: rating.importance })
+    .from(rating)
+    .where(eq(rating.snapshotId, board.snapshotId));
+  const order = [...ratings].sort((a, b) => b.importance - a.importance).map((r) => r.unitId);
   db.transaction((tx) => {
+    // Overrides from the rank era would otherwise show beside the tiers.
     tx.update(unitWeight)
       .set({ override: null })
       .where(eq(unitWeight.snapshotId, board.snapshotId))
       .run();
-    recomputeAllUnitPoints(tx);
+    setTiersFromOrder(tx, order);
   });
   await recacheAllDayScores();
   await setSetting(ORDER_KEY, "");

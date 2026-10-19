@@ -12,11 +12,12 @@ import {
   nextMonthStart,
   storedDayScore,
 } from "@glide/scoring";
-import { and, eq, gte, isNull, lt } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt } from "drizzle-orm";
 
 import { assertEditable, currentLocalDate, editWindowDays } from "../lib/calendar";
 import { recreditActivities } from "./activityCredit";
 import { db } from "./client";
+import { freezeStartingHours } from "./hours";
 import { dayGrade } from "./schema";
 import { gradesAreStale, markGradesStale, takeGradesStale } from "./settings";
 import { loadDay, type DayData, type DayKind } from "./today";
@@ -114,6 +115,11 @@ export interface PlanSnapshotTask {
   unitId: string;
   pointValue: number;
   timesPerWeek: number;
+  /** Its repeat bounds and whether that day's run was skipped
+   *  (ADR-0040), so the day can be re-derived as it stood. */
+  repeatFrom: string | null;
+  repeatUntil: string | null;
+  skipped: boolean;
 }
 
 /** Store the day's earned/possible on `day_grade`, which the calendar,
@@ -123,6 +129,10 @@ export async function cacheDayScore(date: string): Promise<DayData> {
   // `recompute`: this only ever runs straight after the user changed
   // something about this day, and that edit must land even on a day
   // that has settled.
+  // The hours the day began with, kept before it is first scored, so
+  // its commitment share never moves when the hours change later
+  // (ADR-0044 §5).
+  await freezeStartingHours(date);
   let day = await loadDay(date, { recompute: true });
   if (await recreditActivities(date, day.restDay)) {
     day = await loadDay(date, { recompute: true });
@@ -133,6 +143,9 @@ export async function cacheDayScore(date: string): Promise<DayData> {
       unitId: t.unitId,
       pointValue: t.pointValue,
       timesPerWeek: t.timesPerWeek,
+      repeatFrom: t.repeatFrom,
+      repeatUntil: t.repeatUntil,
+      skipped: t.skippedToday,
     }),
   );
   const values = {
@@ -172,10 +185,18 @@ export async function recordUntouchedDays(start: string, end: string): Promise<v
   const from = start > recent ? start : recent;
   const to = end < today ? end : today;
   if (from >= to) return;
+  // A row holding only the hours a day began with (`freezeStartingHours`)
+  // hasn't been scored: it has no formula version.
   const rows = await db
     .select({ localDate: dayGrade.localDate })
     .from(dayGrade)
-    .where(and(gte(dayGrade.localDate, from), lt(dayGrade.localDate, to)));
+    .where(
+      and(
+        gte(dayGrade.localDate, from),
+        lt(dayGrade.localDate, to),
+        isNotNull(dayGrade.formulaVersion),
+      ),
+    );
   const stored = new Set(rows.map((r) => r.localDate));
   for (let d = from; d < to; d = addDays(d, 1)) {
     if (!stored.has(d)) await cacheDayScore(d);

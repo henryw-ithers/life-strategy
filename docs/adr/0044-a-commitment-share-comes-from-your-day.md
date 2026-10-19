@@ -178,8 +178,11 @@ Removing the last one puts the work back, using the restore rule ADR-0035
        several commitments, and a mid-day window edit (EC-50, EC-56).
        Done in Phase 4c, with `commitmentDayFromShare` and `shareLimit`
        (§2's clarification).
-2. [ ] Store each day's starting hours alongside the grade, so the share
-       can be recalculated exactly.
+2. [x] Store each day's starting hours alongside the grade, so the share
+       can be recalculated exactly. Done in Phase 5b
+       (`day_grade.starting_hours`, kept when the day is first scored
+       and before any change to the hours that reaches it).
 3. [ ] "Share of your day" on the commitment screen. The old band sheet
-       goes.
+       goes. The band sheet and the per-commitment percent went in Phase
+       5b; the share's own display comes with Phase 10.
 4. [ ] Amend ADR-0032. Update AGENTS.md.

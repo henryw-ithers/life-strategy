@@ -232,9 +232,11 @@ second one. What separates it is its **band**, not its table
   one-off counts only on the day it's ticked) divided by
   the day's working hours as they stood at the start of the day
   (ADR-0044). The total is kept between 10 and `shareLimit` (70, 70 or
-  80 for one, two or three commitments; the user-set band still caps
-  at 60 for one until the app scores with the share), and a user-set share
-  overrides the automatic one. It is
+  80 for one, two or three commitments), and a share set on the
+  commitment (`life_unit.set_share`) overrides the automatic one. The
+  old hand-set band is retired (formula v11). A commitment one-off
+  carried past its day is never in a later day's band; done late, it
+  pays what its own day would have paid. It is
   paid as the share of today's commitment work done, and ADR-0029's
   whole day — planned 90, unplanned 10, extra runs — is scaled into
   what it leaves. **Commitments are the band, never more**: doing only

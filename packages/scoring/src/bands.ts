@@ -163,8 +163,8 @@ export function commitmentBandMax(commitments: number): number {
  * clarified 2026-10-17): **70 with one or two commitments, 80 with
  * three.** Henry raised the one-commitment limit from 60 so that a day
  * full of School work is mostly a School day even when School is your
- * only commitment. The user-set band (`commitmentBandMax`) keeps 60
- * until the app scores with the share (Phase 5).
+ * only commitment. The old hand-set band (`commitmentBandMax`, 60 for
+ * one) is retired with formula v11.
  */
 export function shareLimit(commitments: number): number {
   return commitments >= 3 ? 80 : 70;

@@ -129,9 +129,9 @@ export function hasPlannedUnit(units: readonly TieredUnit[]): boolean {
  * Order is the list's order, so whatever stores tiers must store each
  * unit's place in its tier and read them back sorted.
  *
- * Dormant until the data layer stores tiers (Phase 5): the app still
- * derives weights from rank (`deriveWeights`), and `FORMULA_VERSION`
- * moves when this is what scores a day.
+ * What the app scores with since formula v11 (`latestWeights` in the
+ * data layer). `deriveWeights` still fills the diagnostic's stored
+ * record and prices nothing.
  */
 export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[] {
   if (units.length === 0) return [];

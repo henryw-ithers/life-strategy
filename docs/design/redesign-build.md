@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-17, during Phase 5a.
+Last updated 2026-10-18, during Phase 5b.
 
 ## Phases
 
@@ -26,8 +26,9 @@ Last updated 2026-10-17, during Phase 5a.
 | 4b | Windows, pins and live suggestions | Merged, PR #11 |
 | 4c | The commitment share from the day | Merged, PR #12 |
 | 4d | The four goal kinds | Merged, PR #13 |
-| **5a** | **Windows and schedule data: hours, edits, pins, choices, skips, Clear today, Away** | **In progress** |
-| 5b | Scoring from the stored data; formula 11 | |
+| 5a | Windows and schedule data: hours, edits, pins, choices, skips, Clear today, Away | Merged, PR #14 |
+| 5a+ | Every transaction in `src/db` atomic | Merged, PRs #15, #16 |
+| **5b** | **Scoring from the stored data; formula 11** | **In progress** |
 | 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | |
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | |
@@ -102,7 +103,53 @@ first statement and an error after an `await` never rolls back. The 5a
 writers use synchronous callbacks (`.run()`, `.all()`), which are
 atomic on both drivers. The older writers were converted the same way
 in PR #15, and a test in `db/__tests__/transactions.test.ts` fails if
-an async callback comes back.
+an async callback comes back. PR #16 marks grades stale inside the same
+transaction as each write.
+
+Decided while building 5b:
+
+- Until Phase 6, the old Priorities screen and the diagnostic set
+  tiers from their order with the same thirds rule, so they keep
+  working. Overrides written by the old re-rank were that order's rank
+  weights and are cleared; manual weight overrides return with Phase 6.
+- The Life tab's band sheet and per-commitment percent are gone, since
+  shares are automatic. `life_unit.set_share` holds a share you set,
+  for Phase 10's screen; `commitment_share` stays only as the column
+  that marks a unit as a commitment.
+- Setting the hours on a day itself ("This week and after" from today,
+  or a day's own hours) doesn't change that day's share: the hours it
+  began with are kept first.
+- A commitment one-off carried past its day leaves the later day's
+  band and is paid at its own day's value, as AGENTS.md has it for
+  carried work.
+- **Not done, for Phase 7:** ADR-0040 §1 archives a series the day
+  after its end date. Archiving it that soon would drop its ticks from
+  the unsettled days it ran on, because a day reads only active tasks,
+  so Phase 7 should archive once those days have settled, or make a
+  day read the tasks it had.
+
+Open questions from the 5b reviews, to settle before the screens that
+reach them:
+
+- **Bounds changed on the day** (Phase 7): setting a series' end before
+  today, or its start after, can empty today. ADR-0040 §3 names only
+  same-day skips and Clear today as emptying a day, so such a day could
+  score 70 as a rest day. Either count it as emptied on the day or
+  refuse bounds that cut today.
+- **Clear today on a day that began empty** (Phase 7): it stays a rest
+  day, which matches §3's "nothing due when it started"; §4 says a
+  cleared day "never becomes a rest day". The ADR should say which
+  wins.
+- **Weight overrides** (Phase 6): weights no longer read
+  `unit_weight.override`. Nothing is lost, since no screen ever wrote
+  a user override, but the tiers screen needs somewhere to keep them,
+  with the recommended value shown beside each.
+- **A set share** (Phase 10): the screen that writes `set_share` must
+  show the automatic value beside it (`DayShare.automatic`).
+- **Removing the last sub-commitment** counts live siblings only. A
+  commitment split with an archived sub left over from older data
+  could, on unarchive, hold its own work and a sub at once. Rare; check
+  when Phase 10 reworks the commitment screen.
 
 ### New tables
 
@@ -136,11 +183,12 @@ an async callback comes back.
 - [ ] `task_completion.actual_minutes` ("Took about…") [ADR-0042 §5]
 - [x] `life_unit.tier` and `tier_order` (5a). Seeding them and the
       tier on snapshots come with the weights in 5b [ADR-0041]
-- [ ] Goal kind, scope and target; goal–task links; a commitment's set
-      share [ADR-0042, ADR-0044 §3]
-- [ ] Each day's starting working hours stored beside its grade, so the
-      commitment share can be worked out again exactly [ADR-0044 action
-      item 2]
+- [x] A commitment's set share (`life_unit.set_share`) [ADR-0044 §3]
+      (5b)
+- [ ] Goal kind, scope and target; goal–task links [ADR-0042] (5c)
+- [x] Each day's starting working hours stored beside its grade
+      (`day_grade.starting_hours`), so the commitment share can be
+      worked out again exactly [ADR-0044 action item 2] (5b)
 
 ### Migrations and data
 
@@ -151,7 +199,7 @@ an async callback comes back.
       milestones and achievements; keep the tasks, clearing `goal_id`
       and `condition_id`; drop `goal_condition` and `milestone`
       [ADR-0042 §6]
-- [ ] `plan_snapshot` records repeat bounds and skips [ADR-0040]
+- [x] `plan_snapshot` records repeat bounds and skips [ADR-0040] (5b)
 - [x] New tables in `db/reset.ts` (5a)
 - [x] **Delete a pin for one date once its day has ended**, unless it's
       a pin until done still carrying an open task, so no "how often
@@ -161,31 +209,33 @@ an async callback comes back.
       commitment removes its pins, choices and skips
       [windows-and-pins.md §2.11] (5a)
 - [ ] Forward-only migrations via `npm run db:generate -w apps/mobile`;
-      never hand-edit one [ADR-0002]
+      never hand-edit one [ADR-0002] (0020 in 5a and 0021 in 5b were
+      generated; 5c still to come)
 
 ### Wiring the engine in
 
-- [ ] Weights from `deriveTierWeights` [ADR-0041]
-- [ ] Bounds, skips and Away into `LoadTask` and `computeDayLoad`
-      (one mapper, typed with `Required<ScheduleBounds>` so nothing is
-      forgotten); `boundsError` on write
-- [ ] `emptiedToday` set from Clear today and same-day skips; it's
-      `false` in `db/today.ts` until now [ADR-0040 §3]
-- [ ] The commitment band from `commitmentShare`, replacing the user-set
+- [x] Weights from `deriveTierWeights`, tiers seeded once from the old
+      order (`seedTiers`) [ADR-0041] (5b)
+- [x] Bounds, skips and Away into `LoadTask` and `computeDayLoad`
+      (`withSchedule`, typed with `Required<ScheduleBounds>`);
+      `boundsError` on write (5b)
+- [x] `emptiedToday` set from Clear today and same-day skips
+      [ADR-0040 §3] (5b)
+- [x] The commitment band from `commitmentShare`, replacing the user-set
       band; an undated commitment one-off counts toward the share only
-      on the day it's ticked [ADR-0044 §2 clarification]
-- [ ] Pass bounds and skips into `coverage` and `scheduledDateFor` in
-      `db/commitmentPlan.ts` (EC-22)
-- [ ] **Bump `FORMULA_VERSION` to 11** once the app scores with all of
-      it at once; settled grades are never restated [constants.ts]
-- [ ] **Removing a commitment's last sub-commitment must move its work
-      back onto the commitment**; today it deletes the work
-      [ADR-0044 §7, found in Phase 3d]
+      on the day it's ticked [ADR-0044 §2 clarification] (5b)
+- [x] Pass bounds and skips into `coverage` and `scheduledDateFor` in
+      `db/commitmentPlan.ts` (EC-22): the task rows carry them (5b)
+- [x] **Bump `FORMULA_VERSION` to 11** once the app scores with all of
+      it at once; settled grades are never restated [constants.ts] (5b)
+- [x] **Removing a commitment's last sub-commitment moves its work
+      back onto the commitment** [ADR-0044 §7, found in Phase 3d] (5b)
 
 ### Tests Phase 5 owes
 
-- [ ] EC-20: the same day, scored from stored rows with two different
-      sets of pins, gives the same `DayScore` [ADR-0039 §12]
+- [x] EC-20: the same day, scored from stored rows with two different
+      sets of pins, gives the same `DayScore` [ADR-0039 §12] (5b,
+      `db/__tests__/scoringFromStore.test.ts`)
 - [ ] Restoring a backup from before the migration on the dev build:
       old placements copied, goals erased, past grades unchanged (EC-42)
 

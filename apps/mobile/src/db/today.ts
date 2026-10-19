@@ -63,6 +63,9 @@ import { fractionsBefore, settledOf } from "./oneOffProgress";
 import { resolvePhotoUri } from "./photos";
 import { recordProblem } from "../lib/problemLog";
 import { pruneEndedPinsToday } from "./pins";
+import { loadSchedule } from "./schedule";
+import { loadAwayRanges } from "./skips";
+import { awayDatesBetween, withSchedule } from "./windowRules";
 import { loadPlacements } from "./placements";
 import {
   activity,
@@ -174,6 +177,11 @@ export interface TodayTask {
   size: "quick" | "normal" | "big" | null;
   /** `event` for a time you attend (ADR-0038); otherwise `task`. */
   kind: "task" | "event";
+  /** First and last day it repeats, inclusive (ADR-0040 §1). */
+  repeatFrom: string | null;
+  repeatUntil: string | null;
+  /** Whether this day's run is skipped (ADR-0040 §2). */
+  skippedToday: boolean;
 }
 
 export interface TodayActivity {
@@ -256,7 +264,7 @@ async function scheduledDayValues(
   for (const t of tasks) {
     const on =
       t.oneOffSize != null
-        ? scheduledDateFor(t, date)
+        ? carriedFrom(t, date) ?? scheduledDateFor(t, date)
         : sessionFor(t, date, sessionDates.get(t.id) ?? []);
     if (on !== null) byDate.set(on, [...(byDate.get(on) ?? []), t.id]);
   }
@@ -268,6 +276,19 @@ async function scheduledDayValues(
     for (const id of ids) values.set(id, points.get(id) ?? 0);
   }
   return values;
+}
+
+/**
+ * The day a commitment one-off was planned for, if that day has passed
+ * and it's still open: carried work (ADR-0039 §8). It is never added to
+ * today's band; done late, it is paid what its own day would have paid
+ * (formula v11).
+ */
+function carriedFrom(
+  t: { oneOffSize: string | null; oneOffDate: string | null },
+  date: string,
+): string | null {
+  return t.oneOffSize != null && t.oneOffDate != null && t.oneOffDate < date ? t.oneOffDate : null;
 }
 
 /** The `{ id, unitId }` of a commitment day's eligible tasks — all
@@ -329,11 +350,19 @@ export async function loadDay(
   // excluded unit already contributes zero points to it, so filtering
   // on the home unit alone would drop legitimately-earned points from
   // its other units.
-  const everyTask = await db
+  const activeTasks = await db
     .select()
     .from(task)
     .where(eq(task.active, true))
     .orderBy(asc(task.rankInUnit));
+  /**
+   * Every task carries its bounds and skips from here on (ADR-0040 §3):
+   * repeat dates, skipped runs and weeks, and for events Away days and
+   * cleared days. So every "is this due" below, `isDueOn`, the day's
+   * load and the commitment band, sees them through the one path.
+   */
+  const schedule = await loadSchedule(date, activeTasks);
+  const everyTask = activeTasks.map((t) => withSchedule(t, schedule.skipped));
 
   /**
    * One-offs earn their place on a day by a different rule to recurring
@@ -364,7 +393,8 @@ export async function loadDay(
     units.filter(isCommitmentUnit).map((u) => u.id),
   );
   const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
-  const kind: DayKind = dayRow?.kind ?? "normal";
+  // An Away day is a day off (ADR-0040 §5): not graded.
+  const kind: DayKind = schedule.away.has(date) ? "rest" : (dayRow?.kind ?? "normal");
   /** Life one-offs planned for a later day, when listed. Never in the
    *  load: they are not today's work. */
   const aheadLifeIds = new Set<string>();
@@ -511,7 +541,7 @@ export async function loadDay(
     (t) =>
       !doneAhead.has(t.id) &&
       (t.oneOffSize != null
-        ? scheduledDateFor(t, date) !== null
+        ? scheduledDateFor(t, date) !== null || carriedFrom(t, date) !== null
         : !isDueOn(t, date)),
   );
   const offScheduleValue = await scheduledDayValues(offSchedule, date, sessionDates);
@@ -582,6 +612,9 @@ export async function loadDay(
     pinnedWeekdays: parseWeekdays(t.plannedWeekdays),
     fortnightOffset: t.fortnightOffset,
     oneOff: t.oneOffSize != null,
+    repeatFrom: t.repeatFrom,
+    repeatUntil: t.repeatUntil,
+    skippedDates: t.skippedDates,
   });
   const lifeTaskIds = new Set(
     tasks
@@ -598,7 +631,7 @@ export async function loadDay(
   }));
   const lifeCompletions = loadCompletions.filter((c) => lifeTaskIds.has(c.taskId));
   const statuses = [
-    ...deriveChecklist(loadTasks, lifeCompletions, date, share),
+    ...deriveChecklist(loadTasks, lifeCompletions, date, share, schedule.away),
     ...deriveChecklist(
       [...commitmentTasks, ...aheadLifeTasks].map(toLoadTask),
       loadCompletions.filter((c) => !lifeTaskIds.has(c.taskId)),
@@ -624,6 +657,7 @@ export async function loadDay(
     loadTasks,
     lifeCompletions.filter((c) => !(c.localDate === date && offDayPlanned.has(c.taskId))),
     date,
+    schedule.away,
   );
 
   /**
@@ -663,7 +697,7 @@ export async function loadDay(
     if (!lt) continue;
     earlyValue.set(
       id,
-      plannedDayRunPoints(loadTasks, lifeCompletionsBefore, lt, d, shareOn.get(d) ?? 1),
+      plannedDayRunPoints(loadTasks, lifeCompletionsBefore, lt, d, shareOn.get(d) ?? 1, schedule.away),
     );
   }
 
@@ -686,11 +720,26 @@ export async function loadDay(
   const earlyToday =
     [...earlyValue.keys()].some((id) => fractionToday.has(id)) ||
     offSchedule.some((t) => fractionToday.has(t.id));
+  /**
+   * Whether a same-day skip or Clear today emptied a day that had work
+   * due when it began (ADR-0040 §3). Such a day is ungraded, never a
+   * rest day: emptying a day must never score 70.
+   */
+  const emptiedToday =
+    schedule.changedOnTheDay &&
+    (computeDayLoad(
+      loadTasks.map((lt) => ({ ...lt, skippedDates: schedule.skippedAtStart.get(lt.taskId) ?? new Set() })),
+      lifeCompletions.filter((c) => c.localDate !== date),
+      date,
+      schedule.away,
+    ).expected > 0 ||
+      commitmentTasks.some((t) => {
+        const atStart = { ...t, skippedDates: schedule.skippedAtStart.get(t.id) ?? new Set<string>() };
+        return t.oneOffSize != null ? t.oneOffDate === date : isDueOn(atStart, date);
+      }));
   const restDay =
     kind !== "rest" &&
-    // Skips and Clear today aren't stored until the data layer adds
-    // them (Phase 5), so no day can be emptied on the day yet.
-    isRestDay(load, band, { hasPlan, openThisWeek, earlyToday, emptiedToday: false });
+    isRestDay(load, band, { hasPlan, openThisWeek, earlyToday, emptiedToday });
   /** Early life work done today, at its planned day's worth. */
   const earlyCredit = [...earlyValue].reduce(
     (a, [id, v]) => a + paidToday(id, v),
@@ -766,7 +815,11 @@ export async function loadDay(
         .from(dayGrade)
         .where(and(eq(dayGrade.kind, "rest"), gte(dayGrade.localDate, streakWindowStart)))
     : [];
-  const daysOff = dayOffRows.map((d) => d.localDate);
+  // Away days are days off too (ADR-0040 §5): they bridge a run.
+  const awayInWindow = dailyTaskIds.length
+    ? awayDatesBetween(await loadAwayRanges(), streakWindowStart, date)
+    : new Set<string>();
+  const daysOff = [...dayOffRows.map((d) => d.localDate), ...awayInWindow];
   const streakByTask = new Map<string, number>();
   for (const id of dailyTaskIds) {
     streakByTask.set(
@@ -871,6 +924,9 @@ export async function loadDay(
       endMinute: t.endMinute,
       size: t.size,
       kind: t.kind,
+      repeatFrom: t.repeatFrom,
+      repeatUntil: t.repeatUntil,
+      skippedToday: t.skippedDates.has(date),
     };
   });
 
@@ -950,7 +1006,7 @@ export async function loadDay(
           offScheduleCredit,
           activities: activityCredits,
           earlyCredit,
-          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday, emptiedToday: false },
+          restDay: { averageExpected, hasPlan, openThisWeek, earlyToday, emptiedToday },
         });
 
 
