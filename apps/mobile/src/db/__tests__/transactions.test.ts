@@ -257,6 +257,30 @@ describe("deleteCommitment", () => {
     expect(db.select().from(pool).all().find((p) => p.id === "p2")?.afterTaskId).toBe("essay");
     expect(db.select().from(poolMember).all()).toHaveLength(3);
   });
+
+  it("deletes nothing when the stale mark fails", async () => {
+    seedCommitment();
+    failStaleMark();
+
+    await expect(deleteCommitment("school")).rejects.toThrow(/injected failure/);
+
+    const unitIds = testDb().select().from(lifeUnit).all().map((u) => u.id);
+    expect(unitIds).toEqual(expect.arrayContaining(["school", "comp"]));
+    expect(taskRow("essay")).toBeDefined();
+    expect(testDb().select().from(pool).all()).toHaveLength(2);
+  });
+
+  it("puts the last sub-commitment's work back, or nothing, with the mark", async () => {
+    seedCommitment();
+    failStaleMark();
+    await expect(deleteCommitment("comp")).rejects.toThrow(/injected failure/);
+    expect(taskRow("essay")?.unitId).toBe("comp");
+
+    testDb().run(sql.raw("DROP TRIGGER fail_app_setting_INSERT"));
+    expect(await deleteCommitment("comp")).toEqual({ units: 1, tasks: 0, pools: 0 });
+    expect(taskRow("essay")?.unitId).toBe("school");
+    expect(gradesStale()).toBe("1");
+  });
 });
 
 describe("setUsesSubCommitments", () => {
