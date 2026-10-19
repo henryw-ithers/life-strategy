@@ -22,7 +22,8 @@ import {
   GENERAL_SUB_NAME,
   homeOnSplit,
 } from "./commitmentPlan";
-import { lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
+import { forgetGoalLinksOf, forgetGoals, goalIdsOn } from "./goals";
+import { goal, lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
 import { forgetPinsOf } from "./pins";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import { forgetSkipsOf } from "./skips";
@@ -455,11 +456,14 @@ export async function deleteCommitment(
       // Pins, choices and skips reference these tasks too.
       forgetPinsOf(tx, taskIds);
       forgetSkipsOf(tx, taskIds);
+      forgetGoalLinksOf(tx, taskIds);
       tx.delete(taskUnit).where(inArray(taskUnit.taskId, taskIds)).run();
       tx.delete(task).where(inArray(task.id, taskIds)).run();
     }
-    // A skipped commitment week names the unit itself.
+    // A skipped commitment week names the unit itself, and so does a
+    // goal on it.
     forgetSkipsOf(tx, [], ids);
+    forgetGoals(tx, goalIdsOn(tx, ids));
     // Children before parents, inside the table as well as between.
     tx.delete(lifeUnit)
       .where(
@@ -505,6 +509,8 @@ async function removeLastSub(id: string): Promise<{ units: number; tasks: number
     tx.update(task).set({ movedFromUnitId: null }).where(eq(task.movedFromUnitId, id)).run();
     tx.delete(taskUnit).where(eq(taskUnit.unitId, id)).run();
     forgetSkipsOf(tx, [], [id]);
+    // Its goals were the commitment's work all along.
+    tx.update(goal).set({ unitId: parent }).where(eq(goal.unitId, id)).run();
     tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
     tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
     recomputeAllUnitPoints(tx);

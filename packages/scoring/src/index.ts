@@ -72,13 +72,6 @@ export {
 } from "./schedule";
 export type { UnitEffortInput } from "./effort";
 export { deriveEffort, rawEffort } from "./effort";
-export type {
-  MetricKind,
-  MetricProgress,
-  MetricDefinition,
-  MetricState,
-} from "./metrics";
-export { barFraction, metricState } from "./metrics";
 export type { Streak, StreakInput } from "./streak";
 export {
   computeStreak,
@@ -107,6 +100,7 @@ export {
   goalStreak,
   streakRungs,
   streakShown,
+  tickMinutes,
   STREAK_SHOWN_FROM,
   TOOK_ABOUT_RANGE,
 } from "./goalKinds";

@@ -42,7 +42,6 @@ import { Group } from "../../../components/ui/Group";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { UNIT_INFO } from "../../../content/units";
-import { createGoal, setGoalMetric } from "../../../db/goals";
 import {
   addEvent,
   addTask,
@@ -87,7 +86,6 @@ export default function PlanScreen() {
   const {
     plan: storedPlan,
     commitmentDay,
-    goalsByUnit,
     ratings,
     reload,
     save,
@@ -263,9 +261,7 @@ export default function PlanScreen() {
       timesPerWeek,
       plannedWeekdays,
       partOfDay,
-      null,
       oneOff,
-      null,
       detail,
     );
     await revealAdded(id, unitIds[0]);
@@ -475,7 +471,6 @@ export default function PlanScreen() {
           onDismissed={editingGone}
           task={editableFrom(editingShown.task)}
           units={allUnits}
-          goals={goalsByUnit[editingShown.unit.id] ?? []}
           areaColors={theme.areas}
           accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
           theme={theme}
@@ -506,7 +501,6 @@ export default function PlanScreen() {
               : null
           }
           existingTaskTitles={suggestingForShown.tasks.map((t) => t.title)}
-          existingGoalTitles={(goalsByUnit[suggestingForShown.id] ?? []).map((g) => g.title)}
           accent={theme.areas[suggestingForShown.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setSuggestingFor(null)}
@@ -517,29 +511,6 @@ export default function PlanScreen() {
             save(
               () => commitTask(t.title, t.timesPerWeek, [unit.id], null, null),
               () => {},
-            );
-          }}
-          onAddGoal={(g) => {
-            const unit = suggestingForShown;
-            setSuggestingFor(null);
-            let id = "";
-            save(
-              async () => {
-                id = await createGoal(unit.id, g.title, g.description ?? undefined);
-                // The library's metric arrives with it — a goal stripped of
-                // it would be the least useful half of what was written. A
-                // metric goal has one finish line (ADR-0030 §5).
-                if (g.metric && g.metric.suggestedTarget !== null) {
-                  await setGoalMetric(id, {
-                    kind: g.metric.kind,
-                    unit: g.metric.unit,
-                    targetValue: g.metric.suggestedTarget,
-                  });
-                }
-              },
-              // No reload: this screen reloads on focus when it is next
-              // shown.
-              () => router.push(`/goals/${id}` as Href),
             );
           }}
         />

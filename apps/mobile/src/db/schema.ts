@@ -192,56 +192,52 @@ export const unitWeight = sqliteTable(
   (t) => [primaryKey({ columns: [t.snapshotId, t.unitId] })],
 );
 
-// ── Goals (ADR-0007) ────────────────────────────────────────────────
+// ── Goals (ADR-0007, ADR-0042) ──────────────────────────────────────
 
+/**
+ * A goal the app can count (ADR-0042 §1): times done, time spent,
+ * points earned, or a streak. It belongs to one unit or commitment.
+ *
+ * Every goal made before formula 11 was erased by migration 0022
+ * (ADR-0042 §6), with its conditions, milestones, progress entries and
+ * achievements; their tables went with them.
+ *
+ * **A goal never grades a day** (ADR-0042 §4). Nothing in scoring
+ * reads this table or the two below it.
+ */
 export const goal = sqliteTable("goal", {
   id: text("id").primaryKey(),
+  /** The unit or commitment. A commitment's goal reads its
+   *  sub-commitments too (EC-41). */
   unitId: text("unit_id")
     .notNull()
     .references(() => lifeUnit.id),
   title: text("title").notNull(),
   description: text("description"),
-  /** The number to reach. Meaning depends on `metricKind` (ADR-0015 §1). */
+  /** `GoalKind` from `@glide/scoring`. */
+  kind: text("kind", {
+    enum: ["timesDone", "timeSpent", "pointsEarned", "streak"],
+  }).notNull(),
+  /**
+   * Times, hours or points: always the number you set (ADR-0042 §1,
+   * clarified 2026-10-17). Never filled from how many sessions are
+   * scheduled. Null for a streak, which has no target.
+   */
   targetValue: real("target_value"),
   /**
-   * ADR-0015 §1. **Null means no metric** — a plain goal, exactly as
-   * goals worked before, which is why every existing goal stays valid.
-   *
-   * `cumulative` sums entries toward a total ("24 books").
-   * `target` logs readings and is met when one reaches the target
-   * ("bench 225", "weigh 80kg"). Direction is *inferred* from the
-   * earliest progress entry against the target, so gaining and losing
-   * share one kind and the user is never asked which way they go.
-   * `habit` is a run of consecutive days and has **no target at all**
-   * (decided 2026-08-16): a habit is meant to be permanent, so it
-   * never completes. Its rungs are day counts in `milestone`, and
-   * `target_value` stays null for it.
+   * A time goal counting every task in its unit or commitment,
+   * including tasks added later, rather than the tasks linked in
+   * `goal_task`. Only `timeSpent` reads it.
    */
-  metricKind: text("metric_kind", { enum: ["cumulative", "target", "habit"] }),
-  /** Free-text label: "books", "lb", "kg", "hours". The app does not
-   *  know what a kilogram is and does not need to. */
-  metricUnit: text("metric_unit"),
+  countsWholeUnit: integer("counts_whole_unit", { mode: "boolean" })
+    .notNull()
+    .default(false),
   /**
-   * Rough deadline at **month granularity**, `'YYYY-MM'` (ADR-0015 §4).
-   * A month picker, never a date picker and never a time.
-   *
-   * When it passes, **nothing happens** — no "overdue", no colour, no
-   * badge, no prompt, no auto-pause. A marker that appeared only when
-   * you were behind would be conditioning on a shortfall, which
-   * ADR-0008 forbids. It surfaces in the monthly review as part of the
-   * normal pass over active goals, never as a date-triggered alert.
+   * Optional end, at **month granularity**, `'YYYY-MM'` (ADR-0015 §4).
+   * When it passes, nothing happens: no "overdue", no colour, no
+   * prompt (ADR-0008).
    */
   targetDate: text("target_date"),
-  /**
-   * One task whose completion increments a `cumulative` goal by one
-   * (ADR-0015 §2). Explicitly nominated, never "all tasks under this
-   * goal" — that would make progress a silent function of the task
-   * list, so editing tasks would rewrite goal history. Nulls when the
-   * task archives; entries already written stay.
-   */
-  autocountTaskId: text("autocount_task_id").references(
-    (): AnySQLiteColumn => task.id,
-  ),
   status: text("status", {
     enum: ["active", "paused", "revised", "abandoned", "completed"],
   })
@@ -256,109 +252,51 @@ export const goal = sqliteTable("goal", {
 });
 
 /**
- * **Retired 2026-08-26 (ADR-0030 §5). Nothing writes this table.**
+ * The tasks a goal counts (ADR-0042 §1): the chosen tasks of a times
+ * done or time spent goal, or a streak's one task. A points goal and a
+ * time goal counting the whole unit have none.
  *
- * It held ADR-0007 §3's ordered ladder: rungs with one `current` at a
- * time, promoted as each was completed. A goal's authored child is a
- * `goal_condition` now — parallel, never completing — and a habit's
- * 7 · 30 · 66 rungs, the one ladder worth keeping, turned out to be a
- * constant the app was writing three rows to record; they are
- * `HABIT_LADDER` measured against the streak instead.
- *
- * **The table stays and is not dropped.** The schema is forward-only
- * (ADR-0002), rows a user already earned are theirs, the achievements
- * those rungs generated still point here by `milestone_id`, and
- * `deleteGoal` still clears rows belonging to a goal being removed.
- * Nothing creates, completes, edits or reads one into the UI.
+ * Only what counts **from now on**. A tick counts if its task was
+ * linked when it was made, and it's kept as a `goal_entry`, so removing
+ * a link never rewrites a goal's history.
  */
-export const milestone = sqliteTable("milestone", {
-  id: text("id").primaryKey(),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goal.id),
-  title: text("title").notNull(),
-  sortOrder: integer("sort_order").notNull(),
-  status: text("status", { enum: ["pending", "current", "completed"] })
-    .notNull()
-    .default("pending"),
-  /** This rung's own threshold (ADR-0015 §5) — vision.md's bench
-   *  example is 135 → 185 → 225, and without this the rungs are just
-   *  labels. Passing it *prompts* to advance; nothing auto-completes. */
-  targetValue: real("target_value"),
-  /**
-   * When it actually happened, `'YYYY-MM-DD'` (ADR-0015 §5).
-   * Milestones are often noticed late ("I passed 185 a few weeks
-   * ago"), and recording one in the wrong month would put a false
-   * entry in the log of a life. Written together with the minor
-   * achievement's `achieved_at`, so look-back views agree.
-   */
-  completedOn: text("completed_on"),
-  ...timestamps,
-});
+export const goalTask = sqliteTable(
+  "goal_task",
+  {
+    goalId: text("goal_id")
+      .notNull()
+      .references(() => goal.id),
+    taskId: text("task_id")
+      .notNull()
+      .references((): AnySQLiteColumn => task.id),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.goalId, t.taskId] })],
+);
 
 /**
- * A **condition** on a goal (ADR-0030 §1): something that has to be
- * true for the goal to happen.
+ * One counted tick (`GoalEntry`, ADR-0042 §1), written with the tick
+ * and removed with it.
  *
- * Adapted from the Harada Method's 9×9 chart, where one ambition is
- * surrounded by eight *conditions* and each condition by its own
- * actions. The app takes the shape and drops the fixed arity: a goal
- * may carry any number of conditions and a condition any number of
- * tasks, because eight empty boxes is a completeness surface and this
- * app does not have those (ADR-0030 §3).
- *
- * **A condition is not a milestone**, and the difference is the whole
- * reason it is a new table rather than a rename. A milestone is a rung
- * on one axis — ordered, one current at a time, completed and left
- * behind. A condition runs in *parallel* with every other condition on
- * its goal, for the goal's whole life, and never completes. Ohtani's
- * eight conditions all stayed live for four years.
- *
- * **It has no status and no metric**, deliberately. Progress on a
- * condition is the tasks under it getting done, which the day already
- * measures. Giving it a completion state would invent a second thing
- * to finish and a second thing to fall behind on.
- *
- * **It never touches scoring.** A task's weight still comes from its
- * unit and its rank there (`taskWeights`); this is an authoring and
- * grouping layer, exactly as `life_unit.area_id` is for units
- * (ADR-0021). `packages/scoring` does not import it and must not.
+ * Saved rather than derived so that unlinking a task, archiving it
+ * (EC-36) or changing its size later leaves past progress alone.
+ * `task_id` is deliberately not a foreign key: a tick outlives its
+ * task, as completions do.
  */
-export const goalCondition = sqliteTable("goal_condition", {
+export const goalEntry = sqliteTable("goal_entry", {
   id: text("id").primaryKey(),
   goalId: text("goal_id")
     .notNull()
     .references(() => goal.id),
-  title: text("title").notNull(),
-  /** Display order within the goal. Not a sequence — conditions are
-   *  parallel; this is just the order the user arranged them in. */
-  sortOrder: integer("sort_order").notNull(),
-  ...timestamps,
-});
-
-/**
- * One reading toward a metric goal (ADR-0015 §2).
- *
- * Deletable, like journal entries. Auto-counted rows (`source`
- * `'task'`) are ordinary entries — visible in the list and
- * individually removable, so nothing ever accrues invisibly.
- *
- * Progress is **not** a scoring event (ADR-0015 §7): no points, no
- * denominator, no effect on any day's number. It does not feed effort
- * either — a progress entry measures a thing done, often days later,
- * and counting it would double-count the session it describes.
- */
-export const goalProgress = sqliteTable("goal_progress", {
-  id: text("id").primaryKey(),
-  goalId: text("goal_id")
+  completionId: text("completion_id")
     .notNull()
-    .references(() => goal.id),
+    .references((): AnySQLiteColumn => taskCompletion.id),
+  taskId: text("task_id").notNull(),
   localDate: text("local_date").notNull(),
-  value: real("value").notNull(),
-  note: text("note"),
-  source: text("source", { enum: ["manual", "task"] })
-    .notNull()
-    .default("manual"),
+  /** What a time goal counts (`tickMinutes`). */
+  minutes: real("minutes").notNull(),
+  /** What the tick earned in the goal's own units only. */
+  points: real("points").notNull(),
   ...timestamps,
 });
 
@@ -369,25 +307,6 @@ export const task = sqliteTable("task", {
   unitId: text("unit_id")
     .notNull()
     .references(() => lifeUnit.id),
-  /** Nullable: habit tasks attach directly to their unit (ADR-0002 §1). */
-  goalId: text("goal_id").references(() => goal.id),
-  /**
-   * Which of the goal's conditions this task serves (ADR-0030 §1).
-   *
-   * Nullable and additive: null means the task hangs off its unit or
-   * its goal directly, which is exactly how every task worked before
-   * conditions existed and how most will keep working. Only meaningful
-   * alongside `goal_id`.
-   *
-   * **The task's unit need not be the goal's unit** (ADR-0030 §2). A
-   * career goal may carry a "sleep enough" condition whose task lives
-   * in Sleep & recovery and is paid out of *that* unit's weight — which
-   * is the point of conditions and the reason the chart they come from
-   * spans body, mind and character rather than one domain. `task_unit`
-   * already decouples who pays from who authored (ADR-0019); this
-   * column only records where it was written.
-   */
-  conditionId: text("condition_id").references(() => goalCondition.id),
   title: text("title").notNull(),
   /**
    * What the task actually involves. Never scored.
@@ -629,6 +548,12 @@ export const taskCompletion = sqliteTable("task_completion", {
    * this particular completion paid.
    */
   fraction: real("fraction").notNull().default(1),
+  /**
+   * "Took about…", in minutes (ADR-0042 §5), kept between 1 minute and
+   * 12 hours (`clampTookAbout`). Only time goals read it; it never
+   * changes points.
+   */
+  actualMinutes: integer("actual_minutes"),
   ...timestamps,
 });
 
@@ -1059,7 +984,6 @@ export const achievement = sqliteTable("achievement", {
    * rewrite history, and a deleted goal is the limiting case of an edit.
    */
   goalId: text("goal_id").references(() => goal.id),
-  milestoneId: text("milestone_id").references(() => milestone.id),
   /** Copied at completion so later goal edits don't rewrite history. */
   titleSnapshot: text("title_snapshot").notNull(),
   achievedAt: text("achieved_at").notNull(),

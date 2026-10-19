@@ -447,9 +447,7 @@ export default function CommitmentScreen() {
                     timesPerWeek,
                     plannedWeekdays,
                     partOfDay,
-                    null,
                     oneOff,
-                    null,
                     detail,
                   );
                   await reload();
@@ -463,7 +461,6 @@ export default function CommitmentScreen() {
                 onDismissed={editingTaskGone}
                 task={editableFrom(editingTaskShown)}
                 units={units}
-                goals={[]}
                 areaColors={theme.areas}
                 accent={accent}
                 theme={theme}

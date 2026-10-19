@@ -2,8 +2,8 @@
  * The nav-bar buttons on a tab's root (ADR-0043 §1, spec §2.1): a `+`
  * that opens a native pull-down menu, and Settings on Home and Life.
  *
- * The menu is the same on every tab: Task, Event and Log something,
- * plus Goal on Life (Windows arrive with Phase 8). Each tab opens what
+ * The menu is the same on every tab: Task, Event and Log something
+ * (Windows arrive with Phase 8, and Goal on Life with Phase 10). Each tab opens what
  * it owns in place; anything another tab owns switches to that tab and
  * opens it there (`openAdd`), until Phases 8 to 10 let every tab open
  * every sheet (Henry, 2026-10-16).
@@ -29,15 +29,12 @@ interface TabToolbarProps {
   onTask: () => void;
   onEvent: () => void;
   onLog: () => void;
-  /** Life only. */
-  onGoal?: () => void;
   /** Home and Life show Settings here. */
   settings?: boolean;
 }
 
 export function TabToolbar(props: TabToolbarProps) {
   const latest = useLatest(props);
-  const goal = props.onGoal !== undefined;
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu icon="plus" accessibilityLabel="Add">
@@ -50,11 +47,6 @@ export function TabToolbar(props: TabToolbarProps) {
         <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => latest.current.onLog()}>
           Log something
         </Stack.Toolbar.MenuAction>
-        {goal ? (
-          <Stack.Toolbar.MenuAction icon="flag" onPress={() => latest.current.onGoal?.()}>
-            Goal
-          </Stack.Toolbar.MenuAction>
-        ) : null}
       </Stack.Toolbar.Menu>
       {props.settings === true ? (
         <Stack.Toolbar.Button

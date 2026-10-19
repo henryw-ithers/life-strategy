@@ -23,6 +23,8 @@ import m0018 from './0018_slimy_mentor.sql';
 import m0019 from './0019_cool_galactus.sql';
 import m0020 from './0020_fixed_frog_thor.sql';
 import m0021 from './0021_omniscient_titania.sql';
+import m0022 from './0022_drop_old_goals.sql';
+import m0023 from './0023_goal_kinds.sql';
 
   export default {
     journal,
@@ -48,7 +50,9 @@ m0017,
 m0018,
 m0019,
 m0020,
-m0021
+m0021,
+m0022,
+m0023
     }
   }
   

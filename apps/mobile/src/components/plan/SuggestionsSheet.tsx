@@ -1,10 +1,13 @@
 /**
  * The content library, finally reachable (ADR-0006 §1).
  *
- * Eighteen units, seventy-one goals and a hundred and ten tasks were
- * written by hand and shipped in `content/library.ts` — and until now
+ * Eighteen units and a hundred and ten tasks were written by hand and shipped in `content/library.ts` — and until now
  * **nothing in the app imported it.** It was dead code you could only
  * read in the repo, which is the same as not having written it.
+ *
+ * **Tasks only until Phase 10.** The library's goals were written for
+ * the old goals, which went in Phase 5c (ADR-0042 §6); Phase 10
+ * replaces them with templates for the four kinds (§7).
  *
  * **Pull, not push** (ADR-0006 §3). This opens from a unit you already
  * chose to look at, and it never interrupts: no badge, no prompt, no
@@ -25,7 +28,7 @@
 import { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { LIBRARY, type GoalTemplate, type TaskTemplate } from "../../content/library";
+import { LIBRARY, type TaskTemplate } from "../../content/library";
 import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -41,15 +44,12 @@ interface SuggestionsSheetProps {
   profile: Profile | null;
   /** Titles already in the plan for this unit, so nothing is offered twice. */
   existingTaskTitles: string[];
-  /** Goal titles already in this unit, same reason. */
-  existingGoalTitles: string[];
   accent: string;
   theme: ThemeTokens;
   onClose: () => void;
   /** After it has finished closing (`NativeSheet`). */
   onDismissed?: () => void;
   onAddTask: (t: TaskTemplate) => void;
-  onAddGoal: (g: GoalTemplate) => void;
 }
 
 /** Profile-matching entries first, everything else after, each group
@@ -75,13 +75,11 @@ export function SuggestionsSheet({
   unitName,
   profile,
   existingTaskTitles,
-  existingGoalTitles,
   accent,
   theme,
   onClose,
   onDismissed,
   onAddTask,
-  onAddGoal,
 }: SuggestionsSheetProps) {
   const entry = LIBRARY[unitId];
 
@@ -89,11 +87,6 @@ export function SuggestionsSheet({
     () => new Set(existingTaskTitles.map((t) => t.trim().toLowerCase())),
     [existingTaskTitles],
   );
-  const hasGoal = useMemo(
-    () => new Set(existingGoalTitles.map((t) => t.trim().toLowerCase())),
-    [existingGoalTitles],
-  );
-
   const tasks = useMemo(
     () =>
       byProfile(
@@ -102,18 +95,7 @@ export function SuggestionsSheet({
       ),
     [entry, has, profile],
   );
-  const goals = useMemo(
-    () =>
-      byProfile(
-        (entry?.goals ?? []).filter(
-          (g) => !hasGoal.has(g.title.trim().toLowerCase()),
-        ),
-        profile,
-      ),
-    [entry, hasGoal, profile],
-  );
-
-  const nothingLeft = tasks.length === 0 && goals.length === 0;
+  const nothingLeft = tasks.length === 0;
 
   return (
     <NativeSheet onDismissed={onDismissed}
@@ -142,36 +124,8 @@ export function SuggestionsSheet({
           </AppText>
         ) : null}
 
-        {goals.length > 0 ? (
-          <AppText variant="caption" color={theme.muted}>
-            Goals
-          </AppText>
-        ) : null}
-        {goals.map((g) => (
-          <Pressable
-            key={g.id}
-            onPress={() => onAddGoal(g)}
-            accessibilityRole="button"
-            accessibilityLabel={`Add goal: ${g.title}`}
-            style={({ pressed }) => [
-              styles.card,
-              {
-                backgroundColor: pressed ? wash(accent, theme) : theme.surface,
-                borderColor: theme.hairline,
-              },
-            ]}
-          >
-            <AppText color={theme.ink}>{g.title}</AppText>
-            {g.description ? (
-              <AppText variant="footnote" color={theme.muted}>
-                {g.description}
-              </AppText>
-            ) : null}
-          </Pressable>
-        ))}
-
         {tasks.length > 0 ? (
-          <AppText variant="caption" color={theme.muted} style={styles.groupGap}>
+          <AppText variant="caption" color={theme.muted}>
             Tasks
           </AppText>
         ) : null}
@@ -213,7 +167,6 @@ const styles = StyleSheet.create({
   /** Takes the rest of the full-height sheet, and scrolls in it. */
   scroller: { flex: 1 },
   body: { gap: space.sm, paddingVertical: space.md },
-  groupGap: { marginTop: space.md },
   /** Tappable in full: the whole card is the button, so a suggestion
    *  costs one tap wherever the thumb lands on it. */
   card: {

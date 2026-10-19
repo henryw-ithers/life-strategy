@@ -193,10 +193,12 @@ scratch" is the same sheet, empty.
        with tests (EC-36, EC-37, EC-41, EC-51). Done in Phase 4d, in
        `goalKinds.ts` beside the goal state machine, with the
        2026-10-17 clarifications above.
-2. [ ] Schema: goal kind, scope and target fields, the goal–task
+2. [x] Schema: goal kind, scope and target fields, the goal–task
        links, and `task_completion.actual_minutes`. A migration erases
        existing goals and drops `goal_condition`, `milestone` and
-       manual progress entries.
+       manual progress entries. Done in Phase 5c: migration 0022 drops
+       the old goal tables and 0023 creates the new ones, with
+       `goal_entry` keeping each counted tick.
 3. [ ] The New goal sheet (templates, then the questions for that
        kind) and the goal screen. Remove the condition UI.
 4. [ ] Rewrite the goal library as templates in `docs/content/`, and

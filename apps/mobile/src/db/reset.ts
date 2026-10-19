@@ -55,25 +55,24 @@ const TABLES_IN_DELETE_ORDER = [
   "pool_member",
   // Before `task`, which it references.
   "pool",
+  // Before `task_completion` and `goal`, both of which it references.
+  "goal_entry",
+  // Before `task` and `goal`, both of which it references.
+  "goal_task",
   // Before `task_completion`, which it references.
   "task_completion_tag",
   "task_completion",
   "task_unit",
   // Before `task`, which it references.
   "planned_occurrence",
-  // Before `milestone` and `goal`, both of which it references.
-  "achievement",
-  "milestone",
   // Before `goal`, which it references.
-  "goal_progress",
+  "achievement",
   "calibration_suggestion",
   "contentment_checkin",
   "journal_entry",
   "photo",
   "day_grade",
   "task",
-  // After `task`, which references it; before `goal`, which it does.
-  "goal_condition",
   "goal",
   "unit_weight",
   "rating",
@@ -114,11 +113,10 @@ export async function eraseAllData(): Promise<void> {
   clearLog();
 
   db.transaction((tx) => {
-    // `task` and `goal` reference each other — `task.goal_id` one way,
-    // `goal.autocount_task_id` (ADR-0015 §2) the other — so no ordering
-    // of the list can satisfy both. Nulling the optional side first
-    // breaks the cycle; the rows are about to go anyway.
-    tx.run(sql.raw(`UPDATE goal SET autocount_task_id = NULL`));
+    // A revised goal points at the goal it replaced, so one bulk delete
+    // could trip that constraint mid-statement with foreign keys on.
+    // Nulling the link first breaks it; the rows are about to go anyway.
+    tx.run(sql.raw(`UPDATE goal SET linked_from_goal_id = NULL`));
 
     for (const table of TABLES_IN_DELETE_ORDER) {
       // `life_unit` references itself (`parent_unit_id`, ADR-0035), so

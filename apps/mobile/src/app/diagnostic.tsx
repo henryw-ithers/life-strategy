@@ -609,14 +609,6 @@ export default function DiagnosticFlow() {
                   areaColor={theme.areas[row.areaId] ?? theme.muted}
                   name={row.name}
                   primary="excluded"
-                  caption={row.goalIds.length > 0 ? "pause its goal?" : undefined}
-                  onPress={
-                    row.goalIds.length === 1
-                      ? () => router.push(`/goals/${row.goalIds[0]}` as Href)
-                      : row.goalIds.length > 1
-                        ? () => router.push("/goals" as Href)
-                        : undefined
-                  }
                   theme={theme}
                 />
               ))}
