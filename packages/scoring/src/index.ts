@@ -11,7 +11,9 @@ export type { UnitRating, DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
 export type { PlannedTier, Tier, TieredUnit } from "./weights";
 export {
+  applyWeightOverrides,
   deriveTierWeights,
+  overrideProblem,
   deriveWeights,
   hasPlannedUnit,
   isTier,
@@ -191,7 +193,7 @@ export {
   PART_OF_DAY_BOUNDS,
 } from "./windows";
 export type { Profile, UnitSituation } from "./profile";
-export { GAP_THRESHOLD, unitProfile } from "./profile";
+export { unitProfile } from "./profile";
 export type {
   WeeklyGradeSample,
   ContentmentSample,

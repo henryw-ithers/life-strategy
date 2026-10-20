@@ -7,7 +7,14 @@
  * else** (`deriveTierWeights`). This file decides which units go in and
  * in what order; the engine does the arithmetic.
  */
-import { deriveTierWeights, hasPlannedUnit, type Tier, type TieredUnit } from "@glide/scoring";
+import {
+  applyWeightOverrides,
+  deriveTierWeights,
+  hasPlannedUnit,
+  overrideProblem,
+  type Tier,
+  type TieredUnit,
+} from "@glide/scoring";
 
 export interface TierRow {
   id: string;
@@ -116,4 +123,59 @@ export function tierWeightsForOrder(
       .filter((w) => w.weight > 0)
       .map((w) => [w.unitId, w.weight]),
   );
+}
+
+/**
+ * Each unit's place inside its own tier, 0 first, from a placement in
+ * Priorities order: what `tier_order` stores.
+ */
+export function tierOrderOf(placement: readonly TieredUnit[]): Map<string, number> {
+  const next = new Map<Tier, number>();
+  const out = new Map<string, number>();
+  for (const p of placement) {
+    const i = next.get(p.tier) ?? 0;
+    out.set(p.unitId, i);
+    next.set(p.tier, i + 1);
+  }
+  return out;
+}
+
+export interface BoardWeights {
+  /** Each planned unit's recommended weight (`deriveTierWeights`). */
+  recommended: Map<string, number>;
+  /** What scores: the recommended weights with your overrides
+   *  (`applyWeightOverrides`). Empty when there's a problem. */
+  weights: Map<string, number>;
+  /** Why Priorities can't save as it stands, or null. */
+  problem: string | null;
+}
+
+/**
+ * The weights a Priorities board gives (ADR-0041 §2): recommended from
+ * tier and order alone, then your overrides. Overrides on Not now units
+ * are ignored; they hold no weight to override. What the screen shows
+ * while you drag and what saving stores, so the two can't disagree.
+ */
+export function boardWeights(
+  placement: readonly TieredUnit[],
+  overrides: ReadonlyMap<string, number>,
+): BoardWeights {
+  if (!hasPlannedUnit(placement)) {
+    return {
+      recommended: new Map(),
+      weights: new Map(),
+      problem: "Keep at least one unit in your plan.",
+    };
+  }
+  const recommended = new Map(
+    deriveTierWeights(placement)
+      .filter((w) => w.weight > 0)
+      .map((w) => [w.unitId, w.weight] as const),
+  );
+  const problem = overrideProblem(recommended, overrides);
+  return {
+    recommended,
+    weights: problem ? new Map() : applyWeightOverrides(recommended, overrides),
+    problem,
+  };
 }

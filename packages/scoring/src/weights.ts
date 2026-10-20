@@ -197,3 +197,70 @@ export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[]
  * worked out from what is actually due on it (`dayLoad.ts`). There is
  * no portfolio-level notion of "spendable weight" left to want.
  */
+
+// ── Overrides (ADR-0041 §2) ─────────────────────────────────────────
+
+/**
+ * What's wrong with a set of weight overrides, or null if they fit.
+ *
+ * An override is a whole number from 1 to 99: 0 is what Not now is for,
+ * and 100 would leave nothing for anything else. Overrides on units not
+ * in `recommended` are ignored, as `applyWeightOverrides` ignores them.
+ * Together they must leave room for the units you didn't override, or,
+ * with every unit overridden, add up to exactly 100.
+ */
+export function overrideProblem(
+  recommended: ReadonlyMap<string, number>,
+  overrides: ReadonlyMap<string, number>,
+): string | null {
+  let sum = 0;
+  let count = 0;
+  for (const [unitId, w] of overrides) {
+    if (!recommended.has(unitId)) continue;
+    if (!Number.isInteger(w) || w < 1 || w > 99) {
+      return "A weight is a whole number from 1 to 99.";
+    }
+    sum += w;
+    count += 1;
+  }
+  if (count === 0) return null;
+  if (count === recommended.size) {
+    return sum === DAILY_BUDGET ? null : `Your weights add up to ${sum}, not ${DAILY_BUDGET}.`;
+  }
+  return sum < DAILY_BUDGET ? null : "Those weights leave no room for your other units.";
+}
+
+/**
+ * Weights with your overrides (ADR-0041 §2; Henry, 2026-10-19): an
+ * overridden unit keeps exactly the number you set, and the units you
+ * didn't override share what's left in proportion to their recommended
+ * weights, so the plan still adds to exactly `DAILY_BUDGET` by largest
+ * remainder. The recommended weight is always kept beside an override
+ * for the screen to show (AGENTS.md); this only works out what scores.
+ *
+ * `recommended` is `deriveTierWeights`' plan, unit to weight, Not now
+ * left out. Throws with `overrideProblem`'s message rather than invent
+ * weights.
+ */
+export function applyWeightOverrides(
+  recommended: ReadonlyMap<string, number>,
+  overrides: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const problem = overrideProblem(recommended, overrides);
+  if (problem) throw new Error(`applyWeightOverrides: ${problem}`);
+  const fixed = new Map([...overrides].filter(([unitId]) => recommended.has(unitId)));
+  if (fixed.size === 0) return new Map(recommended);
+  const rest = [...recommended].filter(([unitId]) => !fixed.has(unitId));
+  const left = DAILY_BUDGET - [...fixed.values()].reduce((a, b) => a + b, 0);
+  const restSum = rest.reduce((a, [, w]) => a + w, 0);
+  const shares = largestRemainder(
+    rest.map(([, w]) => (restSum > 0 ? (left * w) / restSum : left / rest.length)),
+    left,
+  );
+  const out = new Map<string, number>();
+  for (const [unitId] of recommended) {
+    const own = fixed.get(unitId);
+    out.set(unitId, own ?? shares[rest.findIndex(([id]) => id === unitId)] ?? 0);
+  }
+  return out;
+}

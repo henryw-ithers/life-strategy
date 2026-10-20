@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { tieredUnits, tiersFromOrder, type TierRow } from "../tierRules";
+import { boardWeights, tieredUnits, tierOrderOf, tiersFromOrder, type TierRow } from "../tierRules";
 
 const row = (id: string, over: Partial<TierRow> = {}): TierRow => ({
   id,
@@ -63,5 +63,64 @@ describe("tieredUnits", () => {
       ["back", "background"],
       ["new", "background"],
     ]);
+  });
+});
+
+describe("boardWeights (Phase 6)", () => {
+  const placement = [
+    { unitId: "exercise", tier: "top" as const },
+    { unitId: "friends", tier: "important" as const },
+    { unitId: "sleep", tier: "background" as const },
+    { unitId: "rest", tier: "notNow" as const },
+  ];
+
+  it("gives recommended tier weights adding to 100, Not now left out", () => {
+    const b = boardWeights(placement, new Map());
+    expect(b.problem).toBeNull();
+    expect([...b.recommended.values()].reduce((a, w) => a + w, 0)).toBe(100);
+    expect(b.recommended.has("rest")).toBe(false);
+    expect(b.weights).toEqual(b.recommended);
+  });
+
+  it("applies overrides beside the recommended weights", () => {
+    const b = boardWeights(placement, new Map([["sleep", 30]]));
+    expect(b.weights.get("sleep")).toBe(30);
+    expect(b.recommended.get("sleep")).not.toBe(30);
+    expect([...b.weights.values()].reduce((a, w) => a + w, 0)).toBe(100);
+  });
+
+  it("ignores an override on a Not now unit", () => {
+    expect(boardWeights(placement, new Map([["rest", 20]])).weights).toEqual(
+      boardWeights(placement, new Map()).weights,
+    );
+  });
+
+  it("says so when every unit is Not now", () => {
+    const b = boardWeights(
+      placement.map((p) => ({ ...p, tier: "notNow" as const })),
+      new Map(),
+    );
+    expect(b.problem).toBe("Keep at least one unit in your plan.");
+    expect(b.weights.size).toBe(0);
+  });
+
+  it("says so when overrides don't fit", () => {
+    expect(boardWeights(placement, new Map([["sleep", 100]])).problem).toMatch(/1 to 99/);
+  });
+});
+
+describe("tierOrderOf (Phase 6)", () => {
+  it("numbers each unit's place inside its own tier", () => {
+    expect(
+      tierOrderOf([
+        { unitId: "a", tier: "top" },
+        { unitId: "b", tier: "important" },
+        { unitId: "c", tier: "top" },
+      ]),
+    ).toEqual(new Map([
+      ["a", 0],
+      ["b", 0],
+      ["c", 1],
+    ]));
   });
 });

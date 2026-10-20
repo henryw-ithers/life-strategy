@@ -86,7 +86,6 @@ export default function PlanScreen() {
   const {
     plan: storedPlan,
     commitmentDay,
-    ratings,
     reload,
     save,
     error,
@@ -490,13 +489,12 @@ export default function PlanScreen() {
           unitId={suggestingForShown.id}
           unitName={suggestingForShown.name}
           profile={
-            // Null before the first diagnostic: nothing has a weight or a
-            // rating yet, so there is no situation to read.
-            suggestingForShown.weight !== null && ratings.has(suggestingForShown.id)
+            // Null before Priorities is first saved: nothing has a tier
+            // or a weight yet, so there is no situation to read.
+            suggestingForShown.weight !== null && suggestingForShown.tier !== null
               ? unitProfile({
+                  tier: suggestingForShown.tier,
                   weight: suggestingForShown.weight,
-                  importance: ratings.get(suggestingForShown.id)!.importance,
-                  satisfaction: ratings.get(suggestingForShown.id)!.satisfaction,
                 })
               : null
           }
