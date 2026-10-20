@@ -224,9 +224,7 @@ export default function TodayScreen() {
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
 
   const {
-    allTasks,
     openTasks,
-    todayTasks,
     shownPart,
     byPlan,
     arrangeable,
