@@ -1,65 +1,13 @@
-import { DAILY_BUDGET, WEIGHT_SPREAD } from "./constants";
+import { DAILY_BUDGET } from "./constants";
 import { largestRemainder } from "./rounding";
-import type { DerivedWeight, UnitRating } from "./types";
+import type { DerivedWeight } from "./types";
 
-/** Importance may be an absolute 1–10 rating or a rank-derived
- *  continuous score (`rankToScore`) — both live in the same [1, 10]
- *  range, so the contract only checks range, not integrality. */
-function assertImportance(value: number, unitId: string): void {
-  if (!Number.isFinite(value) || value < 1 || value > 10) {
-    throw new Error(
-      `deriveWeights: importance for unit "${unitId}" must be a number 1–10, got ${value}`,
-    );
-  }
-}
-
-/**
- * Formula v8 (ADR-0028 §§1–2):
- *
- *   raw(u)    = 1 + (WEIGHT_SPREAD − 1) × (importance − 1) / 9
- *   weight(u) = DAILY_BUDGET × raw(u) / Σ raw
- *
- * **Priority is the only input.** Satisfaction is diagnosed on the same
- * screen, stored on the same row, and read by the portfolio graph and
- * `unitProfile` — but it no longer moves a single point. ADR-0003 §1's
- * gap term (`+ g × max(0, I − S)`) and its `GAP_COEFFICIENT` are
- * withdrawn.
- *
- * The reasoning, from ADR-0028: the gap term made weight a function of
- * two answers given at the same moment about the same unit, and the
- * second one is the app's own outcome measure. A unit you are neglecting
- * got more of your day *because* you were neglecting it, which then
- * raised your satisfaction with it, which then quietly took the points
- * away again. Calibration (ADR-0008) needs satisfaction to be an
- * independent read on whether the plan is working; it cannot be that
- * and an input to the plan at once.
- *
- * `raw` is the flattened rank score rather than importance itself —
- * see `WEIGHT_SPREAD` for why the 10:1 shape it replaces was wrong.
- * The map is affine and strictly increasing, so the diagnostic's order
- * survives intact; only the distance between neighbours changes.
- *
- * Integer weights sum to exactly DAILY_BUDGET via largest remainder.
+/*
+ * Weights since formula v11 come from tiers alone (ADR-0041). The rank
+ * derivation they replaced, `deriveWeights` and its `WEIGHT_SPREAD`
+ * flattening (formula v8, ADR-0028), went with the diagnostic in
+ * Phase 6.
  */
-export function deriveWeights(ratings: readonly UnitRating[]): DerivedWeight[] {
-  if (ratings.length === 0) return [];
-
-  const raws = ratings.map((r) => {
-    assertImportance(r.importance, r.unitId);
-    return 1 + ((WEIGHT_SPREAD - 1) * (r.importance - 1)) / 9;
-  });
-
-  const rawSum = raws.reduce((a, b) => a + b, 0);
-  const exacts = raws.map((raw) => (DAILY_BUDGET * raw) / rawSum);
-  const weights = largestRemainder(exacts, DAILY_BUDGET);
-
-  return ratings.map((r, i) => ({
-    unitId: r.unitId,
-    raw: raws[i] ?? 0,
-    exact: exacts[i] ?? 0,
-    weight: weights[i] ?? 0,
-  }));
-}
 
 // ── Tiers (ADR-0041) ────────────────────────────────────────────────
 
@@ -124,14 +72,14 @@ export function hasPlannedUnit(units: readonly TieredUnit[]): boolean {
  * the plan (`hasPlannedUnit`; Priorities won't save otherwise,
  * ADR-0041 §3); with none, or with a value that isn't a tier, or a unit
  * listed twice, this throws rather than inventing weights. An empty
- * list returns no weights, as `deriveWeights` does; it is not a plan.
+ * list returns no weights; it is not a plan.
  *
  * Order is the list's order, so whatever stores tiers must store each
  * unit's place in its tier and read them back sorted.
  *
- * What the app scores with since formula v11 (`latestWeights` in the
- * data layer). `deriveWeights` still fills the diagnostic's stored
- * record and prices nothing.
+ * The recommended weights since formula v11. What scores is these with
+ * your overrides (`applyWeightOverrides`, `latestWeights` in the data
+ * layer).
  */
 export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[] {
   if (units.length === 0) return [];

@@ -250,9 +250,9 @@ function BandBar({ theme }: { theme: ThemeTokens }) {
  */
 function LoopSteps({ theme }: { theme: ThemeTokens }) {
   const steps: readonly { n: string; title: string; body: string }[] = [
-    { n: "1", title: "Rank", body: "You did this. It sets what everything is worth." },
-    { n: "2", title: "Do", body: "A daily checklist, drawn from that ranking." },
-    { n: "3", title: "Check in", body: "Once a month, see how it went and re-rank if it has shifted." },
+    { n: "1", title: "Sort", body: "You did this. Your tiers set what everything is worth." },
+    { n: "2", title: "Do", body: "A daily checklist, drawn from your tiers." },
+    { n: "3", title: "Check in", body: "See how it went, and move units between tiers if things have shifted." },
   ];
   return (
     <View style={styles.loop}>
@@ -524,7 +524,7 @@ export default function OnboardingScreen() {
             ))}
             {rest > 0 ? (
               <AppText variant="caption" color={theme.muted}>
-                and {rest} more, down to the ones you ranked last.
+                and {rest} more, down to the smallest.
               </AppText>
             ) : null}
           </View>
@@ -612,8 +612,8 @@ export default function OnboardingScreen() {
         life: six areas, eighteen parts of it.
       </AppText>
       <AppText color={theme.ink} style={styles.lead}>
-        You rank what matters to you. Everything else in the app comes
-        out of that ranking.
+        You sort what matters to you into tiers. Everything else in the
+        app comes out of those tiers.
       </AppText>
       <AppText color={theme.muted} style={styles.lead}>
         Everything you enter stays on this phone. No account, no server,

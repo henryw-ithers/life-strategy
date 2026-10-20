@@ -218,12 +218,12 @@ export default function PlanScreen() {
   useEffect(() => {
     if (!addParam || plan === null) return;
     router.setParams({ add: undefined });
-    if (!canAdd) router.push("/diagnostic" as Href);
+    if (!canAdd) router.push("/priorities" as Href);
   }, [addParam, plan, canAdd]);
 
   /** Plan's own + menu: the same rule, decided at the tap. */
   const addHere = (what: "task" | "event") => {
-    if (!canAdd) router.push("/diagnostic" as Href);
+    if (!canAdd) router.push("/priorities" as Href);
     else if (what === "task") setAdding({ homeUnit: null });
     else setAddingEvent({ unitIds: [] });
   };
@@ -293,12 +293,12 @@ export default function PlanScreen() {
           ) : !plan.hasSnapshot ? (
             <View style={styles.empty}>
               <AppText color={theme.ink} style={styles.centerText}>
-                Your plan starts with a diagnostic. Rate what matters first, and the weights land
-                here.
+                Your plan starts with your priorities. Sort what matters into tiers first, and the
+                weights land here.
               </AppText>
               <Button
-                label="Run the diagnostic"
-                onPress={() => router.push("/diagnostic" as Href)}
+                label="Set your priorities"
+                onPress={() => router.push("/priorities" as Href)}
                 theme={theme}
               />
             </View>

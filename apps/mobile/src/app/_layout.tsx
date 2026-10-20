@@ -169,11 +169,11 @@ export default function RootLayout() {
 }
 
 /** The screens pushed over the tabs that take a native nav bar, and
- *  their titles. The day sets its title as you step through days. The
- *  diagnostic and onboarding are full-screen flows with no bar. */
+ *  their titles. The day sets its title as you step through days.
+ *  Onboarding is a full-screen flow with no bar. */
 const PUSHED: [route: string, title: string][] = [
   ["settings", "Settings"],
-  // Opened from Life (Phase 3b). Phase 6 replaces it with the tiers.
+  // The tiers (ADR-0041), from Life, and from `/diagnostic` on a first run.
   ["priorities/index", "Priorities"],
   ["backup", "Your data"],
   ["calibration", "Calibration"],
@@ -230,12 +230,7 @@ function MigrationGate() {
             {PUSHED.map(([name, title]) => (
               <Stack.Screen key={name} name={name} options={{ ...pushedOptions(theme), title }} />
             ))}
-            {/* A small title: the graph has no scroll view to collapse a
-                large one, and the day steps through dates in its own. */}
-            <Stack.Screen
-              name="priorities/graph"
-              options={{ ...pushedOptions(theme, { inline: true }), title: "Your portfolio" }}
-            />
+            {/* A small title: the day steps through dates in its own. */}
             <Stack.Screen name="day/[date]" options={pushedOptions(theme, { inline: true })} />
           </Stack>
         </ThemeProvider>

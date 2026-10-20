@@ -12,24 +12,21 @@ import { loadCommitmentDay } from "../commitments";
 import { deleteCommitment } from "../commitmentWrites";
 import { recordUntouchedDays } from "../dayGrades";
 import { addDayEdit, freezeStartingHours, saveHoursFrom, startingHours } from "../hours";
-import { seedTiers } from "../migrations";
 import { pinForDay, pinWeekly } from "../pins";
 import {
-  appSetting,
   dayClear,
   dayGrade,
   lifeArea,
   lifeUnit,
-  rating,
   scheduleSkip,
-  snapshot,
   task,
   taskCompletion,
   taskUnit,
 } from "../schema";
 import { addAway, setRepeatBounds } from "../skips";
-import { latestWeights, setTiersFromOrder } from "../tasks";
+import { latestWeights } from "../tasks";
 import { loadDay } from "../today";
+import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
 
 // Hoisted above the imports by vitest.
@@ -82,7 +79,11 @@ function seed() {
     .run();
   addTask({ id: "gym", unitId: "fitness", plannedWeekdays: "1" });
   addTask({ id: "call", unitId: "friends", timesPerWeek: 3 });
-  db.transaction((tx) => setTiersFromOrder(tx as never, ["fitness", "friends", "rest"]));
+  placeTiers([
+    ["fitness", "top"],
+    ["friends", "important"],
+    ["rest", "notNow"],
+  ]);
 }
 
 function addSchool() {
@@ -126,37 +127,6 @@ describe("tier weights (ADR-0041)", () => {
     expect(weights.has("school")).toBe(false);
     // With two in the plan: fitness Top, friends Important.
     expect(weights.get("fitness")! > weights.get("friends")!).toBe(true);
-  });
-
-  it("are seeded once from the old ranking, in thirds", async () => {
-    resetTestDb();
-    const db = testDb();
-    db.insert(lifeArea).values({ id: "area", name: "Area", sortOrder: 0 }).run();
-    const ids = ["a", "b", "c", "d", "e", "f"];
-    db.insert(lifeUnit)
-      .values(
-        ids.map((id, i) => ({ id, areaId: "area", name: id, sortOrder: i, includeInScoring: id !== "f" })),
-      )
-      .run();
-    db.insert(snapshot).values({ id: "s", takenAt: "2026-10-01T00:00:00Z", formulaVersion: 10 }).run();
-    db.insert(rating)
-      .values(ids.map((id, i) => ({ snapshotId: "s", unitId: id, importance: 10 - i, satisfaction: 5 })))
-      .run();
-
-    await seedTiers();
-    expect(db.select().from(lifeUnit).all().map((u) => [u.id, u.tier])).toEqual([
-      ["a", "top"],
-      ["b", "top"],
-      ["c", "important"],
-      ["d", "important"],
-      ["e", "background"],
-      ["f", "notNow"],
-    ]);
-    // Once only: a later reorder isn't undone by the next launch.
-    db.update(lifeUnit).set({ tier: "background" }).run();
-    await seedTiers();
-    expect(db.select().from(lifeUnit).all().every((u) => u.tier === "background")).toBe(true);
-    expect(db.select().from(appSetting).all().some((r) => r.key === "migration.tiersSeeded")).toBe(true);
   });
 });
 

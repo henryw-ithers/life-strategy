@@ -46,13 +46,11 @@ import {
 } from "react-native";
 
 import { MonthReview, monthName } from "../../../components/log/MonthReview";
-import type { GraphSnapshot } from "../../../components/portfolio-graph";
 import { AppText } from "../../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { PhotoViewer } from "../../../components/ui/PhotoViewer";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
-import { loadGraphSnapshots } from "../../../db/graph";
 import { loadLog, type LogEntry, type LogMonth } from "../../../db/log";
 import { currentLocalDate } from "../../../lib/calendar";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
@@ -164,7 +162,6 @@ export default function LogScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
   const [months, setMonths] = useState<LogMonth[] | null>(null);
-  const [snapshots, setSnapshots] = useState<GraphSnapshot[]>([]);
   const [kind, setKind] = useState<Kind>("all");
   const [range, setRange] = useState<Range>("all");
   /** The photo open full screen. Held here rather than inside each day
@@ -181,9 +178,7 @@ export default function LogScreen() {
   const [missing, setMissing] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
-    const [log, graph] = await Promise.all([loadLog(), loadGraphSnapshots()]);
-    setMonths(log);
-    setSnapshots(graph);
+    setMonths(await loadLog());
   }, []);
   const { error, retry } = useScreenLoad(reload);
 
@@ -301,7 +296,7 @@ export default function LogScreen() {
 
               {/* Hidden while a kind filter is on — see `shown`. */}
               {kind === "all" ? (
-                <MonthReview month={m} snapshots={snapshots} theme={theme} />
+                <MonthReview month={m} theme={theme} />
               ) : null}
 
               {m.entries.length > 0 ? (

@@ -43,7 +43,7 @@ import {
   unitWeight,
 } from "./schema";
 import { forgetPinsOf } from "./pins";
-import { tieredUnits, tiersFromOrder } from "./tierRules";
+import { tieredUnits } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 
 export interface PlanTask {
@@ -556,38 +556,6 @@ export function recomputeAllUnitPoints(tx: Tx): void {
   // Every plan change that moves a price passes through here, so this
   // is the one place stored day grades learn they are out of date.
   markGradesStaleIn(tx);
-}
-
-/**
- * Set every life unit's tier from a ranked order, in thirds
- * (`tiersFromOrder`), then reprice the plan. Units missing from `order`
- * are placed after it. The seed from the old ranking uses this, and so
- * do the old Priorities and diagnostic screens until Phase 6 gives
- * tiers a screen of their own (ADR-0041).
- */
-export function setTiersFromOrder(tx: Tx, order: readonly string[]): void {
-  const units = tx
-    .select({
-      id: lifeUnit.id,
-      includeInScoring: lifeUnit.includeInScoring,
-      isCustom: lifeUnit.isCustom,
-      parentUnitId: lifeUnit.parentUnitId,
-      commitmentShare: lifeUnit.commitmentShare,
-    })
-    .from(lifeUnit)
-    .where(isNull(lifeUnit.archivedAt))
-    .orderBy(asc(lifeUnit.sortOrder))
-    .all()
-    .filter((u) => !isCommitmentUnit(u));
-  const known = new Set(units.map((u) => u.id));
-  const ranked = order.filter((id) => known.has(id));
-  const placed = new Set(ranked);
-  const full = [...ranked, ...units.map((u) => u.id).filter((id) => !placed.has(id))];
-  const included = new Set(units.filter((u) => u.includeInScoring).map((u) => u.id));
-  for (const [id, t] of tiersFromOrder(full, included)) {
-    tx.update(lifeUnit).set({ tier: t.tier, tierOrder: t.tierOrder }).where(eq(lifeUnit.id, id)).run();
-  }
-  recomputeAllUnitPoints(tx);
 }
 
 /** Append the task to each unit's ranking, then recompute those units. */

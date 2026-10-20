@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { boardWeights, tieredUnits, tierOrderOf, tiersFromOrder, type TierRow } from "../tierRules";
+import { boardWeights, tieredUnits, tierOrderOf, type TierRow } from "../tierRules";
 
 const row = (id: string, over: Partial<TierRow> = {}): TierRow => ({
   id,
@@ -9,27 +9,6 @@ const row = (id: string, over: Partial<TierRow> = {}): TierRow => ({
   sortOrder: 0,
   includeInScoring: true,
   ...over,
-});
-
-describe("tiersFromOrder", () => {
-  it("splits 18 ranked units into thirds, keeping their places", () => {
-    const order = Array.from({ length: 18 }, (_, i) => `u${i}`);
-    const tiers = tiersFromOrder(order, new Set(order));
-    const count = (t: string) => [...tiers.values()].filter((v) => v.tier === t).length;
-    expect([count("top"), count("important"), count("background")]).toEqual([6, 6, 6]);
-    expect(tiers.get("u6")).toEqual({ tier: "important", tierOrder: 0 });
-    expect(tiers.get("u17")).toEqual({ tier: "background", tierOrder: 5 });
-  });
-
-  it("puts units not in the plan in Not now and leaves them out of the thirds", () => {
-    const tiers = tiersFromOrder(["a", "x", "b", "c"], new Set(["a", "b", "c"]));
-    expect(tiers.get("x")).toEqual({ tier: "notNow", tierOrder: 0 });
-    expect([tiers.get("a")?.tier, tiers.get("b")?.tier, tiers.get("c")?.tier]).toEqual([
-      "top",
-      "important",
-      "background",
-    ]);
-  });
 });
 
 describe("tieredUnits", () => {

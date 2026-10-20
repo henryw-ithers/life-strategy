@@ -2,43 +2,13 @@ import { UNPLANNED_BAND } from "./bands";
 
 /**
 
- * Named tunables. `WEIGHT_SPREAD` and `EXTRA_RUN_RATE` are the levers a
- * retune may argue for moving; any change to the derivation math bumps
+ * Named tunables. `EXTRA_RUN_RATE` is the lever a retune may argue for
+ * moving (`WEIGHT_SPREAD` went with rank weights, ADR-0041); any change to the derivation math bumps
  * FORMULA_VERSION (ADR-0002/0003).
  * (BONUS_CAP retired in v3 — credit is additive, no separate pool.)
  * (GAP_COEFFICIENT retired in v8 — satisfaction no longer derives
  * weight at all; see ADR-0028 §1.)
  */
-
-/**
- * How much more the highest-priority unit is worth than the lowest
- * (ADR-0028 §2).
- *
- * The weight of a unit is now a function of its priority rank and
- * nothing else, and this is the only dial on that function: rank 1
- * gets `WEIGHT_SPREAD` raw points, the last rank gets 1, everything in
- * between is linear, and the whole set is normalized to
- * `DAILY_BUDGET`. At 18 units and a spread of 2 that is roughly 7.4
- * points at the top and 3.7 at the bottom.
- *
- * **Why it exists.** Before v8 the spread was 10:1 — implicitly, as a
- * consequence of `rankToScore` mapping ranks onto 10…1 and weight
- * being proportional to that. The bottom third of an 18-unit portfolio
- * came out at one, two and three points, and a unit worth two points
- * cannot hold a task worth having — one task, moving the day by two.
- * The ranking said "these matter less"; the arithmetic said "these do
- * not matter." (`recommendedTaskRange`'s thresholds moved with the
- * scale; see ADR-0028 §2.)
- *
- * Every unit in the portfolio is one the user said belongs in their
- * life — the ones that do not are excluded outright, which is a
- * different statement with its own control (ADR-0027 §2). So priority
- * should order the units, not delete the tail of them.
- *
- * Set to 1 for a perfectly flat portfolio; set to 10 to reproduce the
- * pre-v8 shape exactly.
- */
-export const WEIGHT_SPREAD = 2;
 
 /** Credit rate for task runs beyond the weekly goal (ADR-0004 §4).
  *  Deliberately *outside* `UNPLANNED_CAP` (ADR-0023 §2): a fourth run
