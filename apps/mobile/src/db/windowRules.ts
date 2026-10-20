@@ -32,7 +32,7 @@ import {
   type WorkSchedule,
 } from "@glide/scoring";
 
-import { MAX_POOL_MEMBERS } from "./commitmentPlan";
+import { MAX_CHOICE_TASKS } from "./commitmentPlan";
 
 // ── Working hours ───────────────────────────────────────────────────
 
@@ -409,8 +409,8 @@ export interface ChoiceInput {
 export function choiceProblem(input: ChoiceInput): string | null {
   const { taskIds } = input;
   if (taskIds.length < 2) return "A choice needs at least two tasks.";
-  if (taskIds.length > MAX_POOL_MEMBERS) {
-    return `A choice holds at most ${MAX_POOL_MEMBERS} tasks.`;
+  if (taskIds.length > MAX_CHOICE_TASKS) {
+    return `A choice holds at most ${MAX_CHOICE_TASKS} tasks.`;
   }
   if (new Set(taskIds).size !== taskIds.length) return "A task can only be in a choice once.";
   if (taskIds.some((id) => input.elsewhere.has(id))) {

@@ -10,7 +10,7 @@
  * own components. What stays here is which sheet is open, and the
  * writes each one commits.
  */
-import { addDays, isEditable, specialDayBonus, type Window as GridWindow } from "@glide/scoring";
+import { addDays, isEditable, specialDayBonus } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
@@ -37,7 +37,7 @@ import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { ActivitySheet, type ExistingActivity } from "../../../components/today/ActivitySheet";
 import { CompletionTagSheet } from "../../../components/today/CompletionTagSheet";
-import { DayGrid, windowKey } from "../../../components/today/DayGrid";
+import { DayGrid } from "../../../components/today/DayGrid";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import {
@@ -54,14 +54,12 @@ import { SectionedChecklist } from "../../../components/today/SectionedChecklist
 import { TailSection } from "../../../components/today/TailSection";
 import { TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
-import { WindowSheet } from "../../../components/today/WindowSheet";
 import { AppText } from "../../../components/ui/AppText";
 import { saveThen } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
-import { createPool, deletePool, updatePool } from "../../../db/commitmentWrites";
 import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
 import { setDayKind } from "../../../db/dayGrades";
 import { askClearToday, undoClear } from "../../../components/today/clearToday";
@@ -102,7 +100,6 @@ export default function TodayScreen() {
     weekGrade,
     monthGrades,
     viewMonth,
-    pools,
     refresh,
     select,
     changeMonth,
@@ -160,21 +157,11 @@ export default function TodayScreen() {
   const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
   /** Checklist or hours. Presentation only — both hold the same day. */
   const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
-  /** The window whose pool is being edited (ADR-0033 §2). */
-  const [planning, setPlanning] = useState<{
-    window: GridWindow;
-    chosen: string[];
-    plannedCount: number;
-    poolId: string | null;
-    /** Unfinished options from windows that have ended (ADR-0033 §2). */
-    carried: string[];
-  } | null>(null);
   /** A task to move once the partial sheet has closed (its "Move it"). */
   const moveNext = useRef<TodayTask | null>(null);
   const [taggingTaskShown, taggingTaskGone] = useRetained(taggingTask);
   const [movingTaskShown, movingTaskGone] = useRetained(movingTask);
   const [partialTaskShown, partialTaskGone] = useRetained(partialTask);
-  const [planningShown, planningGone] = useRetained(planning);
   /** A drag owns the finger; the page must hold still under it. */
   const [draggingTask, setDraggingTask] = useState(false);
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>({});
@@ -237,9 +224,7 @@ export default function TodayScreen() {
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
 
   const {
-    allTasks,
     openTasks,
-    todayTasks,
     shownPart,
     byPlan,
     arrangeable,
@@ -247,9 +232,6 @@ export default function TodayScreen() {
     gridTasks,
     showsGrid,
   } = arrangeDay(day, ahead, isToday ? minuteOfToday() : null, dayLayout);
-
-  /** What each window already holds, keyed the way the grid keys them. */
-  const pooledByWindow = new Map<string, string[]>(pools.map((p) => [windowKey(p), p.taskIds]));
 
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
@@ -569,21 +551,6 @@ export default function TodayScreen() {
                 // A line for where you are, only on the day you are in.
                 nowMinute={isToday ? minuteOfToday() : null}
                 onPress={(t) => void toggle(t)}
-                pooledByWindow={pooledByWindow}
-                onPlanWindow={
-                  day.editable
-                    ? (w, _own, carried) => {
-                        const existing = pools.find((p) => windowKey(p) === windowKey(w));
-                        setPlanning({
-                          window: w,
-                          chosen: existing?.taskIds ?? [],
-                          plannedCount: existing?.plannedCount ?? 1,
-                          poolId: existing?.id ?? null,
-                          carried,
-                        });
-                      }
-                    : undefined
-                }
               />
             ) : arrangeable.length > 0 ? (
               <SectionedChecklist
@@ -689,66 +656,6 @@ export default function TodayScreen() {
           void write.then(() => refresh());
         }}
       />
-
-      {planningShown ? (
-        <WindowSheet
-          visible={planning !== null}
-          onDismissed={planningGone}
-          window={planningShown.window}
-          // Only open work: offering something already ticked would be
-          // offering to plan the past.
-          candidates={todayTasks.filter((t) => !planningShown.carried.includes(t.id))}
-          carried={allTasks.filter((t) => planningShown.carried.includes(t.id))}
-          chosen={planningShown.chosen}
-          plannedCount={planningShown.plannedCount}
-          hueFor={hueFor}
-          accent={theme.accent}
-          theme={theme}
-          onToggle={(taskId) =>
-            setPlanning((prev) =>
-              prev === null
-                ? prev
-                : {
-                    ...prev,
-                    chosen: prev.chosen.includes(taskId)
-                      ? prev.chosen.filter((id) => id !== taskId)
-                      : [...prev.chosen, taskId],
-                  },
-            )
-          }
-          onPlannedCountChange={(plannedCount) =>
-            setPlanning((prev) => (prev === null ? prev : { ...prev, plannedCount }))
-          }
-          onClose={() => setPlanning(null)}
-          onSave={() => {
-            const p = planningShown;
-            setPlanning(null);
-            void (async () => {
-              if (p.poolId !== null) {
-                await updatePool(p.poolId, { taskIds: p.chosen, plannedCount: p.plannedCount });
-              } else {
-                await createPool({
-                  localDate: day.date,
-                  taskIds: p.chosen,
-                  plannedCount: p.plannedCount,
-                  afterTaskId: p.window.afterTaskId,
-                  partOfDay: p.window.partOfDay,
-                });
-              }
-              await refresh();
-            })();
-          }}
-          onClear={
-            planningShown.poolId === null
-              ? undefined
-              : () => {
-                  const id = planningShown.poolId;
-                  setPlanning(null);
-                  if (id !== null) void deletePool(id).then(() => refresh());
-                }
-          }
-        />
-      ) : null}
 
       {partialTaskShown ? (
         <PartialSheet

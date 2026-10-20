@@ -1,6 +1,6 @@
 /**
- * The Today screen's data: the selected day, the grades around it, its
- * pools, and the two things you do to it most — pick another day, and
+ * The Today screen's data: the selected day, the grades around it, and
+ * the two things you do to it most — pick another day, and
  * tick a task off. Everything else the screen does is a write followed
  * by `refresh()`.
  */
@@ -11,7 +11,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 
 import { isDone } from "../components/today/daySections";
-import { loadPools, type PoolOnDay } from "../db/commitments";
 import { setCompletionFraction, toggleCompletion } from "../db/completions";
 import { loadCalendarGrades, type MonthDay } from "../db/dayGrades";
 import { loadWeekGrade } from "../db/grades";
@@ -29,8 +28,6 @@ export function useDayData() {
   /** Null = the month containing today. Any past month is reachable
    *  now that days never lock. */
   const [viewMonth, setViewMonth] = useState<string | null>(null);
-  /** This day's pools (ADR-0033 §2). */
-  const [pools, setPools] = useState<PoolOnDay[]>([]);
   /** Whether every due task was done at the last look, so finishing the
    *  last one is celebrated once rather than on every tap after. */
   const allDoneBefore = useRef(false);
@@ -43,16 +40,14 @@ export function useDayData() {
        *  loading it a second time (`toggleCompletion`). */
       scored?: DayData | null,
     ) => {
-      const [next, grades, week, nextPools] = await Promise.all([
+      const [next, grades, week] = await Promise.all([
         scored?.date === date ? scored : loadDay(date),
         loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
         loadWeekGrade(date),
-        loadPools(date),
       ]);
       setDay(next);
       setMonthGrades(grades);
       setWeekGrade(week);
-      setPools(nextPools);
       if (next.date === next.today) void syncDailyNudge(next);
       return next;
     },
@@ -117,7 +112,7 @@ export function useDayData() {
     allDoneBefore.current = allDone;
   };
 
-  return { day, weekGrade, monthGrades, viewMonth, pools, refresh, select, changeMonth, toggle };
+  return { day, weekGrade, monthGrades, viewMonth, refresh, select, changeMonth, toggle };
 }
 
 /**

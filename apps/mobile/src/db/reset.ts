@@ -51,10 +51,6 @@ const TABLES_IN_DELETE_ORDER = [
   "work_hours",
   "day_clear",
   "away_range",
-  // Before `pool` and `task`, both of which it references.
-  "pool_member",
-  // Before `task`, which it references.
-  "pool",
   // Before `task_completion` and `goal`, both of which it references.
   "goal_entry",
   // Before `task` and `goal`, both of which it references.

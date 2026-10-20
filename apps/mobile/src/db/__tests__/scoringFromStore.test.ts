@@ -12,7 +12,7 @@ import { loadCommitmentDay } from "../commitments";
 import { deleteCommitment } from "../commitmentWrites";
 import { recordUntouchedDays } from "../dayGrades";
 import { addDayEdit, freezeStartingHours, saveHoursFrom, startingHours } from "../hours";
-import { pinForDay, pinWeekly } from "../pins";
+import { createChoice, pinForDay, pinWeekly } from "../pins";
 import {
   dayClear,
   dayGrade,
@@ -252,6 +252,48 @@ describe("the commitment share from the day (ADR-0044)", () => {
     tick("form", MON);
     // Half an hour more: 3 of 8 hours.
     expect((await loadCommitmentDay(MON))?.band).toBe(38);
+  });
+});
+
+describe('"Do N of these" (ADR-0039 §6)', () => {
+  it("passes a choice's planned count to the band, not its members", async () => {
+    addSchool();
+    addTask({ id: "essay", unitId: "school", plannedWeekdays: "1", size: "normal" });
+    addTask({ id: "quiz", unitId: "school", plannedWeekdays: "1", size: "normal" });
+    await hoursFromSunday();
+    await createChoice({
+      localDate: MON,
+      anchorMinute: 13 * 60,
+      taskIds: ["reading", "essay"],
+      plannedCount: 1,
+    });
+
+    const day = await loadCommitmentDay(MON);
+    expect(day?.pools).toEqual([{ taskIds: ["reading", "essay"], plannedCount: 1 }]);
+    // Lecture, quiz and one of the two: three slots, so each of the
+    // pair is worth what the quiz is (to the point, after rounding).
+    const values = (await loadDay(MON)).due;
+    const worth = (id: string) => values.find((t) => t.id === id)?.pointValue ?? 0;
+    // Three slots, not four: a third of the band each.
+    const band = day!.band;
+    expect(Math.abs(worth("quiz") - band / 3)).toBeLessThanOrEqual(1);
+    expect(Math.abs(worth("reading") - worth("quiz"))).toBeLessThanOrEqual(1);
+    expect(Math.abs(worth("essay") - worth("quiz"))).toBeLessThanOrEqual(1);
+  });
+
+  it("leaves out a member that isn't due that day", async () => {
+    addSchool();
+    addTask({ id: "essay", unitId: "school", plannedWeekdays: "2", size: "normal" });
+    await hoursFromSunday();
+    await createChoice({
+      localDate: MON,
+      anchorMinute: 13 * 60,
+      taskIds: ["reading", "essay"],
+      plannedCount: 2,
+    });
+    expect((await loadCommitmentDay(MON))?.pools).toEqual([
+      { taskIds: ["reading"], plannedCount: 2 },
+    ]);
   });
 });
 

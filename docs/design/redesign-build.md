@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-20, during Phase 7.
+Last updated 2026-10-20, during Phase 8.
 
 ## Phases
 
@@ -32,8 +32,8 @@ Last updated 2026-10-20, during Phase 7.
 | 5b+ | One completion per tap; deleting a commitment in one read | Merged, PR #18 |
 | 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | Merged, PR #19 |
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | Merged, PR #20 |
-| **7** | **Events: repeat ends and skipped weeks; Clear today; Away** | **In progress** |
-| 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | |
+| 7 | Events: repeat ends and skipped weeks; Clear today; Away | Merged, PR #21 |
+| **8** | **Plan: week strip and day view, hours editor, weekly pass, the New task form** | **In progress** |
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | |
 | 10 | Life: commitments, goals (templates), units, the Priorities link | |
 | 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | |
@@ -57,6 +57,44 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 8: Plan
+
+Four PRs, each off `main`:
+
+| PR | What | Spec |
+|---|---|---|
+| 8a | The day as Plan shows it, the week strip, copying last week's events; "Do N of these" from `window_choice`, `pool` dropped | §§3.2, 3.5, 4.3–4.4 |
+| 8b | Plan tab: week strip and day view, window edits, Day type, the hours editor; the unit list moves to Life | §§5.3, 5.3.1 |
+| 8c | The weekly pass, with "Still happy with your tiers?" | §5.3.2 |
+| 8d | The New task form: unit from the title, Not now greyed out; shift work's one-time events | §5.7 |
+
+Henry's calls on 2026-10-20:
+
+- **The unit list moves to the Life tab now** (8b), not to a stopgap
+  screen, so Plan's tab is only the week. Phase 10 still rebuilds Life.
+- **"Do N of these" lives on Plan only until Phase 9.** Dropping `pool`
+  took it off Home, whose screens Phase 9 rebuilds.
+
+Built in 8a: `db/dayPlan.ts` (`loadDayPlan`, `loadWeek`),
+`db/dayPlanRules.ts`, `copyLastWeeksEvents`, and `planDay`'s
+`plannedLater` / `plannedAhead`: work planned for a later day is never
+suggested, shows where pinned, and is listed to do early. A future
+day's flexible runs are spread over its week's roomiest days. A
+cleared, Away or day-off day sets its windows aside. Migration 0025
+drops `pool` and `pool_member`.
+
+Decided while building 8a:
+
+- **The week strip runs Sunday to Saturday**, the app's week (ADR-0004
+  §1), though spec §5.3 draws Monday to Sunday. The spec should be
+  corrected, or Henry should say otherwise.
+- **Copying last week's events onto today** changes today's commitment
+  share and can end a rest day, exactly as adding that event by hand
+  does (invariant review). Copies never land on a past day. Open: copy
+  only from tomorrow, if Henry prefers today's band never to move.
+- A tick whose time can't be placed (logged afterwards, or unreadable)
+  is still done: it sits in no window and is never suggested again.
 
 ## Phase 7: events, skips, Clear today and Away
 
@@ -357,8 +395,8 @@ Open from the 5c reviews (`silent-failure-hunter`,
 ### Migrations and data
 
 - [ ] Drop old placements and pools with the screens that write them:
-      pools in Phase 8, placements in Phase 9. Nothing is copied (no
-      users yet, 2026-10-19)
+      pools in Phase 8 (done in 8a, migration 0025), placements in
+      Phase 9. Nothing is copied (no users yet, 2026-10-19)
 - [x] **Erase existing goals** with their progress, conditions,
       milestones and achievements; keep the tasks, dropping `goal_id`
       and `condition_id`; drop `goal_condition`, `milestone` and
