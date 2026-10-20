@@ -91,17 +91,16 @@ export function WindowCard({
         {spanLabel(w.range)}
       </AppText>
       <AppText variant="caption" color={theme.muted} tabular>
-        {fillLabel(planned, w.range)}
+        {w.ended ? "Over" : fillLabel(planned, w.range)}
       </AppText>
     </View>
   );
 
   return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.surface, opacity: w.ended ? 0.55 : 1 },
-      ]}
+      // An ended window keeps full contrast and says so in words: a
+      // faded card would take its text below 4.5:1 (WCAG 1.4.3).
+      style={[styles.card, { backgroundColor: theme.surface }]}
     >
       {live ? (
         <ActionMenu
@@ -155,7 +154,8 @@ export function WindowCard({
               .filter(Boolean)
               .join(" · ") || undefined}
             hue={hueFor(t)}
-            said={`${t.title}, ${kindLabel}`}
+            // Inside a live menu, the menu is the one VoiceOver stop.
+            said={live ? undefined : `${t.title}, ${kindLabel}`}
             theme={theme}
           />
         );

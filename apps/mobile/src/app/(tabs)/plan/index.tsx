@@ -284,7 +284,11 @@ export default function PlanScreen() {
                 Today&apos;s cleared. Its windows are set aside.
               </AppText>
             ) : day.hours.usingDefaults ? (
-              <Pressable onPress={() => router.push("/hours" as Href)} accessibilityRole="button">
+              <Pressable
+                onPress={() => router.push("/hours" as Href)}
+                accessibilityRole="button"
+                style={styles.link}
+              >
                 <AppText variant="caption" color={theme.accent}>
                   These are starter windows. Set your working hours ›
                 </AppText>

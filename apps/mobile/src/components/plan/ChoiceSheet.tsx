@@ -7,10 +7,11 @@
  * Only commitment work due that day is offered: its tasks are worth the
  * same, so the choice is free and never made by the points.
  */
-import { MAX_CHOICE_TASKS } from "../../db/commitmentPlan";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
+import { MAX_CHOICE_TASKS } from "../../db/commitmentPlan";
 import type { TodayTask } from "../../db/today";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
@@ -120,21 +121,36 @@ export function ChoiceSheet({
       )}
       {ready ? (
         <View style={styles.row}>
-          <AppText variant="body" color={theme.ink} style={styles.grow}>
-            Do {planned} of {chosen.length}
-          </AppText>
-          <Button
-            variant="secondary"
-            label="−"
-            onPress={() => setCount(Math.max(1, planned - 1))}
-            disabled={planned <= 1}
+          <Step
+            icon="remove"
+            label="One fewer"
+            atEnd={planned <= 1}
+            onPress={() => setCount(planned - 1)}
             theme={theme}
           />
-          <Button
-            variant="secondary"
-            label="+"
-            onPress={() => setCount(Math.min(chosen.length, planned + 1))}
-            disabled={planned >= chosen.length}
+          {/* One adjustable control for VoiceOver (swipe up or down), as
+              iOS steppers are; the buttons either side stay for touch. */}
+          <View
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel="How many to do"
+            accessibilityValue={{ text: `${planned} of ${chosen.length}` }}
+            accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+            onAccessibilityAction={(e) => {
+              const next = e.nativeEvent.actionName === "increment" ? planned + 1 : planned - 1;
+              if (next >= 1 && next <= chosen.length) setCount(next);
+            }}
+            style={styles.grow}
+          >
+            <AppText variant="body" color={theme.ink} style={styles.center}>
+              Do {planned} of {chosen.length}
+            </AppText>
+          </View>
+          <Step
+            icon="add"
+            label="One more"
+            atEnd={planned >= chosen.length}
+            onPress={() => setCount(planned + 1)}
             theme={theme}
           />
         </View>
@@ -151,7 +167,36 @@ export function ChoiceSheet({
   );
 }
 
+function Step({
+  icon,
+  label,
+  atEnd,
+  onPress,
+  theme,
+}: {
+  icon: "add" | "remove";
+  label: string;
+  atEnd: boolean;
+  onPress: () => void;
+  theme: ThemeTokens;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={atEnd}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: atEnd }}
+      style={({ pressed }) => [styles.step, { opacity: atEnd ? 0.4 : pressed ? 0.55 : 1 }]}
+    >
+      <Ionicons name={icon} size={20} color={theme.ink} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  step: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  center: { textAlign: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   box: { width: 20, height: 20, borderRadius: radius.sm / 2, borderWidth: 2 },
   grow: { flex: 1 },
