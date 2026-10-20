@@ -189,15 +189,23 @@ export async function addAway(
   return id;
 }
 
-/** Change an Away range's days or label. */
+/**
+ * Change an Away range's days or label. Its days are checked only when
+ * they change (EC-32), so a range that began on settled days can still
+ * be renamed, while its settled days stand.
+ */
 export async function updateAway(
   id: string,
   startDate: string,
   endDate: string,
   label?: string | null,
 ): Promise<void> {
-  const problem = awayProblem(startDate, endDate, currentLocalDate());
-  if (problem !== null) throw new Error(problem);
+  const [existing] = await db.select().from(awayRange).where(eq(awayRange.id, id));
+  if (!existing) throw new Error(`No such time away: ${id}`);
+  if (existing.startDate !== startDate || existing.endDate !== endDate) {
+    const problem = awayProblem(startDate, endDate, currentLocalDate());
+    if (problem !== null) throw new Error(problem);
+  }
   writeAndMarkStale((tx) =>
     tx
       .update(awayRange)

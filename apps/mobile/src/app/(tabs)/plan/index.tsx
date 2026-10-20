@@ -41,7 +41,7 @@ import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
-import { saveEventEdit, saveNewEvent } from "../../../components/plan/saveEvent";
+import { savedOrSaid, saveEventEdit, saveNewEvent } from "../../../components/plan/saveEvent";
 import { UNIT_INFO } from "../../../content/units";
 import {
   addTask,
@@ -424,8 +424,13 @@ export default function PlanScreen() {
           onClose={() => setAddingEvent(null)}
           onSave={async (input, bounds) => {
             const unitIds = addingEventShown.unitIds;
+            let id: string | null = null;
+            const saved = await savedOrSaid(async () => {
+              id = await saveNewEvent(unitIds, input, bounds);
+              return true;
+            });
+            if (!saved) return;
             setAddingEvent(null);
-            const id = await saveNewEvent(unitIds, input, bounds);
             await revealAdded(id, unitIds[0]);
           }}
         />
@@ -453,10 +458,8 @@ export default function PlanScreen() {
           onClose={() => setEditing(null)}
           onSave={async (input, bounds) => {
             const t = editingShown.task;
-            const saved = await saveEventEdit(
-              { ...t, notes: t.description },
-              input,
-              bounds,
+            const saved = await savedOrSaid(() =>
+              saveEventEdit({ ...t, notes: t.description }, input, bounds),
             );
             if (saved) setEditing(null);
             await reload();

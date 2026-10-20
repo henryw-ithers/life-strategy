@@ -17,6 +17,7 @@ import {
   editEventFollowing,
   editEventOccurrence,
   setEventRepeat,
+  tickedFrom,
 } from "../../db/seriesWrites";
 import { loadTaskSkips } from "../../db/skips";
 import { addEvent, updateEvent } from "../../db/tasks";
@@ -60,9 +61,10 @@ export async function saveNewEvent(
   return id;
 }
 
-/** The days a series' own skips take off it, for its next run. */
+/** The days a series' own skips take off it, and the days from today
+ *  it's already ticked, for the run "this event" means. */
 async function skippedDays(taskId: string): Promise<Set<string>> {
-  const out = new Set<string>();
+  const out = await tickedFrom(taskId, currentLocalDate());
   for (const s of await loadTaskSkips(taskId)) {
     if (s.kind === "occurrence") out.add(s.localDate);
     else for (let i = 0; i < 7; i++) out.add(addDays(s.localDate, i));
@@ -89,11 +91,17 @@ export async function saveEventEdit(
     input.endMinute !== event.endMinute ||
     (input.notes?.trim() || null) !== (event.notes?.trim() || null);
 
+  /** The repeat length is the series' own setting: saved only when it
+   *  changed, whichever events the details apply to. */
+  const boundsChanged =
+    bounds !== null &&
+    (bounds.repeatFrom !== event.repeatFrom || bounds.repeatUntil !== event.repeatUntil);
+
   // A one-time event, a change to or from one-time, or only the repeat
   // length: the whole thing changes, with nothing to ask.
   if (!repeating || !staysRepeating || !detailsChanged) {
     if (detailsChanged) await updateEvent(event.id, input);
-    if (bounds) await setEventRepeat(event.id, bounds);
+    if (boundsChanged) await setEventRepeat(event.id, bounds);
     return true;
   }
 
@@ -105,19 +113,31 @@ export async function saveEventEdit(
   );
   if (scope === "all" || date === null) {
     await updateEvent(event.id, input);
-    if (bounds) await setEventRepeat(event.id, bounds);
+    if (boundsChanged) await setEventRepeat(event.id, bounds);
     return true;
   }
   if (scope === "one") {
     await editEventOccurrence(event.id, date, input);
+    if (boundsChanged) await setEventRepeat(event.id, bounds);
     return true;
   }
   const next = await editEventFollowing(event.id, date, input);
-  if (bounds) {
+  if (boundsChanged) {
     await setEventRepeat(
       next ?? event.id,
       next ? { repeatFrom: date, repeatUntil: bounds.repeatUntil } : bounds,
     );
   }
   return true;
+}
+
+/** Say so when a save fails, rather than leave a rejected promise
+ *  nobody sees. Resolves whether it saved. */
+export async function savedOrSaid(save: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await save();
+  } catch (e) {
+    Alert.alert("It wasn't saved", e instanceof Error ? e.message : String(e));
+    return false;
+  }
 }

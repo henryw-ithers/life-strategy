@@ -27,15 +27,25 @@ const MODES = [
   { value: "none" as const, label: "No end" },
 ];
 
-/** The bounds a choice saves, for a series starting on `from`. */
-export function boundsFor(value: RepeatLengthValue, from: string): Bounds {
+/**
+ * The bounds a choice saves. `repeatFrom` is kept as it is, null for a
+ * series that has always run; weeks are counted from `countFrom`, its
+ * start or today. A chosen last day before `earliestEnd` (its start, and
+ * never before yesterday: past days keep their plan) is moved to it.
+ */
+export function boundsFor(
+  value: RepeatLengthValue,
+  repeatFrom: string | null,
+  countFrom: string,
+  earliestEnd: string = countFrom,
+): Bounds {
   switch (value.mode) {
     case "weeks":
-      return { repeatFrom: from, repeatUntil: untilForWeeks(from, value.weeks) };
+      return { repeatFrom, repeatUntil: untilForWeeks(countFrom, value.weeks) };
     case "until":
-      return { repeatFrom: from, repeatUntil: value.until };
+      return { repeatFrom, repeatUntil: value.until < earliestEnd ? earliestEnd : value.until };
     case "none":
-      return { repeatFrom: from, repeatUntil: null };
+      return { repeatFrom, repeatUntil: null };
   }
 }
 
@@ -48,7 +58,7 @@ export function RepeatLength({
 }: {
   value: RepeatLengthValue;
   onChange: (next: RepeatLengthValue) => void;
-  /** The series' first day: an end can't be before it. */
+  /** The earliest last day it can have. */
   from: string;
   accent: string;
   theme: ThemeTokens;

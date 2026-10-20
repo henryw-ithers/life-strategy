@@ -40,7 +40,10 @@ export function SkipWeekSheet({
   onClose: () => void;
   onDismissed?: () => void;
 }) {
-  const [skipped, setSkipped] = useState<Map<string, string>>(new Map());
+  /** Null until loaded: the switches wait for it. */
+  const [skipped, setSkipped] = useState<Map<string, string> | null>(null);
+  /** Weeks whose switch is saving, so a second tap can't race it. */
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +61,9 @@ export function SkipWeekSheet({
   }, [unitId]);
 
   const toggle = async (weekStart: string, runs: boolean) => {
+    if (skipped === null || busy.has(weekStart)) return;
     setError(null);
+    setBusy((b) => new Set(b).add(weekStart));
     try {
       const id = skipped.get(weekStart);
       if (runs && id) await removeSkip(id);
@@ -66,6 +71,12 @@ export function SkipWeekSheet({
       setSkipped(await loadCommitmentWeekSkips(unitId));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy((b) => {
+        const next = new Set(b);
+        next.delete(weekStart);
+        return next;
+      });
     }
   };
 
@@ -89,7 +100,8 @@ export function SkipWeekSheet({
               {weekLabel(w)}
             </AppText>
             <Switch
-              value={!skipped.has(w)}
+              value={!(skipped?.has(w) ?? false)}
+              disabled={skipped === null || busy.has(w)}
               onValueChange={(on) => void toggle(w, on)}
               trackColor={{ true: accent }}
               accessibilityLabel={`Week of ${weekLabel(w)}`}
@@ -98,7 +110,7 @@ export function SkipWeekSheet({
           </View>
         ))}
         {error ? (
-          <AppText variant="footnote" color={theme.muted}>
+          <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
             {error}
           </AppText>
         ) : null}

@@ -16,6 +16,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { eventProblem, type EventInput } from "../../db/events";
+import { addDays } from "@glide/scoring";
 import type { Bounds } from "../../db/seriesRules";
 import { currentLocalDate } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
@@ -102,8 +103,13 @@ export function EventSheet({
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  /** A new series starts today; an edited one keeps its first day. */
-  const from = initial?.repeatFrom ?? currentLocalDate();
+  /** A new series starts today; an edited one keeps its first day,
+   *  which is null for one that has always run. Frozen when the sheet
+   *  opens, so midnight passing can't move it. */
+  const [startOf] = useState(() =>
+    initial ? (initial.repeatFrom ?? null) : currentLocalDate(),
+  );
+  const [from] = useState(() => startOf ?? currentLocalDate());
   const [length, setLength] = useState<RepeatLengthValue>(
     initial === undefined
       ? { mode: "weeks", weeks: 12 }
@@ -112,7 +118,17 @@ export function EventSheet({
         : { mode: "none" },
   );
   const [showSkips, setShowSkips] = useState(false);
-  const bounds = repeat === "weekly" ? boundsFor(length, from) : null;
+  /** Past days keep their plan, so the earliest end is yesterday. */
+  const earliestEnd = (() => {
+    const yesterday = addDays(currentLocalDate(), -1);
+    return from > yesterday ? from : yesterday;
+  })();
+  const bounds = repeat === "weekly" ? boundsFor(length, startOf, from, earliestEnd) : null;
+  /** The weeks Skip weeks lists come from the series as saved, so a
+   *  length changed but not yet saved can't hide skipped weeks. */
+  const savedBounds = initial
+    ? { repeatFrom: initial.repeatFrom ?? null, repeatUntil: initial.repeatUntil ?? null }
+    : null;
 
   const input: EventInput = {
     title,
@@ -177,12 +193,14 @@ export function EventSheet({
           {repeat === "weekly" ? (
             <>
               <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
-              <RepeatLength value={length} onChange={setLength} from={from} accent={accent} theme={theme} />
-              {seriesId && bounds ? (
+              <RepeatLength value={length} onChange={setLength} from={earliestEnd} accent={accent} theme={theme} />
+              {seriesId && savedBounds ? (
                 <>
                   <Pressable
                     onPress={() => setShowSkips((v) => !v)}
                     accessibilityRole="button"
+                    accessibilityLabel="Skip weeks"
+                    accessibilityHint="Each switch saves as you change it"
                     accessibilityState={{ expanded: showSkips }}
                     style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
                   >
@@ -192,7 +210,12 @@ export function EventSheet({
                     <AppText color={theme.muted}>{showSkips ? "Hide" : "Show"}</AppText>
                   </Pressable>
                   {showSkips ? (
-                    <SkipWeeks taskId={seriesId} bounds={bounds} accent={accent} theme={theme} />
+                    <>
+                      <AppText variant="footnote" color={theme.muted}>
+                        Each switch saves as you change it.
+                      </AppText>
+                      <SkipWeeks taskId={seriesId} bounds={savedBounds} accent={accent} theme={theme} />
+                    </>
                   ) : null}
                 </>
               ) : null}

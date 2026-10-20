@@ -64,7 +64,8 @@ import { deleteActivity, logActivity, updateActivity } from "../../../db/activit
 import { createPool, deletePool, updatePool } from "../../../db/commitmentWrites";
 import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
 import { setDayKind } from "../../../db/dayGrades";
-import { addSkip, clearToday, undoClearToday } from "../../../db/skips";
+import { askClearToday, undoClear } from "../../../components/today/clearToday";
+import { addSkip } from "../../../db/skips";
 import { skipProblem, type SkipInput } from "../../../db/windowRules";
 import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
 import { isOnboardingComplete } from "../../../db/onboarding";
@@ -207,25 +208,7 @@ export default function TodayScreen() {
 
   const isToday = day.date === day.today;
 
-  /** Clear today (ADR-0040 §4; spec §4.7): today's windows and
-   *  remaining events set aside, or the day made a day off instead. */
-  const askClearToday = () => {
-    Alert.alert(
-      "Clear today?",
-      "Today's windows and remaining events are set aside. Your open tasks show in one list.",
-      [
-        {
-          text: "Clear today",
-          onPress: () => void clearToday().then(() => refresh()),
-        },
-        {
-          text: "Make it a day off instead",
-          onPress: () => void setDayKind(day.today, "rest").then(() => refresh()),
-        },
-        { text: "Cancel", style: "cancel" },
-      ],
-    );
-  };
+  const askClear = () => void askClearToday(() => void refresh());
 
   /** Home's ⋯ until Phase 9 rebuilds it: Clear today on today, and
    *  Day type. Away days have nothing to clear. */
@@ -240,7 +223,7 @@ export default function TodayScreen() {
       settings
       more={[
         ...(isToday && day.away === null && !day.cleared
-          ? [{ label: "Clear today", icon: "moon", onPress: askClearToday }]
+          ? [{ label: "Clear today", icon: "moon", onPress: askClear }]
           : []),
         { label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) },
       ]}
@@ -498,7 +481,7 @@ export default function TodayScreen() {
             <Button
               variant="quiet"
               label="Undo"
-              onPress={() => void undoClearToday().then(() => refresh())}
+              onPress={() => undoClear(() => void refresh())}
               theme={theme}
             />
           </View>

@@ -53,11 +53,11 @@ export function TabToolbar(props: TabToolbarProps) {
       </Stack.Toolbar.Menu>
       {props.more && props.more.length > 0 ? (
         <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="More">
-          {props.more.map((m, i) => (
+          {props.more.map((m) => (
             <Stack.Toolbar.MenuAction
               key={m.label}
               icon={m.icon as never}
-              onPress={() => latest.current.more?.[i]?.onPress()}
+              onPress={() => latest.current.more?.find((x) => x.label === m.label)?.onPress()}
             >
               {m.label}
             </Stack.Toolbar.MenuAction>

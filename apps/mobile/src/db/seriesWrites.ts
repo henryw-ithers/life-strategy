@@ -8,18 +8,19 @@
  * own transaction (`writeAndMarkStale`).
  */
 import { boundsError } from "@glide/scoring";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import type { EventInput } from "./events";
 import { forgetPinsOf } from "./pins";
-import { goalTask, scheduleSkip, task, taskUnit } from "./schema";
+import { goalTask, scheduleSkip, task, taskCompletion, taskUnit } from "./schema";
 import {
   archiveDue,
   boundsCutToday,
   movedSkips,
+  pastChangedBy,
   splitSeries,
   type Bounds,
 } from "./seriesRules";
@@ -162,6 +163,11 @@ export async function setEventRepeat(taskId: string, bounds: Bounds): Promise<vo
   writeAndMarkStale((tx) => {
     const [row] = tx.select().from(task).where(eq(task.id, taskId)).all();
     if (!row) throw new Error(`No such event: ${taskId}`);
+    if (pastChangedBy({ repeatFrom: row.repeatFrom, repeatUntil: row.repeatUntil }, bounds, today)) {
+      throw new Error(
+        "Past days keep the plan they had: a series can end yesterday at the earliest, and one that has started keeps its first day.",
+      );
+    }
     tx.update(task).set(bounds).where(eq(task.id, taskId)).run();
     const cut = boundsCutToday(
       row,
@@ -214,4 +220,17 @@ export async function archiveEndedSeries(): Promise<number> {
     recomputeAllUnitPoints(tx);
     return ended.length;
   });
+}
+
+/**
+ * The days from `from` on that a series is already ticked: "this event"
+ * passes over them, so editing never reopens a run that has been done
+ * and paid (each session pays once).
+ */
+export async function tickedFrom(taskId: string, from: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ localDate: taskCompletion.localDate })
+    .from(taskCompletion)
+    .where(and(eq(taskCompletion.taskId, taskId), gte(taskCompletion.localDate, from)));
+  return new Set(rows.map((r) => r.localDate));
 }

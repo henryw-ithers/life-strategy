@@ -8,14 +8,14 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGoal, loadGoals } from "../goals";
-import { goalEntry, lifeArea, lifeUnit, scheduleSkip, task, taskCompletion, taskUnit } from "../schema";
+import { awayRange, goalEntry, lifeArea, lifeUnit, scheduleSkip, task, taskCompletion, taskUnit } from "../schema";
 import {
   archiveEndedSeries,
   editEventFollowing,
   editEventOccurrence,
   setEventRepeat,
 } from "../seriesWrites";
-import { addSkip } from "../skips";
+import { addSkip, updateAway } from "../skips";
 import { resetTestDb, testDb } from "./harness";
 
 const clock = vi.hoisted(() => ({ today: "2026-10-20" }));
@@ -146,6 +146,13 @@ describe("setEventRepeat", () => {
     expect(skipsOf("lec")).toEqual([]);
   });
 
+  it("refuses an end before yesterday, so no past day loses its run", async () => {
+    await expect(
+      setEventRepeat("lec", { repeatFrom: "2026-09-01", repeatUntil: "2026-10-13" }),
+    ).rejects.toThrow("yesterday");
+    expect(taskRow("lec")).toMatchObject({ repeatUntil: "2026-12-01" });
+  });
+
   it("records a same-day skip when the change takes today's run away", async () => {
     await setEventRepeat("lec", { repeatFrom: "2026-09-01", repeatUntil: "2026-10-19" });
     expect(skipsOf("lec").map((s) => [s.kind, s.localDate, s.madeOn])).toEqual([
@@ -206,5 +213,17 @@ describe("a streak over skipped days", () => {
 
   it("bridges a day the task was skipped", async () => {
     expect(await streakWithGap(true)).toBe(7);
+  });
+});
+
+describe("updateAway", () => {
+  it("lets an old range's label change, while its days stand", async () => {
+    testDb()
+      .insert(awayRange)
+      .values({ id: "a", startDate: "2026-09-01", endDate: "2026-09-10", label: null })
+      .run();
+    await updateAway("a", "2026-09-01", "2026-09-10", "Japan");
+    expect(testDb().select().from(awayRange).all()[0]).toMatchObject({ label: "Japan" });
+    await expect(updateAway("a", "2026-09-02", "2026-09-10", "Japan")).rejects.toThrow();
   });
 });

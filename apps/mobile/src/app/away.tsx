@@ -149,9 +149,12 @@ function AwaySheet({
   const [end, setEnd] = useState(existing?.endDate ?? tomorrow);
   const [label, setLabel] = useState(existing?.label ?? "");
   const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    if (saving) return;
     setProblem(null);
+    setSaving(true);
     try {
       if (existing) await updateAway(existing.id, start, end, label);
       else await addAway(start, end, label);
@@ -159,6 +162,8 @@ function AwaySheet({
       onClose();
     } catch (e) {
       setProblem(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,7 +173,7 @@ function AwaySheet({
       onClose={onClose}
       onDismissed={onDismissed}
       title={existing ? "Time away" : "Add time away"}
-      confirm={{ label: "Save", onPress: () => void save(), disabled: end < start }}
+      confirm={{ label: "Save", onPress: () => void save(), disabled: end < start || saving }}
     >
       <View style={styles.form}>
         <View style={styles.row}>
@@ -200,7 +205,7 @@ function AwaySheet({
           accessibilityLabel="Label"
         />
         {problem ? (
-          <AppText variant="footnote" color={theme.muted}>
+          <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
             {problem}
           </AppText>
         ) : null}
@@ -215,10 +220,12 @@ function AwaySheet({
                   text: "Remove",
                   style: "destructive",
                   onPress: () =>
-                    void removeAway(existing.id).then(() => {
-                      onSaved();
-                      onClose();
-                    }),
+                    void removeAway(existing.id)
+                      .then(() => {
+                        onSaved();
+                        onClose();
+                      })
+                      .catch((e: unknown) => setProblem(e instanceof Error ? e.message : String(e))),
                 },
               ])
             }

@@ -35,7 +35,10 @@ export function SkipWeeks({
   accent: string;
   theme: ThemeTokens;
 }) {
-  const [skipped, setSkipped] = useState<Map<string, string>>(new Map());
+  /** Null until loaded: the switches wait for it. */
+  const [skipped, setSkipped] = useState<Map<string, string> | null>(null);
+  /** Weeks whose switch is saving, so a second tap can't race it. */
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   const weeksSkipped = async () =>
@@ -62,7 +65,9 @@ export function SkipWeeks({
   }, [taskId]);
 
   const toggle = async (weekStart: string, runs: boolean) => {
+    if (skipped === null || busy.has(weekStart)) return;
     setError(null);
+    setBusy((b) => new Set(b).add(weekStart));
     try {
       const id = skipped.get(weekStart);
       if (runs && id) await removeSkip(id);
@@ -70,6 +75,12 @@ export function SkipWeeks({
       setSkipped(await weeksSkipped());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy((b) => {
+        const next = new Set(b);
+        next.delete(weekStart);
+        return next;
+      });
     }
   };
 
@@ -77,7 +88,7 @@ export function SkipWeeks({
   return (
     <View style={styles.list}>
       {weeks.map((w) => {
-        const runs = !skipped.has(w.weekStart);
+        const runs = !(skipped?.has(w.weekStart) ?? false);
         return (
           <View key={w.weekStart} style={styles.row}>
             <AppText color={w.skippable ? theme.ink : theme.muted} style={styles.grow}>
@@ -85,7 +96,7 @@ export function SkipWeeks({
             </AppText>
             <Switch
               value={runs}
-              disabled={!w.skippable}
+              disabled={!w.skippable || skipped === null || busy.has(w.weekStart)}
               onValueChange={(on) => void toggle(w.weekStart, on)}
               trackColor={{ true: accent }}
               accessibilityLabel={`Week of ${weekLabel(w.weekStart)}`}
@@ -95,7 +106,7 @@ export function SkipWeeks({
         );
       })}
       {error ? (
-        <AppText variant="footnote" color={theme.muted}>
+        <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
           {error}
         </AppText>
       ) : null}

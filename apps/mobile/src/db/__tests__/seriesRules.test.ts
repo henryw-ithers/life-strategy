@@ -11,6 +11,7 @@ import {
   commitmentWeeks,
   movedSkips,
   nextRun,
+  pastChangedBy,
   seriesWeeks,
   splitSeries,
 } from "../seriesRules";
@@ -135,5 +136,29 @@ describe("nextRun", () => {
 
   it("is null once the series has ended", () => {
     expect(nextRun({ ...tuesdays, repeatFrom: null, repeatUntil: "2026-10-19" }, TODAY)).toBeNull();
+  });
+});
+
+describe("pastChangedBy (no bounds edit rewrites a past day)", () => {
+  const old = { repeatFrom: "2026-09-01", repeatUntil: "2026-12-01" };
+
+  it("allows ending yesterday or later, and starting today or later", () => {
+    expect(pastChangedBy(old, { ...old, repeatUntil: "2026-10-19" }, TODAY)).toBe(false);
+    expect(pastChangedBy(old, { ...old, repeatUntil: "2026-12-20" }, TODAY)).toBe(false);
+    expect(pastChangedBy({ repeatFrom: "2026-11-01", repeatUntil: null }, { repeatFrom: "2026-10-25", repeatUntil: null }, TODAY)).toBe(false);
+  });
+
+  it("refuses an end before yesterday, which would take runs off past days", () => {
+    expect(pastChangedBy(old, { ...old, repeatUntil: "2026-10-15" }, TODAY)).toBe(true);
+  });
+
+  it("refuses moving a started series' first day later, or earlier into the past", () => {
+    expect(pastChangedBy(old, { ...old, repeatFrom: "2026-10-01" }, TODAY)).toBe(true);
+    expect(pastChangedBy(old, { ...old, repeatFrom: "2026-08-01" }, TODAY)).toBe(true);
+    expect(pastChangedBy({ repeatFrom: null, repeatUntil: null }, { repeatFrom: TODAY, repeatUntil: null }, TODAY)).toBe(true);
+  });
+
+  it("doesn't care about an ended series whose past is unchanged", () => {
+    expect(pastChangedBy({ repeatFrom: null, repeatUntil: "2026-10-01" }, { repeatFrom: null, repeatUntil: "2026-10-01" }, TODAY)).toBe(false);
   });
 });

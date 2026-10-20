@@ -137,3 +137,25 @@ export function nextRun(
   }
   return null;
 }
+
+/**
+ * Whether new bounds would change which past days a series ran on
+ * (ADR-0040 §3 and its Consequences: days are graded with the schedule
+ * they had). Past days that haven't settled are re-scored after any
+ * change, so ending a series last week would take runs off them, and a
+ * day whose only due work was one of those runs could then score 70.
+ * So the earliest end is yesterday, and a started series' first day
+ * stays where it is; a series that hasn't started can move its start
+ * anywhere from today on.
+ */
+export function pastChangedBy(before: Bounds, after: Bounds, today: string): boolean {
+  const yesterday = addDays(today, -1);
+  const pastOf = (b: Bounds) => {
+    const from = b.repeatFrom === null ? "" : b.repeatFrom >= today ? null : b.repeatFrom;
+    const until = b.repeatUntil === null || b.repeatUntil >= yesterday ? "" : b.repeatUntil;
+    // No past days at all: it starts today or later, or ends before it starts.
+    if (from === null || (until !== "" && from !== "" && until < from)) return "none";
+    return `${from}|${until}`;
+  };
+  return pastOf(before) !== pastOf(after);
+}
