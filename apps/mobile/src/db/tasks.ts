@@ -8,6 +8,7 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
+  addDays,
   applyWeightOverrides,
   deriveTierWeights,
   hasPlannedUnit,
@@ -18,7 +19,7 @@ import {
   type BandUnit,
   type Tier,
 } from "@glide/scoring";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
@@ -45,6 +46,7 @@ import {
 import { forgetPinsOf } from "./pins";
 import { tieredUnits } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
+import { currentLocalDate } from "../lib/calendar";
 
 export interface PlanTask {
   id: string;
@@ -657,53 +659,69 @@ export async function addTask(
   oneOff: OneOff | null = null,
   detail: TaskDetail | null = null,
 ): Promise<string | null> {
-  const home = unitIds[0];
-  if (!home) return null;
+  if (!unitIds[0]) return null;
   const id = Crypto.randomUUID();
-  db.transaction((tx) => {
-    // Decided before anything is written, so a refused shape — a
-    // commitment as a second unit — leaves no half-made task behind.
-    const membershipOf = new Map(
-      membershipsFor(unitIds, commitmentUnitIdsIn(tx)).map((m) => [
-        m.unitId,
-        m.membership,
-      ]),
-    );
-    assertNoNotNow(
-      tx,
-      [...membershipOf].filter(([, m]) => m === "scoring").map(([u]) => u),
-    );
-    const siblings = tx
-      .select()
-      .from(taskUnit)
-      .where(eq(taskUnit.unitId, home))
-      .all();
-    tx.insert(task).values({
-      id,
-      unitId: home,
-      title,
-      // A one-off has no cadence, but the column is NOT NULL. 1 is the
-      // safe value to park it at: if anything ever reads it without
-      // checking `oneOffSize`, it lands in the variable band rather
-      // than being mistaken for a daily habit worth routine points.
-      timesPerWeek: oneOff ? 1 : timesPerWeek,
-      plannedWeekdays: oneOff ? null : plannedWeekdays,
-      partOfDay,
-      oneOffSize: oneOff?.size ?? null,
-      oneOffDate: oneOff?.date ?? null,
-      oneOffDue: oneOff?.due ?? null,
-      ...clockTimes(detail?.startMinute ?? null, detail?.endMinute ?? null),
-      // A one-off's size lands in both columns: `one_off_size` prices
-      // it, `size` is what the day's load and a window's capacity read.
-      size: oneOff?.size ?? detail?.size ?? null,
-      allowsPartial: detail?.allowsPartial ?? false,
-      kind: detail?.kind ?? "task",
-      pointValue: 0,
-      rankInUnit: siblings.length + 1,
-    }).run();
-    attachUnits(tx, id, unitIds, undefined, membershipOf);
-  });
+  db.transaction((tx) =>
+    addTaskIn(tx, id, unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail),
+  );
   return id;
+}
+
+/** `addTask` inside a caller's transaction, with its id chosen. */
+function addTaskIn(
+  tx: Tx,
+  id: string,
+  unitIds: string[],
+  title: string,
+  timesPerWeek: number,
+  plannedWeekdays: string | null,
+  partOfDay: "morning" | "afternoon" | "evening" | null,
+  oneOff: OneOff | null,
+  detail: TaskDetail | null,
+): void {
+  const home = unitIds[0];
+  if (!home) return;
+  // Decided before anything is written, so a refused shape — a
+  // commitment as a second unit — leaves no half-made task behind.
+  const membershipOf = new Map(
+    membershipsFor(unitIds, commitmentUnitIdsIn(tx)).map((m) => [
+      m.unitId,
+      m.membership,
+    ]),
+  );
+  assertNoNotNow(
+    tx,
+    [...membershipOf].filter(([, m]) => m === "scoring").map(([u]) => u),
+  );
+  const siblings = tx
+    .select()
+    .from(taskUnit)
+    .where(eq(taskUnit.unitId, home))
+    .all();
+  tx.insert(task).values({
+    id,
+    unitId: home,
+    title,
+    // A one-off has no cadence, but the column is NOT NULL. 1 is the
+    // safe value to park it at: if anything ever reads it without
+    // checking `oneOffSize`, it lands in the variable band rather
+    // than being mistaken for a daily habit worth routine points.
+    timesPerWeek: oneOff ? 1 : timesPerWeek,
+    plannedWeekdays: oneOff ? null : plannedWeekdays,
+    partOfDay,
+    oneOffSize: oneOff?.size ?? null,
+    oneOffDate: oneOff?.date ?? null,
+    oneOffDue: oneOff?.due ?? null,
+    ...clockTimes(detail?.startMinute ?? null, detail?.endMinute ?? null),
+    // A one-off's size lands in both columns: `one_off_size` prices
+    // it, `size` is what the day's load and a window's capacity read.
+    size: oneOff?.size ?? detail?.size ?? null,
+    allowsPartial: detail?.allowsPartial ?? false,
+    kind: detail?.kind ?? "task",
+    pointValue: 0,
+    rankInUnit: siblings.length + 1,
+  }).run();
+  attachUnits(tx, id, unitIds, undefined, membershipOf);
 }
 
 /** Replace a task's unit membership wholesale (from the edit sheet). */
@@ -1100,5 +1118,79 @@ export async function updateEvent(
       .where(eq(task.id, taskId))
       .run();
     recomputeAllUnitPoints(tx);
+  });
+}
+
+/**
+ * "Copy last week's events" (ADR-0040 §6), for shifts that change week
+ * to week: every one-time event in the week before `weekStart` (a
+ * Sunday, ADR-0004 §1) is added again a week later, with its units, times and notes. Repeating events
+ * already repeat, so they're left alone.
+ *
+ * Copies only onto today or later (past days keep their plan), and
+ * never twice: an event already there with the same name, unit, date
+ * and times is skipped, so pressing it again adds nothing. One
+ * transaction. Returns how many were added.
+ */
+export async function copyLastWeeksEvents(weekStart: string): Promise<number> {
+  const today = currentLocalDate();
+  const from = addDays(weekStart, -7);
+  const until = addDays(weekStart, 6);
+  return writeAndMarkStale((tx) => {
+    const rows = tx
+      .select({
+        id: task.id,
+        unitId: task.unitId,
+        title: task.title,
+        oneOffDate: task.oneOffDate,
+        startMinute: task.startMinute,
+        endMinute: task.endMinute,
+        description: task.description,
+      })
+      .from(task)
+      .innerJoin(lifeUnit, eq(lifeUnit.id, task.unitId))
+      .where(
+        and(
+          eq(task.active, true),
+          eq(task.kind, "event"),
+          isNotNull(task.oneOffSize),
+          gte(task.oneOffDate, from),
+          lte(task.oneOffDate, until),
+          isNull(lifeUnit.archivedAt),
+        ),
+      )
+      .all();
+    const key = (r: { unitId: string; title: string; oneOffDate: string | null; startMinute: number | null; endMinute: number | null }) =>
+      `${r.unitId}|${r.title}|${r.oneOffDate}|${r.startMinute}|${r.endMinute}`;
+    const there = new Set(rows.filter((r) => r.oneOffDate! >= weekStart).map(key));
+    let added = 0;
+    for (const r of rows) {
+      if (r.oneOffDate! >= weekStart) continue;
+      const date = addDays(r.oneOffDate!, 7);
+      if (date < today) continue;
+      const copy = { ...r, oneOffDate: date };
+      if (there.has(key(copy))) continue;
+      const units = tx
+        .select({ unitId: taskUnit.unitId })
+        .from(taskUnit)
+        .where(eq(taskUnit.taskId, r.id))
+        .all()
+        .map((m) => m.unitId);
+      const unitIds = [r.unitId, ...units.filter((u) => u !== r.unitId)];
+      const id = Crypto.randomUUID();
+      addTaskIn(tx, id, unitIds, r.title, 1, null, null, { size: "normal", date, due: null }, {
+        startMinute: r.startMinute,
+        endMinute: r.endMinute,
+        size: null,
+        allowsPartial: false,
+        kind: "event",
+      });
+      if (r.description !== null) {
+        tx.update(task).set({ description: r.description }).where(eq(task.id, id)).run();
+      }
+      there.add(key(copy));
+      added += 1;
+    }
+    return added;
   });
 }
