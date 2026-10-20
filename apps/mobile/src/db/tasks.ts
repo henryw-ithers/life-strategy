@@ -680,7 +680,7 @@ function addTaskIn(
   detail: TaskDetail | null,
 ): void {
   const home = unitIds[0];
-  if (!home) return;
+  if (!home) throw new Error("A task needs a unit.");
   // Decided before anything is written, so a refused shape — a
   // commitment as a second unit — leaves no half-made task behind.
   const membershipOf = new Map(

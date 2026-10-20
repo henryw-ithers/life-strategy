@@ -176,6 +176,17 @@ describe("filling them (windows-and-pins §3)", () => {
     expect(plan.planned.windows[0]?.done).toEqual(["gym"]);
     expect(placed(plan)).toEqual([]);
   });
+
+  it("never suggests again a task ticked today at a time it can't place", async () => {
+    addTask({ id: "gym", unitId: "fitness", plannedWeekdays: "1" });
+    testDb()
+      .insert(taskCompletion)
+      .values({ id: "tick", taskId: "gym", localDate: MON, completedAt: "not a time", pointsEarned: 0 })
+      .run();
+    const plan = await loadDayPlan(MON, EARLY);
+    expect(placed(plan)).toEqual([]);
+    expect(plan.planned.windows.flatMap((w) => w.done)).toEqual([]);
+  });
 });
 
 describe("a future day (§3.5)", () => {

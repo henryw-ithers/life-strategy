@@ -326,12 +326,14 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
 
   const now =
     date === today ? dayMinute(at.getHours(), at.getMinutes()) : date < today ? DAY_END_LIMIT : null;
+  // Every tick on the day is done, so it's never suggested again. One
+  // logged afterwards, or with a time that can't be read, sits in no
+  // window (minute -1) rather than being left open.
   const done = ticks
     .map((c) => {
       const t = byId.get(c.taskId);
-      const minute = minuteOfTick(c.completedAt, date);
-      return t && t.kind === "task" && minute !== null
-        ? { taskId: t.id, size: t.size ?? t.oneOffSize, minute }
+      return t && t.kind === "task"
+        ? { taskId: t.id, size: t.size ?? t.oneOffSize, minute: minuteOfTick(c.completedAt, date) ?? -1 }
         : null;
     })
     .filter((d) => d !== null);
