@@ -23,6 +23,7 @@ import { Button } from "../components/ui/Button";
 import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { pruneEndedPinsToday } from "../db/pins";
+import { archiveEndedSeries } from "../db/seriesWrites";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
@@ -205,6 +206,9 @@ function MigrationGate() {
       // is logged and the app opens anyway: a leftover pin is a smaller
       // problem than an app that won't start.
       .then(() => pruneEndedPinsToday().catch((e: unknown) => recordProblem(e, "load")))
+      // Series whose days have all settled leave the lists (ADR-0040 §1,
+      // EC-26). Logged, not fatal, like the pins above.
+      .then(() => archiveEndedSeries().catch((e: unknown) => recordProblem(e, "load")))
       .then(() => setSeeded(true))
       .catch((e: unknown) =>
         setSeedError(e instanceof Error ? e : new Error(String(e))),
