@@ -44,10 +44,12 @@ import {
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
 import { ColourSheet } from "../../../../components/commitments/ColourSheet";
+import { SkipWeekSheet } from "../../../../components/commitments/SkipWeekSheet";
 import { CommitmentToolbar } from "../../../../components/commitments/CommitmentToolbar";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
+import { savedOrSaid, saveEventEdit, saveNewEvent } from "../../../../components/plan/saveEvent";
 import { TaskEditSheet } from "../../../../components/plan/TaskEditSheet";
 import { eventWhen, ItemRow, taskWhen } from "../../../../components/plan/ItemRow";
 import {
@@ -81,11 +83,9 @@ import {
   updateCommitment,
 } from "../../../../db/commitmentWrites";
 import {
-  addEvent,
   addTask,
   archiveTask,
   loadPlan,
-  updateEvent,
   type PlanData,
   type PlanTask,
 } from "../../../../db/tasks";
@@ -104,6 +104,7 @@ export default function CommitmentScreen() {
   const [loaded, setData] = useState<CommitmentUnitScreen | null>(null);
   const firstHeading = useFirstRead(() => readCommitmentHeading(id));
   const [colourOpen, setColourOpen] = useState(false);
+  const [skipOpen, setSkipOpen] = useState(false);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   /** The sub-commitment being renamed from that menu. */
   const [renamingSubId, setRenamingSubId] = useState<string | null>(null);
@@ -322,8 +323,19 @@ export default function CommitmentScreen() {
                 value={isPaletteKey(data.colour) ? PALETTE[data.colour].name : "Automatic"}
                 theme={theme}
                 onPress={() => setColourOpen(true)}
-                last
+                last={data.parent !== null}
               />
+              {/* A whole commitment's week (ADR-0040 §2): its subs' work
+                  included, so only the commitment offers it. */}
+              {data.parent === null ? (
+                <ActionRow
+                  label="Skip a week…"
+                  value=""
+                  theme={theme}
+                  onPress={() => setSkipOpen(true)}
+                  last
+                />
+              ) : null}
             </Group>
 
             {data.subsOn ? (
@@ -498,15 +510,21 @@ export default function CommitmentScreen() {
                         startMinute: eventSheetShown.startMinute,
                         endMinute: eventSheetShown.endMinute,
                         notes: eventSheetShown.notes,
+                        repeatFrom: eventSheetShown.repeatFrom,
+                        repeatUntil: eventSheetShown.repeatUntil,
                       }
                 }
+                seriesId={eventSheetShown === "new" ? undefined : eventSheetShown.id}
                 accent={accent}
                 theme={theme}
                 onClose={() => setEventSheet(null)}
-                onSave={async (input) => {
-                  if (eventSheetShown === "new") await addEvent([data.id], input);
-                  else await updateEvent(eventSheetShown.id, input);
-                  setEventSheet(null);
+                onSave={async (input, bounds) => {
+                  const saved = await savedOrSaid(async () =>
+                    eventSheetShown === "new"
+                      ? (await saveNewEvent([data.id], input, bounds), true)
+                      : saveEventEdit(eventSheetShown, input, bounds),
+                  );
+                  if (saved) setEventSheet(null);
                   await reload();
                 }}
                 onDelete={
@@ -551,6 +569,16 @@ export default function CommitmentScreen() {
                 }}
               />
             ) : null}
+
+            <SkipWeekSheet
+              visible={skipOpen}
+              unitId={data.id}
+              name={data.name}
+              accent={accent}
+              theme={theme}
+              onClose={() => setSkipOpen(false)}
+              onDismissed={() => void reload()}
+            />
 
             <ColourSheet
               visible={colourOpen}

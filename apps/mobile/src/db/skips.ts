@@ -189,15 +189,23 @@ export async function addAway(
   return id;
 }
 
-/** Change an Away range's days or label. */
+/**
+ * Change an Away range's days or label. Its days are checked only when
+ * they change (EC-32), so a range that began on settled days can still
+ * be renamed, while its settled days stand.
+ */
 export async function updateAway(
   id: string,
   startDate: string,
   endDate: string,
   label?: string | null,
 ): Promise<void> {
-  const problem = awayProblem(startDate, endDate, currentLocalDate());
-  if (problem !== null) throw new Error(problem);
+  const [existing] = await db.select().from(awayRange).where(eq(awayRange.id, id));
+  if (!existing) throw new Error(`No such time away: ${id}`);
+  if (existing.startDate !== startDate || existing.endDate !== endDate) {
+    const problem = awayProblem(startDate, endDate, currentLocalDate());
+    if (problem !== null) throw new Error(problem);
+  }
   writeAndMarkStale((tx) =>
     tx
       .update(awayRange)
@@ -209,4 +217,26 @@ export async function updateAway(
 
 export async function removeAway(id: string): Promise<void> {
   writeAndMarkStale((tx) => tx.delete(awayRange).where(eq(awayRange.id, id)).run());
+}
+
+/** A series' own skips, runs and weeks: what "Skip weeks ›" switches
+ *  and what its next run steps past. Not its commitment's weeks. */
+export async function loadTaskSkips(
+  taskId: string,
+): Promise<{ id: string; kind: "occurrence" | "taskWeek"; localDate: string }[]> {
+  const rows = await db
+    .select({ id: scheduleSkip.id, kind: scheduleSkip.kind, localDate: scheduleSkip.localDate })
+    .from(scheduleSkip)
+    .where(and(eq(scheduleSkip.taskId, taskId), inArray(scheduleSkip.kind, ["occurrence", "taskWeek"])));
+  return rows.map((r) => ({ id: r.id, kind: r.kind as "occurrence" | "taskWeek", localDate: r.localDate }));
+}
+
+/** A commitment's skipped weeks, by their first day: what "Skip a
+ *  week…" switches (ADR-0040 §2). */
+export async function loadCommitmentWeekSkips(unitId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: scheduleSkip.id, localDate: scheduleSkip.localDate })
+    .from(scheduleSkip)
+    .where(and(eq(scheduleSkip.unitId, unitId), eq(scheduleSkip.kind, "commitmentWeek")));
+  return new Map(rows.map((r) => [r.localDate, r.id]));
 }

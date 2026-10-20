@@ -63,6 +63,11 @@ setting. Stored as `task.repeat_from` and `task.repeat_until`; "for N
 weeks" is turned into a date when saved. When the end date passes, the
 task is archived the next day, and its history stays.
 
+> **Clarified 2026-10-20 (Henry).** A series is archived once its end
+> date is before the 14-day edit window, not the next day. A day reads
+> only active tasks, so archiving sooner would take the series' ticks
+> off days still being graded. By then every day it ran on has settled.
+
 ### 2. Weeks can be skipped
 
 There are three ways to skip:
@@ -80,6 +85,12 @@ occurrences can be skipped from today on. Stored in `schedule_skip`.
 Editing a series asks "This event only", "This and following" or "All
 events". "This and following" ends the series and starts a new one, and
 skips from that date on move with it.
+
+> **Clarified 2026-10-20 (Henry).** "This event only" skips that date in
+> the series and adds a one-off event on it with the new details, so
+> nothing new has to read an exception. A tick that day belongs to the
+> one-off. Edited from Plan or a commitment, "this event" is the
+> series' next run from today.
 
 ### 3. Skips change what's due, through the usual path
 
@@ -99,6 +110,20 @@ and `isAnchoredOn` and nowhere else. So:
   session.
 
 Nothing counts, labels or reports skipped events (ADR-0038 §5).
+
+> **Clarified 2026-10-20 (Henry).** Changing a series' bounds so that
+> today's run disappears empties today on the day itself, so a same-day
+> skip of today is recorded with it: the day is ungraded if nothing is
+> left, never a rest day. And a day that had nothing due when it started
+> stays a rest day if it's cleared: clearing it changes nothing, and
+> this section's rule ("nothing due when it started") wins over §4's
+> "never becomes a rest day", which is about days emptied by clearing.
+>
+> Past days keep the plan they had (found in Phase 7's review): a
+> series can end yesterday at the earliest, and one that has started
+> keeps its first day. An earlier end would take runs off past days
+> still being graded, and one whose only due work was such a run could
+> then score 70.
 
 ### 4. Clear today
 
@@ -173,9 +198,10 @@ has used a build with the field, so nothing is moved into notes.
        and EC-48–EC-51. Done in Phase 4a (`weeklyGoalFor`, Away days in
        `computeDayLoad`, `emptiedToday` in `isRestDay`); the commitment
        cases (EC-22, EC-29's share) come with the commitment share.
-2. [ ] Schema: `task.repeat_from`, `task.repeat_until`,
+2. [x] Schema: `task.repeat_from`, `task.repeat_until`,
        `schedule_skip`, `day_clear`, `away_range`. Drop
        `task.location`. Record bounds and skips in `plan_snapshot`.
-3. [ ] Event sheet: repeat length and skip weeks. Commitment "Skip a
-       week…". Clear today sheet. Time away in Settings.
-4. [ ] Amend ADR-0029, 0032, 0037 and 0038. Update AGENTS.md.
+3. [x] Event sheet: repeat length and skip weeks. Commitment "Skip a
+       week…". Clear today sheet. Time away in Settings. (Phase 7.
+       "Copy last week's events" comes with Phase 8's Plan.)
+4. [x] Amend ADR-0029, 0032, 0037 and 0038 (dated 2026-10-13). Update AGENTS.md.

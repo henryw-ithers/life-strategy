@@ -54,6 +54,7 @@ import {
 import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
 import { currentLocalDate } from "../lib/calendar";
+import { askClearToday } from "../components/today/clearToday";
 import { hhmmToMinutes } from "../lib/pickerValues";
 import { loadDay } from "../db/today";
 import {
@@ -289,6 +290,23 @@ export default function SettingsScreen() {
             (ADR-0011 decision 4). Its summary stays on the surface,
             because "stays on this phone" is the reason to trust the
             rest of this list. */}
+        {/* Day-level changes (ADR-0040 §§4–5). Clear today is also in
+            Home's ⋯. */}
+        <Group theme={theme} title="Your days" flush>
+          <SettingsRow
+            label="Time away"
+            onPress={() => router.push("/away" as Href)}
+            theme={theme}
+          />
+          <GroupDivider theme={theme} />
+          <SettingsRow
+            label="Clear today"
+            detail="Set today's windows and remaining events aside"
+            onPress={() => void askClearToday(() => {})}
+            theme={theme}
+          />
+        </Group>
+
         <Group
           theme={theme}
           title="Your data"

@@ -10,7 +10,7 @@
  * own components. What stays here is which sheet is open, and the
  * writes each one commits.
  */
-import { isEditable, specialDayBonus, type Window as GridWindow } from "@glide/scoring";
+import { addDays, isEditable, specialDayBonus, type Window as GridWindow } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
@@ -64,6 +64,9 @@ import { deleteActivity, logActivity, updateActivity } from "../../../db/activit
 import { createPool, deletePool, updatePool } from "../../../db/commitmentWrites";
 import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
 import { setDayKind } from "../../../db/dayGrades";
+import { askClearToday, undoClear } from "../../../components/today/clearToday";
+import { addSkip } from "../../../db/skips";
+import { skipProblem, type SkipInput } from "../../../db/windowRules";
 import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
 import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
@@ -204,6 +207,28 @@ export default function TodayScreen() {
   }
 
   const isToday = day.date === day.today;
+
+  const askClear = () => void askClearToday(() => void refresh());
+
+  /** Home's ⋯ until Phase 9 rebuilds it: Clear today on today, and
+   *  Day type. Away days have nothing to clear. */
+  const dayToolbar = (
+    <TabToolbar
+      onTask={() => openAdd("task")}
+      onEvent={() => openAdd("event")}
+      onLog={() => {
+        setEditingActivity(null);
+        setActivitySheet(true);
+      }}
+      settings
+      more={[
+        ...(isToday && day.away === null && !day.cleared
+          ? [{ label: "Clear today", icon: "moon", onPress: askClear }]
+          : []),
+        { label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) },
+      ]}
+    />
+  );
   /** Notes and photos stay addable past the edit window (ADR-0002:
    *  grades finalize, memories don't) — only the future is off-limits. */
   const canRecord = day.date <= day.today;
@@ -319,6 +344,28 @@ export default function TodayScreen() {
     </>
   );
 
+  /**
+   * Skip an event (ADR-0040 §2; spec §4.4): this one, or its whole week
+   * if that week hasn't started (EC-25). Nothing counts what's skipped.
+   */
+  const askSkipEvent = (t: TodayTask) => {
+    const today = day.today;
+    const weekOk = skipProblem({ kind: "taskWeek", taskId: t.id, date: day.date }, today) === null;
+    const skip = (input: SkipInput) =>
+      void addSkip(input)
+        .then(() => refresh())
+        .catch((e: unknown) =>
+          Alert.alert("It wasn't skipped", e instanceof Error ? e.message : String(e)),
+        );
+    Alert.alert(t.title, undefined, [
+      { text: "Skip this one", onPress: () => skip({ kind: "occurrence", taskId: t.id, date: day.date }) },
+      ...(weekOk
+        ? [{ text: "Skip this week", onPress: () => skip({ kind: "taskWeek", taskId: t.id, date: day.date }) }]
+        : []),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
   /** A checklist row, with the gestures the day allows on it. */
   const taskRow = (t: TodayTask, tail: boolean) => (
     <TaskRow
@@ -344,6 +391,11 @@ export default function TodayScreen() {
           ? () => setMovingTask(t)
           : undefined
       }
+      onSkip={
+        t.kind === "event" && !t.completedToday && !tail && day.date >= day.today
+          ? () => askSkipEvent(t)
+          : undefined
+      }
       tagHues={theme.areas}
       theme={theme}
       reduceMotion={reduceMotion}
@@ -365,7 +417,7 @@ export default function TodayScreen() {
       {/* Fixed behind Home's content: its own header sits above its scroll
           view until Phase 9, so there's no first-child path to keep. */}
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      {homeToolbar}
+      {dayToolbar}
 
       <TodayHeader
         day={day}
@@ -404,10 +456,35 @@ export default function TodayScreen() {
           </AppText>
         ) : null}
 
-        {day.kind === "rest" ? (
+        {day.away ? (
+          <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
+            {[
+              "Away",
+              day.away.label,
+              `back ${new Date(`${addDays(day.away.lastDay, 1)}T12:00:00`).toLocaleDateString(undefined, { weekday: "long" })}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </AppText>
+        ) : day.kind === "rest" ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
             Nothing counts today; anything you do still logs.
           </AppText>
+        ) : null}
+
+        {/* Undo works until the day ends (ADR-0040 §4, EC-28). */}
+        {day.cleared && isToday ? (
+          <View style={styles.clearedRow}>
+            <AppText variant="caption" color={theme.muted}>
+              Today&apos;s cleared.
+            </AppText>
+            <Button
+              variant="quiet"
+              label="Undo"
+              onPress={() => undoClear(() => void refresh())}
+              theme={theme}
+            />
+          </View>
         ) : null}
 
         {/* A rest day (ADR-0037): automatic on a day that asks nothing,
@@ -833,6 +910,7 @@ function withoutRecord(day: DayData | null, hidden: ReadonlySet<string>): DayDat
 }
 
 const styles = StyleSheet.create({
+  clearedRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
   root: { flex: 1, overflow: "hidden" },
   loading: { marginTop: space.xxxl },
   /** Takes the space between the fixed header and the tab bar. */

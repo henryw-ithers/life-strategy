@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-19, during Phase 6.
+Last updated 2026-10-20, during Phase 7.
 
 ## Phases
 
@@ -31,8 +31,8 @@ Last updated 2026-10-19, during Phase 6.
 | 5b | Scoring from the stored data; formula 11 | Merged, PR #17 |
 | 5b+ | One completion per tap; deleting a commitment in one read | Merged, PR #18 |
 | 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | Merged, PR #19 |
-| **6** | **Priorities: the tiers screen; satisfaction out of the diagnostic** | **In progress** |
-| 7 | Events: repeat ends and skipped weeks; Clear today; Away | |
+| 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | Merged, PR #20 |
+| **7** | **Events: repeat ends and skipped weeks; Clear today; Away** | **In progress** |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | |
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | |
 | 10 | Life: commitments, goals (templates), units, the Priorities link | |
@@ -57,6 +57,49 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 7: events, skips, Clear today and Away
+
+The data and engine came in 4a, 5a and 5b; Phase 7 is the screens and
+the rules they needed. Henry's calls on 2026-10-20, written into
+ADR-0040 as clarifications:
+
+- **This event only** skips that date and adds a one-off event with the
+  new details. From Plan or a commitment, "this event" is the series'
+  next run from today (`nextRun`).
+- **Clear today on a day that began empty** stays a rest day.
+- **An ended series** is archived once its end is before the edit
+  window (`archiveEndedSeries`, at launch), so its ticks stay on
+  settled days.
+- **Bounds that take today's run away** record a same-day skip, so the
+  day counts as emptied on the day.
+- **Clear today** is in a ⋯ menu on Home (with Day type) and in
+  Settings until Phase 9.
+- **Past days keep their plan** (from the invariant review): a series
+  can end yesterday at the earliest and a started series keeps its
+  first day (`pastChangedBy`), so no past day can lose a run and score
+  70. "This event" passes over runs already ticked, so an edit never
+  reopens a paid session.
+
+Built: `seriesRules.ts`, `seriesWrites.ts` (This event only, This and
+following moving skips and goal links, repeat lengths), the event
+sheet's repeat length and Skip weeks, one save path that asks the
+scope (`saveEvent.ts`), a commitment's Skip a week…, Home's ⋯ menu,
+Today's cleared. Undo, the Away line, holding an event to skip it, and
+Settings → Time away (`app/away.tsx`).
+
+Fixed on the way: streak goals used `isDueOn`, which reads an
+unpinned every-day task as due on no particular day, so a missed day
+never ended a run (5c). Streaks now count every scheduled day of an
+every-day task, minus skipped days.
+
+Copy: spec §4.7 shows "Today's cleared. Undo" and also says
+"cleared" never appears. ADR-0040 §4 uses that line and bans only
+"sick" and "bad day", so the ADR's copy is used; the spec's line
+should be corrected.
+
+Left for Phase 8: "Copy last week's events" (Plan's day view and the
+weekly pass), and the shift-work default to one-time events.
 
 ## Phase 6: Priorities as tiers
 
@@ -184,24 +227,16 @@ Decided while building 5b:
 - A commitment one-off carried past its day leaves the later day's
   band and is paid at its own day's value, as AGENTS.md has it for
   carried work.
-- **Not done, for Phase 7:** ADR-0040 §1 archives a series the day
-  after its end date. Archiving it that soon would drop its ticks from
-  the unsettled days it ran on, because a day reads only active tasks,
-  so Phase 7 should archive once those days have settled, or make a
-  day read the tasks it had.
+- **Done in Phase 7:** an ended series is archived once its days have
+  settled (ADR-0040 §1, clarified 2026-10-20).
 
 Open questions from the 5b reviews, to settle before the screens that
 reach them:
 
-- **Bounds changed on the day** (Phase 7): setting a series' end before
-  today, or its start after, can empty today. ADR-0040 §3 names only
-  same-day skips and Clear today as emptying a day, so such a day could
-  score 70 as a rest day. Either count it as emptied on the day or
-  refuse bounds that cut today.
-- **Clear today on a day that began empty** (Phase 7): it stays a rest
-  day, which matches §3's "nothing due when it started"; §4 says a
-  cleared day "never becomes a rest day". The ADR should say which
-  wins.
+- **Bounds changed on the day:** settled in Phase 7. A change that
+  takes today's run away records a same-day skip.
+- **Clear today on a day that began empty:** settled in Phase 7. It
+  stays a rest day.
 - **Weight overrides** (Phase 6): weights no longer read
   `unit_weight.override`. Nothing is lost, since no screen ever wrote
   a user override, but the tiers screen needs somewhere to keep them,

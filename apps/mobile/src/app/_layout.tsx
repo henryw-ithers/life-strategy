@@ -23,6 +23,7 @@ import { Button } from "../components/ui/Button";
 import { db, openDatabase } from "../db/client";
 import { runDataMigrations } from "../db/migrations";
 import { pruneEndedPinsToday } from "../db/pins";
+import { archiveEndedSeries } from "../db/seriesWrites";
 import { syncTaxonomy } from "../db/seed";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
@@ -176,6 +177,7 @@ const PUSHED: [route: string, title: string][] = [
   // The tiers (ADR-0041), from Life, and from `/diagnostic` on a first run.
   ["priorities/index", "Priorities"],
   ["backup", "Your data"],
+  ["away", "Time away"],
   ["calibration", "Calibration"],
   // Its heading, "Where your data lives", is too long for a large title.
   ["privacy", "Privacy"],
@@ -205,6 +207,9 @@ function MigrationGate() {
       // is logged and the app opens anyway: a leftover pin is a smaller
       // problem than an app that won't start.
       .then(() => pruneEndedPinsToday().catch((e: unknown) => recordProblem(e, "load")))
+      // Series whose days have all settled leave the lists (ADR-0040 §1,
+      // EC-26). Logged, not fatal, like the pins above.
+      .then(() => archiveEndedSeries().catch((e: unknown) => recordProblem(e, "load")))
       .then(() => setSeeded(true))
       .catch((e: unknown) =>
         setSeedError(e instanceof Error ? e : new Error(String(e))),

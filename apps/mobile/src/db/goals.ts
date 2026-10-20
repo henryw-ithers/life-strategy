@@ -23,6 +23,7 @@ import {
   goalProblem,
   goalProgress,
   goalStreak,
+  inScheduleOn,
   isDueOn,
   nextGoalStatus,
   streakShown,
@@ -48,12 +49,13 @@ import {
   goalEntry,
   goalTask,
   lifeUnit,
+  scheduleSkip,
   task,
   taskCompletion,
   taskUnit,
 } from "./schema";
 import type { Tx } from "./tasks";
-import { awayDatesBetween } from "./windowRules";
+import { awayDatesBetween, commitmentRoots, skippedDatesFor } from "./windowRules";
 
 export type { GoalKind, GoalStatus };
 
@@ -581,6 +583,22 @@ export interface GoalSummary {
 }
 
 /**
+ * Whether a streak's task was due on a day (ADR-0042 §2): in its
+ * schedule and not skipped (ADR-0040), and, for an every-day task,
+ * every such day. A task that has since stopped being every day counts
+ * only its own pinned days (Henry, 2026-10-17). `isDueOn` alone won't
+ * do: it reads an unpinned every-day task as due on no particular day,
+ * which let a missed day pass without ending the run.
+ */
+function streakDue(
+  t: typeof task.$inferSelect,
+  skippedDates: ReadonlySet<string> | undefined,
+): (date: string) => boolean {
+  const bounds = { repeatFrom: t.repeatFrom, repeatUntil: t.repeatUntil, skippedDates };
+  return (date) => inScheduleOn(bounds, date) && (t.timesPerWeek === 7 || isDueOn({ ...t, ...bounds }, date));
+}
+
+/**
  * Every goal with its progress (ADR-0042 §3): a running total with no
  * pace line. A streak counts only the days its task is due (Henry,
  * 2026-10-17), and is bridged by days off and Away days; a cleared day
@@ -609,6 +627,29 @@ export async function loadGoals(): Promise<GoalSummary[]> {
       away: anyStreak
         ? tx.select({ startDate: awayRange.startDate, endDate: awayRange.endDate }).from(awayRange).all()
         : [],
+      skips: anyStreak
+        ? tx
+            .select({
+              kind: scheduleSkip.kind,
+              taskId: scheduleSkip.taskId,
+              unitId: scheduleSkip.unitId,
+              localDate: scheduleSkip.localDate,
+              madeOn: scheduleSkip.madeOn,
+            })
+            .from(scheduleSkip)
+            .all()
+        : [],
+      units: anyStreak
+        ? tx
+            .select({
+              id: lifeUnit.id,
+              parentUnitId: lifeUnit.parentUnitId,
+              isCustom: lifeUnit.isCustom,
+              commitmentShare: lifeUnit.commitmentShare,
+            })
+            .from(lifeUnit)
+            .all()
+        : [],
     };
   });
   if (!read) return [];
@@ -617,6 +658,11 @@ export async function loadGoals(): Promise<GoalSummary[]> {
     ...awayDatesBetween(read.away, "0000-01-01", today),
   ];
   const liveById = new Map(read.live.map((t) => [t.id, t]));
+  const roots = commitmentRoots(read.units);
+  const skipped = skippedDatesFor(
+    read.skips,
+    new Map(read.live.map((t) => [t.id, roots.get(t.unitId) ?? null])),
+  );
   return read.goals.map(({ row, linked, definition }) => {
     const own = read.entries.filter((e) => e.goalId === row.id);
     const streakTask = row.kind === "streak" ? liveById.get(linked[0] ?? "") : undefined;
@@ -627,7 +673,7 @@ export async function loadGoals(): Promise<GoalSummary[]> {
             goalStreak(own, {
               today,
               daysOff,
-              isDue: streakTask ? (d) => isDueOn(streakTask, d) : undefined,
+              isDue: streakTask ? streakDue(streakTask, skipped.get(streakTask.id)) : undefined,
             }),
           )
         : null;

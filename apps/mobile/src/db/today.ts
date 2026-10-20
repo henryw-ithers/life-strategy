@@ -206,6 +206,11 @@ export interface DayData {
   hasSnapshot: boolean;
   /** Today is a rest day (ADR-0037): automatic, scored from 70. */
   restDay: boolean;
+  /** Set aside with Clear today (ADR-0040 §4). Undo works until the
+   *  day ends. */
+  cleared: boolean;
+  /** The Away range this day falls in (ADR-0040 §5), or null. */
+  away: { label: string | null; lastDay: string } | null;
   /**
    * The day asks nothing and there is a plan. A rest day already if
    * nothing is open later this week; otherwise it becomes one the moment
@@ -395,6 +400,9 @@ export async function loadDay(
   const [dayRow] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
   // An Away day is a day off (ADR-0040 §5): not graded.
   const kind: DayKind = schedule.away.has(date) ? "rest" : (dayRow?.kind ?? "normal");
+  const awayRangeToday = schedule.away.has(date)
+    ? (await loadAwayRanges()).find((r) => r.startDate <= date && date <= r.endDate) ?? null
+    : null;
   /** Life one-offs planned for a later day, when listed. Never in the
    *  load: they are not today's work. */
   const aheadLifeIds = new Set<string>();
@@ -1021,6 +1029,8 @@ export async function loadDay(
     score,
     hasSnapshot: weights.size > 0,
     restDay,
+    cleared: schedule.cleared,
+    away: awayRangeToday ? { label: awayRangeToday.label, lastDay: awayRangeToday.endDate } : null,
     nothingDue,
     aheadCount: deferredListed.length,
     hasTasks: tasks.length > 0,
