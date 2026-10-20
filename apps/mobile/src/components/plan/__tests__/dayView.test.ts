@@ -96,6 +96,7 @@ describe("labels", () => {
   it("never calls carried work late", () => {
     expect(reasonLabel("carried")).toBe("Still open");
     expect(reasonLabel("due")).toBe("Due today");
+    expect(reasonLabel("due", false)).toBe("Due that day");
   });
 });
 

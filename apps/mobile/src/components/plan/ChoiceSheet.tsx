@@ -47,7 +47,10 @@ export function ChoiceSheet({
   onSave,
   onRemove,
 }: ChoiceSheetProps) {
-  const [chosen, setChosen] = useState<string[]>([...(initial?.taskIds ?? [])]);
+  /** Only what can be shown can be chosen: a stored member no longer
+   *  due that day is left out of the draft. */
+  const seed = () => (initial?.taskIds ?? []).filter((id) => candidates.some((c) => c.id === id));
+  const [chosen, setChosen] = useState<string[]>(seed);
   const [count, setCount] = useState(initial?.plannedCount ?? 1);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,7 +59,7 @@ export function ChoiceSheet({
   if (visible !== wasVisible) {
     setWasVisible(visible);
     if (visible) {
-      setChosen([...(initial?.taskIds ?? [])]);
+      setChosen(seed());
       setCount(initial?.plannedCount ?? 1);
       setProblem(null);
       setSaving(false);

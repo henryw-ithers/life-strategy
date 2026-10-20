@@ -99,10 +99,10 @@ export function weekDates(date: string): string[] {
 
 /** The line under a suggestion (windows-and-pins §3.3). Never "late",
  *  "overdue" or "missed": carried work is "Still open". */
-export function reasonLabel(reason: SuggestionReason): string {
+export function reasonLabel(reason: SuggestionReason, today = true): string {
   switch (reason) {
     case "due":
-      return "Due today";
+      return today ? "Due today" : "Due that day";
     case "carried":
       return "Still open";
     case "goal":

@@ -38,6 +38,8 @@ interface WindowCardProps {
   addable: number;
   /** The day can still be planned: today or later. */
   editable: boolean;
+  /** The day shown is today, for "Due today" or "Due that day". */
+  isToday: boolean;
   hueFor: (t: TodayTask) => string;
   theme: ThemeTokens;
   onPin: (taskId: string) => void;
@@ -56,6 +58,7 @@ export function WindowCard({
   choices,
   addable,
   editable,
+  isToday,
   hueFor,
   theme,
   onPin,
@@ -203,7 +206,7 @@ export function WindowCard({
                 key={`s-${s.taskId}`}
                 onPress={() => onPin(s.taskId)}
                 accessibilityRole="button"
-                accessibilityLabel={`${t.title}, suggested, ${reasonLabel(s.reason)}`}
+                accessibilityLabel={`${t.title}, suggested, ${reasonLabel(s.reason, isToday)}`}
                 accessibilityHint="Pins it to this window"
                 style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
               >
@@ -211,7 +214,7 @@ export function WindowCard({
                   icon="circle"
                   fallback="ellipse-outline"
                   title={t.title}
-                  caption={`Suggested · ${reasonLabel(s.reason)}`}
+                  caption={`Suggested · ${reasonLabel(s.reason, isToday)}`}
                   hue={hueFor(t)}
                   theme={theme}
                 />

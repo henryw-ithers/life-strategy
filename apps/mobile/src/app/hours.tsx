@@ -7,14 +7,13 @@
  *
  * Nothing saves until Done. Once the week has begun, Done asks "Just
  * this week" (each day left this week gets its own hours) or "This week
- * and after" (a new version of the template from the week's Sunday;
- * earlier weeks keep theirs, EC-15). Days already begun keep the hours
+ * and after" (a new version of the template from today; earlier days
+ * keep the hours they had, EC-15). Days already begun keep the hours
  * they began with for the commitment share either way (ADR-0044 §5).
  */
 import {
   dayHours,
   totalMinutes,
-  weekStart,
   type NamedGap,
   type TimeRange,
   type WorkSchedule,
@@ -74,7 +73,7 @@ export default function HoursScreen() {
   }, [today]);
   const { error, retry } = useScreenLoad(load);
 
-  const problem = draft ? hoursProblem(weekStart(today), draft.schedules, draft.gaps) : null;
+  const problem = draft ? hoursProblem(today, draft.schedules, draft.gaps) : null;
   const preview = useMemo(
     () =>
       draft
@@ -107,7 +106,7 @@ export default function HoursScreen() {
     if (!draft) return;
     setSaving(true);
     try {
-      if (scope === "after") await saveHoursFrom(weekStart(today), draft.schedules, draft.gaps);
+      if (scope === "after") await saveHoursFrom(today, draft.schedules, draft.gaps);
       else for (const d of restOfWeek(today)) await setDayOverride(d, rangesOn(draft, d));
       router.back();
     } catch (e) {
@@ -157,7 +156,7 @@ export default function HoursScreen() {
           </AppText>
 
           {draft.schedules.map((s, i) => (
-            <Group key={`s-${i}`} theme={theme} title={`Group ${i + 1}`}>
+            <Group key={`s-${s.weekdays.join("")}-${i}`} theme={theme} title={`Group ${i + 1}`}>
               <View style={styles.stack}>
                 <WeekdayPicker
                   value={s.weekdays}
@@ -168,7 +167,7 @@ export default function HoursScreen() {
                 />
                 {s.ranges.map((r, j) => (
                   <RangeRow
-                    key={`r-${j}`}
+                    key={`r-${r.start}-${r.end}`}
                     range={r}
                     label={`Group ${i + 1}, range ${j + 1}`}
                     theme={theme}

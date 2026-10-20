@@ -16,7 +16,7 @@
 import { addDays, addedWindowPieces, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -73,11 +73,13 @@ import { radius, space } from "../../../theme/tokens";
 
 const DAY_KIND_LABEL = { normal: "Normal", special: "Special day", rest: "Day off" } as const;
 
-/** The window a task-and-window sheet is about, by its index today. */
+/** What a window sheet is about. A window is named by its start, not
+ *  its place in the list, so a reload can't point an open sheet at a
+ *  different window. */
 type WindowSheet =
   | { kind: "times"; range?: TimeRange }
-  | { kind: "add"; index: number }
-  | { kind: "choice"; index: number };
+  | { kind: "add"; start: number }
+  | { kind: "choice"; start: number };
 
 export default function PlanScreen() {
   const scheme = useColorScheme();
@@ -95,7 +97,7 @@ export default function PlanScreen() {
     if (dateParam) setSelected(dateParam);
   }
 
-  const [day, setDay] = useState<DayPlan | null>(null);
+  const [loaded, setLoaded] = useState<DayPlan | null>(null);
   const [week, setWeek] = useState<WeekDay[] | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [sheet, setSheet] = useState<WindowSheet | null>(null);
@@ -105,13 +107,18 @@ export default function PlanScreen() {
   const [addingShown, addingGone] = useRetained(adding);
   const [eventUnits, setEventUnits] = useState<string[]>([]);
 
+  /** Each load's turn: only the latest may land, so a slow load for a
+   *  day you've moved on from can't overwrite the one you're looking at. */
+  const loadTurn = useRef(0);
   const load = useCallback(async () => {
+    const turn = ++loadTurn.current;
     const [nextDay, nextWeek, nextPlan] = await Promise.all([
       loadDayPlan(selected),
       loadWeek(selected),
       loadPlan(),
     ]);
-    setDay(nextDay);
+    if (turn !== loadTurn.current) return;
+    setLoaded(nextDay);
     setWeek(nextWeek);
     setPlan(nextPlan);
   }, [selected]);
@@ -126,20 +133,29 @@ export default function PlanScreen() {
   const [handledAdd, setHandledAdd] = useState<string | undefined>(undefined);
   if (addParam !== handledAdd && plan !== null) {
     setHandledAdd(addParam);
-    if (addParam === "task" || addParam === "event") {
-      if (canAdd) setAdding(addParam);
-      router.setParams({ add: undefined });
-      if (!canAdd) router.push("/priorities" as Href);
-    }
+    if (canAdd && (addParam === "task" || addParam === "event")) setAdding(addParam);
   }
+  // Navigation is a side effect, so it waits for the commit.
+  useEffect(() => {
+    if (!addParam || plan === null) return;
+    router.setParams({ add: undefined });
+    if (!canAdd) router.push("/priorities" as Href);
+  }, [addParam, plan, canAdd]);
+  // A day link is cleared once followed, so the same link works again.
+  useEffect(() => {
+    if (dateParam) router.setParams({ date: undefined });
+  }, [dateParam]);
   const addHere = (what: "task" | "event") => {
     if (!canAdd) router.push("/priorities" as Href);
     else setAdding(what);
   };
 
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
-  const date = day?.day.date ?? selected;
-  const editable = date >= today;
+  const date = selected;
+  /** The day on screen is only ever the one chosen: until its load
+   *  lands it shows as loading, and nothing writes to it. */
+  const day = loaded !== null && loaded.day.date === selected ? loaded : null;
+  const editable = day !== null && date >= today;
   const dayLabel = date === today ? "today" : (spokenDate(date).split(",")[0] ?? date);
 
   const goTo = (next: string) => {
@@ -150,6 +166,14 @@ export default function PlanScreen() {
   // ── Writes ───────────────────────────────────────────────────────
 
   const windowAt = (index: number) => day?.planned.windows[index];
+  const indexAt = (start: number) =>
+    day ? day.planned.windows.findIndex((w) => w.range.start === start) : -1;
+  /** A sheet opened afresh each time, so its draft is seeded anew. */
+  const [opened, setOpened] = useState(0);
+  const openSheet = (next: WindowSheet) => {
+    setOpened((n) => n + 1);
+    setSheet(next);
+  };
   const pin = (taskId: string, index: number) => {
     const w = windowAt(index);
     const t = day?.tasks.get(taskId);
@@ -174,7 +198,7 @@ export default function PlanScreen() {
 
   const removeWindow = (range: TimeRange) => {
     undo.remove({
-      id: windowKey(range),
+      id: windowKey(date, range),
       message: `Removed ${spanLabel(range)}`,
       run: () => addDayEdit(date, { kind: "remove", range }),
     });
@@ -195,7 +219,7 @@ export default function PlanScreen() {
       return e instanceof Error ? e.message : String(e);
     }
     setSheet(null);
-    await load();
+    retry();
     return null;
   };
 
@@ -204,7 +228,8 @@ export default function PlanScreen() {
     if (!w || !day) return undefined;
     return day.choices.find((c) => c.anchorMinute >= w.range.start && c.anchorMinute < w.range.end);
   };
-  const saveChoice = async (index: number, taskIds: string[], plannedCount: number) => {
+  const saveChoice = async (start: number, taskIds: string[], plannedCount: number) => {
+    const index = indexAt(start);
     const w = windowAt(index);
     if (!w) return "That window has gone.";
     const existing = choiceIn(index);
@@ -217,9 +242,11 @@ export default function PlanScreen() {
       }
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
+    } finally {
+      // Pins written before a failure show too.
+      retry();
     }
     setSheet(null);
-    await load();
     return null;
   };
 
@@ -239,7 +266,7 @@ export default function PlanScreen() {
 
   const items = day ? timeline(day.hours, day.events) : [];
   const visibleWindows = day
-    ? day.planned.windows.filter((w) => !undo.hidden.has(windowKey(w.range)))
+    ? day.planned.windows.filter((w) => !undo.hidden.has(windowKey(date, w.range)))
     : [];
   const openList = day
     ? [...day.planned.unplacedPins.map((p) => p.taskId), ...day.planned.later, ...day.planned.doesntFit]
@@ -329,26 +356,27 @@ export default function PlanScreen() {
                 );
               }
               const w = day.planned.windows[item.index];
-              if (!w || undo.hidden.has(windowKey(w.range))) return null;
+              if (!w || undo.hidden.has(windowKey(date, w.range))) return null;
               const choice = choiceIn(item.index);
               return (
                 <WindowCard
-                  key={windowKey(w.range)}
+                  key={windowKey(date, w.range)}
                   window={w}
                   tasks={day.tasks}
                   choices={choice ? [choice] : []}
                   addable={addableTo(item.index, day.planned).length}
                   editable={editable}
+                  isToday={date === today}
                   hueFor={hueFor}
                   theme={theme}
                   onPin={(id) => pin(id, item.index)}
                   onAcceptAll={() => acceptAll(item.index)}
                   onUnpin={unpin}
                   onPinKind={pinKind}
-                  onAddFromOpen={() => setSheet({ kind: "add", index: item.index })}
-                  onEditTimes={() => setSheet({ kind: "times", range: w.range })}
+                  onAddFromOpen={() => openSheet({ kind: "add", start: w.range.start })}
+                  onEditTimes={() => openSheet({ kind: "times", range: w.range })}
                   onRemove={() => removeWindow(w.range)}
-                  onChoice={() => setSheet({ kind: "choice", index: item.index })}
+                  onChoice={() => openSheet({ kind: "choice", start: w.range.start })}
                 />
               );
             })}
@@ -374,7 +402,7 @@ export default function PlanScreen() {
                 variant="tonal"
                 icon="add"
                 label="Add window"
-                onPress={() => setSheet({ kind: "times" })}
+                onPress={() => openSheet({ kind: "times" })}
                 theme={theme}
               />
             ) : null}
@@ -407,7 +435,7 @@ export default function PlanScreen() {
       <TabToolbar
         onTask={() => addHere("task")}
         onEvent={() => addHere("event")}
-        onWindow={editable ? () => setSheet({ kind: "times" }) : undefined}
+        onWindow={editable ? () => openSheet({ kind: "times" }) : undefined}
         onLog={() => openAdd("activity")}
         more={[
           { label: "Working hours", icon: "clock", onPress: () => router.push("/hours" as Href) },
@@ -420,6 +448,7 @@ export default function PlanScreen() {
 
       {sheetShown?.kind === "times" ? (
         <WindowTimesSheet
+          key={`times-${opened}`}
           visible={sheet?.kind === "times"}
           onDismissed={sheetGone}
           initial={sheetShown.range}
@@ -430,12 +459,13 @@ export default function PlanScreen() {
         />
       ) : null}
 
-      {sheetShown?.kind === "add" && day ? (
+      {sheetShown?.kind === "add" && day && indexAt(sheetShown.start) >= 0 ? (
         <AddFromOpenSheet
+          key={`add-${opened}`}
           visible={sheet?.kind === "add"}
           onDismissed={sheetGone}
-          windowLabel={spanLabel(day.planned.windows[sheetShown.index]?.range ?? { start: 0, end: 0 })}
-          tasks={addableTo(sheetShown.index, day.planned)
+          windowLabel={spanLabel(day.planned.windows[indexAt(sheetShown.start)]!.range)}
+          tasks={addableTo(indexAt(sheetShown.start), day.planned)
             .map((id) => day.tasks.get(id))
             .filter((t): t is TodayTask => t !== undefined)}
           hueFor={hueFor}
@@ -443,26 +473,27 @@ export default function PlanScreen() {
           onClose={() => setSheet(null)}
           onPick={(t) => {
             setSheet(null);
-            pin(t.id, sheetShown.index);
+            pin(t.id, indexAt(sheetShown.start));
           }}
         />
       ) : null}
 
-      {sheetShown?.kind === "choice" && day ? (
+      {sheetShown?.kind === "choice" && day && indexAt(sheetShown.start) >= 0 ? (
         <ChoiceSheet
+          key={`choice-${opened}`}
           visible={sheet?.kind === "choice"}
           onDismissed={sheetGone}
-          windowLabel={spanLabel(day.planned.windows[sheetShown.index]?.range ?? { start: 0, end: 0 })}
-          candidates={choiceCandidates(day, sheetShown.index)}
-          initial={choiceIn(sheetShown.index)}
+          windowLabel={spanLabel(day.planned.windows[indexAt(sheetShown.start)]!.range)}
+          candidates={choiceCandidates(day, indexAt(sheetShown.start))}
+          initial={choiceIn(indexAt(sheetShown.start))}
           hueFor={hueFor}
           theme={theme}
           onClose={() => setSheet(null)}
-          onSave={(ids, n) => saveChoice(sheetShown.index, ids, n)}
+          onSave={(ids, n) => saveChoice(sheetShown.start, ids, n)}
           onRemove={
-            choiceIn(sheetShown.index)
+            choiceIn(indexAt(sheetShown.start))
               ? () => {
-                  const c = choiceIn(sheetShown.index);
+                  const c = choiceIn(indexAt(sheetShown.start));
                   setSheet(null);
                   if (c) void save(() => deleteChoice(c.id));
                 }
@@ -526,7 +557,7 @@ export default function PlanScreen() {
             if (!saved) return;
             setAdding(null);
             setEventUnits([]);
-            await load();
+            retry();
           }}
         />
       ) : null}
@@ -535,7 +566,7 @@ export default function PlanScreen() {
 }
 
 /** A window's identity on its day: its times. Windows have no names. */
-const windowKey = (r: TimeRange) => `win-${r.start}-${r.end}`;
+const windowKey = (date: string, r: TimeRange) => `win-${date}-${r.start}-${r.end}`;
 
 /** Commitment work due on the day, in this window or offered to it:
  *  what a "Do N of these" may hold (ADR-0039 §6). */
