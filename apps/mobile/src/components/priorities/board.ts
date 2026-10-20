@@ -55,3 +55,25 @@ export function moveToTier(
     ...(t === tier ? [{ unitId, tier }] : []),
   ]);
 }
+
+/**
+ * Swap a unit with its neighbour inside its own tier: Move up and Move
+ * down in the unit's sheet, for anyone who can't drag (WCAG 2.2 SC
+ * 2.5.7). It never crosses into another tier; changing tier is its own
+ * choice.
+ */
+export function moveWithinTier(
+  placement: readonly TieredUnit[],
+  unitId: string,
+  delta: -1 | 1,
+): TieredUnit[] {
+  const i = placement.findIndex((p) => p.unitId === unitId);
+  const j = i + delta;
+  const unit = placement[i];
+  const other = placement[j];
+  if (!unit || !other || other.tier !== unit.tier) return [...placement];
+  const next = [...placement];
+  next[i] = other;
+  next[j] = unit;
+  return next;
+}

@@ -17,26 +17,33 @@
  * starts with every unit in Important (Henry, 2026-10-19).
  */
 import { router, Stack } from "expo-router";
-import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useHeaderHeight, useNavigation, usePreventRemove } from "expo-router/react-navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
-  ScrollView,
   StyleSheet,
   useColorScheme,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from "react-native-reanimated";
 
 import { TIERS, type Tier } from "@glide/scoring";
 
 import {
   boardRows,
+  headerId,
   headerTier,
   moveToTier,
+  moveWithinTier,
   placementFromRows,
 } from "../../components/priorities/board";
-import { WeightSheet } from "../../components/priorities/WeightSheet";
+import { TIER_LABEL, UnitSheet } from "../../components/priorities/UnitSheet";
 import { AppText } from "../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../components/ui/Backdrop";
 import { ReorderableList, type ReorderableItem } from "../../components/ui/ReorderableList";
@@ -54,12 +61,6 @@ import { boardWeights } from "../../db/tierRules";
 import { getTheme, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 
-const TIER_LABEL: Record<Tier, string> = {
-  top: "Top",
-  important: "Important",
-  background: "Background",
-  notNow: "Not now",
-};
 
 /** "Exercise", "Exercise and Sleep", "Exercise, Sleep and Money". */
 function listNames(names: readonly string[]): string {
@@ -116,9 +117,26 @@ export default function PrioritiesScreen() {
   /** Set once Done has saved, so leaving isn't asked about. */
   const [saved, setSaved] = useState(false);
   const navigation = useNavigation();
+  /** Edits not yet saved. A ref as well as state, so a reload on focus
+   *  (`useScreenLoad`) can't wipe them. */
+  const edited = useRef(false);
+
+  // The page scrolls, and a held row scrolls it (`parentScroll`): the
+  // board is taller than the screen, and a drag from Top to Not now has
+  // to reach both.
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const offset = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    offset.set(e.contentOffset.y);
+  });
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [listTop, setListTop] = useState(0);
+  const topInset = useHeaderHeight();
 
   const load = useCallback(async () => {
     const next = await loadPriorities();
+    if (edited.current) return;
     setBoard(next);
     setPlacement(next.units.map((u) => ({ unitId: u.unitId, tier: u.tier })));
     setOverrides(
@@ -134,9 +152,9 @@ export default function PrioritiesScreen() {
     [board],
   );
 
-  // A first run has nothing saved yet, so Done always saves it.
-  const unsaved = dirty || board?.firstRun === true;
-  usePreventRemove(unsaved && !saved && !saving, ({ data }) => {
+  // Until it has saved: a swipe back during the review alerts is still
+  // asked about.
+  usePreventRemove(dirty && !saved, ({ data }) => {
     Alert.alert("Discard your changes?", "Your tiers won't be saved.", [
       { text: "Keep editing", style: "cancel" },
       {
@@ -148,23 +166,34 @@ export default function PrioritiesScreen() {
   });
 
   // Leave once the save has re-rendered with nothing left to protect.
+  // A first run reached by `/diagnostic` may have nothing beneath it.
   useEffect(() => {
-    if (saved) router.back();
+    if (!saved) return;
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
   }, [saved]);
 
-  const change = (next: Placement[]) => {
-    setPlacement(next);
+  const markEdited = () => {
+    edited.current = true;
     setDirty(true);
   };
 
+  const change = (next: Placement[]) => {
+    setPlacement(next);
+    markEdited();
+  };
+
   const setOverride = (unitId: string, value: number | null) => {
+    // Your own weight equal to the recommended one is no override.
+    const own = value === live.recommended.get(unitId) ? null : value;
+    if ((overrides.get(unitId) ?? null) === own) return;
     setOverrides((prev) => {
       const next = new Map(prev);
-      if (value === null) next.delete(unitId);
-      else next.set(unitId, value);
+      if (own === null) next.delete(unitId);
+      else next.set(unitId, own);
       return next;
     });
-    setDirty(true);
+    markEdited();
   };
 
   const done = async () => {
@@ -179,22 +208,34 @@ export default function PrioritiesScreen() {
       .filter((u) => u.taskCount > 0);
     if (pausing.length > 0 && !(await confirmNotNow(pausing))) return;
     setSaving(true);
+    let review: OverrideReview[];
     try {
       const planned = new Map(
         [...overrides].filter(([id]) => placement.find((p) => p.unitId === id)?.tier !== "notNow"),
       );
-      const { review } = await savePriorities(placement, planned);
+      ({ review } = await savePriorities(placement, planned));
+    } catch (e) {
+      setSaving(false);
+      Alert.alert("Priorities weren't saved", e instanceof Error ? e.message : String(e));
+      return;
+    }
+    // Saved: the review only adjusts it, and a failure there mustn't
+    // read as the save failing or invite a second snapshot.
+    edited.current = false;
+    try {
       const reset: string[] = [];
       for (const r of review) {
         if ((await reviewOverride(r)) === "reset") reset.push(r.unitId);
       }
       await clearOverrides(reset);
-      setSaved(true);
     } catch (e) {
-      Alert.alert("Priorities weren't saved", e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
+      Alert.alert(
+        "Your priorities were saved",
+        `Resetting a weight didn't work: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
+    setSaving(false);
+    setSaved(true);
   };
 
   const doneButton = (
@@ -212,7 +253,7 @@ export default function PrioritiesScreen() {
   if (error || !board) {
     return (
       <View style={styles.root}>
-        <ScrollView
+        <Animated.ScrollView
           style={styles.body}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={styles.container}
@@ -223,7 +264,7 @@ export default function PrioritiesScreen() {
           ) : (
             <ActivityIndicator color={theme.muted} style={styles.loading} />
           )}
-        </ScrollView>
+        </Animated.ScrollView>
       </View>
     );
   }
@@ -258,7 +299,7 @@ export default function PrioritiesScreen() {
       id,
       label: u.name,
       accent: theme.areas[u.areaId] ?? theme.muted,
-      hasDetail: here !== "notNow",
+      hasDetail: true,
       accessibilityLabel:
         here === "notNow"
           ? `${u.name}, Not now`
@@ -266,18 +307,24 @@ export default function PrioritiesScreen() {
             ? `${u.name}, ${TIER_LABEL[here]}, your weight ${own}, recommended ${recommended}`
             : `${u.name}, ${TIER_LABEL[here]}, weight ${weight}`,
       actions: TIERS.filter((t) => t !== here).map((t) => ({
-        name: `tier:${t}`,
+        name: headerId(t),
         label: `Move to ${TIER_LABEL[t]}`,
       })),
     };
   });
 
   const editingUnit = editingShown ? unitById.get(editingShown) : undefined;
+  const editingTier = placement.find((p) => p.unitId === editingShown)?.tier ?? "important";
 
   return (
     <View style={styles.root}>
       {doneButton}
-      <ScrollView
+      <Animated.ScrollView
+        ref={scrollRef}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+        onContentSizeChange={(_, h) => setContentHeight(h)}
         style={styles.body}
         scrollEnabled={!dragging}
         contentInsetAdjustmentBehavior="automatic"
@@ -298,17 +345,21 @@ export default function PrioritiesScreen() {
           </AppText>
         ) : null}
 
+        <View onLayout={(e) => setListTop(e.nativeEvent.layout.y)}>
         <ReorderableList
           items={items}
           scrollable={false}
+          parentScroll={{ ref: scrollRef, offset, viewportHeight, contentHeight, listTop, topInset }}
           rowHeight={52}
           onDragStateChange={setDragging}
           onReorder={(ids) => change(placementFromRows(ids))}
           onPressItem={(item) => setEditing(item.id)}
-          detailHint="your own weight for it"
+          detailHint="its tier and your own weight for it"
           onItemAction={(item, name) => {
             const tier = headerTier(name);
-            if (tier) change(moveToTier(placement, item.id, tier));
+            if (!tier) return;
+            change(moveToTier(placement, item.id, tier));
+            AccessibilityInfo.announceForAccessibility(`${item.label} moved to ${TIER_LABEL[tier]}`);
           }}
           theme={theme}
           renderItem={(item) => {
@@ -320,7 +371,11 @@ export default function PrioritiesScreen() {
               <UnitRow
                 name={item.label}
                 accent={item.accent ?? theme.muted}
-                weight={here === "notNow" ? null : (live.weights.get(item.id) ?? null)}
+                weight={
+                  here === "notNow"
+                    ? null
+                    : (live.weights.get(item.id) ?? live.recommended.get(item.id) ?? null)
+                }
                 own={own}
                 recommended={live.recommended.get(item.id) ?? 0}
                 theme={theme}
@@ -328,23 +383,36 @@ export default function PrioritiesScreen() {
             );
           }}
         />
+        </View>
 
         <AppText variant="footnote" color={theme.muted} style={styles.foot}>
           Weights are recommended from your tiers. Tap a unit to set your own. Not now is out of
           the plan: no weight and no tasks.
         </AppText>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {editingShown && editingUnit ? (
-        <WeightSheet
+        <UnitSheet
           key={editingShown}
           visible={editing !== null}
           onDismissed={editingGone}
           unitName={editingUnit.name}
+          tier={editingTier}
           recommended={live.recommended.get(editingShown) ?? 0}
           override={overrides.get(editingShown) ?? null}
+          canMoveUp={moveWithinTier(placement, editingShown, -1).some((p, i) => p !== placement[i])}
+          canMoveDown={moveWithinTier(placement, editingShown, 1).some((p, i) => p !== placement[i])}
           theme={theme}
-          onSave={(value) => setOverride(editingShown, value)}
+          onMove={(delta) => {
+            change(moveWithinTier(placement, editingShown, delta));
+            AccessibilityInfo.announceForAccessibility(
+              `${editingUnit.name} moved ${delta < 0 ? "up" : "down"}`,
+            );
+          }}
+          onSave={({ tier, override: own }) => {
+            if (tier !== editingTier) change(moveToTier(placement, editingShown, tier));
+            if (tier !== "notNow") setOverride(editingShown, own);
+          }}
           onClose={() => setEditing(null)}
         />
       ) : null}

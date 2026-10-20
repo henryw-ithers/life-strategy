@@ -161,10 +161,15 @@ Priorities is also always available from Life.
        Not now gives 0, a lone unit, and all units in one tier
        (EC-39, EC-40). Done in Phase 4a as `deriveTierWeights`, beside
        the rank derivation until tiers are stored.
-2. [ ] Schema: `life_unit.tier` and the tier on snapshots.
-3. [ ] The Priorities screen. Remove the satisfaction steps and the
-       portfolio graph. Add the effort bars on Life.
-4. [ ] `unitProfile` and `recommendedTaskRange` use tiers.
-5. [ ] Amend ADR-0002, 0005, 0022 and 0028. Update vision.md (core
+2. [x] Schema: `life_unit.tier` and the tier on snapshots. `life_unit.tier`
+       came in Phase 5a; the tier on snapshots is `unit_weight.tier` and
+       `tier_order` (Phase 6, migration 0024).
+3. [x] The Priorities screen. Remove the satisfaction steps and the
+       portfolio graph (Phase 6). The effort bars on Life come with
+       Phase 10's Life screen.
+4. [x] `unitProfile` and `recommendedTaskRange` use tiers (Phase 6:
+       Top is gap-closing, the rest maintenance, a unit too small for two
+       tasks light; Henry, 2026-10-19).
+5. [x] Amend ADR-0002, 0005, 0022 and 0028 (dated 2026-10-13). Update vision.md (core
        loop, diagnostic, graph) and AGENTS.md (Diagnostic, Portfolio
        graph, Weight, and the weight-derivation invariant).

@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-19, during Phase 5c.
+Last updated 2026-10-19, during Phase 6.
 
 ## Phases
 
@@ -28,9 +28,10 @@ Last updated 2026-10-19, during Phase 5c.
 | 4d | The four goal kinds | Merged, PR #13 |
 | 5a | Windows and schedule data: hours, edits, pins, choices, skips, Clear today, Away | Merged, PR #14 |
 | 5a+ | Every transaction in `src/db` atomic | Merged, PRs #15, #16 |
-| **5b** | **Scoring from the stored data; formula 11** | **In progress** |
-| **5c** | **Goal kinds stored; old goals erased; goal screens hidden until Phase 10** | **In progress**, on top of 5b |
-| 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | |
+| 5b | Scoring from the stored data; formula 11 | Merged, PR #17 |
+| 5b+ | One completion per tap; deleting a commitment in one read | Merged, PR #18 |
+| 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | Merged, PR #19 |
+| **6** | **Priorities: the tiers screen; satisfaction out of the diagnostic** | **In progress** |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | |
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | |
@@ -56,6 +57,51 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 6: Priorities as tiers
+
+Built from ADR-0041 and spec §5.4.1 and §8.2, with Henry's calls on
+2026-10-19:
+
+- **Overrides.** An overridden unit keeps exactly the weight you set,
+  and the units you didn't override share what's left in proportion to
+  their recommended weights (`applyWeightOverrides`), still adding to
+  100. A set that leaves no room is refused (`overrideProblem`). Your
+  own weight equal to the recommended one is no override.
+- **`unitProfile`** reads tier: Top gap-closing, Important and
+  Background maintenance, a unit too small for two tasks light.
+- **A first run** starts with every unit in Important, in the default
+  order. Saving it unchanged gives ×1.1 down to ×0.9 by that order, an
+  order nobody chose (open: an equal-weight first save, if Henry
+  wants one).
+- **Not now** pauses a unit's tasks (archived, marked
+  `paused_for_not_now`, pins dropped) and moving it back restores them.
+  Priorities is the only way in or out of the plan: the Plan tab's
+  "Not in my plan" toggle (`setUnitScoring`) is gone, and its unit
+  panel links to Priorities instead.
+
+What's built: `db/priorities.ts` (one snapshot per Done with each
+unit's tier, recommended weight and override), the screen as one
+list with the tier headers as fixed rows (`components/priorities/
+board.ts`), `UnitSheet` (tier, Move up and Move down, your own weight,
+for anyone who can't drag, WCAG 2.2 SC 2.5.7), and `/diagnostic` as a
+redirect to Priorities. Removed: the rank-and-rate diagnostic, the
+portfolio graph, the re-rank board, the interim thirds rule, `seedTiers`
+and the rank derivation in scoring (`deriveWeights`, `WEIGHT_SPREAD`).
+
+Left for later:
+
+- **Phase 8:** the unit picker greys out a Not now unit with "Move it
+  up to add tasks" in the New task form; today it leaves it out.
+- **Phase 8:** "Still happy with your tiers?" in the month's first
+  weekly pass.
+- **Phase 10:** the effort bars on Life.
+- **Phase 11:** onboarding's own Priorities step; until then it opens
+  `/diagnostic`, which is Priorities.
+- **Web preview:** the nav bar's Done is native only, so Priorities
+  can't be saved on web; the database tests cover saving.
+- **Dynamic Type:** rows keep a fixed height for the drag maths, so
+  very large text is cut to one line.
 
 ## Phase 4: what the engine gives Phase 5
 

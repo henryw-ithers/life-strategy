@@ -34,6 +34,7 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  type AnimatedRef,
   type SharedValue,
 } from "react-native-reanimated";
 
@@ -109,6 +110,24 @@ interface ReorderableListProps {
   onDragStateChange?: (dragging: boolean) => void;
   /** An item's own accessibility action (`ReorderableItem.actions`). */
   onItemAction?: (item: ReorderableItem, actionName: string) => void;
+  /**
+   * With `scrollable={false}`: the parent scroll view a held row
+   * should auto-scroll, for a list taller than the screen (Priorities).
+   * Without it, a parent that owns scrolling gets none.
+   */
+  parentScroll?: ParentScroll;
+}
+
+export interface ParentScroll {
+  ref: AnimatedRef<Animated.ScrollView>;
+  /** The parent's `contentOffset.y`, kept by its scroll handler. */
+  offset: SharedValue<number>;
+  viewportHeight: number;
+  contentHeight: number;
+  /** Where the list starts in the parent's content. */
+  listTop: number;
+  /** What the nav bar covers at the top: content scrolls to `-topInset`. */
+  topInset: number;
 }
 
 export function ReorderableList({
@@ -122,6 +141,7 @@ export function ReorderableList({
   scrollable = true,
   onDragStateChange,
   onItemAction,
+  parentScroll,
 }: ReorderableListProps) {
   const SLOT = rowHeight + ROW_GAP;
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -168,8 +188,22 @@ export function ReorderableList({
 
   const count = items.length;
   const contentHeight = count * SLOT - ROW_GAP + INSET * 2;
-  // Nothing to auto-scroll when the parent owns scrolling.
-  const maxScroll = scrollable ? Math.max(0, contentHeight - viewportHeight) : 0;
+  // A parent that owns scrolling is scrolled only when it hands us its
+  // scroll view; otherwise there is nothing to auto-scroll.
+  const parent = scrollable ? undefined : parentScroll;
+  const offset = parent?.offset ?? scrollOffset;
+  const scrollTarget = parent?.ref ?? scrollRef;
+  const minScroll = parent ? -parent.topInset : 0;
+  const maxScroll = parent
+    ? Math.max(minScroll, parent.contentHeight - parent.viewportHeight)
+    : scrollable
+      ? Math.max(0, contentHeight - viewportHeight)
+      : 0;
+  const frameHeight = parent ? parent.viewportHeight : viewportHeight;
+  /** Where the list's content starts in the scroll frame's content,
+   *  and where the visible area begins. */
+  const listTop = parent?.listTop ?? 0;
+  const visibleTop = parent ? parent.topInset : 0;
 
   const setDragState = (next: boolean) => {
     setDragging(next);
@@ -207,10 +241,10 @@ export function ReorderableList({
     const id = draggingId.value;
     if (id === null) return;
 
-    if (maxScroll > 0) {
-      const onScreen = dragTop.value - scrollOffset.value;
-      const fromTop = onScreen;
-      const fromBottom = viewportHeight - rowHeight - onScreen;
+    if (maxScroll > minScroll) {
+      const onScreen = listTop + dragTop.value - offset.value;
+      const fromTop = onScreen - visibleTop;
+      const fromBottom = frameHeight - rowHeight - onScreen;
       // Depth into the edge zone, 0 at the boundary to 1 at the very
       // edge — the ramp is what makes this controllable.
       const ramp = (gap: number) => {
@@ -219,21 +253,21 @@ export function ReorderableList({
       };
 
       let delta = 0;
-      if (fromTop < EDGE && scrollOffset.value > 0) delta = -ramp(fromTop);
-      else if (fromBottom < EDGE && scrollOffset.value < maxScroll) {
+      if (fromTop < EDGE && offset.value > minScroll) delta = -ramp(fromTop);
+      else if (fromBottom < EDGE && offset.value < maxScroll) {
         delta = ramp(fromBottom);
       }
 
       if (delta !== 0) {
-        const next = Math.min(maxScroll, Math.max(0, scrollOffset.value + delta));
-        scrollTo(scrollRef, 0, next, false);
+        const next = Math.min(maxScroll, Math.max(minScroll, offset.value + delta));
+        scrollTo(scrollTarget, 0, next, false);
       }
     }
 
     // Content space, so the row tracks the finger even as the list
     // scrolls underneath it.
     dragTop.value =
-      startTop.value + translation.value + (scrollOffset.value - startScroll.value);
+      startTop.value + translation.value + (offset.value - startScroll.value);
 
     const target = Math.max(
       0,
@@ -275,7 +309,7 @@ export function ReorderableList({
           translation={translation}
           lift={lift}
           liftedId={liftedId}
-          scrollOffset={scrollOffset}
+          scrollOffset={offset}
       onSetDragging={setDragState}
       onCommit={commit}
       onMoveBy={moveBy}
@@ -363,6 +397,10 @@ function Row({
   slot,
 }: RowProps) {
   const fixed = item.fixed === true;
+  /** Rows that bring their own accessible content (Plan's task rows)
+   *  keep it: wrapping them would hide their labels and actions. */
+  const ownsAccessibility =
+    fixed || item.accessibilityLabel !== undefined || item.actions !== undefined;
   const moveActions = fixed
     ? []
     : [
@@ -448,12 +486,14 @@ function Row({
             },
       ]}
     >
-      {renderItem ? (
-        // The caller draws the row; the list still owns what VoiceOver
-        // can do with it, which a plain View used to drop.
+      {renderItem && !ownsAccessibility ? (
+        <View style={styles.custom}>{renderItem(item, index)}</View>
+      ) : renderItem ? (
+        // The caller draws the row and asked the list to speak for it
+        // (a label, actions or a fixed row). Not `disabled` when it
+        // can't be tapped: VoiceOver would read every header "dimmed".
         <Pressable
           onPress={tappable ? () => onPressItem!(item) : undefined}
-          disabled={!tappable}
           accessible
           accessibilityRole={fixed ? "header" : tappable ? "button" : undefined}
           accessibilityLabel={item.accessibilityLabel ?? item.label}

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { boardRows, headerTier, moveToTier, placementFromRows } from "../board";
+import { boardRows, headerTier, moveToTier, moveWithinTier, placementFromRows } from "../board";
 
 const placement = [
   { unitId: "a", tier: "top" as const },
@@ -72,5 +72,17 @@ describe("moveToTier", () => {
 
   it("leaves the board alone for a unit already in that tier", () => {
     expect(moveToTier(placement, "b", "important")).toEqual(placement);
+  });
+});
+
+describe("moveWithinTier", () => {
+  it("swaps a unit with its neighbour inside its own tier", () => {
+    expect(moveWithinTier(placement, "c", -1).map((p) => p.unitId)).toEqual(["a", "c", "b", "d"]);
+    expect(moveWithinTier(placement, "b", 1).map((p) => p.unitId)).toEqual(["a", "c", "b", "d"]);
+  });
+
+  it("doesn't cross into another tier", () => {
+    expect(moveWithinTier(placement, "b", -1)).toEqual(placement);
+    expect(moveWithinTier(placement, "a", 1)).toEqual(placement);
   });
 });

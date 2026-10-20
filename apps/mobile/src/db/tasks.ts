@@ -855,44 +855,6 @@ export async function setTaskPlanning(
 }
 
 /**
- * Put a unit in or out of scoring — the exclusion valve (ADR-0027 §2).
- *
- * This is the whole answer to "my ceiling is 64 and I can't reach it".
- * Since §2 withdrew the reallocation, a unit you hold no tasks in keeps
- * its weight and nobody earns it, so the app has to let you say *this
- * one doesn't apply to me* — the difference between "I'm ignoring
- * Friendship" and "I don't have a partner". Excluding drops the unit
- * from the 100 and the remaining weights re-derive over what's left;
- * including it puts the weight back.
- *
- * The consequence is recorded rather than hidden: this makes the
- * ceiling **as hard as the user chooses**, since anyone can exclude
- * their way back to a reachable 100. Scope is negotiable; the routine
- * band is not, so no amount of excluding buys a 100 for a plan of two
- * weekly tasks.
- *
- * `include_in_scoring` lives on the unit, not on a snapshot, so this
- * writes no snapshot and never edits one — the portfolio history stays
- * a record of what was diagnosed, and the graph keeps plotting an
- * excluded unit greyed and marked *not scored*.
- */
-export async function setUnitScoring(
-  unitId: string,
-  includeInScoring: boolean,
-): Promise<void> {
-  db.transaction((tx) => {
-    tx.update(lifeUnit)
-      .set({ includeInScoring })
-      .where(eq(lifeUnit.id, unitId))
-      .run();
-    // A unit joining or leaving the 100 rescales every task in the
-    // plan — the routine band is a share of each unit's weight and the
-    // variable band is one pool across all of them.
-    recomputeAllUnitPoints(tx);
-  });
-}
-
-/**
  * Persist the order the daily checklist shows, within one part of the
  * day (ADR-0024 §3 as amended 2026-08-18).
  *

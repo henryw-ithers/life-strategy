@@ -47,7 +47,6 @@ import {
   addTask,
   archiveTask,
   reorderUnitTasks,
-  setUnitScoring,
   updateEvent,
   type PlanData,
   type PlanTask,
@@ -349,7 +348,7 @@ export default function PlanScreen() {
                         setOpenUnitId((current) => (current === unit.id ? null : unit.id))
                       }
                       onShowInfo={() => setInfoUnit(unit)}
-                      onSetScoring={(include) => save(() => setUnitScoring(unit.id, include))}
+                      onOpenPriorities={() => router.push("/priorities" as Href)}
                       onReorder={(ids) => save(() => reorderUnitTasks(unit.id, ids))}
                       onEditTask={(t) => setEditing({ task: t, unit })}
                       onDeleteTask={deleteTask}
