@@ -1,65 +1,13 @@
-import { DAILY_BUDGET, WEIGHT_SPREAD } from "./constants";
+import { DAILY_BUDGET } from "./constants";
 import { largestRemainder } from "./rounding";
-import type { DerivedWeight, UnitRating } from "./types";
+import type { DerivedWeight } from "./types";
 
-/** Importance may be an absolute 1–10 rating or a rank-derived
- *  continuous score (`rankToScore`) — both live in the same [1, 10]
- *  range, so the contract only checks range, not integrality. */
-function assertImportance(value: number, unitId: string): void {
-  if (!Number.isFinite(value) || value < 1 || value > 10) {
-    throw new Error(
-      `deriveWeights: importance for unit "${unitId}" must be a number 1–10, got ${value}`,
-    );
-  }
-}
-
-/**
- * Formula v8 (ADR-0028 §§1–2):
- *
- *   raw(u)    = 1 + (WEIGHT_SPREAD − 1) × (importance − 1) / 9
- *   weight(u) = DAILY_BUDGET × raw(u) / Σ raw
- *
- * **Priority is the only input.** Satisfaction is diagnosed on the same
- * screen, stored on the same row, and read by the portfolio graph and
- * `unitProfile` — but it no longer moves a single point. ADR-0003 §1's
- * gap term (`+ g × max(0, I − S)`) and its `GAP_COEFFICIENT` are
- * withdrawn.
- *
- * The reasoning, from ADR-0028: the gap term made weight a function of
- * two answers given at the same moment about the same unit, and the
- * second one is the app's own outcome measure. A unit you are neglecting
- * got more of your day *because* you were neglecting it, which then
- * raised your satisfaction with it, which then quietly took the points
- * away again. Calibration (ADR-0008) needs satisfaction to be an
- * independent read on whether the plan is working; it cannot be that
- * and an input to the plan at once.
- *
- * `raw` is the flattened rank score rather than importance itself —
- * see `WEIGHT_SPREAD` for why the 10:1 shape it replaces was wrong.
- * The map is affine and strictly increasing, so the diagnostic's order
- * survives intact; only the distance between neighbours changes.
- *
- * Integer weights sum to exactly DAILY_BUDGET via largest remainder.
+/*
+ * Weights since formula v11 come from tiers alone (ADR-0041). The rank
+ * derivation they replaced, `deriveWeights` and its `WEIGHT_SPREAD`
+ * flattening (formula v8, ADR-0028), went with the diagnostic in
+ * Phase 6.
  */
-export function deriveWeights(ratings: readonly UnitRating[]): DerivedWeight[] {
-  if (ratings.length === 0) return [];
-
-  const raws = ratings.map((r) => {
-    assertImportance(r.importance, r.unitId);
-    return 1 + ((WEIGHT_SPREAD - 1) * (r.importance - 1)) / 9;
-  });
-
-  const rawSum = raws.reduce((a, b) => a + b, 0);
-  const exacts = raws.map((raw) => (DAILY_BUDGET * raw) / rawSum);
-  const weights = largestRemainder(exacts, DAILY_BUDGET);
-
-  return ratings.map((r, i) => ({
-    unitId: r.unitId,
-    raw: raws[i] ?? 0,
-    exact: exacts[i] ?? 0,
-    weight: weights[i] ?? 0,
-  }));
-}
 
 // ── Tiers (ADR-0041) ────────────────────────────────────────────────
 
@@ -124,14 +72,14 @@ export function hasPlannedUnit(units: readonly TieredUnit[]): boolean {
  * the plan (`hasPlannedUnit`; Priorities won't save otherwise,
  * ADR-0041 §3); with none, or with a value that isn't a tier, or a unit
  * listed twice, this throws rather than inventing weights. An empty
- * list returns no weights, as `deriveWeights` does; it is not a plan.
+ * list returns no weights; it is not a plan.
  *
  * Order is the list's order, so whatever stores tiers must store each
  * unit's place in its tier and read them back sorted.
  *
- * What the app scores with since formula v11 (`latestWeights` in the
- * data layer). `deriveWeights` still fills the diagnostic's stored
- * record and prices nothing.
+ * The recommended weights since formula v11. What scores is these with
+ * your overrides (`applyWeightOverrides`, `latestWeights` in the data
+ * layer).
  */
 export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[] {
   if (units.length === 0) return [];
@@ -197,3 +145,70 @@ export function deriveTierWeights(units: readonly TieredUnit[]): DerivedWeight[]
  * worked out from what is actually due on it (`dayLoad.ts`). There is
  * no portfolio-level notion of "spendable weight" left to want.
  */
+
+// ── Overrides (ADR-0041 §2) ─────────────────────────────────────────
+
+/**
+ * What's wrong with a set of weight overrides, or null if they fit.
+ *
+ * An override is a whole number from 1 to 99: 0 is what Not now is for,
+ * and 100 would leave nothing for anything else. Overrides on units not
+ * in `recommended` are ignored, as `applyWeightOverrides` ignores them.
+ * Together they must leave room for the units you didn't override, or,
+ * with every unit overridden, add up to exactly 100.
+ */
+export function overrideProblem(
+  recommended: ReadonlyMap<string, number>,
+  overrides: ReadonlyMap<string, number>,
+): string | null {
+  let sum = 0;
+  let count = 0;
+  for (const [unitId, w] of overrides) {
+    if (!recommended.has(unitId)) continue;
+    if (!Number.isInteger(w) || w < 1 || w > 99) {
+      return "A weight is a whole number from 1 to 99.";
+    }
+    sum += w;
+    count += 1;
+  }
+  if (count === 0) return null;
+  if (count === recommended.size) {
+    return sum === DAILY_BUDGET ? null : `Your weights add up to ${sum}, not ${DAILY_BUDGET}.`;
+  }
+  return sum < DAILY_BUDGET ? null : "Those weights leave no room for your other units.";
+}
+
+/**
+ * Weights with your overrides (ADR-0041 §2; Henry, 2026-10-19): an
+ * overridden unit keeps exactly the number you set, and the units you
+ * didn't override share what's left in proportion to their recommended
+ * weights, so the plan still adds to exactly `DAILY_BUDGET` by largest
+ * remainder. The recommended weight is always kept beside an override
+ * for the screen to show (AGENTS.md); this only works out what scores.
+ *
+ * `recommended` is `deriveTierWeights`' plan, unit to weight, Not now
+ * left out. Throws with `overrideProblem`'s message rather than invent
+ * weights.
+ */
+export function applyWeightOverrides(
+  recommended: ReadonlyMap<string, number>,
+  overrides: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const problem = overrideProblem(recommended, overrides);
+  if (problem) throw new Error(`applyWeightOverrides: ${problem}`);
+  const fixed = new Map([...overrides].filter(([unitId]) => recommended.has(unitId)));
+  if (fixed.size === 0) return new Map(recommended);
+  const rest = [...recommended].filter(([unitId]) => !fixed.has(unitId));
+  const left = DAILY_BUDGET - [...fixed.values()].reduce((a, b) => a + b, 0);
+  const restSum = rest.reduce((a, [, w]) => a + w, 0);
+  const shares = largestRemainder(
+    rest.map(([, w]) => (restSum > 0 ? (left * w) / restSum : left / rest.length)),
+    left,
+  );
+  const out = new Map<string, number>();
+  for (const [unitId] of recommended) {
+    const own = fixed.get(unitId);
+    out.set(unitId, own ?? shares[rest.findIndex(([id]) => id === unitId)] ?? 0);
+  }
+  return out;
+}

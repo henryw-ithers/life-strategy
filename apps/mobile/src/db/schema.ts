@@ -184,9 +184,17 @@ export const unitWeight = sqliteTable(
     unitId: text("unit_id")
       .notNull()
       .references(() => lifeUnit.id),
+    /** The recommended weight when the snapshot was saved: since
+     *  ADR-0041, its tier weight (`deriveTierWeights`). */
     derived: real("derived").notNull(),
-    /** Effective weight = override ?? derived (ADR-0002 §3). */
+    /** A weight you set, shown beside the recommended one. The latest
+     *  snapshot's overrides are what score (`applyWeightOverrides`),
+     *  and saving Priorities carries them forward. */
     override: real("override"),
+    /** The unit's tier and place in it when the snapshot was saved
+     *  (ADR-0041 action item 2). Null on snapshots from before tiers. */
+    tier: text("tier", { enum: ["top", "important", "background", "notNow"] }),
+    tierOrder: integer("tier_order"),
     ...timestamps,
   },
   (t) => [primaryKey({ columns: [t.snapshotId, t.unitId] })],
@@ -471,6 +479,14 @@ export const task = sqliteTable("task", {
   rankInUnit: integer("rank_in_unit").notNull(),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   archivedAt: text("archived_at"),
+  /**
+   * Paused because its unit went to Not now (ADR-0041 §3): archived like
+   * any other, and marked so that moving the unit back up restores
+   * exactly these tasks, without their pins. Cleared on restore.
+   */
+  pausedForNotNow: integer("paused_for_not_now", { mode: "boolean" })
+    .notNull()
+    .default(false),
   ...timestamps,
 });
 

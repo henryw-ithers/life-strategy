@@ -1,5 +1,4 @@
 export {
-  WEIGHT_SPREAD,
   EXTRA_RUN_RATE,
   UNPLANNED_CAP,
   REST_DAY_BASE,
@@ -7,12 +6,13 @@ export {
   FORMULA_VERSION,
   DAILY_BUDGET,
 } from "./constants";
-export type { UnitRating, DerivedWeight } from "./types";
+export type { DerivedWeight } from "./types";
 export { largestRemainder } from "./rounding";
 export type { PlannedTier, Tier, TieredUnit } from "./weights";
 export {
+  applyWeightOverrides,
   deriveTierWeights,
-  deriveWeights,
+  overrideProblem,
   hasPlannedUnit,
   isTier,
   TIER_BASE,
@@ -104,17 +104,6 @@ export {
   STREAK_SHOWN_FROM,
   TOOK_ABOUT_RANGE,
 } from "./goalKinds";
-export type {
-  AreaRank,
-  UnitRank,
-  OverallUnitRank,
-  PriorityOrderInput,
-} from "./ranking";
-export {
-  rankToScore,
-  combineHierarchicalRank,
-  weightsForPriorityOrder,
-} from "./ranking";
 export { recommendedTaskRange, recommendedTaskRangeForTier } from "./taskGuidance";
 export type { PartialFraction } from "./partial";
 export {
@@ -191,7 +180,7 @@ export {
   PART_OF_DAY_BOUNDS,
 } from "./windows";
 export type { Profile, UnitSituation } from "./profile";
-export { GAP_THRESHOLD, unitProfile } from "./profile";
+export { unitProfile } from "./profile";
 export type {
   WeeklyGradeSample,
   ContentmentSample,

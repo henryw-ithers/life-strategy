@@ -34,7 +34,7 @@ import {
   taskUnit,
 } from "../schema";
 import { addAway } from "../skips";
-import { setTiersFromOrder } from "../tasks";
+import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
 
 // Hoisted above the imports by vitest.
@@ -100,7 +100,10 @@ function seed() {
   addTask({ id: "stretch", unitId: "fitness", size: "quick" });
   addTask({ id: "read", unitId: "mind" });
   addTask({ id: "study", unitId: "comp2521", plannedWeekdays: "1,2,3,4,5", timesPerWeek: 5 });
-  db.transaction((tx) => setTiersFromOrder(tx as never, ["fitness", "mind"]));
+  placeTiers([
+    ["fitness", "top"],
+    ["mind", "important"],
+  ]);
 }
 
 const entries = () => testDb().select().from(goalEntry).all();

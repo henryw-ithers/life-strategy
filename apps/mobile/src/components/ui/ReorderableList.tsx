@@ -34,6 +34,7 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  type AnimatedRef,
   type SharedValue,
 } from "react-native-reanimated";
 
@@ -48,6 +49,17 @@ export interface ReorderableItem {
   accent?: string;
   /** Set false when `onPressItem` has nothing to show for this row. */
   hasDetail?: boolean;
+  /**
+   * A row that holds its place among the others but can't be picked up:
+   * no handle and no move actions. Priorities' tier headers are fixed
+   * rows, so dragging a unit past one moves the unit into that tier.
+   */
+  fixed?: boolean;
+  /** What VoiceOver reads for a caller-rendered row, if not `label`. */
+  accessibilityLabel?: string;
+  /** Extra accessibility actions beside Move up and Move down, handled
+   *  by `onItemAction`: Priorities' Move to tier. */
+  actions?: readonly { name: string; label: string }[];
 }
 
 const DEFAULT_ROW_HEIGHT = 64;
@@ -96,6 +108,26 @@ interface ReorderableListProps {
   /** Fires as a drag starts and ends. A parent that scrolls must
    *  freeze while a row is held, or the page moves with the finger. */
   onDragStateChange?: (dragging: boolean) => void;
+  /** An item's own accessibility action (`ReorderableItem.actions`). */
+  onItemAction?: (item: ReorderableItem, actionName: string) => void;
+  /**
+   * With `scrollable={false}`: the parent scroll view a held row
+   * should auto-scroll, for a list taller than the screen (Priorities).
+   * Without it, a parent that owns scrolling gets none.
+   */
+  parentScroll?: ParentScroll;
+}
+
+export interface ParentScroll {
+  ref: AnimatedRef<Animated.ScrollView>;
+  /** The parent's `contentOffset.y`, kept by its scroll handler. */
+  offset: SharedValue<number>;
+  viewportHeight: number;
+  contentHeight: number;
+  /** Where the list starts in the parent's content. */
+  listTop: number;
+  /** What the nav bar covers at the top: content scrolls to `-topInset`. */
+  topInset: number;
 }
 
 export function ReorderableList({
@@ -108,6 +140,8 @@ export function ReorderableList({
   rowHeight = DEFAULT_ROW_HEIGHT,
   scrollable = true,
   onDragStateChange,
+  onItemAction,
+  parentScroll,
 }: ReorderableListProps) {
   const SLOT = rowHeight + ROW_GAP;
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -154,8 +188,22 @@ export function ReorderableList({
 
   const count = items.length;
   const contentHeight = count * SLOT - ROW_GAP + INSET * 2;
-  // Nothing to auto-scroll when the parent owns scrolling.
-  const maxScroll = scrollable ? Math.max(0, contentHeight - viewportHeight) : 0;
+  // A parent that owns scrolling is scrolled only when it hands us its
+  // scroll view; otherwise there is nothing to auto-scroll.
+  const parent = scrollable ? undefined : parentScroll;
+  const offset = parent?.offset ?? scrollOffset;
+  const scrollTarget = parent?.ref ?? scrollRef;
+  const minScroll = parent ? -parent.topInset : 0;
+  const maxScroll = parent
+    ? Math.max(minScroll, parent.contentHeight - parent.viewportHeight)
+    : scrollable
+      ? Math.max(0, contentHeight - viewportHeight)
+      : 0;
+  const frameHeight = parent ? parent.viewportHeight : viewportHeight;
+  /** Where the list's content starts in the scroll frame's content,
+   *  and where the visible area begins. */
+  const listTop = parent?.listTop ?? 0;
+  const visibleTop = parent ? parent.topInset : 0;
 
   const setDragState = (next: boolean) => {
     setDragging(next);
@@ -193,10 +241,10 @@ export function ReorderableList({
     const id = draggingId.value;
     if (id === null) return;
 
-    if (maxScroll > 0) {
-      const onScreen = dragTop.value - scrollOffset.value;
-      const fromTop = onScreen;
-      const fromBottom = viewportHeight - rowHeight - onScreen;
+    if (maxScroll > minScroll) {
+      const onScreen = listTop + dragTop.value - offset.value;
+      const fromTop = onScreen - visibleTop;
+      const fromBottom = frameHeight - rowHeight - onScreen;
       // Depth into the edge zone, 0 at the boundary to 1 at the very
       // edge — the ramp is what makes this controllable.
       const ramp = (gap: number) => {
@@ -205,21 +253,21 @@ export function ReorderableList({
       };
 
       let delta = 0;
-      if (fromTop < EDGE && scrollOffset.value > 0) delta = -ramp(fromTop);
-      else if (fromBottom < EDGE && scrollOffset.value < maxScroll) {
+      if (fromTop < EDGE && offset.value > minScroll) delta = -ramp(fromTop);
+      else if (fromBottom < EDGE && offset.value < maxScroll) {
         delta = ramp(fromBottom);
       }
 
       if (delta !== 0) {
-        const next = Math.min(maxScroll, Math.max(0, scrollOffset.value + delta));
-        scrollTo(scrollRef, 0, next, false);
+        const next = Math.min(maxScroll, Math.max(minScroll, offset.value + delta));
+        scrollTo(scrollTarget, 0, next, false);
       }
     }
 
     // Content space, so the row tracks the finger even as the list
     // scrolls underneath it.
     dragTop.value =
-      startTop.value + translation.value + (scrollOffset.value - startScroll.value);
+      startTop.value + translation.value + (offset.value - startScroll.value);
 
     const target = Math.max(
       0,
@@ -261,12 +309,13 @@ export function ReorderableList({
           translation={translation}
           lift={lift}
           liftedId={liftedId}
-          scrollOffset={scrollOffset}
+          scrollOffset={offset}
       onSetDragging={setDragState}
       onCommit={commit}
       onMoveBy={moveBy}
       onTick={tick}
       onPressItem={onPressItem}
+      onItemAction={onItemAction}
       detailHint={detailHint}
       theme={theme}
       renderItem={renderItem}
@@ -314,6 +363,7 @@ interface RowProps {
   onMoveBy: (id: string, delta: number) => void;
   onTick: () => void;
   onPressItem?: (item: ReorderableItem) => void;
+  onItemAction?: (item: ReorderableItem, actionName: string) => void;
   detailHint?: string;
   theme: ThemeTokens;
   renderItem?: (item: ReorderableItem, index: number) => React.ReactNode;
@@ -339,12 +389,30 @@ function Row({
   onMoveBy,
   onTick,
   onPressItem,
+  onItemAction,
   detailHint,
   theme,
   renderItem,
   rowHeight,
   slot,
 }: RowProps) {
+  const fixed = item.fixed === true;
+  /** Rows that bring their own accessible content (Plan's task rows)
+   *  keep it: wrapping them would hide their labels and actions. */
+  const ownsAccessibility =
+    fixed || item.accessibilityLabel !== undefined || item.actions !== undefined;
+  const moveActions = fixed
+    ? []
+    : [
+        { name: "moveUp", label: "Move up" },
+        { name: "moveDown", label: "Move down" },
+        ...(item.actions ?? []),
+      ];
+  const onAction = (name: string) => {
+    if (name === "moveUp") onMoveBy(item.id, -1);
+    else if (name === "moveDown") onMoveBy(item.id, 1);
+    else onItemAction?.(item, name);
+  };
   const reduceMotion = useReducedMotion();
 
   const pan = Gesture.Pan()
@@ -398,7 +466,7 @@ function Row({
   });
 
   const rank = index + 1;
-  const tappable = onPressItem !== undefined && item.hasDetail !== false;
+  const tappable = !fixed && onPressItem !== undefined && item.hasDetail !== false;
 
   return (
     <Animated.View
@@ -410,7 +478,7 @@ function Row({
         // the lift shadow is drawn by this view, and a transparent one
         // casts nothing.
         renderItem
-          ? { backgroundColor: theme.surface }
+          ? { backgroundColor: fixed ? "transparent" : theme.surface }
           : {
               backgroundColor: theme.surface,
               borderColor: theme.hairline,
@@ -418,8 +486,24 @@ function Row({
             },
       ]}
     >
-      {renderItem ? (
+      {renderItem && !ownsAccessibility ? (
         <View style={styles.custom}>{renderItem(item, index)}</View>
+      ) : renderItem ? (
+        // The caller draws the row and asked the list to speak for it
+        // (a label, actions or a fixed row). Not `disabled` when it
+        // can't be tapped: VoiceOver would read every header "dimmed".
+        <Pressable
+          onPress={tappable ? () => onPressItem!(item) : undefined}
+          accessible
+          accessibilityRole={fixed ? "header" : tappable ? "button" : undefined}
+          accessibilityLabel={item.accessibilityLabel ?? item.label}
+          accessibilityHint={tappable && detailHint ? `Opens ${detailHint}` : undefined}
+          accessibilityActions={moveActions}
+          onAccessibilityAction={(e) => onAction(e.nativeEvent.actionName)}
+          style={({ pressed }) => [styles.custom, { opacity: pressed && tappable ? 0.6 : 1 }]}
+        >
+          {renderItem(item, index)}
+        </Pressable>
       ) : (
       <Pressable
         onPress={tappable ? () => onPressItem!(item) : undefined}
@@ -427,14 +511,8 @@ function Row({
         accessibilityRole={tappable ? "button" : undefined}
         accessibilityLabel={`${item.label}, rank ${rank} of ${count}`}
         accessibilityHint={tappable && detailHint ? `Opens ${detailHint}` : undefined}
-        accessibilityActions={[
-          { name: "moveUp", label: "Move up" },
-          { name: "moveDown", label: "Move down" },
-        ]}
-        onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === "moveUp") onMoveBy(item.id, -1);
-          if (e.nativeEvent.actionName === "moveDown") onMoveBy(item.id, 1);
-        }}
+        accessibilityActions={moveActions}
+        onAccessibilityAction={(e) => onAction(e.nativeEvent.actionName)}
         style={({ pressed }) => [styles.body, { opacity: pressed ? 0.6 : 1 }]}
       >
         <AppText variant="caption" color={theme.muted} tabular style={styles.rank}>
@@ -448,6 +526,7 @@ function Row({
         </AppText>
       </Pressable>
       )}
+      {fixed ? null : (
       <GestureDetector gesture={pan}>
         <View
           accessible={false}
@@ -459,6 +538,7 @@ function Row({
           <View style={[styles.grip, { backgroundColor: theme.hairline }]} />
         </View>
       </GestureDetector>
+      )}
     </Animated.View>
   );
 }

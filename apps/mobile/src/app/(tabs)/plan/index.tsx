@@ -47,7 +47,6 @@ import {
   addTask,
   archiveTask,
   reorderUnitTasks,
-  setUnitScoring,
   updateEvent,
   type PlanData,
   type PlanTask,
@@ -86,7 +85,6 @@ export default function PlanScreen() {
   const {
     plan: storedPlan,
     commitmentDay,
-    ratings,
     reload,
     save,
     error,
@@ -219,12 +217,12 @@ export default function PlanScreen() {
   useEffect(() => {
     if (!addParam || plan === null) return;
     router.setParams({ add: undefined });
-    if (!canAdd) router.push("/diagnostic" as Href);
+    if (!canAdd) router.push("/priorities" as Href);
   }, [addParam, plan, canAdd]);
 
   /** Plan's own + menu: the same rule, decided at the tap. */
   const addHere = (what: "task" | "event") => {
-    if (!canAdd) router.push("/diagnostic" as Href);
+    if (!canAdd) router.push("/priorities" as Href);
     else if (what === "task") setAdding({ homeUnit: null });
     else setAddingEvent({ unitIds: [] });
   };
@@ -294,12 +292,12 @@ export default function PlanScreen() {
           ) : !plan.hasSnapshot ? (
             <View style={styles.empty}>
               <AppText color={theme.ink} style={styles.centerText}>
-                Your plan starts with a diagnostic. Rate what matters first, and the weights land
-                here.
+                Your plan starts with your priorities. Sort what matters into tiers first, and the
+                weights land here.
               </AppText>
               <Button
-                label="Run the diagnostic"
-                onPress={() => router.push("/diagnostic" as Href)}
+                label="Set your priorities"
+                onPress={() => router.push("/priorities" as Href)}
                 theme={theme}
               />
             </View>
@@ -350,7 +348,7 @@ export default function PlanScreen() {
                         setOpenUnitId((current) => (current === unit.id ? null : unit.id))
                       }
                       onShowInfo={() => setInfoUnit(unit)}
-                      onSetScoring={(include) => save(() => setUnitScoring(unit.id, include))}
+                      onOpenPriorities={() => router.push("/priorities" as Href)}
                       onReorder={(ids) => save(() => reorderUnitTasks(unit.id, ids))}
                       onEditTask={(t) => setEditing({ task: t, unit })}
                       onDeleteTask={deleteTask}
@@ -490,13 +488,12 @@ export default function PlanScreen() {
           unitId={suggestingForShown.id}
           unitName={suggestingForShown.name}
           profile={
-            // Null before the first diagnostic: nothing has a weight or a
-            // rating yet, so there is no situation to read.
-            suggestingForShown.weight !== null && ratings.has(suggestingForShown.id)
+            // Null before Priorities is first saved: nothing has a tier
+            // or a weight yet, so there is no situation to read.
+            suggestingForShown.weight !== null && suggestingForShown.tier !== null
               ? unitProfile({
+                  tier: suggestingForShown.tier,
                   weight: suggestingForShown.weight,
-                  importance: ratings.get(suggestingForShown.id)!.importance,
-                  satisfaction: ratings.get(suggestingForShown.id)!.satisfaction,
                 })
               : null
           }

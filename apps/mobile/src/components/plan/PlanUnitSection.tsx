@@ -40,7 +40,7 @@ export function PlanUnitSection({
   justAdded,
   onToggle,
   onShowInfo,
-  onSetScoring,
+  onOpenPriorities,
   onReorder,
   onEditTask,
   onDeleteTask,
@@ -62,7 +62,9 @@ export function PlanUnitSection({
   onToggle: () => void;
   onShowInfo: () => void;
   /** Put the unit in or out of the 100 (ADR-0027 §2). */
-  onSetScoring: (include: boolean) => void;
+  /** Not now and back go through Priorities (ADR-0041 §3), which asks
+   *  before pausing tasks and keeps one snapshot. */
+  onOpenPriorities: () => void;
   /** The unit's task ids in their new order, events after. */
   onReorder: (orderedIds: string[]) => void;
   onEditTask: (task: PlanTask) => void;
@@ -175,12 +177,13 @@ export function PlanUnitSection({
           style={[styles.panel, { backgroundColor: theme.surface }]}
         >
           <AppText variant="caption" color={theme.muted}>
-            Outside your 100 — your other units share its points.
+            Not now: out of your plan, so it holds no tasks. Move it up in Priorities to
+            bring it back.
           </AppText>
           <OutlineAction
-            label="Put back in my plan"
-            accessibilityLabel={`Put ${unit.name} back in my plan`}
-            onPress={() => onSetScoring(true)}
+            label="Open Priorities"
+            accessibilityLabel={`Open Priorities to move ${unit.name} up`}
+            onPress={onOpenPriorities}
             theme={theme}
           />
         </Animated.View>
@@ -280,14 +283,13 @@ export function PlanUnitSection({
               <View />
             )}
             <Pressable
-              onPress={() => onSetScoring(false)}
+              onPress={onOpenPriorities}
               accessibilityRole="button"
-              accessibilityLabel={`Take ${unit.name} out of my plan for now`}
-              accessibilityHint="One tap puts it back"
+              accessibilityLabel={`Change ${unit.name}'s tier in Priorities`}
               style={({ pressed }) => [styles.footAction, { opacity: pressed ? 0.5 : 1 }]}
             >
               <AppText variant="caption" color={theme.muted}>
-                Not in my plan
+                Change tier
               </AppText>
             </Pressable>
           </View>

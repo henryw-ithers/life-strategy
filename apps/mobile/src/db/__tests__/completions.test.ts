@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setCompletionFraction, toggleCompletion } from "../completions";
 import { lifeArea, lifeUnit, task, taskCompletion, taskUnit } from "../schema";
-import { setTiersFromOrder } from "../tasks";
+import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
@@ -42,7 +42,7 @@ beforeEach(() => {
   db.insert(lifeArea).values({ id: "area", name: "Area", sortOrder: 0 }).run();
   db.insert(lifeUnit).values({ id: "fitness", areaId: "area", name: "Fitness", sortOrder: 0 }).run();
   addTask({ id: "gym", unitId: "fitness", plannedWeekdays: "1", allowsPartial: true });
-  db.transaction((tx) => setTiersFromOrder(tx as never, ["fitness"]));
+  placeTiers([["fitness", "top"]]);
 });
 
 describe("toggleCompletion", () => {

@@ -432,12 +432,12 @@ export default function TodayScreen() {
         {!day.hasSnapshot ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.centerText}>
-              Your day starts with a plan. Rate what matters first, and the checklist builds
-              itself.
+              Your day starts with a plan. Sort what matters into tiers first, and the checklist
+              builds itself.
             </AppText>
             <Button
-              label="Run the diagnostic"
-              onPress={() => router.push("/diagnostic" as Href)}
+              label="Set your priorities"
+              onPress={() => router.push("/priorities" as Href)}
               theme={theme}
             />
           </View>

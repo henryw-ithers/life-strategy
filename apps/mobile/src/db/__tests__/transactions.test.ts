@@ -22,7 +22,7 @@ import {
   updateCommitment,
   updatePool,
 } from "../commitmentWrites";
-import { applyPriorityOrder, loadRankingBoard } from "../ranking";
+import { savePriorities } from "../priorities";
 import {
   appSetting,
   lifeArea,
@@ -329,33 +329,29 @@ describe("updatePool", () => {
   });
 });
 
-describe("applyPriorityOrder", () => {
-  it("sets tiers from the order and reprices the plan", async () => {
+describe("savePriorities", () => {
+  const order = [
+    { unitId: "friends", tier: "top" as const },
+    { unitId: "fitness", tier: "important" as const },
+  ];
+
+  it("sets the tiers and reprices the plan", async () => {
     seedPlan();
-    const board = await loadRankingBoard();
-    if (!board) throw new Error("no board");
-
-    await applyPriorityOrder(board, ["friends", "fitness"]);
-
+    await savePriorities(order, new Map());
     const units = testDb().select().from(lifeUnit).all();
     expect(units.find((u) => u.id === "friends")?.tier).toBe("top");
     expect(units.find((u) => u.id === "fitness")?.tier).toBe("important");
-    expect(testDb().select().from(unitWeight).all().every((w) => w.override === null)).toBe(true);
     expect(taskRow("call")?.pointValue).toBeGreaterThan(0);
+    expect(gradesStale()).toBe("1");
     expect(recache).toHaveBeenCalledOnce();
   });
 
-  it("rolls the tiers back when the pricing pass fails", async () => {
+  it("rolls the tiers and the snapshot back when the stale mark fails", async () => {
     seedPlan();
-    const board = await loadRankingBoard();
-    if (!board) throw new Error("no board");
-    failOn("app_setting", "INSERT");
-
-    await expect(applyPriorityOrder(board, ["friends", "fitness"])).rejects.toThrow(
-      /injected failure/,
-    );
-
+    failStaleMark();
+    await expect(savePriorities(order, new Map())).rejects.toThrow(/injected failure/);
     expect(testDb().select().from(lifeUnit).all().find((u) => u.id === "fitness")?.tier).toBe("top");
+    expect(testDb().select().from(snapshot).all().map((s) => s.id)).toEqual(["snap"]);
     expect(taskRow("call")?.pointValue).toBe(0);
     // Nothing is re-scored from a plan that was never saved.
     expect(recache).not.toHaveBeenCalled();

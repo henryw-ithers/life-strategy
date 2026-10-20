@@ -8,11 +8,15 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
+  applyWeightOverrides,
   deriveTierWeights,
   hasPlannedUnit,
+  isTier,
+  overrideProblem,
   taskWeights,
   type BandTask,
   type BandUnit,
+  type Tier,
 } from "@glide/scoring";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -33,13 +37,13 @@ import {
 import {
   lifeArea,
   lifeUnit,
-  rating,
   snapshot,
   task,
   taskUnit,
+  unitWeight,
 } from "./schema";
 import { forgetPinsOf } from "./pins";
-import { tieredUnits, tiersFromOrder } from "./tierRules";
+import { tieredUnits } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 
 export interface PlanTask {
@@ -94,6 +98,8 @@ export interface PlanUnit {
    * changes how anything is scored or whether it can hold a task.
    */
   motivationKind: "instrumental" | "communal";
+  /** Its Priorities tier, or null before the first save. */
+  tier: Tier | null;
   /**
    * Effective weight from the latest snapshot; null when excluded.
    *
@@ -160,6 +166,24 @@ function commitmentUnitIdsIn(tx: Tx | typeof db): Set<string> {
 }
 
 /**
+ * Throws if any unit a task would score in is in Not now (ADR-0041 §3):
+ * a Not now unit is out of the plan and holds no tasks. A note on one
+ * earns nothing there, so it's allowed. Commitments aren't on
+ * Priorities and are never Not now.
+ */
+function assertNoNotNow(tx: Tx, scoringUnitIds: readonly string[]): void {
+  if (scoringUnitIds.length === 0) return;
+  const commitments = commitmentUnitIdsIn(tx);
+  const out = tx
+    .select({ id: lifeUnit.id, name: lifeUnit.name, includeInScoring: lifeUnit.includeInScoring })
+    .from(lifeUnit)
+    .where(inArray(lifeUnit.id, [...scoringUnitIds]))
+    .all()
+    .find((u) => !u.includeInScoring && !commitments.has(u.id));
+  if (out) throw new Error(`${out.name} is in Not now. Move it up to add tasks.`);
+}
+
+/**
  * A transaction handle. **Transaction callbacks must be synchronous**:
  * drizzle's expo-sqlite driver commits as soon as the callback returns,
  * so an async callback commits before its first awaited statement runs
@@ -174,10 +198,11 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * (ADR-0041, formula v11): `deriveTierWeights` over the units in the
  * plan, integers summing to exactly 100.
  *
- * Tier and order are the only inputs. The snapshot's stored rank
- * weights (`unit_weight`) stay a record of the diagnostic that made
- * them and no longer decide anything; "Not in my plan" is Not now
- * (`tieredUnits`). Commitments are scored from their own share of the
+ * Tier and order are the only inputs to the recommended weights
+ * (ADR-0041 §2); a weight you set on the latest snapshot replaces its
+ * unit's, and the rest share what's left (`applyWeightOverrides`),
+ * as AGENTS.md has every derived value overridable. "Not in my plan" is
+ * Not now (`tieredUnits`). Commitments are scored from their own share of the
  * day and take no part. Empty until a unit has a tier, which is what
  * "no plan yet" means.
  */
@@ -199,10 +224,37 @@ export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
     .filter((u) => !isCommitmentUnit(u));
   const units = tieredUnits(rows);
   if (units === null || !hasPlannedUnit(units)) return new Map();
-  return new Map(
+  const recommended = new Map(
     deriveTierWeights(units)
       .filter((w) => w.weight > 0)
-      .map((w) => [w.unitId, w.weight]),
+      .map((w) => [w.unitId, w.weight] as const),
+  );
+  const overrides = latestOverrides(dbOrTx);
+  // Saving Priorities refuses overrides that don't fit, so this holds
+  // unless the plan changed since: a unit archived by the taxonomy sync,
+  // say. Then the recommended weights score, and Priorities shows why
+  // (`loadPriorities`' `problem`) until you save again.
+  return overrideProblem(recommended, overrides) === null
+    ? applyWeightOverrides(recommended, overrides)
+    : recommended;
+}
+
+/** The weights you set on the latest snapshot (ADR-0041 §2). */
+export function latestOverrides(dbOrTx: Tx | typeof db): Map<string, number> {
+  const [latest] = dbOrTx
+    .select({ id: snapshot.id })
+    .from(snapshot)
+    .orderBy(desc(snapshot.takenAt))
+    .limit(1)
+    .all();
+  if (!latest) return new Map();
+  const rows = dbOrTx
+    .select({ unitId: unitWeight.unitId, override: unitWeight.override })
+    .from(unitWeight)
+    .where(eq(unitWeight.snapshotId, latest.id))
+    .all();
+  return new Map(
+    rows.flatMap((r) => (r.override === null ? [] : [[r.unitId, r.override] as const])),
   );
 }
 
@@ -304,6 +356,7 @@ export async function loadPlan(): Promise<PlanData> {
           areaId: u.areaId,
           includeInScoring: u.includeInScoring,
           motivationKind: u.motivationKind,
+          tier: isTier(u.tier) ? u.tier : null,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
           // A task is listed under every unit it *scores* in, ranked by
           // that unit's own membership — not only its home unit. A note
@@ -505,38 +558,6 @@ export function recomputeAllUnitPoints(tx: Tx): void {
   markGradesStaleIn(tx);
 }
 
-/**
- * Set every life unit's tier from a ranked order, in thirds
- * (`tiersFromOrder`), then reprice the plan. Units missing from `order`
- * are placed after it. The seed from the old ranking uses this, and so
- * do the old Priorities and diagnostic screens until Phase 6 gives
- * tiers a screen of their own (ADR-0041).
- */
-export function setTiersFromOrder(tx: Tx, order: readonly string[]): void {
-  const units = tx
-    .select({
-      id: lifeUnit.id,
-      includeInScoring: lifeUnit.includeInScoring,
-      isCustom: lifeUnit.isCustom,
-      parentUnitId: lifeUnit.parentUnitId,
-      commitmentShare: lifeUnit.commitmentShare,
-    })
-    .from(lifeUnit)
-    .where(isNull(lifeUnit.archivedAt))
-    .orderBy(asc(lifeUnit.sortOrder))
-    .all()
-    .filter((u) => !isCommitmentUnit(u));
-  const known = new Set(units.map((u) => u.id));
-  const ranked = order.filter((id) => known.has(id));
-  const placed = new Set(ranked);
-  const full = [...ranked, ...units.map((u) => u.id).filter((id) => !placed.has(id))];
-  const included = new Set(units.filter((u) => u.includeInScoring).map((u) => u.id));
-  for (const [id, t] of tiersFromOrder(full, included)) {
-    tx.update(lifeUnit).set({ tier: t.tier, tierOrder: t.tierOrder }).where(eq(lifeUnit.id, id)).run();
-  }
-  recomputeAllUnitPoints(tx);
-}
-
 /** Append the task to each unit's ranking, then recompute those units. */
 function attachUnits(
   tx: Tx,
@@ -643,6 +664,10 @@ export async function addTask(
         m.membership,
       ]),
     );
+    assertNoNotNow(
+      tx,
+      [...membershipOf].filter(([, m]) => m === "scoring").map(([u]) => u),
+    );
     const siblings = tx
       .select()
       .from(taskUnit)
@@ -695,6 +720,15 @@ export function setTaskUnitsIn(tx: Tx, taskId: string, unitIds: string[]): void 
     ]),
   );
   const current = tx.select().from(taskUnit).where(eq(taskUnit.taskId, taskId)).all();
+  // Only a unit it doesn't already score in: a task homed elsewhere can
+  // keep scoring in a unit that has since gone to Not now (it earns 0).
+  const scoringNow = new Set(
+    current.filter((m) => m.membership === "scoring").map((m) => m.unitId),
+  );
+  assertNoNotNow(
+    tx,
+    [...desired].filter(([u, m]) => m === "scoring" && !scoringNow.has(u)).map(([u]) => u),
+  );
   // A unit kept but changing kind — Learning going from a scoring
   // slot to a note because the task moved under School — is removed
   // and re-attached, so it gains or loses its rank properly rather
@@ -817,71 +851,6 @@ export async function setTaskPlanning(
 ): Promise<void> {
   writeAndMarkStale((tx) =>
     tx.update(task).set({ plannedWeekdays, partOfDay }).where(eq(task.id, taskId)).run(),
-  );
-}
-
-/**
- * Put a unit in or out of scoring — the exclusion valve (ADR-0027 §2).
- *
- * This is the whole answer to "my ceiling is 64 and I can't reach it".
- * Since §2 withdrew the reallocation, a unit you hold no tasks in keeps
- * its weight and nobody earns it, so the app has to let you say *this
- * one doesn't apply to me* — the difference between "I'm ignoring
- * Friendship" and "I don't have a partner". Excluding drops the unit
- * from the 100 and the remaining weights re-derive over what's left;
- * including it puts the weight back.
- *
- * The consequence is recorded rather than hidden: this makes the
- * ceiling **as hard as the user chooses**, since anyone can exclude
- * their way back to a reachable 100. Scope is negotiable; the routine
- * band is not, so no amount of excluding buys a 100 for a plan of two
- * weekly tasks.
- *
- * `include_in_scoring` lives on the unit, not on a snapshot, so this
- * writes no snapshot and never edits one — the portfolio history stays
- * a record of what was diagnosed, and the graph keeps plotting an
- * excluded unit greyed and marked *not scored*.
- */
-export async function setUnitScoring(
-  unitId: string,
-  includeInScoring: boolean,
-): Promise<void> {
-  db.transaction((tx) => {
-    tx.update(lifeUnit)
-      .set({ includeInScoring })
-      .where(eq(lifeUnit.id, unitId))
-      .run();
-    // A unit joining or leaving the 100 rescales every task in the
-    // plan — the routine band is a share of each unit's weight and the
-    // variable band is one pool across all of them.
-    recomputeAllUnitPoints(tx);
-  });
-}
-
-/**
- * The latest diagnostic's raw ratings, for deciding a unit's profile
- * (ADR-0006 §1). Weights alone can't: two units on 12 points can be
- * "important and going badly" and "important and going well", which
- * want different suggestions.
- */
-export async function latestRatings(): Promise<
-  Map<string, { importance: number; satisfaction: number }>
-> {
-  const [latest] = await db
-    .select()
-    .from(snapshot)
-    .orderBy(desc(snapshot.takenAt))
-    .limit(1);
-  if (!latest) return new Map();
-  const rows = await db
-    .select()
-    .from(rating)
-    .where(eq(rating.snapshotId, latest.id));
-  return new Map(
-    rows.map((r) => [
-      r.unitId,
-      { importance: r.importance, satisfaction: r.satisfaction },
-    ]),
   );
 }
 

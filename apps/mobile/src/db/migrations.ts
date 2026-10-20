@@ -12,10 +12,9 @@ import { addDays, weekStart } from "@glide/scoring";
 import { eq } from "drizzle-orm";
 
 import { db } from "./client";
-import { contentmentCheckin, task, taskUnit, unitWeight } from "./schema";
+import { contentmentCheckin, task, taskUnit } from "./schema";
 import { getSetting, setSetting } from "./settings";
-import { loadRankingBoard } from "./ranking";
-import { recomputeAllUnitPoints, setTiersFromOrder } from "./tasks";
+import { recomputeAllUnitPoints } from "./tasks";
 
 const KEY_SUNDAY_WEEKS = "migration.sundayWeeks";
 const KEY_TASK_UNITS = "migration.taskUnits";
@@ -103,40 +102,11 @@ export async function repriceTasksWithFloor(): Promise<void> {
   await setSetting(KEY_TASK_POINT_FLOOR, "done");
 }
 
-const KEY_TIERS_SEEDED = "migration.tiersSeeded";
-
-/**
- * Give every life unit a tier from the old ranking, once (ADR-0041,
- * Henry 2026-10-17): the current priority order, in thirds, with units
- * not in the plan as Not now. Weights then come from tiers alone.
- *
- * The order is the one Priorities shows: a saved manual order for the
- * latest snapshot, else the diagnostic's own. Overrides written by the
- * old re-rank were that order's rank weights, not weights anyone set,
- * so they are cleared. With no snapshot there is nothing to seed: the
- * first diagnostic sets the tiers.
- */
-export async function seedTiers(): Promise<void> {
-  if ((await getSetting(KEY_TIERS_SEEDED)) === "done") return;
-  const board = await loadRankingBoard();
-  if (board !== null) {
-    db.transaction((tx) => {
-      tx.update(unitWeight)
-        .set({ override: null })
-        .where(eq(unitWeight.snapshotId, board.snapshotId))
-        .run();
-      setTiersFromOrder(tx, board.order);
-    });
-  }
-  await setSetting(KEY_TIERS_SEEDED, "done");
-}
-
 /** Every pending data fixup, in order. Runs at launch behind the same
  *  gate as the schema migrations and taxonomy sync. */
 export async function runDataMigrations(): Promise<void> {
   await migrateToSundayWeeks();
   await backfillTaskUnits();
-  await repriceTasksWithFloor();
   // Last: it reprices from whatever the memberships above settled on.
-  await seedTiers();
+  await repriceTasksWithFloor();
 }

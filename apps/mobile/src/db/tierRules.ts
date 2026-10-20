@@ -7,7 +7,14 @@
  * else** (`deriveTierWeights`). This file decides which units go in and
  * in what order; the engine does the arithmetic.
  */
-import { deriveTierWeights, hasPlannedUnit, type Tier, type TieredUnit } from "@glide/scoring";
+import {
+  applyWeightOverrides,
+  deriveTierWeights,
+  hasPlannedUnit,
+  overrideProblem,
+  type Tier,
+  type TieredUnit,
+} from "@glide/scoring";
 
 export interface TierRow {
   id: string;
@@ -29,10 +36,10 @@ const TIER_RANK: Readonly<Record<Tier, number>> = {
  * derived from.
  *
  * "Not in my plan" (`include_in_scoring = false`) is Not now, whatever
- * the stored tier says (ADR-0041 §3). Until Phase 6's Priorities screen
- * keeps the two together, a unit put back in the plan without a tier
- * of its own, or still marked Not now, counts as the last Background
- * unit, so it carries a weight rather than silently none.
+ * the stored tier says (ADR-0041 §3). Saving Priorities keeps the two
+ * together; a unit back in the plan some other way, without a tier of
+ * its own or still marked Not now, counts as the last Background unit,
+ * so it carries a weight rather than silently none.
  *
  * Null when no unit has a tier yet: there is no plan to weigh, as
  * before the first diagnostic.
@@ -60,60 +67,56 @@ export function tieredUnits(rows: readonly TierRow[]): TieredUnit[] | null {
 }
 
 /**
- * Tiers from a ranked order, in thirds (Henry, 2026-10-17): the first
- * third Top, the next Important, the rest Background, each keeping its
- * place. Units not in the plan are Not now. Used once to seed tiers
- * from the old ranking, and by the old Priorities screen until Phase 6
- * replaces it.
- *
- * `order` lists every unit to place, most important first. Units in it
- * but not in `included` go to Not now, in their order.
+ * Each unit's place inside its own tier, 0 first, from a placement in
+ * Priorities order: what `tier_order` stores.
  */
-export function tiersFromOrder(
-  order: readonly string[],
-  included: ReadonlySet<string>,
-): Map<string, { tier: Tier; tierOrder: number }> {
-  const inPlan = order.filter((id) => included.has(id));
-  const out = new Map<string, { tier: Tier; tierOrder: number }>();
-  const n = inPlan.length;
-  const topEnd = Math.ceil(n / 3);
-  const importantEnd = Math.ceil((2 * n) / 3);
-  inPlan.forEach((id, i) => {
-    if (i < topEnd) out.set(id, { tier: "top", tierOrder: i });
-    else if (i < importantEnd) out.set(id, { tier: "important", tierOrder: i - topEnd });
-    else out.set(id, { tier: "background", tierOrder: i - importantEnd });
-  });
-  order
-    .filter((id) => !included.has(id))
-    .forEach((id, i) => out.set(id, { tier: "notNow", tierOrder: i }));
+export function tierOrderOf(placement: readonly TieredUnit[]): Map<string, number> {
+  const next = new Map<Tier, number>();
+  const out = new Map<string, number>();
+  for (const p of placement) {
+    const i = next.get(p.tier) ?? 0;
+    out.set(p.unitId, i);
+    next.set(p.tier, i + 1);
+  }
   return out;
 }
 
+export interface BoardWeights {
+  /** Each planned unit's recommended weight (`deriveTierWeights`). */
+  recommended: Map<string, number>;
+  /** What scores: the recommended weights with your overrides
+   *  (`applyWeightOverrides`). Empty when there's a problem. */
+  weights: Map<string, number>;
+  /** Why Priorities can't save as it stands, or null. */
+  problem: string | null;
+}
+
 /**
- * The weights a ranked order would give under the interim thirds rule:
- * `tiersFromOrder`, then `deriveTierWeights`. What the old Priorities
- * screen previews and what the diagnostic's results compare, so both
- * show the weights that actually score (ADR-0041). Empty with nothing
- * in the plan.
+ * The weights a Priorities board gives (ADR-0041 §2): recommended from
+ * tier and order alone, then your overrides. Overrides on Not now units
+ * are ignored; they hold no weight to override. What the screen shows
+ * while you drag and what saving stores, so the two can't disagree.
  */
-export function tierWeightsForOrder(
-  order: readonly string[],
-  included: ReadonlySet<string>,
-): Map<string, number> {
-  const tiers = tiersFromOrder(order, included);
-  const units = tieredUnits(
-    order.map((id, i) => ({
-      id,
-      tier: tiers.get(id)?.tier ?? null,
-      tierOrder: tiers.get(id)?.tierOrder ?? null,
-      sortOrder: i,
-      includeInScoring: included.has(id),
-    })),
-  );
-  if (units === null || !hasPlannedUnit(units)) return new Map();
-  return new Map(
-    deriveTierWeights(units)
+export function boardWeights(
+  placement: readonly TieredUnit[],
+  overrides: ReadonlyMap<string, number>,
+): BoardWeights {
+  if (!hasPlannedUnit(placement)) {
+    return {
+      recommended: new Map(),
+      weights: new Map(),
+      problem: "Keep at least one unit in your plan.",
+    };
+  }
+  const recommended = new Map(
+    deriveTierWeights(placement)
       .filter((w) => w.weight > 0)
-      .map((w) => [w.unitId, w.weight]),
+      .map((w) => [w.unitId, w.weight] as const),
   );
+  const problem = overrideProblem(recommended, overrides);
+  return {
+    recommended,
+    weights: problem ? new Map() : applyWeightOverrides(recommended, overrides),
+    problem,
+  };
 }
