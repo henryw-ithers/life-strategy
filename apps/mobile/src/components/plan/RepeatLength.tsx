@@ -90,14 +90,25 @@ export function RepeatLength({
             onPress={() => onChange({ mode: "weeks", weeks: value.weeks - 1 })}
             theme={theme}
           />
-          <AppText
-            color={theme.ink}
-            tabular
+          {/* One adjustable control for VoiceOver (swipe up or down), as
+              iOS steppers are; the buttons either side stay for touch. */}
+          <View
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel="Weeks"
+            accessibilityValue={{ text: value.weeks === 1 ? "1 week" : `${value.weeks} weeks` }}
+            accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+            onAccessibilityAction={(e) => {
+              const next =
+                e.nativeEvent.actionName === "increment" ? value.weeks + 1 : value.weeks - 1;
+              if (next >= 1 && next <= MAX_WEEKS) onChange({ mode: "weeks", weeks: next });
+            }}
             style={styles.count}
-            accessibilityLiveRegion="polite"
           >
-            {value.weeks === 1 ? "1 week" : `${value.weeks} weeks`}
-          </AppText>
+            <AppText color={theme.ink} tabular style={styles.countText}>
+              {value.weeks === 1 ? "1 week" : `${value.weeks} weeks`}
+            </AppText>
+          </View>
           <Step
             icon="add"
             label="One week more"
@@ -155,7 +166,8 @@ const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   stepper: { flexDirection: "row", alignItems: "center", borderRadius: radius.md, padding: 3 },
   step: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  count: { flex: 1, textAlign: "center" },
+  count: { flex: 1 },
+  countText: { textAlign: "center" },
   row: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: space.md },
   grow: { flex: 1 },
 });
