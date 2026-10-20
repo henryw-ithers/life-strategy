@@ -177,6 +177,7 @@ const PUSHED: [route: string, title: string][] = [
   // The tiers (ADR-0041), from Life, and from `/diagnostic` on a first run.
   ["priorities/index", "Priorities"],
   ["backup", "Your data"],
+  ["away", "Time away"],
   ["calibration", "Calibration"],
   // Its heading, "Where your data lives", is too long for a large title.
   ["privacy", "Privacy"],

@@ -31,6 +31,9 @@ interface TabToolbarProps {
   onLog: () => void;
   /** Home and Life show Settings here. */
   settings?: boolean;
+  /** A ⋯ menu of the tab's own actions: Home's Clear today and Day
+   *  type (ADR-0040 §4). Omitted, there's no ⋯. */
+  more?: readonly { label: string; icon: string; onPress: () => void }[];
 }
 
 export function TabToolbar(props: TabToolbarProps) {
@@ -48,6 +51,19 @@ export function TabToolbar(props: TabToolbarProps) {
           Log something
         </Stack.Toolbar.MenuAction>
       </Stack.Toolbar.Menu>
+      {props.more && props.more.length > 0 ? (
+        <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="More">
+          {props.more.map((m, i) => (
+            <Stack.Toolbar.MenuAction
+              key={m.label}
+              icon={m.icon as never}
+              onPress={() => latest.current.more?.[i]?.onPress()}
+            >
+              {m.label}
+            </Stack.Toolbar.MenuAction>
+          ))}
+        </Stack.Toolbar.Menu>
+      ) : null}
       {props.settings === true ? (
         <Stack.Toolbar.Button
           icon="gearshape"

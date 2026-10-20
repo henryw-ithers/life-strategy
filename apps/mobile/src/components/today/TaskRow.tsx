@@ -27,6 +27,9 @@ interface TaskRowProps {
    * not one you are still deciding when to do.
    */
   onMove?: () => void;
+  /** Press-and-hold on an unticked event: skip it (ADR-0040 §2). An
+   *  event has its own time, so it isn't moved, it's skipped. */
+  onSkip?: () => void;
   /**
    * Press-and-hold on a part-credit row: how much of it did you do
    * (ADR-0014 §4). Takes precedence over `onMove`, and the sheet it
@@ -47,6 +50,7 @@ export function TaskRow({
   onToggle,
   onTag,
   onMove,
+  onSkip,
   onPartial,
   tagHues,
   theme,
@@ -74,7 +78,7 @@ export function TaskRow({
   return (
     <Pressable
       onPress={onToggle}
-      onLongPress={onTag ?? onPartial ?? onMove}
+      onLongPress={onTag ?? onSkip ?? onPartial ?? onMove}
       delayLongPress={350}
       disabled={disabled}
       accessibilityRole="checkbox"
@@ -90,7 +94,9 @@ export function TaskRow({
       accessibilityActions={
         onTag
           ? [{ name: "magicTap", label: "Where else it counts" }]
-          : onPartial
+          : onSkip
+            ? [{ name: "magicTap", label: "Skip this event" }]
+            : onPartial
             ? [{ name: "magicTap", label: "How much of it you did" }]
             : onMove
               ? [{ name: "magicTap", label: "Move to another part of the day" }]
@@ -98,7 +104,7 @@ export function TaskRow({
       }
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === "magicTap") {
-          (onTag ?? onPartial ?? onMove)?.();
+          (onTag ?? onSkip ?? onPartial ?? onMove)?.();
         }
       }}
       style={({ pressed }) => [
