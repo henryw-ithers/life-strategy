@@ -184,7 +184,7 @@ export function TodayHeader({
             </View>
           ) : null}
           <Pressable
-            onPress={() => router.push(`/day/${addDays(day.today, 1)}` as Href)}
+            onPress={() => router.navigate(`/plan?date=${addDays(day.today, 1)}` as Href)}
             accessibilityRole="button"
             accessibilityLabel="Plan ahead"
             hitSlop={8}

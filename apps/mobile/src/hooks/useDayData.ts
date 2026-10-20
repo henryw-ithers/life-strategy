@@ -68,12 +68,12 @@ export function useDayData() {
 
   const select = (date: string) => {
     // A future day cannot be recorded, only arranged — so tapping one
-    // leaves Home where it is and opens the planner (ADR-0024 §4).
+    // opens it on Plan (spec §5.3).
     // Beyond the planning window there is nothing to arrange yet, so the
     // tap does nothing rather than opening a screen that would have to
     // explain itself.
     if (date > currentLocalDate()) {
-      if (isPlannable(date, currentLocalDate())) router.push(`/day/${date}` as Href);
+      if (isPlannable(date, currentLocalDate())) router.navigate(`/plan?date=${date}` as Href);
       return;
     }
     setSelected(date === currentLocalDate() ? null : date);

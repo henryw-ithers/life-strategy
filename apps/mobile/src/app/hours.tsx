@@ -1,0 +1,345 @@
+/**
+ * Working hours (spec §5.3.1, ADR-0039 §1), from Plan's ⋯ menu: groups
+ * of weekdays with one or more time ranges, set like iOS Sleep
+ * schedules, and named gaps ("Lunch"). A day used by another group is
+ * greyed out. A preview shows today's windows with today's events as
+ * you change things.
+ *
+ * Nothing saves until Done. Once the week has begun, Done asks "Just
+ * this week" (each day left this week gets its own hours) or "This week
+ * and after" (a new version of the template from the week's Sunday;
+ * earlier weeks keep theirs, EC-15). Days already begun keep the hours
+ * they began with for the commitment share either way (ADR-0044 §5).
+ */
+import {
+  dayHours,
+  totalMinutes,
+  weekStart,
+  type NamedGap,
+  type TimeRange,
+  type WorkSchedule,
+} from "@glide/scoring";
+import { router, Stack } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  useColorScheme,
+  View,
+} from "react-native";
+
+import {
+  draftFrom,
+  nextRange,
+  nextSchedule,
+  rangesOn,
+  restOfWeek,
+  takenElsewhere,
+  weekHasBegun,
+  type HoursDraft,
+} from "../components/plan/hoursDraft";
+import { spanLabel } from "../components/plan/dayView";
+import { WeekdayPicker } from "../components/plan/WeekdayPicker";
+import { AppText } from "../components/ui/AppText";
+import { Button } from "../components/ui/Button";
+import { TimeField } from "../components/ui/DateTimeField";
+import { Group } from "../components/ui/Group";
+import { KeyboardScroll } from "../components/ui/KeyboardScroll";
+import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
+import { TextField } from "../components/ui/TextField";
+import { loadDayPlan } from "../db/dayPlan";
+import { loadHoursVersions, saveHoursFrom, setDayOverride } from "../db/hours";
+import { hoursProblem } from "../db/windowRules";
+import { recordProblem } from "../lib/problemLog";
+import { currentLocalDate } from "../lib/calendar";
+import { getTheme } from "../theme/colors";
+import { radius, space } from "../theme/tokens";
+
+export default function HoursScreen() {
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme === "dark" ? "dark" : "light");
+  const today = currentLocalDate();
+  const [draft, setDraft] = useState<HoursDraft | null>(null);
+  const [events, setEvents] = useState<TimeRange[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    // Only the first load seeds the draft: coming back from a sheet
+    // mustn't throw away what you've changed.
+    const [versions, plan] = await Promise.all([loadHoursVersions(), loadDayPlan(today)]);
+    setDraft((d) => d ?? draftFrom(versions, today));
+    setEvents(plan.events.map((e) => ({ start: e.start, end: e.end })));
+  }, [today]);
+  const { error, retry } = useScreenLoad(load);
+
+  const problem = draft ? hoursProblem(weekStart(today), draft.schedules, draft.gaps) : null;
+  const preview = useMemo(
+    () =>
+      draft
+        ? dayHours({
+            date: today,
+            versions: [{ from: today, schedules: draft.schedules, gaps: draft.gaps }],
+            events,
+          })
+        : null,
+    [draft, events, today],
+  );
+
+  const setSchedule = (i: number, next: WorkSchedule | null) =>
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            schedules: next === null ? d.schedules.filter((_, j) => j !== i) : d.schedules.map((s, j) => (j === i ? next : s)),
+          }
+        : d,
+    );
+  const setGap = (i: number, next: NamedGap | null) =>
+    setDraft((d) =>
+      d
+        ? { ...d, gaps: next === null ? d.gaps.filter((_, j) => j !== i) : d.gaps.map((g, j) => (j === i ? next : g)) }
+        : d,
+    );
+
+  const save = async (scope: "week" | "after") => {
+    if (!draft) return;
+    setSaving(true);
+    try {
+      if (scope === "after") await saveHoursFrom(weekStart(today), draft.schedules, draft.gaps);
+      else for (const d of restOfWeek(today)) await setDayOverride(d, rangesOn(draft, d));
+      router.back();
+    } catch (e) {
+      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      Alert.alert("Your hours weren't saved", e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const done = () => {
+    if (!draft || problem !== null || saving) return;
+    if (!weekHasBegun(today)) {
+      void save("after");
+      return;
+    }
+    Alert.alert("Change your hours for", undefined, [
+      { text: "Just this week", onPress: () => void save("week") },
+      { text: "This week and after", onPress: () => void save("after") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  return (
+    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          variant="done"
+          disabled={!draft || problem !== null || saving}
+          onPress={done}
+        >
+          Done
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      {error ? (
+        <LoadFailure error={error} onRetry={retry} theme={theme} />
+      ) : !draft ? (
+        <ActivityIndicator color={theme.muted} style={styles.loading} />
+      ) : (
+        <KeyboardScroll
+          style={styles.root}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.container}
+        >
+          <AppText variant="caption" color={theme.muted}>
+            When you&apos;re free to work. Events are taken out of these, and what&apos;s left are your windows.
+          </AppText>
+
+          {draft.schedules.map((s, i) => (
+            <Group key={`s-${i}`} theme={theme} title={`Group ${i + 1}`}>
+              <View style={styles.stack}>
+                <WeekdayPicker
+                  value={s.weekdays}
+                  taken={takenElsewhere(draft.schedules, i)}
+                  onChange={(weekdays) => setSchedule(i, { ...s, weekdays })}
+                  accent={theme.accent}
+                  theme={theme}
+                />
+                {s.ranges.map((r, j) => (
+                  <RangeRow
+                    key={`r-${j}`}
+                    range={r}
+                    label={`Group ${i + 1}, range ${j + 1}`}
+                    theme={theme}
+                    onChange={(next) =>
+                      setSchedule(i, { ...s, ranges: s.ranges.map((x, k) => (k === j ? next : x)) })
+                    }
+                    onRemove={
+                      s.ranges.length > 1
+                        ? () => setSchedule(i, { ...s, ranges: s.ranges.filter((_, k) => k !== j) })
+                        : undefined
+                    }
+                  />
+                ))}
+                {nextRange(s.ranges) ? (
+                  <Button
+                    variant="quiet"
+                    label="Add another time range"
+                    onPress={() => {
+                      const r = nextRange(s.ranges);
+                      if (r) setSchedule(i, { ...s, ranges: [...s.ranges, r] });
+                    }}
+                    theme={theme}
+                  />
+                ) : null}
+                <Button
+                  variant="quiet"
+                  label="Remove this group"
+                  onPress={() => setSchedule(i, null)}
+                  theme={theme}
+                />
+              </View>
+            </Group>
+          ))}
+          {nextSchedule(draft.schedules) ? (
+            <Button
+              variant="tonal"
+              icon="add"
+              label="Add group"
+              onPress={() => {
+                const s = nextSchedule(draft.schedules);
+                if (s) setDraft({ ...draft, schedules: [...draft.schedules, s] });
+              }}
+              theme={theme}
+            />
+          ) : null}
+
+          <AppText variant="headline" color={theme.ink} style={styles.heading}>
+            Gaps
+          </AppText>
+          <AppText variant="caption" color={theme.muted}>
+            Time between windows you&apos;d like named, like lunch. It isn&apos;t a window.
+          </AppText>
+          {draft.gaps.map((g, i) => (
+            <Group key={`g-${i}`} theme={theme}>
+              <View style={styles.stack}>
+                <TextField
+                  theme={theme}
+                  value={g.name}
+                  onChangeText={(name) => setGap(i, { ...g, name })}
+                  placeholder="Name, like Lunch"
+                  accessibilityLabel="Gap name"
+                  maxLength={40}
+                />
+                <WeekdayPicker
+                  value={g.weekdays}
+                  onChange={(weekdays) => setGap(i, { ...g, weekdays })}
+                  accent={theme.accent}
+                  theme={theme}
+                />
+                <RangeRow
+                  range={g.range}
+                  label={`${g.name || "Gap"}`}
+                  theme={theme}
+                  onChange={(range) => setGap(i, { ...g, range })}
+                  onRemove={() => setGap(i, null)}
+                />
+              </View>
+            </Group>
+          ))}
+          <Button
+            variant="quiet"
+            label="Name a gap"
+            onPress={() =>
+              setDraft({
+                ...draft,
+                gaps: [...draft.gaps, { name: "", weekdays: [1, 2, 3, 4, 5], range: { start: 12 * 60, end: 13 * 60 } }],
+              })
+            }
+            theme={theme}
+          />
+
+          {preview ? (
+            <Group theme={theme} title="Preview: today">
+              <AppText variant="body" color={theme.ink} tabular>
+                {preview.windows.length === 0
+                  ? "No windows"
+                  : preview.windows.map(spanLabel).join("  ·  ")}
+              </AppText>
+              <AppText variant="caption" color={theme.muted}>
+                About {Math.round(totalMinutes(preview.windows) / 30) / 2} h free
+              </AppText>
+            </Group>
+          ) : null}
+
+          {problem ? (
+            <AppText variant="caption" color={theme.ink} accessibilityRole="alert">
+              {problem}
+            </AppText>
+          ) : null}
+        </KeyboardScroll>
+      )}
+    </View>
+  );
+}
+
+function RangeRow({
+  range,
+  label,
+  theme,
+  onChange,
+  onRemove,
+}: {
+  range: TimeRange;
+  label: string;
+  theme: ReturnType<typeof getTheme>;
+  onChange: (r: TimeRange) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <View style={styles.range}>
+      <TimeField
+        minutes={range.start}
+        onChange={(start) => onChange({ start, end: Math.max(range.end, start + 15) })}
+        label={`${label}, starts`}
+        accent={theme.accent}
+        theme={theme}
+      />
+      <AppText color={theme.muted}>–</AppText>
+      <TimeField
+        minutes={range.end}
+        min={range.start + 15}
+        onChange={(end) => onChange({ ...range, end })}
+        label={`${label}, ends`}
+        accent={theme.accent}
+        theme={theme}
+      />
+      <View style={styles.grow} />
+      {onRemove ? (
+        <Pressable
+          onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${label}`}
+          hitSlop={8}
+          style={styles.remove}
+        >
+          <AppText variant="caption" color={theme.accent}>
+            Remove
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  loading: { marginTop: space.xxl },
+  container: { paddingHorizontal: space.screen, paddingBottom: space.xxl, gap: space.md },
+  stack: { gap: space.sm },
+  heading: { paddingTop: space.lg },
+  range: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
+  grow: { flex: 1 },
+  remove: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.xs, borderRadius: radius.sm },
+});

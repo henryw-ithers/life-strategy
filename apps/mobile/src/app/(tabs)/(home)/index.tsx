@@ -507,7 +507,7 @@ export default function TodayScreen() {
             </AppText>
             <Button
               label="Plan your tasks"
-              onPress={() => router.push("/plan" as Href)}
+              onPress={() => router.navigate("/goals" as Href)}
               theme={theme}
             />
           </View>
