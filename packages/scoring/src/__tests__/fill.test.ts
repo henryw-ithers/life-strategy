@@ -68,6 +68,7 @@ function everywhere(day: PlannedDay): string[] {
     ...day.unplacedPins.map((p) => p.taskId),
     ...day.doesntFit,
     ...day.later,
+    ...day.plannedAhead,
   ];
 }
 const suggestedIn = (day: PlannedDay, i: number) =>
@@ -405,6 +406,40 @@ describe("what the reviews found", () => {
     // 0 would empty every window; it's held at 60%.
     const day = plan({ windows: [r(h(9), h(10))], open: [task("q", { size: "quick" })], fill: 0 });
     expect(suggestedIn(day, 0)).toEqual(["q"]);
+  });
+});
+
+describe("work planned for a later day (§3.2)", () => {
+  const windows = [r(h(9), h(12))];
+
+  it("is never suggested, and is listed to do early", () => {
+    const day = plan({
+      windows,
+      open: [task("friday", { plannedLater: true }), task("now")],
+    });
+    expect(suggestedIn(day, 0)).toEqual(["now"]);
+    expect(day.plannedAhead).toEqual(["friday"]);
+  });
+
+  it("shows where you pinned it, and only there", () => {
+    const day = plan({
+      windows,
+      open: [task("friday", { plannedLater: true })],
+      pins: [pin("friday", { anchor: h(10) })],
+    });
+    expect(day.windows[0]?.pinned.map((p) => p.taskId)).toEqual(["friday"]);
+    expect(day.plannedAhead).toEqual([]);
+    expect(everywhere(day)).toEqual(["friday"]);
+  });
+
+  it("isn't put in a window by its clock time", () => {
+    const day = plan({
+      windows,
+      open: [task("friday", { plannedLater: true, clockMinute: h(10) })],
+    });
+    expect(day.windows[0]?.timed).toEqual([]);
+    expect(day.atTime).toEqual([]);
+    expect(day.plannedAhead).toEqual(["friday"]);
   });
 });
 

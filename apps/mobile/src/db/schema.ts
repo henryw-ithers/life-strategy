@@ -639,66 +639,6 @@ export const plannedOccurrence = sqliteTable("planned_occurrence", {
 
 // ── Days, grades, and the life log (ADR-0004) ──────────────────────
 
-/**
- * A window's pool of interchangeable options (ADR-0033 §3).
- *
- * Up to three candidate tasks, any of which satisfies the window's
- * intention. Members are **equal-priced** — a pool holding "write the
- * essay (8)" beside "do the reading (3)" would have the choice made by
- * the scoreboard rather than by what the person needs, and equal points
- * are what make the choice free.
- *
- * `plannedCount` is how many the user means to do. It sets the
- * **divisor** when the band is shared out, not the payout: every member
- * is worth one slot, so doing more than planned is beyond-plan work
- * rather than a discount on each.
- *
- * **To be retired in Phase 8**, when Plan's day view writes
- * `window_choice` instead. Until then this is what scores "Do N of
- * these"; the two mean the same thing, so moving over changes no grade.
- */
-export const pool = sqliteTable("pool", {
-  id: text("id").primaryKey(),
-  /** The date this pool belongs to. A pool is a property of a *window*
-   *  on a day, not of a task, so it does not outlive its date. */
-  localDate: text("local_date").notNull(),
-  /**
-   * Which window on that day, as the commitment whose block it follows
-   * — the cue form (ADR-0036 §3), which survives a timetable change
-   * where a clock time would silently become wrong. Null means a
-   * part-of-day window on a day with no commitments.
-   */
-  afterTaskId: text("after_task_id").references((): AnySQLiteColumn => task.id),
-  /** Which part of the day, when no commitment bounds the window. */
-  partOfDay: text("part_of_day", { enum: ["morning", "afternoon", "evening"] }),
-  /** 1..members. Clamped on write and again in `commitmentPointValues`. */
-  plannedCount: integer("planned_count").notNull().default(1),
-  ...timestamps,
-});
-
-/**
- * A task's membership of a pool (ADR-0033 §3).
- *
- * At most three rows per pool, and **a task appears at most once per
- * window** — a window holding two pools must not carry the same task in
- * both, or "every completion pays in full" could be read as ticking one
- * task twice. Enforced at the write seam.
- */
-export const poolMember = sqliteTable(
-  "pool_member",
-  {
-    poolId: text("pool_id")
-      .notNull()
-      .references(() => pool.id),
-    taskId: text("task_id")
-      .notNull()
-      .references(() => task.id),
-    sortOrder: integer("sort_order").notNull().default(0),
-    ...timestamps,
-  },
-  (t) => [primaryKey({ columns: [t.poolId, t.taskId] })],
-);
-
 // ── Working hours and windows (ADR-0039) ────────────────────────────
 
 /**
@@ -817,7 +757,7 @@ export const windowPlacementException = sqliteTable(
 /**
  * "Do N of these" (ADR-0039 §6, ADR-0033 §3): up to three tasks pinned
  * in one window, from one commitment, any `planned_count` of which
- * satisfy it. Replaces `pool` once the screens move over. The window is
+ * satisfy it. Replaced the old `pool` table in Phase 8. The window is
  * named by the time it holds, like a pin's. One of the two things about
  * windows that can change a score, so writes mark grades stale.
  */

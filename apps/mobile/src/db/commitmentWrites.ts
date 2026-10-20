@@ -1,6 +1,5 @@
 /**
- * Creating, editing, archiving and deleting commitments and pools
- * (ADR-0035, ADR-0033).
+ * Creating, editing, archiving and deleting commitments (ADR-0035).
  *
  * Everything here is reversible and nothing here is silent. The two
  * rules the schema cannot express — **two levels only**, and **at most
@@ -14,16 +13,13 @@ import * as Crypto from "expo-crypto";
 import type { PaletteKey } from "../theme/palette";
 import { db } from "./client";
 import {
-  assertPoolSize,
   canAddCommitment,
-  MAX_POOL_MEMBERS,
-  type PoolValidationInput,
   findGeneral,
   GENERAL_SUB_NAME,
   homeOnSplit,
 } from "./commitmentPlan";
 import { forgetGoalLinksOf, forgetGoals, goalIdsOn } from "./goals";
-import { goal, lifeUnit, pool, poolMember, task, taskUnit } from "./schema";
+import { goal, lifeUnit, task, taskUnit } from "./schema";
 import { forgetPinsOf } from "./pins";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import { forgetSkipsOf } from "./skips";
@@ -421,7 +417,7 @@ export async function unarchiveCommitment(id: string): Promise<void> {
  */
 export async function deleteCommitment(
   id: string,
-): Promise<{ units: number; tasks: number; pools: number }> {
+): Promise<{ units: number; tasks: number }> {
   // What it reads to decide what to delete — whether this is the last
   // sub-commitment, the subtree, its tasks — is read in the same
   // transaction as the delete, so a change made meanwhile can't be
@@ -438,28 +434,7 @@ export async function deleteCommitment(
       .all()
       .map((t) => t.id);
 
-    let pools = 0;
     if (taskIds.length > 0) {
-      // Pools first: they reference tasks, and a pool left holding a
-      // deleted task is a window that cannot render.
-      const poolRows = tx
-        .select({ poolId: poolMember.poolId })
-        .from(poolMember)
-        .where(inArray(poolMember.taskId, taskIds))
-        .all();
-      const poolIds = [...new Set(poolRows.map((p) => p.poolId))];
-      if (poolIds.length > 0) {
-        tx.delete(poolMember).where(inArray(poolMember.poolId, poolIds)).run();
-        tx.delete(pool).where(inArray(pool.id, poolIds)).run();
-        pools = poolIds.length;
-      }
-      // A pool cued to one of these tasks loses its anchor, not its
-      // existence: it falls back to a part-of-day window.
-      tx.update(pool)
-        .set({ afterTaskId: null })
-        .where(inArray(pool.afterTaskId, taskIds))
-        .run();
-
       // Pins, choices and skips reference these tasks too.
       forgetPinsOf(tx, taskIds);
       forgetSkipsOf(tx, taskIds);
@@ -479,7 +454,7 @@ export async function deleteCommitment(
       .run();
     tx.delete(lifeUnit).where(inArray(lifeUnit.id, ids)).run();
     recomputeAllUnitPoints(tx);
-    return { units: ids.length, tasks: taskIds.length, pools };
+    return { units: ids.length, tasks: taskIds.length };
   });
 }
 
@@ -502,7 +477,7 @@ function isLastSub(tx: Tx, id: string): boolean {
  * sub-commitment itself. Archived tasks move too, so restoring one
  * later finds it a home.
  */
-function removeLastSub(tx: Tx, id: string): { units: number; tasks: number; pools: number } {
+function removeLastSub(tx: Tx, id: string): { units: number; tasks: number } {
   const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
   const parent = row?.parentUnitId;
   if (!parent) throw new Error(`Not a sub-commitment: ${id}`);
@@ -520,7 +495,7 @@ function removeLastSub(tx: Tx, id: string): { units: number; tasks: number; pool
   tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
   tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
   recomputeAllUnitPoints(tx);
-  return { units: 1, tasks: 0, pools: 0 };
+  return { units: 1, tasks: 0 };
 }
 
 /** A commitment and its sub-commitments, as ids. */
@@ -532,169 +507,6 @@ function subtreeIds(executor: Tx | typeof db, id: string): string[] {
     .all();
   return [id, ...children.map((c) => c.id)];
 }
-
-// ── Pools ───────────────────────────────────────────────────────────
-
-export interface CreatePoolInput {
-  localDate: string;
-  taskIds: string[];
-  plannedCount?: number;
-  /** The block this window follows — the cue (ADR-0036 §3). */
-  afterTaskId?: string | null;
-  partOfDay?: "morning" | "afternoon" | "evening" | null;
-}
-
-/**
- * Create a pool in a window.
- *
- * Refuses more than three members, and refuses a task already pooled in
- * the same window: without that, *"every completion pays in full"*
- * could be read as ticking one task twice (ADR-0033 §3).
- */
-export async function createPool(input: CreatePoolInput): Promise<string> {
-  const id = newId();
-  writeAndMarkStale((tx) => {
-    const existing = poolsInWindow(
-      tx,
-      input.localDate,
-      input.afterTaskId ?? null,
-      input.partOfDay ?? null,
-    );
-    assertPoolSize(validationInput(input, existing));
-    tx.insert(pool)
-      .values({
-        id,
-        localDate: input.localDate,
-        afterTaskId: input.afterTaskId ?? null,
-        partOfDay: input.partOfDay ?? null,
-        plannedCount: Math.max(
-          1,
-          Math.min(input.plannedCount ?? 1, input.taskIds.length),
-        ),
-      })
-      .run();
-    tx.insert(poolMember)
-      .values(input.taskIds.map((taskId, i) => ({ poolId: id, taskId, sortOrder: i })))
-      .run();
-  });
-  return id;
-}
-
-/** Change a pool's membership or planned count. */
-export async function updatePool(
-  id: string,
-  input: { taskIds?: string[]; plannedCount?: number },
-): Promise<void> {
-  const [row] = await db.select().from(pool).where(eq(pool.id, id));
-  if (!row) throw new Error(`No such pool: ${id}`);
-
-  writeAndMarkStale((tx) => {
-    let members = input.taskIds;
-    if (members) {
-      const others = poolsInWindow(tx, row.localDate, row.afterTaskId, row.partOfDay).filter(
-        (p) => p.poolId !== id,
-      );
-      assertPoolSize({ taskIds: members, existing: others });
-      tx.delete(poolMember).where(eq(poolMember.poolId, id)).run();
-      tx.insert(poolMember)
-        .values(members.map((taskId, i) => ({ poolId: id, taskId, sortOrder: i })))
-        .run();
-    } else {
-      const rows = tx
-        .select({ taskId: poolMember.taskId })
-        .from(poolMember)
-        .where(eq(poolMember.poolId, id))
-        .all();
-      members = rows.map((r) => r.taskId);
-    }
-    if (input.plannedCount !== undefined) {
-      tx.update(pool)
-        .set({
-          plannedCount: Math.max(
-            1,
-            Math.min(input.plannedCount, members.length || 1),
-          ),
-        })
-        .where(eq(pool.id, id))
-        .run();
-    }
-  });
-}
-
-/**
- * Delete a pool. Its members are **not** deleted — a pool is a grouping
- * on a window, and dissolving it leaves three ordinary tasks rather
- * than destroying them.
- */
-export async function deletePool(id: string): Promise<void> {
-  writeAndMarkStale((tx) => {
-    tx.delete(poolMember).where(eq(poolMember.poolId, id)).run();
-    tx.delete(pool).where(eq(pool.id, id)).run();
-  });
-}
-
-/** Remove one task from a pool, dissolving the pool if it empties. */
-export async function removeFromPool(
-  poolId: string,
-  taskId: string,
-): Promise<void> {
-  writeAndMarkStale((tx) => {
-    tx.delete(poolMember)
-      .where(and(eq(poolMember.poolId, poolId), eq(poolMember.taskId, taskId)))
-      .run();
-    const left = tx
-      .select({ taskId: poolMember.taskId })
-      .from(poolMember)
-      .where(eq(poolMember.poolId, poolId))
-      .all();
-    if (left.length === 0) {
-      tx.delete(pool).where(eq(pool.id, poolId)).run();
-      return;
-    }
-    // A planned count above what is left would divide the band by more
-    // slots than the pool can fill.
-    tx.update(pool)
-      .set({ plannedCount: sql`min(${pool.plannedCount}, ${left.length})` })
-      .where(eq(pool.id, poolId))
-      .run();
-  });
-}
-
-/** Every pool in one window, with its members. */
-function poolsInWindow(
-  tx: Tx,
-  localDate: string,
-  afterTaskId: string | null,
-  partOfDay: string | null,
-): { poolId: string; taskIds: string[] }[] {
-  const rows = tx
-    .select()
-    .from(pool)
-    .where(eq(pool.localDate, localDate))
-    .all();
-  const here = rows.filter(
-    (p) => p.afterTaskId === afterTaskId && p.partOfDay === partOfDay,
-  );
-  if (here.length === 0) return [];
-  const members = tx
-    .select()
-    .from(poolMember)
-    .where(inArray(poolMember.poolId, here.map((p) => p.id)))
-    .all();
-  return here.map((p) => ({
-    poolId: p.id,
-    taskIds: members.filter((m) => m.poolId === p.id).map((m) => m.taskId),
-  }));
-}
-
-function validationInput(
-  input: CreatePoolInput,
-  existing: { poolId: string; taskIds: string[] }[],
-): PoolValidationInput {
-  return { taskIds: input.taskIds, existing };
-}
-
-export { MAX_POOL_MEMBERS };
 
 // ── Colour ──────────────────────────────────────────────────────────
 

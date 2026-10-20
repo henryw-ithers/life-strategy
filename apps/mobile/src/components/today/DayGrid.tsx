@@ -28,7 +28,6 @@ import {
   formatMinutes,
   MIN_WINDOW_MINUTES,
   windowsFor,
-  type Window,
 } from "@glide/scoring";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
@@ -37,7 +36,6 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import {
-  carryPools,
   clipWindows,
   formatLength,
   formatSpan,
@@ -73,19 +71,6 @@ interface DayGridProps {
   /** Minutes past midnight, or null on a day that is not today. */
   nowMinute: number | null;
   onPress: (task: TodayTask) => void;
-  /**
-   * Open a window's options (ADR-0033 §2). Omitted on a screen where
-   * planning is not the job, and the bands then draw as plain labels
-   * rather than as controls that do nothing.
-   */
-  onPlanWindow?: (window: Window, pooled: string[], carried: string[]) => void;
-  /** Task ids already pooled, keyed by the window they were pooled in. */
-  pooledByWindow?: Map<string, string[]>;
-}
-
-/** A window's identity: what it follows, or which part of day it is. */
-export function windowKey(w: { afterTaskId: string | null; partOfDay: string | null }): string {
-  return `${w.afterTaskId ?? ""}|${w.partOfDay ?? ""}`;
 }
 
 export function DayGrid({
@@ -95,8 +80,6 @@ export function DayGrid({
   fontScale,
   nowMinute,
   onPress,
-  onPlanWindow,
-  pooledByWindow,
 }: DayGridProps) {
   const timed = tasks.filter(
     (t) => t.startMinute !== null && t.endMinute !== null,
@@ -119,29 +102,11 @@ export function DayGrid({
   const placed = placeBlocks(spans, bounds, hourPx);
   const byId = new Map(timed.map((t) => [t.id, t]));
 
-  // The scoring package's own windows, so what the grid draws and what
-  // a pool is priced against cannot drift apart (ADR-0033 §1). On a day
-  // with nothing timed those are morning / afternoon / evening, which
-  // is the right answer and not a special case.
+  // The free time between timed blocks. On a day with nothing timed
+  // those are morning / afternoon / evening. "Do N of these" moved to
+  // Plan's day view in Phase 8; this grid goes with Home's rebuild in
+  // Phase 9.
   const windows = clipWindows(windowsFor(spans), bounds, MIN_GAP);
-
-  /**
-   * Each window's options, with unfinished ones from windows that have
-   * ended **carried forward** into the one open now (ADR-0033 §2).
-   * Display only — the pools are not rewritten, so nothing records that
-   * the earlier window went by.
-   */
-  const openIds = new Set(
-    tasks
-      .filter((t) => !t.completedToday && t.doneAheadOn === null)
-      .map((t) => t.id),
-  );
-  const carriedWindows = carryPools(
-    windows,
-    (w) => pooledByWindow?.get(windowKey(w)) ?? [],
-    (id) => openIds.has(id),
-    nowMinute,
-  );
 
   return (
     <View style={styles.root}>
@@ -185,60 +150,33 @@ export function DayGrid({
           <View style={styles.lanes}>
             {/* Free time, under the blocks so a block always wins the
                 pixel. Stated as a length — what you have, never what
-                you ought to put in it. Tapping one opens the options
-                for that window and nothing fills it on your behalf. */}
-            {carriedWindows.map(({ window: w, own, carried }) => {
+                you ought to put in it. */}
+            {windows.map((w) => {
               const top = yOf(w.start, bounds, hourPx);
               const length = formatLength(w.end - w.start);
-              // A window that has ended is not somewhere to plan: it is
-              // drawn faint, says only what was done in it, and does not
-              // take a tap. Its unfinished options are in the window
-              // open now.
               const ended = nowMinute !== null && w.end <= nowMinute;
-              const options = own.length + carried.length;
-              const said = ended
-                ? own.length > 0
-                  ? `${own.length} done`
-                  : ""
-                : options > 0
-                  ? `${options} ${options === 1 ? "option" : "options"}`
-                  : "Free";
-              const planable = onPlanWindow !== undefined && !ended;
               return (
-                <Pressable
+                <View
                   key={`${w.start}-${w.end}`}
-                  onPress={
-                    planable ? () => onPlanWindow?.(w, own, carried) : undefined
-                  }
-                  disabled={!planable}
-                  accessibilityRole={planable ? "button" : "text"}
-                  accessibilityLabel={`${said || "Over"}, ${length}, ${formatSpan(w.start, w.end, formatMinutes)}${
-                    carried.length > 0
-                      ? `, including ${carried.length} carried from earlier`
-                      : ""
-                  }${planable ? ". Choose what might go here." : ""}`}
-                  style={({ pressed }) => [
+                  accessible
+                  accessibilityLabel={`${ended ? "Over" : "Free"}, ${length}, ${formatSpan(w.start, w.end, formatMinutes)}`}
+                  style={[
                     styles.window,
                     {
                       top,
                       height: yOf(w.end, bounds, hourPx) - top,
-                      borderColor:
-                        !ended && options > 0 ? theme.accent : theme.hairline,
-                      borderStyle: !ended && options > 0 ? "solid" : "dashed",
-                      opacity: pressed ? 0.5 : ended ? 0.45 : 1,
+                      borderColor: theme.hairline,
+                      borderStyle: "dashed",
+                      opacity: ended ? 0.45 : 1,
                     },
                   ]}
                 >
-                  {said ? (
-                    <AppText
-                      variant="footnote"
-                      color={!ended && options > 0 ? theme.ink : theme.muted}
-                      numberOfLines={1}
-                    >
-                      {said} · {length}
+                  {ended ? null : (
+                    <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
+                      Free · {length}
                     </AppText>
-                  ) : null}
-                </Pressable>
+                  )}
+                </View>
               );
             })}
 

@@ -31,7 +31,7 @@ import { startingHours } from "./hours";
 import { loadSchedule } from "./schedule";
 import { withSchedule } from "./windowRules";
 import { completionDatesAround } from "./sessionCoverage";
-import { lifeUnit, pool, poolMember, task, taskCompletion } from "./schema";
+import { lifeUnit, task, taskCompletion, windowChoice, windowChoiceMember } from "./schema";
 
 export interface CommitmentRow {
   id: string;
@@ -126,9 +126,9 @@ async function eligibleOn(
  * days it can be earned. After Clear today only what was ticked counts
  * (ADR-0040 §4), so a cleared day with none ticked has no share.
  *
- * Pools (ADR-0033 §3) are read for the date and passed through. A pool
- * contributes its **planned count** to the divisor rather than its
- * member count.
+ * "Do N of these" choices (ADR-0039 §6) are read for the date and
+ * passed through. A choice contributes its **planned count** to the
+ * divisor rather than its member count.
  */
 export async function loadCommitmentDay(
   date: string,
@@ -203,76 +203,40 @@ export async function loadCommitmentDay(
     share,
     groups,
     eligible,
-    await poolsOn(date, new Set(eligible)),
+    await choicesOn(date, new Set(eligible)),
   );
 }
 
 /**
- * This date's pools, restricted to members the band actually pays for.
+ * This date's "Do N of these" choices, restricted to members the band
+ * actually pays for.
  *
- * A pool holding a task that is not eligible today would otherwise add
- * a slot the day cannot fill, quietly lowering what every other task in
- * the commitment is worth. Pools left empty by that filter are dropped.
+ * A choice holding a task that is not eligible today would otherwise
+ * add a slot the day cannot fill, quietly lowering what every other
+ * task in the commitment is worth. Choices left empty by that filter
+ * are dropped.
  */
-async function poolsOn(
+async function choicesOn(
   date: string,
   eligible: ReadonlySet<string>,
 ): Promise<{ taskIds: string[]; plannedCount: number }[]> {
-  const rows = await db.select().from(pool).where(eq(pool.localDate, date));
+  const rows = await db.select().from(windowChoice).where(eq(windowChoice.localDate, date));
   if (rows.length === 0) return [];
 
   const members = await db
     .select()
-    .from(poolMember)
-    .where(inArray(poolMember.poolId, rows.map((p) => p.id)));
+    .from(windowChoiceMember)
+    .where(inArray(windowChoiceMember.choiceId, rows.map((c) => c.id)));
 
   return rows
-    .map((p) => ({
+    .map((c) => ({
       taskIds: members
-        .filter((m) => m.poolId === p.id && eligible.has(m.taskId))
+        .filter((m) => m.choiceId === c.id && eligible.has(m.taskId))
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((m) => m.taskId),
-      plannedCount: p.plannedCount,
+      plannedCount: c.plannedCount,
     }))
-    .filter((p) => p.taskIds.length > 0);
-}
-
-export interface PoolOnDay {
-  id: string;
-  /** The block this window follows — the cue (ADR-0036 §3). */
-  afterTaskId: string | null;
-  partOfDay: "morning" | "afternoon" | "evening" | null;
-  /** How many of them you mean to get through (ADR-0033 §3). */
-  plannedCount: number;
-  taskIds: string[];
-}
-
-/**
- * Every pool on a date, for the planning UI.
- *
- * Deliberately **unfiltered**, unlike `poolsOn`. That one drops members
- * the band cannot pay for today, which is right for pricing and wrong
- * here: a task you put in a window has to stay visible in that window
- * even on a day it earns nothing, or removing it would be impossible
- * and the row would look as though it had been silently deleted.
- */
-export async function loadPools(date: string): Promise<PoolOnDay[]> {
-  const rows = await db.select().from(pool).where(eq(pool.localDate, date));
-  if (rows.length === 0) return [];
-  const members = await db
-    .select()
-    .from(poolMember)
-    .where(inArray(poolMember.poolId, rows.map((p) => p.id)));
-  return rows.map((p) => ({
-    id: p.id,
-    afterTaskId: p.afterTaskId,
-    partOfDay: p.partOfDay,
-    plannedCount: p.plannedCount,
-    taskIds: members
-      .filter((m) => m.poolId === p.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((m) => m.taskId),
-  }));
+    .filter((c) => c.taskIds.length > 0);
 }
 
 /** Whether any commitment exists at all — for deciding what to show. */

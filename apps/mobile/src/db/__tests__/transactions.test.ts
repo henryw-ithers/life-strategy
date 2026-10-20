@@ -16,24 +16,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCommitment,
-  createPool,
   deleteCommitment,
   setUsesSubCommitments,
   updateCommitment,
-  updatePool,
 } from "../commitmentWrites";
 import { savePriorities } from "../priorities";
 import {
   appSetting,
   lifeArea,
   lifeUnit,
-  pool,
-  poolMember,
   rating,
   snapshot,
   task,
   taskUnit,
   unitWeight,
+  windowChoice,
+  windowChoiceMember,
 } from "../schema";
 import { archiveTask, restoreTask, setTaskPlanning } from "../tasks";
 import { resetTestDb, testDb } from "./harness";
@@ -116,7 +114,7 @@ function seedPlan() {
 }
 
 /** School, split into COMP2521, with an essay in a "Do N of these"
- *  pool beside a life task, and a second pool cued to the essay. */
+ *  choice beside a life task. */
 function seedCommitment() {
   seedPlan();
   const db = testDb();
@@ -147,17 +145,13 @@ function seedCommitment() {
     .values({ id: "essay", unitId: "comp", title: "Essay", timesPerWeek: 2, pointValue: 0, rankInUnit: 1 })
     .run();
   db.insert(taskUnit).values({ taskId: "essay", unitId: "comp", rankInUnit: 1, pointValue: 0 }).run();
-  db.insert(pool)
-    .values([
-      { id: "p1", localDate: "2026-10-19", partOfDay: "morning", plannedCount: 1 },
-      { id: "p2", localDate: "2026-10-19", afterTaskId: "essay", plannedCount: 1 },
-    ])
+  db.insert(windowChoice)
+    .values({ id: "c1", localDate: "2026-10-19", anchorMinute: 9 * 60, plannedCount: 1 })
     .run();
-  db.insert(poolMember)
+  db.insert(windowChoiceMember)
     .values([
-      { poolId: "p1", taskId: "essay", sortOrder: 0 },
-      { poolId: "p1", taskId: "gym", sortOrder: 1 },
-      { poolId: "p2", taskId: "run", sortOrder: 0 },
+      { choiceId: "c1", taskId: "essay", sortOrder: 0 },
+      { choiceId: "c1", taskId: "gym", sortOrder: 1 },
     ])
     .run();
 }
@@ -224,28 +218,26 @@ describe("archiveTask", () => {
 });
 
 describe("deleteCommitment", () => {
-  it("removes the commitment, its parts, their tasks and their pools", async () => {
+  it("removes the commitment, its parts, their tasks and their choices", async () => {
     seedCommitment();
     const removed = await deleteCommitment("school");
 
-    expect(removed).toEqual({ units: 2, tasks: 1, pools: 1 });
+    expect(removed).toEqual({ units: 2, tasks: 1 });
     const db = testDb();
     const unitIds = db.select().from(lifeUnit).all().map((u) => u.id);
     expect(unitIds).not.toContain("school");
     expect(unitIds).not.toContain("comp");
     expect(taskRow("essay")).toBeUndefined();
-    // The pool holding the essay is gone with its members; the one cued
-    // to it stays, as a part-of-day window.
-    expect(db.select().from(pool).all().map((p) => p.id)).toEqual(["p2"]);
-    expect(db.select().from(pool).all()[0]?.afterTaskId).toBeNull();
-    expect(db.select().from(poolMember).all().map((m) => m.poolId)).toEqual(["p2"]);
-    // The life task that shared the deleted pool survives.
+    // A choice left with one task isn't a choice: it goes.
+    expect(db.select().from(windowChoice).all()).toEqual([]);
+    expect(db.select().from(windowChoiceMember).all()).toEqual([]);
+    // The life task that shared it survives.
     expect(taskRow("gym")).toBeDefined();
   });
 
   it("rolls everything back when deleting the units fails", async () => {
     seedCommitment();
-    // Units are deleted after the pools and tasks.
+    // Units are deleted after the choices and tasks.
     failOn("life_unit", "DELETE");
 
     await expect(deleteCommitment("school")).rejects.toThrow(/injected failure/);
@@ -253,9 +245,8 @@ describe("deleteCommitment", () => {
     const db = testDb();
     expect(taskRow("essay")).toBeDefined();
     expect(db.select().from(taskUnit).all().some((m) => m.taskId === "essay")).toBe(true);
-    expect(db.select().from(pool).all().map((p) => p.id).sort()).toEqual(["p1", "p2"]);
-    expect(db.select().from(pool).all().find((p) => p.id === "p2")?.afterTaskId).toBe("essay");
-    expect(db.select().from(poolMember).all()).toHaveLength(3);
+    expect(db.select().from(windowChoice).all().map((c) => c.id)).toEqual(["c1"]);
+    expect(db.select().from(windowChoiceMember).all()).toHaveLength(2);
   });
 
   it("deletes nothing when the stale mark fails", async () => {
@@ -267,7 +258,7 @@ describe("deleteCommitment", () => {
     const unitIds = testDb().select().from(lifeUnit).all().map((u) => u.id);
     expect(unitIds).toEqual(expect.arrayContaining(["school", "comp"]));
     expect(taskRow("essay")).toBeDefined();
-    expect(testDb().select().from(pool).all()).toHaveLength(2);
+    expect(testDb().select().from(windowChoice).all()).toHaveLength(1);
   });
 
   it("puts the last sub-commitment's work back, or nothing, with the mark", async () => {
@@ -277,7 +268,7 @@ describe("deleteCommitment", () => {
     expect(taskRow("essay")?.unitId).toBe("comp");
 
     testDb().run(sql.raw("DROP TRIGGER fail_app_setting_INSERT"));
-    expect(await deleteCommitment("comp")).toEqual({ units: 1, tasks: 0, pools: 0 });
+    expect(await deleteCommitment("comp")).toEqual({ units: 1, tasks: 0 });
     expect(taskRow("essay")?.unitId).toBe("school");
     expect(gradesStale()).toBe("1");
   });
@@ -309,23 +300,6 @@ describe("setUsesSubCommitments", () => {
     expect(taskRow("essay")?.movedFromUnitId).toBeNull();
     const memberships = testDb().select().from(taskUnit).all().filter((m) => m.taskId === "essay");
     expect(memberships.map((m) => m.unitId)).toEqual(["comp"]);
-  });
-});
-
-describe("updatePool", () => {
-  it("refuses a task already pooled in the same window, changing nothing", async () => {
-    seedCommitment();
-    testDb()
-      .insert(pool)
-      .values({ id: "p3", localDate: "2026-10-19", partOfDay: "morning", plannedCount: 1 })
-      .run();
-    testDb().insert(poolMember).values({ poolId: "p3", taskId: "call", sortOrder: 0 }).run();
-
-    // gym is already in p1, the other morning pool.
-    await expect(updatePool("p3", { taskIds: ["call", "gym"] })).rejects.toThrow();
-
-    const members = testDb().select().from(poolMember).all().filter((m) => m.poolId === "p3");
-    expect(members.map((m) => m.taskId)).toEqual(["call"]);
   });
 });
 
@@ -371,16 +345,6 @@ describe("grades are marked stale in the same transaction as the write", () => {
     failStaleMark();
     await expect(setTaskPlanning("gym", "1,3", "morning")).rejects.toThrow(/injected failure/);
     expect(taskRow("gym")?.plannedWeekdays).toBeNull();
-  });
-
-  it("a new pool rolls back when the mark fails", async () => {
-    seedPlan();
-    failStaleMark();
-    await expect(
-      createPool({ localDate: "2026-10-19", taskIds: ["gym", "call"], partOfDay: "evening" }),
-    ).rejects.toThrow(/injected failure/);
-    expect(testDb().select().from(pool).all()).toEqual([]);
-    expect(testDb().select().from(poolMember).all()).toEqual([]);
   });
 
   it("a renamed commitment rolls back when the mark fails", async () => {

@@ -99,8 +99,9 @@ export function eligibleTaskIds(
 // in `@glide/scoring` beside the band arithmetic that depends on it.
 // Two constants for one rule is how the two drift apart.
 
-/** At most three options in one pool (ADR-0033 §3). */
-export const MAX_POOL_MEMBERS = 3;
+/** At most three tasks in one "Do N of these" choice (ADR-0033 §3,
+ *  ADR-0039 §6). */
+export const MAX_CHOICE_TASKS = 3;
 
 /**
  * Whether another commitment may be created.
@@ -113,42 +114,6 @@ export function canAddCommitment(
   active: readonly { id: string; parentUnitId: string | null }[],
 ): boolean {
   return active.filter((u) => u.parentUnitId === null).length < MAX_COMMITMENTS;
-}
-
-export interface PoolValidationInput {
-  taskIds: readonly string[];
-  /** Other pools already in the same window. */
-  existing: readonly { poolId: string; taskIds: readonly string[] }[];
-}
-
-/**
- * Why a pool is invalid, or `null` if it is fine.
- *
- * Returned rather than thrown so a caller can decide whether this is an
- * error or a disabled button.
- */
-export function poolProblem(input: PoolValidationInput): string | null {
-  if (input.taskIds.length === 0) return "A pool needs at least one option.";
-  if (input.taskIds.length > MAX_POOL_MEMBERS) {
-    return `A pool holds at most ${MAX_POOL_MEMBERS} options.`;
-  }
-  if (new Set(input.taskIds).size !== input.taskIds.length) {
-    return "A task can only appear once in a pool.";
-  }
-  // A task in two pools in the same window would let "every completion
-  // pays in full" be read as ticking one task twice (ADR-0033 §3).
-  const elsewhere = new Set(input.existing.flatMap((p) => [...p.taskIds]));
-  const clash = input.taskIds.find((id) => elsewhere.has(id));
-  if (clash !== undefined) {
-    return "That task is already an option in this window.";
-  }
-  return null;
-}
-
-/** `poolProblem`, as a throw — for write paths that cannot continue. */
-export function assertPoolSize(input: PoolValidationInput): void {
-  const problem = poolProblem(input);
-  if (problem !== null) throw new Error(problem);
 }
 
 // ── Commitment tasks (ADR-0035 §3) ─────────────────────────────────

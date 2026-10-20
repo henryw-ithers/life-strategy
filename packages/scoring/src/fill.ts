@@ -75,6 +75,13 @@ export interface OpenTask {
    * steps aside, as a spare pin does.
    */
   readonly owesRun: boolean;
+  /**
+   * Planned for a later day: a run pinned to a later weekday, a one-off
+   * dated later, or commitment work scheduled later. Never suggested
+   * (§3.2), but a pin you made still shows, and it's listed under
+   * `plannedAhead` so it can be done early (ADR-0037 §3).
+   */
+  readonly plannedLater?: boolean;
 }
 
 /** A task ticked today, and when. It counts toward its window's room so
@@ -165,6 +172,9 @@ export interface PlannedDay {
   /** Ranked below what the windows hold: "More for today", and on a day
    *  with no windows left, the one list (§4). */
   readonly later: readonly string[];
+  /** Open work planned for a later day and not pinned here, ranked:
+   *  listed last, so it can be done early (ADR-0037 §3). */
+  readonly plannedAhead: readonly string[];
 }
 
 /** Which part of the day a window mostly sits in, by its midpoint. A
@@ -312,7 +322,13 @@ export function planDay(input: PlanDayInput): PlannedDay {
   for (const slot of slots) slot.pinned.sort((a, b) => a.order - b.order);
 
   // A task with no run owed and no live extra pin isn't open at all.
-  const candidates = [...byId.values()].filter((t) => t.owesRun && !pinnedIds.has(t.taskId));
+  // Work planned for a later day is never suggested (§3.2).
+  const unpinned = [...byId.values()].filter((t) => t.owesRun && !pinnedIds.has(t.taskId));
+  const candidates = unpinned.filter((t) => t.plannedLater !== true);
+  const plannedAhead = unpinned
+    .filter((t) => t.plannedLater === true)
+    .sort(compareFor(null, suggestBy))
+    .map((t) => t.taskId);
 
   // 2. Timed tasks go at their time; the rest are ranked. A task whose
   // window has ended carries forward, ranked as carried.
@@ -394,7 +410,7 @@ export function planDay(input: PlanDayInput): PlannedDay {
     };
   });
 
-  return { windows: planned, atTime, unplacedPins, doesntFit, later };
+  return { windows: planned, atTime, unplacedPins, doesntFit, later, plannedAhead };
 }
 
 // ── Outside windows (§4) ────────────────────────────────────────────
