@@ -10,6 +10,7 @@ import {
   boundsCutToday,
   commitmentWeeks,
   movedSkips,
+  nextRun,
   seriesWeeks,
   splitSeries,
 } from "../seriesRules";
@@ -112,5 +113,27 @@ describe("boundsCutToday", () => {
     expect(
       boundsCutToday(tuesday, { repeatFrom: null, repeatUntil: null }, { repeatFrom: null, repeatUntil: "2026-12-01" }, TODAY),
     ).toBe(false);
+  });
+});
+
+describe("nextRun", () => {
+  const tuesdays = { plannedWeekdays: "2", timesPerWeek: 1, fortnightOffset: 0 };
+
+  it("is today when it runs today, else its next day in the schedule", () => {
+    expect(nextRun({ ...tuesdays, repeatFrom: null, repeatUntil: null }, TODAY)).toBe(TODAY);
+    expect(nextRun({ ...tuesdays, plannedWeekdays: "4", repeatFrom: null, repeatUntil: null }, TODAY)).toBe(
+      "2026-10-22",
+    );
+  });
+
+  it("skips skipped days and respects the series' start", () => {
+    expect(
+      nextRun({ ...tuesdays, repeatFrom: null, repeatUntil: null, skippedDates: new Set([TODAY]) }, TODAY),
+    ).toBe("2026-10-27");
+    expect(nextRun({ ...tuesdays, repeatFrom: "2026-11-01", repeatUntil: null }, TODAY)).toBe("2026-11-03");
+  });
+
+  it("is null once the series has ended", () => {
+    expect(nextRun({ ...tuesdays, repeatFrom: null, repeatUntil: "2026-10-19" }, TODAY)).toBeNull();
   });
 });

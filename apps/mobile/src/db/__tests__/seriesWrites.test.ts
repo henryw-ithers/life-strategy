@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGoal, loadGoals } from "../goals";
-import { lifeArea, lifeUnit, scheduleSkip, task, taskUnit, goalEntry, goal, taskCompletion } from "../schema";
+import { goalEntry, lifeArea, lifeUnit, scheduleSkip, task, taskCompletion, taskUnit } from "../schema";
 import {
   archiveEndedSeries,
   editEventFollowing,

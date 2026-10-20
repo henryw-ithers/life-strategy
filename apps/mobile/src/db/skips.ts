@@ -210,3 +210,25 @@ export async function updateAway(
 export async function removeAway(id: string): Promise<void> {
   writeAndMarkStale((tx) => tx.delete(awayRange).where(eq(awayRange.id, id)).run());
 }
+
+/** A series' own skips, runs and weeks: what "Skip weeks ›" switches
+ *  and what its next run steps past. Not its commitment's weeks. */
+export async function loadTaskSkips(
+  taskId: string,
+): Promise<{ id: string; kind: "occurrence" | "taskWeek"; localDate: string }[]> {
+  const rows = await db
+    .select({ id: scheduleSkip.id, kind: scheduleSkip.kind, localDate: scheduleSkip.localDate })
+    .from(scheduleSkip)
+    .where(and(eq(scheduleSkip.taskId, taskId), inArray(scheduleSkip.kind, ["occurrence", "taskWeek"])));
+  return rows.map((r) => ({ id: r.id, kind: r.kind as "occurrence" | "taskWeek", localDate: r.localDate }));
+}
+
+/** A commitment's skipped weeks, by their first day: what "Skip a
+ *  week…" switches (ADR-0040 §2). */
+export async function loadCommitmentWeekSkips(unitId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: scheduleSkip.id, localDate: scheduleSkip.localDate })
+    .from(scheduleSkip)
+    .where(and(eq(scheduleSkip.unitId, unitId), eq(scheduleSkip.kind, "commitmentWeek")));
+  return new Map(rows.map((r) => [r.localDate, r.id]));
+}

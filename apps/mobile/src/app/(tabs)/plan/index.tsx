@@ -41,13 +41,12 @@ import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { LoadFailure } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
+import { saveEventEdit, saveNewEvent } from "../../../components/plan/saveEvent";
 import { UNIT_INFO } from "../../../content/units";
 import {
-  addEvent,
   addTask,
   archiveTask,
   reorderUnitTasks,
-  updateEvent,
   type PlanData,
   type PlanTask,
   type PlanUnit,
@@ -423,10 +422,10 @@ export default function PlanScreen() {
           accent={theme.accent}
           theme={theme}
           onClose={() => setAddingEvent(null)}
-          onSave={async (input) => {
+          onSave={async (input, bounds) => {
             const unitIds = addingEventShown.unitIds;
             setAddingEvent(null);
-            const id = await addEvent(unitIds, input);
+            const id = await saveNewEvent(unitIds, input, bounds);
             await revealAdded(id, unitIds[0]);
           }}
         />
@@ -445,14 +444,21 @@ export default function PlanScreen() {
             startMinute: editingShown.task.startMinute,
             endMinute: editingShown.task.endMinute,
             notes: editingShown.task.description,
+            repeatFrom: editingShown.task.repeatFrom,
+            repeatUntil: editingShown.task.repeatUntil,
           }}
+          seriesId={editingShown.task.id}
           accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
           theme={theme}
           onClose={() => setEditing(null)}
-          onSave={async (input) => {
-            const id = editingShown.task.id;
-            setEditing(null);
-            await updateEvent(id, input);
+          onSave={async (input, bounds) => {
+            const t = editingShown.task;
+            const saved = await saveEventEdit(
+              { ...t, notes: t.description },
+              input,
+              bounds,
+            );
+            if (saved) setEditing(null);
             await reload();
           }}
           onDelete={() => {

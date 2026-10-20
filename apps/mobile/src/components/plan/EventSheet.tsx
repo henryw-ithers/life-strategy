@@ -16,6 +16,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { eventProblem, type EventInput } from "../../db/events";
+import type { Bounds } from "../../db/seriesRules";
 import { currentLocalDate } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
@@ -26,6 +27,8 @@ import { KeyboardScroll } from "../ui/KeyboardScroll";
 import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
 import { parseWeekdays, type Weekday } from "./planning";
+import { boundsFor, RepeatLength, type RepeatLengthValue } from "./RepeatLength";
+import { SkipWeeks } from "./SkipWeeks";
 import { Segmented } from "./Segmented";
 import { UnitPicker } from "./UnitPicker";
 import type { PickableUnit } from "./UnitPicker";
@@ -38,12 +41,17 @@ export interface EventSheetValue {
   startMinute: number | null;
   endMinute: number | null;
   notes: string | null;
+  /** When a repeating series runs (ADR-0040 §1). */
+  repeatFrom?: string | null;
+  repeatUntil?: string | null;
 }
 
 interface EventSheetProps {
   visible: boolean;
   /** Set when editing an existing event. */
   initial?: EventSheetValue;
+  /** The event being edited: lets a repeating one skip weeks. */
+  seriesId?: string;
   /** Where it is filed, for the subtitle — "COMP2521". */
   unitName?: string;
   /**
@@ -61,7 +69,8 @@ interface EventSheetProps {
   onClose: () => void;
   /** After it has finished closing (`NativeSheet`). */
   onDismissed?: () => void;
-  onSave: (input: EventInput) => void;
+  /** `bounds` is null for a one-time event. */
+  onSave: (input: EventInput, bounds: Bounds | null) => void;
   /** Offered when editing. */
   onDelete?: () => void;
 }
@@ -76,6 +85,7 @@ const REPEATS = [
 export function EventSheet({
   visible,
   initial,
+  seriesId,
   unitName,
   unitChoice,
   accent,
@@ -92,6 +102,17 @@ export function EventSheet({
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  /** A new series starts today; an edited one keeps its first day. */
+  const from = initial?.repeatFrom ?? currentLocalDate();
+  const [length, setLength] = useState<RepeatLengthValue>(
+    initial === undefined
+      ? { mode: "weeks", weeks: 12 }
+      : initial.repeatUntil
+        ? { mode: "until", until: initial.repeatUntil }
+        : { mode: "none" },
+  );
+  const [showSkips, setShowSkips] = useState(false);
+  const bounds = repeat === "weekly" ? boundsFor(length, from) : null;
 
   const input: EventInput = {
     title,
@@ -122,7 +143,7 @@ export function EventSheet({
       title={initial ? "Edit event" : "New event"}
       confirm={{
         label: initial ? "Save" : "Add",
-        onPress: () => onSave(input),
+        onPress: () => onSave(input, bounds),
         disabled: problem !== null,
       }}
     >
@@ -154,7 +175,28 @@ export function EventSheet({
             label="Repeats"
           />
           {repeat === "weekly" ? (
-            <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
+            <>
+              <WeekdayPicker value={days} onChange={setDays} accent={accent} theme={theme} />
+              <RepeatLength value={length} onChange={setLength} from={from} accent={accent} theme={theme} />
+              {seriesId && bounds ? (
+                <>
+                  <Pressable
+                    onPress={() => setShowSkips((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showSkips }}
+                    style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <AppText color={theme.ink} style={styles.grow}>
+                      Skip weeks
+                    </AppText>
+                    <AppText color={theme.muted}>{showSkips ? "Hide" : "Show"}</AppText>
+                  </Pressable>
+                  {showSkips ? (
+                    <SkipWeeks taskId={seriesId} bounds={bounds} accent={accent} theme={theme} />
+                  ) : null}
+                </>
+              ) : null}
+            </>
           ) : (
             <PickRow
               label="Date"

@@ -73,6 +73,9 @@ export interface PlanTask {
   oneOffDate: string | null;
   /** Its deadline, or null. */
   oneOffDue: string | null;
+  /** When a repeating series runs, either end open (ADR-0040 §1). */
+  repeatFrom: string | null;
+  repeatUntil: string | null;
   /** `event` for a time you attend (ADR-0038); otherwise `task`. */
   kind: "task" | "event";
   /** Minutes from local midnight, or null for no clock time
@@ -304,6 +307,8 @@ export async function loadPlan(): Promise<PlanData> {
       oneOffSize: t.oneOffSize,
       oneOffDate: t.oneOffDate,
       oneOffDue: t.oneOffDue,
+      repeatFrom: t.repeatFrom,
+      repeatUntil: t.repeatUntil,
       startMinute: t.startMinute,
       endMinute: t.endMinute,
       size: t.size,

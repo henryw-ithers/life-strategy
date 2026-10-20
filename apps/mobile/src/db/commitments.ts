@@ -378,6 +378,9 @@ export interface UnitItem {
   oneOffDate: string | null;
   oneOffSize: "quick" | "normal" | "big" | null;
   notes: string | null;
+  /** When a repeating series runs, either end open (ADR-0040 §1). */
+  repeatFrom: string | null;
+  repeatUntil: string | null;
 }
 
 export interface CommitmentUnitScreen {
@@ -471,6 +474,8 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
     startMinute: t.startMinute,
     endMinute: t.endMinute,
     oneOffDate: t.oneOffDate,
+    repeatFrom: t.repeatFrom,
+    repeatUntil: t.repeatUntil,
     oneOffSize: t.oneOffSize,
     notes: t.description,
   });

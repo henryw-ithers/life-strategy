@@ -110,3 +110,30 @@ export function boundsCutToday(
 ): boolean {
   return isDueOn({ ...task, ...before }, today) && !isDueOn({ ...task, ...after }, today);
 }
+
+/** How far ahead `nextRun` looks: a year covers any weekly or
+ *  fortnightly series. */
+const NEXT_RUN_REACH = 366;
+
+/**
+ * The series' next run from `today` on, or null if it has none left:
+ * the occurrence "This event only" and "This and following" mean when a
+ * series is edited from Plan or a commitment rather than from a day.
+ */
+export function nextRun(
+  task: {
+    plannedWeekdays: string | null;
+    timesPerWeek: number;
+    fortnightOffset?: number;
+    repeatFrom: string | null;
+    repeatUntil: string | null;
+    skippedDates?: ReadonlySet<string>;
+  },
+  today: string,
+): string | null {
+  for (let i = 0, d = today; i < NEXT_RUN_REACH; i++, d = addDays(d, 1)) {
+    if (task.repeatUntil !== null && d > task.repeatUntil) return null;
+    if (isDueOn(task, d)) return d;
+  }
+  return null;
+}
