@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-21, during Phase 9.
+Last updated 2026-10-21, during Phase 11.
 
 ## Phases
 
@@ -35,8 +35,8 @@ Last updated 2026-10-21, during Phase 9.
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | Merged, PR #21 |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | Merged, PRs #22–#25 |
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | Merged, PRs #26, #27 |
-| **10** | **Life: commitments, goals (templates), units, the Priorities link** | **In progress** |
-| 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | |
+| 10 | Life: rows, unit and commitment screens, achievements (ADR-0047) | Merged, PRs #28, #29, #31 |
+| **11** | **Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week** | **In progress** |
 | 12 | Hardening: test coverage, a device walk of every edge case, a code review | |
 
 Each phase ships as one or more PRs off `main`. Every PR passes
@@ -57,6 +57,63 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 11: Onboarding
+
+Built from ADR-0045 and spec §5.11, as one PR rather than the three
+planned (the steps share one screen and one load).
+
+`app/onboarding.tsx` is seven steps: welcome (with the privacy line),
+Priorities, commitments, working hours, a few tasks, your first week,
+and the daily reminder (with the Support resources line). The step
+order, where an old stored step resumes, and which steps can be skipped
+are `lib/onboardingFlow.ts`. Priorities is required only until tiers
+exist; a re-run from Settings ("Run setup again") opens at Priorities
+and deletes nothing. Finishing goes to Home, not Life.
+
+- **Priorities and Hours stay their own screens**, pushed from the
+  flow. Coming back, a new snapshot or changed hours moves it on;
+  backing out stays on the step. `hours?setup=1`, sent when no hours are set yet, saves from today with
+  no "Just this week" question, and `template=` fills in hours not yet
+  set (`draftFrom`'s fallback).
+- **Commitments step** (`CommitmentsStep`): Student, 9–5 job, Shift
+  work or Nothing fixed (`lib/onboardingTemplates.ts`), then up to three
+  commitments with their events, weekly for 12 weeks by default. The
+  choice only fills in hours and, for shift work, turns on
+  `events_default_once`; it creates nothing. The sub-commitments switch
+  is left out here (`askSplit={false}`).
+- **A few tasks** (`StarterTasksStep`, `lib/starterTasks.ts`): the
+  library's three best-ranked tasks for each Top unit, tap to add, a
+  starter you have already ticked, and Add your own.
+- **Your first week** (`FirstWeekStep`): Plan's week strip and day view,
+  live, with the ADR's line about the score.
+- **The score sheet explains the score on its first open**
+  (`scoreExplained`), from the engine's constants.
+- Removed: the method, weights and rhythm screens, `/diagnostic`,
+  `AreaInfoSheet` and `PermissionPrescreen` (the reminder ask is
+  `askForNudge`/`declineNudge` in `notifications/dailyNudge.ts`).
+
+Template hours (free time, with events cut out of it): Student weekdays
+8–18 and weekends 10–16; 9–5 job weekdays 7–21 and weekends 9–17; Shift
+work every day 8–20; Nothing fixed every day 9–17.
+
+Left open:
+
+- **No suggested sort** (Henry, 2026-10-21; ADR-0041 §1 and ADR-0045
+  step 2 amended): a first run starts every unit in an Unsorted
+  section above Top (`board.ts`), shown only while it holds a unit. A
+  tap on an unsorted unit asks which tier, and Done waits until every
+  unit has one (`sortedPlacement`).
+- **Step 7 asks for the existing daily reminder**, not a morning
+  summary: the only notification is ADR-0010's nudge. A summary would
+  be new notification content.
+- **The hours preview shows today**, not the whole week.
+- **The three Relationships units have no library tasks**, so as Top
+  units they show only Add your own.
+- `content/areas.ts` (from `docs/content/areas.md`) is now read by
+  nothing; Phase 12's dead-code pass, with the goal templates.
+- On the web preview Priorities can't be saved, so the steps after it
+  are walked on the phone.
 
 ## Phase 10: Life
 
@@ -329,10 +386,9 @@ Built from ADR-0041 and spec §5.4.1 and §8.2, with Henry's calls on
   own weight equal to the recommended one is no override.
 - **`unitProfile`** reads tier: Top gap-closing, Important and
   Background maintenance, a unit too small for two tasks light.
-- **A first run** starts with every unit in Important, in the default
-  order. Saving it unchanged gives ×1.1 down to ×0.9 by that order, an
-  order nobody chose (open: an equal-weight first save, if Henry
-  wants one).
+- **A first run** started with every unit in Important, in the default
+  order. Since Phase 11 it starts every unit Unsorted, and you sort
+  them all before Done (Henry, 2026-10-21).
 - **Not now** pauses a unit's tasks (archived, marked
   `paused_for_not_now`, pins dropped) and moving it back restores them.
   Priorities is the only way in or out of the plan: the Plan tab's

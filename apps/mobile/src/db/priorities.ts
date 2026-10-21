@@ -49,10 +49,10 @@ export interface PriorityUnit {
 export interface PriorityBoard {
   /** In Priorities order: Top first, each tier in its own order. */
   units: PriorityUnit[];
-  /** No Priorities saved yet. The board starts with every unit in
-   *  Important, in the default order, so dragging is the whole job
-   *  (Henry, 2026-10-19), rather than a guess that looks like the app
-   *  has an opinion about your life. */
+  /** No Priorities saved yet. The screen then starts every unit
+   *  Unsorted and you sort them all yourself (Henry, 2026-10-21), rather
+   *  than from a guess that looks like the app has an opinion about your
+   *  life. `units` still carry Important here, as a base to work from. */
   firstRun: boolean;
   /** Why the saved weights can't stand as they are, or null. */
   problem: string | null;
@@ -77,6 +77,17 @@ function latestSnapshotId(tx: Tx | typeof db): string | null {
     .limit(1)
     .all();
   return latest?.id ?? null;
+}
+
+/** The latest saved Priorities, or null if none ever were. Onboarding
+ *  compares it before and after opening Priorities to see a save. */
+export async function latestPriorities(): Promise<string | null> {
+  return latestSnapshotId(db);
+}
+
+/** Whether tiers have ever been saved. */
+export async function hasPriorities(): Promise<boolean> {
+  return latestSnapshotId(db) !== null;
 }
 
 export async function loadPriorities(): Promise<PriorityBoard> {

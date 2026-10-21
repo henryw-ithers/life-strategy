@@ -18,7 +18,7 @@ import {
   type TimeRange,
   type WorkSchedule,
 } from "@glide/scoring";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -53,6 +53,7 @@ import { loadHoursVersions, saveHoursFrom, setDayOverride } from "../db/hours";
 import { hoursProblem } from "../db/windowRules";
 import { recordProblem } from "../lib/problemLog";
 import { currentLocalDate } from "../lib/calendar";
+import { templateFor } from "../lib/onboardingTemplates";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -60,6 +61,10 @@ export default function HoursScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const today = currentLocalDate();
+  /** From onboarding (ADR-0045 step 4): `template` fills in hours not
+   *  yet set, and `setup`, sent only when none are, saves them from
+   *  today with no question. */
+  const { template, setup } = useLocalSearchParams<{ template?: string; setup?: string }>();
   const [draft, setDraft] = useState<HoursDraft | null>(null);
   const [events, setEvents] = useState<TimeRange[]>([]);
   const [saving, setSaving] = useState(false);
@@ -68,9 +73,9 @@ export default function HoursScreen() {
     // Only the first load seeds the draft: coming back from a sheet
     // mustn't throw away what you've changed.
     const [versions, plan] = await Promise.all([loadHoursVersions(), loadDayPlan(today)]);
-    setDraft((d) => d ?? draftFrom(versions, today));
+    setDraft((d) => d ?? draftFrom(versions, today, templateFor(template)?.schedules));
     setEvents(plan.events.map((e) => ({ start: e.start, end: e.end })));
-  }, [today]);
+  }, [today, template]);
   const { error, retry } = useScreenLoad(load);
 
   const problem = draft ? hoursProblem(today, draft.schedules, draft.gaps) : null;
@@ -119,7 +124,7 @@ export default function HoursScreen() {
 
   const done = () => {
     if (!draft || problem !== null || saving) return;
-    if (!weekHasBegun(today)) {
+    if (setup !== undefined || !weekHasBegun(today)) {
       void save("after");
       return;
     }

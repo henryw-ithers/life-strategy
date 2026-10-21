@@ -174,7 +174,7 @@ export default function RootLayout() {
  *  Onboarding is a full-screen flow with no bar. */
 const PUSHED: [route: string, title: string][] = [
   ["settings", "Settings"],
-  // The tiers (ADR-0041), from Life, and from `/diagnostic` on a first run.
+  // The tiers (ADR-0041), from Life, and from onboarding's step 2.
   ["priorities/index", "Priorities"],
   ["backup", "Your data"],
   ["away", "Time away"],

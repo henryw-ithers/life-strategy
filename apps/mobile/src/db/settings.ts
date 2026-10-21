@@ -54,6 +54,21 @@ export async function setEventsDefaultOnce(on: boolean): Promise<void> {
   await setSetting(EVENTS_ONCE_KEY, on ? "1" : "0");
 }
 
+const SCORE_EXPLAINED_KEY = "score.explained";
+
+/**
+ * Whether the score breakdown has explained the score yet. Its first
+ * open does (ADR-0045 §1 step 6), since onboarding says only one line
+ * about it; marked once it's actually shown.
+ */
+export async function scoreExplained(): Promise<boolean> {
+  return (await getSetting(SCORE_EXPLAINED_KEY)) === "1";
+}
+
+export async function markScoreExplained(): Promise<void> {
+  await setSetting(SCORE_EXPLAINED_KEY, "1");
+}
+
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   const [enabled, time] = await Promise.all([
     getSetting(KEY_NOTIFICATIONS_ENABLED),

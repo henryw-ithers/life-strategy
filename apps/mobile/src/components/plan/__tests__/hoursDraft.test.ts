@@ -30,6 +30,13 @@ describe("draftFrom", () => {
     const later = { ...version, from: "2026-11-01" };
     expect(draftFrom([version, later], WED).schedules).toBe(version.schedules);
   });
+
+  it("starts from onboarding's template only when no hours are set", () => {
+    const template = [{ weekdays: [1, 2, 3, 4, 5, 6, 7] as const, ranges: [{ start: h(8), end: h(20) }] }];
+    expect(draftFrom([], WED, template).schedules).toEqual(template);
+    const version = { from: "2026-10-01", schedules: [], gaps: [] };
+    expect(draftFrom([version], WED, template).schedules).toBe(version.schedules);
+  });
 });
 
 describe("groups and ranges", () => {

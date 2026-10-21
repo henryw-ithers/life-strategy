@@ -34,10 +34,18 @@ const WEEKDAYS: readonly Weekday[] = [1, 2, 3, 4, 5];
  * Where the editor starts: the hours in force today, or, with none set
  * yet, weekdays nine to five, a plain start to change.
  */
-export function draftFrom(versions: readonly HoursVersion[], today: string): HoursDraft {
+export function draftFrom(
+  versions: readonly HoursVersion[],
+  today: string,
+  /** Hours to start from when none are set: onboarding's template. */
+  fallback?: readonly WorkSchedule[],
+): HoursDraft {
   const version = versionFor(versions, today);
   if (version) return { schedules: version.schedules, gaps: version.gaps };
-  return { schedules: [{ weekdays: WEEKDAYS, ranges: [{ start: 9 * 60, end: 17 * 60 }] }], gaps: [] };
+  return {
+    schedules: fallback ? [...fallback] : [{ weekdays: WEEKDAYS, ranges: [{ start: 9 * 60, end: 17 * 60 }] }],
+    gaps: [],
+  };
 }
 
 /** Days other groups already have, for group `index`'s day buttons. */
