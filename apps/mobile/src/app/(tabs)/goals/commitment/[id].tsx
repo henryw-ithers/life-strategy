@@ -6,8 +6,13 @@
  * **What it holds depends on whether it is split** (ADR-0035 §1 as
  * amended 2026-10-02). A commitment split into sub-commitments lists
  * them, and holds no events or tasks of its own; one that is not split
- * lists its own. A sub-commitment always lists its own. Turning the
- * split on or off says what moves before it moves anything.
+ * lists its own. A sub-commitment always lists its own. There's no
+ * switch (ADR-0044 §7): adding the first sub-commitment splits it, its
+ * work moving into "General", and removing the last puts it back.
+ *
+ * **Its share of the day** (ADR-0044, spec §5.5) is automatic, from its
+ * time each day, or one you set; the automatic one always shows beside
+ * yours.
  *
  * **Events and tasks are listed apart** because they are planned apart:
  * an event is a time you turn up for, a task is work you fit in
@@ -44,6 +49,8 @@ import {
   type CommitmentSheetMode,
 } from "../../../../components/commitments/CommitmentSheet";
 import { ColourSheet } from "../../../../components/commitments/ColourSheet";
+import { ShareSheet } from "../../../../components/commitments/ShareSheet";
+import { automaticText, shareRowText, type ShareDay } from "../../../../components/commitments/shareText";
 import { SkipWeekSheet } from "../../../../components/commitments/SkipWeekSheet";
 import { CommitmentToolbar } from "../../../../components/commitments/CommitmentToolbar";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
@@ -68,6 +75,7 @@ import { UndoBar } from "../../../../components/ui/UndoBar";
 import { GENERAL_SUB_NAME } from "../../../../db/commitmentPlan";
 import {
   loadCommitmentUnit,
+  loadShareWeek,
   readCommitmentHeading,
   type CommitmentHeading,
   type CommitmentUnitScreen,
@@ -78,7 +86,7 @@ import {
   createSubCommitment,
   deleteCommitment,
   setUnitColour,
-  setUsesSubCommitments,
+  setCommitmentShare,
   unarchiveCommitment,
   updateCommitment,
 } from "../../../../db/commitmentWrites";
@@ -89,6 +97,7 @@ import {
   type PlanData,
   type PlanTask,
 } from "../../../../db/tasks";
+import { currentLocalDate } from "../../../../lib/calendar";
 import { getTheme, unitHue } from "../../../../theme/colors";
 import { PALETTE, isPaletteKey } from "../../../../theme/palette";
 import { space } from "../../../../theme/tokens";
@@ -121,12 +130,20 @@ export default function CommitmentScreen() {
   const [editingTaskShown, editingTaskGone] = useRetained(editingTask);
   const [eventSheetShown, eventSheetGone] = useRetained(eventSheet);
   const [sheetShown, sheetGone] = useRetained(sheet);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareOpenShown, shareOpenGone] = useRetained(shareOpen ? true : null);
+  const [shareWeek, setShareWeek] = useState<ShareDay[]>([]);
 
   const reload = useCallback(async () => {
-    const [screen, next] = await Promise.all([loadCommitmentUnit(id), loadPlan()]);
+    const [screen, next, week] = await Promise.all([
+      loadCommitmentUnit(id),
+      loadPlan(),
+      loadShareWeek(id, currentLocalDate()),
+    ]);
     setData(screen);
     setPlan(next);
     setUnits(pickableUnits(next));
+    setShareWeek(week);
   }, [id]);
 
   /** A task on this screen, as the plan holds it. */
@@ -144,41 +161,6 @@ export default function CommitmentScreen() {
     : theme.accent;
   const archived = data !== null && data.archivedAt !== null;
   const isSub = data?.parent != null;
-
-  /** Turning the switch says what will move, then moves it. */
-  const toggleSubs = (on: boolean) => {
-    if (!data) return;
-    const own = data.events.length + data.tasks.length;
-    const subCount = data.subs.length;
-    const apply = () => void setUsesSubCommitments(data.id, on).then(reload);
-    if (on && (own > 0 || data.archivedSubCount > 0)) {
-      const restoring =
-        data.archivedSubCount > 0
-          ? `Its ${countOf(data.archivedSubCount, "sub-commitment")} come back, and everything goes back where it was. `
-          : "";
-      const general =
-        own > 0
-          ? data.archivedSubCount > 0
-            ? `Anything added since goes into “${GENERAL_SUB_NAME}”.`
-            : `Its ${countOf(own, "event or task", "events and tasks")} move into its “${GENERAL_SUB_NAME}” sub-commitment, which you can rename or delete.`
-          : "";
-      Alert.alert("Split into sub-commitments?", `${restoring}${general}`.trim(), [
-        { text: "Cancel", style: "cancel" },
-        { text: "Split", onPress: apply },
-      ]);
-    } else if (!on && subCount > 0) {
-      Alert.alert(
-        "Stop using sub-commitments?",
-        `Everything in its ${countOf(subCount, "sub-commitment")} moves onto ${data.name} itself. The sub-commitments are put away, and come back — with their work — if you turn this on again.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Move everything up", onPress: apply },
-        ],
-      );
-    } else {
-      apply();
-    }
-  };
 
   /** The Name row opens this (ADR-0043 §5). */
   const openRename = () => {
@@ -272,7 +254,6 @@ export default function CommitmentScreen() {
       {heading ? (
         <CommitmentToolbar
           heading={heading}
-          onToggleSubs={() => data && toggleSubs(!data.subsOn)}
           onArchive={archiveThis}
           onUnarchive={() => data && void unarchiveCommitment(data.id).then(reload)}
           onDelete={deleteThis}
@@ -325,6 +306,16 @@ export default function CommitmentScreen() {
                 onPress={() => setColourOpen(true)}
                 last={data.parent !== null}
               />
+              {/* Its share of the day (ADR-0044 §3): a commitment's, not
+                  a sub-commitment's, which prices nothing. */}
+              {data.parent === null && !archived ? (
+                <ActionRow
+                  label="Share of your day"
+                  value={shareRowText(shareWeek, data.setShare)}
+                  theme={theme}
+                  onPress={() => setShareOpen(true)}
+                />
+              ) : null}
               {/* A whole commitment's week (ADR-0040 §2): its subs' work
                   included, so only the commitment offers it. */}
               {data.parent === null ? (
@@ -432,6 +423,30 @@ export default function CommitmentScreen() {
                     />
                   ) : null}
                 </Group>
+
+                {/* No switch (ADR-0044 §7): adding the first one splits
+                    it, and its work moves into General. */}
+                {!isSub && !archived ? (
+                  <Group
+                    theme={theme}
+                    title="Sub-commitments"
+                    footnote={
+                      data.events.length + data.tasks.length > 0
+                        ? `Split it into parts, like courses. What it holds now moves into “${GENERAL_SUB_NAME}”, which you can rename.`
+                        : "Split it into parts, like courses, each with its own events and tasks."
+                    }
+                    flush
+                  >
+                    <ActionRow
+                      label="Add a sub-commitment"
+                      theme={theme}
+                      accent={accent}
+                      icon="add"
+                      onPress={() => setSheet({ kind: "sub", parentName: data.name })}
+                      last
+                    />
+                  </Group>
+                ) : null}
               </>
             )}
 
@@ -540,6 +555,24 @@ export default function CommitmentScreen() {
                         });
                       }
                 }
+              />
+            ) : null}
+
+            {shareOpenShown && data.parent === null ? (
+              <ShareSheet
+                visible={shareOpen}
+                onDismissed={shareOpenGone}
+                name={data.name}
+                setShare={data.setShare}
+                automatic={automaticText(shareWeek)}
+                commitmentCount={data.commitmentCount}
+                accent={accent}
+                theme={theme}
+                onClose={() => setShareOpen(false)}
+                onSave={(share) => {
+                  setShareOpen(false);
+                  void save(() => setCommitmentShare(data.id, share));
+                }}
               />
             ) : null}
 

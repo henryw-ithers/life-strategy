@@ -6,7 +6,7 @@
  * three commitments** — are enforced at this seam, which is why every
  * write goes through it rather than touching the tables directly.
  */
-import { rebalanceShares } from "@glide/scoring";
+import { COMMITMENT_BAND_MIN, rebalanceShares, shareLimit } from "@glide/scoring";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
@@ -116,7 +116,21 @@ export async function createSubCommitment(
   parentId: string,
   name: string,
 ): Promise<string> {
-  return db.transaction((tx) => createSubCommitmentIn(tx, parentId, name));
+  return writeAndMarkStale((tx) => {
+    // Adding the first sub-commitment splits the commitment, and the
+    // work it held moves into one called General (ADR-0044 §7). There
+    // is no switch; removing the last one puts the work back.
+    const [parent] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, parentId)).all();
+    if (parent && parent.parentUnitId === null && !parent.usesSubCommitments) {
+      const own = tx
+        .select({ id: task.id })
+        .from(task)
+        .where(and(eq(task.unitId, parentId), eq(task.active, true)))
+        .all();
+      if (own.length > 0) splitCommitment(tx, parentId, parent.archivedAt === null);
+    }
+    return createSubCommitmentIn(tx, parentId, name);
+  });
 }
 
 /** `createSubCommitment` inside a caller's transaction. */
@@ -191,6 +205,38 @@ function liveCommitmentShares(tx: Tx, exceptId?: string): { id: string; share: n
   return rows
     .filter((r) => r.share !== null && r.id !== exceptId)
     .map((r) => ({ id: r.id, share: r.share ?? 0 }));
+}
+
+/**
+ * A commitment's own share of the days it has work on, in percent, or
+ * null for automatic (ADR-0044 §3). Kept between the floor and the
+ * limit for how many commitments you have (`shareLimit`); the screen
+ * shows the automatic value beside it.
+ */
+export async function setCommitmentShare(id: string, share: number | null): Promise<void> {
+  writeAndMarkStale((tx) => {
+    const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
+    if (!row || row.parentUnitId !== null || row.commitmentShare === null) {
+      throw new Error("Only a commitment has a share of the day.");
+    }
+    let value: number | null = null;
+    if (share !== null) {
+      const count = tx
+        .select({ id: lifeUnit.id })
+        .from(lifeUnit)
+        .where(
+          and(
+            eq(lifeUnit.isCustom, true),
+            isNull(lifeUnit.archivedAt),
+            isNull(lifeUnit.parentUnitId),
+            isNotNull(lifeUnit.commitmentShare),
+          ),
+        )
+        .all().length;
+      value = Math.round(Math.min(shareLimit(Math.max(1, count)), Math.max(COMMITMENT_BAND_MIN, share)));
+    }
+    tx.update(lifeUnit).set({ setShare: value }).where(eq(lifeUnit.id, id)).run();
+  });
 }
 
 /** Rename a commitment or sub-commitment, or change its band share. */

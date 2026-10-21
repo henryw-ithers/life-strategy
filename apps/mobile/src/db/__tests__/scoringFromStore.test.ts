@@ -8,8 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DAILY_BUDGET } from "@glide/scoring";
 
-import { loadCommitmentDay } from "../commitments";
-import { deleteCommitment } from "../commitmentWrites";
+import { loadCommitmentDay, loadShareWeek } from "../commitments";
+import { createSubCommitment, deleteCommitment, setCommitmentShare } from "../commitmentWrites";
 import { recordUntouchedDays } from "../dayGrades";
 import { addDayEdit, freezeStartingHours, saveHoursFrom, startingHours } from "../hours";
 import { createChoice, pinForDay, pinWeekly } from "../pins";
@@ -294,6 +294,38 @@ describe('"Do N of these" (ADR-0039 §6)', () => {
     expect((await loadCommitmentDay(MON))?.pools).toEqual([
       { taskIds: ["reading"], plannedCount: 2 },
     ]);
+  });
+});
+
+describe("a commitment's own share (ADR-0044 §3, spec §5.5)", () => {
+  it("is kept within its limits, and the automatic one stays readable beside it", async () => {
+    addSchool();
+    await hoursFromSunday();
+    const auto = (await loadShareWeek("school", MON)).find((d) => d.date === MON)?.automatic;
+    expect(auto).toBeGreaterThan(0);
+
+    await setCommitmentShare("school", 95);
+    const row = () => testDb().select().from(lifeUnit).all().find((u) => u.id === "school");
+    // One commitment: 70 at most.
+    expect(row()?.setShare).toBe(70);
+    expect((await loadCommitmentDay(MON))?.band).toBe(70);
+    // The automatic share is still there to show beside yours.
+    expect((await loadShareWeek("school", MON)).find((d) => d.date === MON)?.automatic).toBe(auto);
+
+    await setCommitmentShare("school", null);
+    expect(row()?.setShare).toBeNull();
+  });
+
+  it("splits on the first sub-commitment, moving its work into General (ADR-0044 §7)", async () => {
+    addSchool();
+    const id = await createSubCommitment("school", "COMP2521");
+    const units = testDb().select().from(lifeUnit).all();
+    const general = units.find((u) => u.parentUnitId === "school" && u.name === "General");
+    expect(general).toBeDefined();
+    expect(units.find((u) => u.id === id)?.parentUnitId).toBe("school");
+    const tasks = testDb().select().from(task).all();
+    expect(tasks.filter((t) => t.unitId === "school")).toEqual([]);
+    expect(tasks.find((t) => t.id === "reading")?.unitId).toBe(general!.id);
   });
 });
 
