@@ -24,8 +24,9 @@ interface ScoreSheetProps {
 }
 
 export function ScoreSheet({ visible, score, restDay, dayLabel, theme, onClose }: ScoreSheetProps) {
-  const plan = Math.max(0, Math.round(score.earned - score.unplanned));
+  // One row rounded, the other what's left, so they add up to the day.
   const logged = Math.round(score.unplanned);
+  const plan = Math.max(0, Math.round(score.earned) - logged);
   const forgone = Math.round(score.unplannedForgone);
   return (
     <NativeSheet visible={visible} onClose={onClose} dismiss="done" title={`How ${dayLabel} adds up`}>

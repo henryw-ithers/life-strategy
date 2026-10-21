@@ -89,14 +89,16 @@ export function TodayHeader({
           </View>
         </Pressable>
         <View style={styles.headerRight}>
-          {day.kind === "rest" ? (
+          {day.date > day.today ? null : day.kind === "rest" ? (
             <AppText variant="title" color={theme.muted}>
               Day off
             </AppText>
           ) : (
             <Pressable
               onPress={onOpenScore}
-              disabled={day.score.base === null || (dormant && day.kind === "normal")}
+              // A settled day keeps only its total (`storedDayScore`), so
+              // there's no breakdown to show.
+              disabled={day.score.base === null || day.finalized || (dormant && day.kind === "normal")}
               accessibilityRole="button"
               accessibilityLabel={day.score.base !== null ? `Day grade ${day.score.base} percent` : undefined}
               accessibilityHint="Shows how the day adds up"

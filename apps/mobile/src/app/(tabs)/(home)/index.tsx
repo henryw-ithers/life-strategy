@@ -241,6 +241,9 @@ export default function TodayScreen() {
   if (!onboarded) return <Redirect href="/onboarding" />;
 
   const logSomething = () => {
+    // Only a day that's begun can hold what you did: from a day ahead,
+    // it's logged to today.
+    if (day && day.date > day.today) select(day.today);
     setEditingActivity(null);
     setActivitySheet(true);
   };
@@ -294,7 +297,10 @@ export default function TodayScreen() {
         ...(isToday && day.away === null && !day.cleared
           ? [{ label: "Clear today", icon: "moon", onPress: askClear }]
           : []),
-        { label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) },
+        // A day's type is set once it's begun (`setDayKind`).
+        ...(day.date <= day.today
+          ? [{ label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) }]
+          : []),
         { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
       ]}
     />
