@@ -39,6 +39,21 @@ export interface NotificationSettings {
   time: string;
 }
 
+const EVENTS_ONCE_KEY = "events_default_once";
+
+/**
+ * Whether a new event starts as one-time rather than weekly: for shifts
+ * that change week to week (ADR-0040 §6). Onboarding's shift-work
+ * template turns it on (ADR-0045); Settings → Your days has the switch.
+ */
+export async function eventsDefaultOnce(): Promise<boolean> {
+  return (await getSetting(EVENTS_ONCE_KEY)) === "1";
+}
+
+export async function setEventsDefaultOnce(on: boolean): Promise<void> {
+  await setSetting(EVENTS_ONCE_KEY, on ? "1" : "0");
+}
+
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   const [enabled, time] = await Promise.all([
     getSetting(KEY_NOTIFICATIONS_ENABLED),

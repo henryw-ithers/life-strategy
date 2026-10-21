@@ -47,6 +47,8 @@ import { TimeField } from "../components/ui/DateTimeField";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
+  eventsDefaultOnce,
+  setEventsDefaultOnce,
   setNotificationEnabled,
   setNotificationTime,
   type NotificationSettings,
@@ -84,6 +86,8 @@ export default function SettingsScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  /** New events start one-time (ADR-0040 §6). */
+  const [eventsOnce, setEventsOnce] = useState(false);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
@@ -96,13 +100,17 @@ export default function SettingsScreen() {
   );
 
   const reload = useCallback(async () => {
-    const [loaded, status] = await Promise.all([
+    const [loaded, status, once] = await Promise.all([
       loadNotificationSettings(),
       getPermissionStatus(),
+      eventsDefaultOnce(),
     ]);
     setSettings(loaded);
+    setEventsOnce(once);
     setDeniedAtOs(!status.granted && !status.canAskAgain);
-  }, []);
+    // Setters are stable; listing them lets the React Compiler match
+    // its own dependency inference and compile this screen.
+  }, [setSettings, setEventsOnce, setDeniedAtOs]);
 
   const { error, retry } = useScreenLoad(reload);
 
@@ -305,6 +313,25 @@ export default function SettingsScreen() {
             onPress={() => void askClearToday(() => {})}
             theme={theme}
           />
+          <GroupDivider theme={theme} />
+          <View style={[styles.row, styles.inset]}>
+            <View style={styles.grow}>
+              <AppText color={theme.ink}>New events happen once</AppText>
+              <AppText variant="footnote" color={theme.muted}>
+                For shifts that change week to week. You can still make one repeat.
+              </AppText>
+            </View>
+            <Switch
+              value={eventsOnce}
+              onValueChange={(v) => {
+                setEventsOnce(v);
+                void saveThen(() => setEventsDefaultOnce(v), () => undefined, retry);
+              }}
+              trackColor={{ false: theme.hairline, true: theme.accent }}
+              thumbColor={theme.canvas}
+              accessibilityLabel="New events happen once"
+            />
+          </View>
         </Group>
 
         <Group
@@ -404,6 +431,8 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   grow: { flex: 1 },
+  /** A row inside a flush group, padded as `SettingsRow` is. */
+  inset: { paddingHorizontal: space.lg, paddingVertical: space.sm },
   resourceLine: { marginTop: -space.xs },
   build: { marginTop: space.xxl, textAlign: "center" },
   link: { flexDirection: "row", alignItems: "center", gap: space.xs },

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canPick,
+  guessUnit,
   needsDays,
   pickableUnits,
   selectUnit,
@@ -156,7 +157,9 @@ describe("pickableUnits", () => {
         },
       ],
     });
-    expect(picked.map((u) => u.id)).toEqual(["school", "comp2521", "fitness"]);
+    // A Not now unit is listed last, greyed (spec §5.4.1).
+    expect(picked.map((u) => u.id)).toEqual(["school", "comp2521", "fitness", "skipped"]);
+    expect(picked.find((u) => u.id === "skipped")?.notNow).toBe(true);
     expect(picked.filter((u) => u.commitment).map((u) => u.id)).toEqual([
       "school",
       "comp2521",
@@ -165,5 +168,46 @@ describe("pickableUnits", () => {
 
   it("is empty before the plan has loaded", () => {
     expect(pickableUnits(null)).toEqual([]);
+  });
+});
+
+describe("Not now units (spec §5.4.1)", () => {
+  const withNotNow: PickableUnit[] = [...units, { id: "travel", name: "Travel", areaId: "fun", notNow: true }];
+
+  it("can't be picked, though a chosen one can be cleared", () => {
+    expect(canPick([], "travel", withNotNow, 3)).toBe(false);
+    expect(selectUnit([], "travel", withNotNow, 3)).toEqual([]);
+    expect(selectUnit(["travel"], "travel", withNotNow, 3)).toEqual([]);
+  });
+});
+
+describe("guessUnit (spec §5.7)", () => {
+  const all: PickableUnit[] = [
+    ...units,
+    { id: "exercise-fitness", name: "Exercise & fitness", areaId: "health" },
+    { id: "family", name: "Family", areaId: "relationships" },
+    { id: "adventure-experiences", name: "Adventure", areaId: "fun", notNow: true },
+  ];
+
+  it("finds the unit a title's words point to", () => {
+    expect(guessUnit("Go for a run", all)).toBe("exercise-fitness");
+    expect(guessUnit("Dinner with mum", all)).toBe("family");
+  });
+
+  it("prefers a commitment named in the title, the most specific first", () => {
+    expect(guessUnit("COMP2521 lab report", all)).toBe("comp2521");
+    expect(guessUnit("School run", all)).toBe("school");
+  });
+
+  it("matches a commitment's name as a whole word only", () => {
+    // "Work" is a commitment; a workout isn't work.
+    expect(guessUnit("Morning workout", all)).toBe("exercise-fitness");
+    expect(guessUnit("Work: rota emails", all)).toBe("work");
+  });
+
+  it("never guesses a Not now unit, or from almost nothing", () => {
+    expect(guessUnit("Plan a road trip", all)).toBeNull();
+    expect(guessUnit("ru", all)).toBeNull();
+    expect(guessUnit("Sort the drawer", all)).toBeNull();
   });
 });
