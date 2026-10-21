@@ -9,19 +9,27 @@ export interface ShareDay {
   readonly automatic: number;
 }
 
-/** "about 44% on Wednesdays", from the day with the largest share; null
- *  with no work in the week ahead. */
-export function automaticText(week: readonly ShareDay[]): string | null {
-  const top = [...week].sort((a, b) => b.automatic - a.automatic || a.date.localeCompare(b.date))[0];
-  if (!top) return null;
-  const weekday = new Date(`${top.date}T12:00:00`).toLocaleDateString("en-AU", { weekday: "long" });
-  return `about ${top.automatic}% on ${weekday}s`;
+/**
+ * "about 44% on Wednesdays": a typical day's automatic share, the
+ * middle of the week ahead's days with work (ADR-0044 §3), never above
+ * the limit the share is held to. Null with no work in the week ahead.
+ */
+export function automaticText(week: readonly ShareDay[], limit = 100): string | null {
+  const sorted = [...week].sort((a, b) => a.automatic - b.automatic || a.date.localeCompare(b.date));
+  const typical = sorted[Math.floor((sorted.length - 1) / 2)];
+  if (!typical) return null;
+  const weekday = new Date(`${typical.date}T12:00:00`).toLocaleDateString("en-AU", { weekday: "long" });
+  return `about ${Math.min(limit, typical.automatic)}% on ${weekday}s`;
 }
 
 /** The row's value: "auto (about 44% on Wednesdays)", or "60% · auto
  *  about 44% on Wednesdays" with a share you set. */
-export function shareRowText(week: readonly ShareDay[], setShare: number | null): string {
-  const auto = automaticText(week);
+export function shareRowText(
+  week: readonly ShareDay[],
+  setShare: number | null,
+  limit = 100,
+): string {
+  const auto = automaticText(week, limit);
   if (setShare === null) return auto ? `auto (${auto})` : "auto · no work in the week ahead";
   return auto ? `${setShare}% · auto ${auto}` : `${setShare}%`;
 }

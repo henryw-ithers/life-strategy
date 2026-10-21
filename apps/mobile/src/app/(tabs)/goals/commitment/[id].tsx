@@ -32,6 +32,7 @@
  * not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { shareLimit } from "@glide/scoring";
 import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -311,7 +312,7 @@ export default function CommitmentScreen() {
               {data.parent === null && !archived ? (
                 <ActionRow
                   label="Share of your day"
-                  value={shareRowText(shareWeek, data.setShare)}
+                  value={shareRowText(shareWeek, data.setShare, shareLimit(Math.max(1, data.commitmentCount)))}
                   theme={theme}
                   onPress={() => setShareOpen(true)}
                 />
@@ -564,7 +565,7 @@ export default function CommitmentScreen() {
                 onDismissed={shareOpenGone}
                 name={data.name}
                 setShare={data.setShare}
-                automatic={automaticText(shareWeek)}
+                automatic={automaticText(shareWeek, shareLimit(Math.max(1, data.commitmentCount)))}
                 commitmentCount={data.commitmentCount}
                 accent={accent}
                 theme={theme}

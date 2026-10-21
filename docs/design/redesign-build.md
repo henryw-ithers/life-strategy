@@ -72,6 +72,17 @@ recommended weight beside one you set (AGENTS.md), its tasks to
 reorder, its events, Need ideas? and what it covers. Removed:
 `FirstRunCard`, `CoverageBar`, and the fold-open unit rows.
 
+Built in 10b: a commitment's Share of your day (spec §5.5): automatic,
+or a share you set between 10% and the limit, with a typical day's
+automatic share beside it, never above the limit. Adding the first
+sub-commitment splits the commitment, moving its work into General, so
+the sub-commitments switch is gone (ADR-0044 §7).
+
+Open for an ADR (invariant review): a share you set is scaled with the
+others on a day another commitment has work too, as ADR-0044 §3's
+"within the same limits" allows. Whether a set share should hold while
+the others shrink is undecided; the sheet says they're scaled to fit.
+
 Henry, 2026-10-21: he'll stop for a phone walk before Phase 12.
 
 ## Phase 9: Home

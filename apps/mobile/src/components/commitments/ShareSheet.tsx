@@ -70,7 +70,7 @@ export function ShareSheet({
       />
       <Option
         label="Set my own"
-        detail={`The same share every day it has work, ${COMMITMENT_BAND_MIN}–${max}%`}
+        detail={`Your share every day it has work, ${COMMITMENT_BAND_MIN}–${max}%. On a day another commitment has work too, they're scaled to fit together.`}
         selected={own}
         onPress={() => setOwn(true)}
         accent={accent}
