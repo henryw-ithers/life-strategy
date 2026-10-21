@@ -1,53 +1,22 @@
 /**
- * Onboarding state (ADR-0011). Two keys in `app_setting`: which step
- * the user is on, so quitting mid-flow resumes rather than restarts,
- * and whether the flow is finished at all.
+ * Onboarding state (ADR-0011, ADR-0045). Keys in `app_setting`: which
+ * step the user is on, so quitting mid-flow resumes rather than
+ * restarts; whether the flow is finished; and the schedule picked on
+ * the commitments step, which fills in the hours step.
  *
- * Resumption is at step granularity by design — a diagnostic
- * abandoned halfway begins that step again, because rankings are held
- * in component state and only written as a snapshot on completion.
- * See ADR-0011 decision 2 for the trigger that reopens this.
+ * The steps and their rules are `lib/onboardingFlow.ts`. Each step
+ * writes as it goes (a snapshot, commitments, events, hours, tasks), so
+ * resuming shows what's already there rather than making it again.
  */
+import { readStep, rerunStep, type OnboardingStep } from "../lib/onboardingFlow";
+import { hasPriorities } from "./priorities";
 import { getSetting, setSetting } from "./settings";
+
+export type { OnboardingStep } from "../lib/onboardingFlow";
 
 const COMPLETE_KEY = "onboarding.complete";
 const STEP_KEY = "onboarding.step";
-
-/**
- * Ordered. Six screens (ADR-0011 as amended twice).
- *
- * The 2026-07-30 amendment cut this to four, and nothing here puts
- * back what it removed: that pass deleted a Begin screen standing in
- * front of another Begin screen, and a private half-copy of the Tasks
- * screen. Both were duplication, not explanation. What it left behind
- * was an app that never said what a unit is, why ranking two things at
- * a time produces a number, or why a day is scored the way it is.
- *
- * `method` is the only screen that explains anything before the
- * payoff, and it earns that slot by sitting immediately in front of
- * the five minutes it is asking for.
- *
- * `weights` and `rhythm` come *after* the diagnostic on purpose. They
- * are the same bet the 2026-07-30 amendment made when it handed the
- * user to the real Tasks screen: the model teaches better against the
- * user's own numbers than against a diagram. Both read live from the
- * snapshot the user just produced.
- *
- * `diagnostic` is a waiting state, not a screen. It means "the
- * diagnostic route is on top of us"; a cold start there renders the
- * welcome again rather than a blank screen.
- */
-export const ONBOARDING_STEPS = [
-  "welcome",
-  "method",
-  "diagnostic",
-  "weights",
-  "rhythm",
-  "notify",
-  "done",
-] as const;
-
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+const TEMPLATE_KEY = "onboarding.template";
 
 /**
  * Fails **open**: onboarding sits between the user and their app, so a
@@ -64,9 +33,7 @@ export async function isOnboardingComplete(): Promise<boolean> {
 
 export async function loadOnboardingStep(): Promise<OnboardingStep> {
   try {
-    const raw = await getSetting(STEP_KEY);
-    const found = ONBOARDING_STEPS.find((s) => s === raw);
-    return found ?? "welcome";
+    return readStep(await getSetting(STEP_KEY));
   } catch {
     return "welcome";
   }
@@ -80,13 +47,22 @@ export async function completeOnboarding(): Promise<void> {
   await setSetting(COMPLETE_KEY, "1");
 }
 
+/** The schedule picked on the commitments step, if any. */
+export async function loadOnboardingTemplate(): Promise<string | null> {
+  return getSetting(TEMPLATE_KEY);
+}
+
+export async function saveOnboardingTemplate(id: string): Promise<void> {
+  await setSetting(TEMPLATE_KEY, id);
+}
+
 /**
- * Replays the flow from the top (Settings → Run onboarding again).
- * Deliberately does not clear data or force a second diagnostic — the
- * diagnostic step self-skips once a snapshot exists, and re-running
- * the ritual is the monthly review's job, not this one.
+ * Runs the flow again (Settings → Run setup again, or after erasing
+ * everything). Deletes nothing and forces nothing (ADR-0045 §2): with
+ * tiers already set it opens at Priorities, showing them, and every
+ * step can be skipped.
  */
 export async function resetOnboarding(): Promise<void> {
-  await setSetting(STEP_KEY, "welcome");
+  await setSetting(STEP_KEY, rerunStep(await hasPriorities()));
   await setSetting(COMPLETE_KEY, "0");
 }

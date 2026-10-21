@@ -29,6 +29,9 @@ interface CommitmentSheetProps {
   /** After it has finished closing (`NativeSheet`). */
   onDismissed?: () => void;
   onSave: (input: { name: string; usesSubCommitments?: boolean }) => void;
+  /** Offer the Sub-commitments switch on a new commitment. Onboarding
+   *  leaves it off: sub-commitments come later, from Life. */
+  askSplit?: boolean;
   theme: ThemeTokens;
 }
 
@@ -38,6 +41,7 @@ export function CommitmentSheet({
   onClose,
   onDismissed,
   onSave,
+  askSplit = true,
   theme,
 }: CommitmentSheetProps) {
   const editing = mode.name !== undefined;
@@ -66,7 +70,7 @@ export function CommitmentSheet({
         onPress: () =>
           onSave({
             name: name.trim(),
-            ...(mode.kind === "commitment" && !editing ? { usesSubCommitments: split } : {}),
+            ...(mode.kind === "commitment" && !editing && askSplit ? { usesSubCommitments: split } : {}),
           }),
       }}
     >
@@ -95,7 +99,7 @@ export function CommitmentSheet({
         </AppText>
       ) : null}
 
-      {mode.kind === "commitment" && !editing ? (
+      {mode.kind === "commitment" && !editing && askSplit ? (
         <View style={styles.shareRow}>
           <View style={styles.grow}>
             <AppText variant="label" color={theme.ink}>

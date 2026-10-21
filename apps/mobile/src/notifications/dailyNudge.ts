@@ -11,7 +11,11 @@ import { Platform } from "react-native";
 
 import { randomNotificationLine } from "../content/notificationCopy";
 import type { DayData } from "../db/today";
-import { loadNotificationSettings } from "../db/settings";
+import {
+  loadNotificationSettings,
+  markNotificationPermissionAsked,
+  setNotificationEnabled,
+} from "../db/settings";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -50,6 +54,22 @@ export async function getPermissionStatus(): Promise<PermissionState> {
 export async function requestPermission(): Promise<PermissionState> {
   const { granted, canAskAgain } = await Notifications.requestPermissionsAsync();
   return { granted, canAskAgain };
+}
+
+/**
+ * The in-app yes (ADR-0010 §4): ask the OS, turn the nudge on if it
+ * agrees, and remember that we asked. Resolves whether it was granted.
+ */
+export async function askForNudge(): Promise<boolean> {
+  const { granted } = await requestPermission();
+  if (granted) await setNotificationEnabled(true);
+  await markNotificationPermissionAsked();
+  return granted;
+}
+
+/** The in-app no, final until Settings (ADR-0010 §4). */
+export async function declineNudge(): Promise<void> {
+  await markNotificationPermissionAsked();
 }
 
 /** All of today's actionable tasks are done, or today is declared a

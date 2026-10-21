@@ -16,8 +16,8 @@
  * inside the scroll view (`ScrollBackdrop`).
  *
  * Settings is a button in the nav bar on Home and Life, not a tab:
- * Apple keeps tabs for the app's main places. Focused flows (diagnostic,
- * calibration, backup, onboarding, Settings, Priorities) are pushed by
+ * Apple keeps tabs for the app's main places. Focused flows (Priorities,
+ * calibration, backup, onboarding, Settings) are pushed by
  * the root stack, so they cover the tab bar.
  *
  * Route names kept their old paths (`goals`, `plan`) when the labels

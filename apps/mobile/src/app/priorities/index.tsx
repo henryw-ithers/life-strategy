@@ -13,8 +13,8 @@
  * are paused. Afterwards, any weight you set whose recommended value
  * moved is offered back to you, to keep or reset.
  *
- * Also the first-run screen: `/diagnostic` opens this, and a first run
- * starts with every unit in Important (Henry, 2026-10-19).
+ * Also onboarding's Priorities step (ADR-0045), pushed over it. A first
+ * run starts with every unit in Important (Henry, 2026-10-19).
  */
 import { router, Stack } from "expo-router";
 import { useHeaderHeight, useNavigation, usePreventRemove } from "expo-router/react-navigation";
@@ -166,7 +166,7 @@ export default function PrioritiesScreen() {
   });
 
   // Leave once the save has re-rendered with nothing left to protect.
-  // A first run reached by `/diagnostic` may have nothing beneath it.
+  // Reached by a link, a first run may have nothing beneath it.
   useEffect(() => {
     if (!saved) return;
     if (router.canGoBack()) router.back();

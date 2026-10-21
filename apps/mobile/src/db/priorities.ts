@@ -79,6 +79,17 @@ function latestSnapshotId(tx: Tx | typeof db): string | null {
   return latest?.id ?? null;
 }
 
+/** The latest saved Priorities, or null if none ever were. Onboarding
+ *  compares it before and after opening Priorities to see a save. */
+export async function latestPriorities(): Promise<string | null> {
+  return latestSnapshotId(db);
+}
+
+/** Whether tiers have ever been saved. */
+export async function hasPriorities(): Promise<boolean> {
+  return latestSnapshotId(db) !== null;
+}
+
 export async function loadPriorities(): Promise<PriorityBoard> {
   return db.transaction((tx) => {
     const units = lifeUnits(tx);

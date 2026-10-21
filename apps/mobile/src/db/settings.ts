@@ -54,6 +54,19 @@ export async function setEventsDefaultOnce(on: boolean): Promise<void> {
   await setSetting(EVENTS_ONCE_KEY, on ? "1" : "0");
 }
 
+const SCORE_EXPLAINED_KEY = "score.explained";
+
+/**
+ * Whether the score breakdown is being opened for the first time, and
+ * from now on, not. The first open explains the score (ADR-0045 §1
+ * step 6); onboarding says only one line about it.
+ */
+export async function takeFirstScoreOpen(): Promise<boolean> {
+  if ((await getSetting(SCORE_EXPLAINED_KEY)) === "1") return false;
+  await setSetting(SCORE_EXPLAINED_KEY, "1");
+  return true;
+}
+
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   const [enabled, time] = await Promise.all([
     getSetting(KEY_NOTIFICATIONS_ENABLED),
