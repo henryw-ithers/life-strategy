@@ -44,7 +44,8 @@ export function useDayData() {
       date: string,
       month?: string | null,
       /** The day as a write just scored it, when it is this date — saves
-       *  loading it a second time (`toggleCompletion`). */
+       *  loading it a second time (`toggleCompletion`). Not on today,
+       *  whose windows have to be filled again anyway. */
       scored?: DayData | null,
     ) => {
       const turn = ++loadTurn.current;
@@ -56,7 +57,9 @@ export function useDayData() {
       ]);
       const nextPlan = "planned" in loaded ? loaded : null;
       const next = nextPlan ? nextPlan.day : (loaded as DayData);
-      if (turn !== loadTurn.current) return next;
+      // A superseded load lands nothing and says so: its caller mustn't
+      // announce a score from it.
+      if (turn !== loadTurn.current) return null;
       setDay(next);
       setPlan(nextPlan);
       setMonthGrades(grades);
@@ -70,6 +73,7 @@ export function useDayData() {
   useFocusEffect(
     useCallback(() => {
       void reload(selected ?? currentLocalDate(), viewMonth).then((d) => {
+        if (d === null) return;
         allDoneBefore.current = d.due.length > 0 && d.due.every((t) => t.completedToday);
       });
     }, [reload, selected, viewMonth]),
@@ -113,6 +117,8 @@ export function useDayData() {
           // undoing it undoes that tick — one session, one completion.
           await toggleCompletion(task.id, task.doneAheadOn ?? day.date);
     const next = await reload(day.date, undefined, scored);
+    // A newer load overtook this one: it says nothing.
+    if (next === null) return;
     // The visual feedback is the climbing number; give screen readers the
     // same loop.
     AccessibilityInfo.announceForAccessibility(

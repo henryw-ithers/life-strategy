@@ -113,11 +113,11 @@ export function TaskRow({
       // needs an explicit rotor entry (ADR-0025 §4's gesture is the
       // only route to tagging).
       accessibilityActions={[
-        ...(longPressLabel ? [{ name: "magicTap", label: longPressLabel }] : []),
-        ...(onSwap && !checked ? [{ name: "swap", label: "Swap for another" }] : []),
+        ...(longPressLabel ? [{ name: "more", label: longPressLabel }] : []),
+        ...(onSwap && !checked && !disabled ? [{ name: "swap", label: "Swap for another" }] : []),
       ]}
       onAccessibilityAction={(e) => {
-        if (e.nativeEvent.actionName === "magicTap") longPress?.();
+        if (e.nativeEvent.actionName === "more") longPress?.();
         if (e.nativeEvent.actionName === "swap") onSwap?.();
       }}
       style={({ pressed }) => [
@@ -191,7 +191,7 @@ export function TaskRow({
               ? `+${task.pointsIfCompletedNow}`
               : `${task.pointValue}`}
       </AppText>
-      {onSwap && !checked ? (
+      {onSwap && !checked && !disabled ? (
         <Pressable
           onPress={onSwap}
           accessibilityRole="button"
@@ -245,5 +245,5 @@ const styles = StyleSheet.create({
   text: { flex: 1, gap: 1 },
   pips: { flexDirection: "row", gap: 3, marginRight: space.xs },
   pip: { width: 6, height: 6, borderRadius: 3 },
-  swap: { width: 36, height: 44, alignItems: "center", justifyContent: "center" },
+  swap: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });

@@ -62,6 +62,7 @@ import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
+import { NativeSheet } from "../../../components/ui/NativeSheet";
 import { saveThen } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
@@ -141,7 +142,15 @@ export default function TodayScreen() {
   /** A window being added to (Add from open) or timed (Edit times, or a
    *  new window from the + menu), named by its times. */
   const [windowSheet, setWindowSheet] = useState<
-    { kind: "add"; start: number } | { kind: "times"; range?: TimeRange } | null
+    | {
+        kind: "add";
+        start: number;
+        /** Taken as it opens, so a reload can't change it under you. */
+        label: string;
+        tasks: readonly TodayTask[];
+      }
+    | { kind: "times"; range?: TimeRange }
+    | null
   >(null);
   const [windowSheetShown, windowSheetGone] = useRetained(windowSheet);
   const [opened, setOpened] = useState(0);
@@ -192,15 +201,32 @@ export default function TodayScreen() {
     void passCardHiddenWeek().then(setPassHidden);
   }, []);
 
-  const isToday = day !== null && day.date === day.today;
-  /** Today's windows, filled live: the clock, swaps and pulls. */
-  const planned = useMemo(
-    () =>
-      plan && isToday
-        ? planDay({ ...plan.input, now: nowMinute, declined, pulledIn })
-        : null,
-    [plan, isToday, nowMinute, declined, pulledIn],
-  );
+  /** Today, shown with its windows. A load that landed across midnight
+   *  has no plan for the new today; the effect below reloads it. */
+  const isToday = day !== null && day.date === day.today && plan !== null;
+  /** Windows waiting on a removal's Undo, by `windowId`. */
+  const hiddenKey = [...undo.hidden].filter((id) => id.startsWith("win-")).sort().join("|");
+  /** Today's windows, filled live: the clock, swaps and pulls. A window
+   *  waiting on Undo is left out, so its tasks go where they'd go
+   *  without it (EC-19). */
+  const planned = useMemo(() => {
+    if (!plan || !isToday) return null;
+    const gone = new Set(hiddenKey.split("|").filter(Boolean).map((id) => id.slice(4)));
+    return planDay({
+      ...plan.input,
+      windows: plan.input.windows.filter((w) => !gone.has(windowId(w))),
+      now: nowMinute,
+      declined,
+      pulledIn,
+    });
+  }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
+  const needsPlan = day !== null && day.date === day.today && plan === null;
+  useEffect(() => {
+    if (needsPlan) void refresh();
+    // `refresh` is rebuilt each render; the reload is wanted once per
+    // missing plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsPlan]);
 
   if (onboarded === null) return null;
   if (!onboarded) return <Redirect href="/onboarding" />;
@@ -321,12 +347,28 @@ export default function TodayScreen() {
     />
   );
 
-  const removeWindow = (range: TimeRange) =>
+  /** A window's swaps and pulls belong to it: an edit or removal
+   *  forgets them, so a new window at that time starts fresh. */
+  const forgetWindow = (start: number) => {
+    setDeclined((d) => {
+      const next = new Map(d);
+      next.delete(start);
+      return next;
+    });
+    setPulledIn((p) => {
+      const next = new Map(p);
+      next.delete(start);
+      return next;
+    });
+  };
+  const removeWindow = (range: TimeRange) => {
+    forgetWindow(range.start);
     undo.remove({
       id: `win-${windowId(range)}`,
       message: `Removed ${spanLabel(range)}`,
       run: () => addDayEdit(day.date, { kind: "remove", range }),
     });
+  };
   const hiddenWindows = new Set(
     [...undo.hidden].filter((id) => id.startsWith("win-")).map((id) => id.slice(4)),
   );
@@ -338,6 +380,7 @@ export default function TodayScreen() {
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     }
+    if (from) forgetWindow(from.start);
     setWindowSheet(null);
     void refresh();
     return null;
@@ -378,7 +421,6 @@ export default function TodayScreen() {
 
   const allTasks = [...day.due, ...day.week, ...day.doneThisWeek];
   const doneOnDay = allTasks.filter((t) => t.completedToday);
-  const notDoneOnDay = allTasks.filter((t) => !t.completedToday && t.doneAheadOn === null);
 
   const existingForSheet: ExistingActivity | null = editingActivity
     ? {
@@ -389,11 +431,6 @@ export default function TodayScreen() {
         tagUnitIds: editingActivity.tags.map((t) => t.unitId),
       }
     : null;
-
-  const addIndex =
-    windowSheetShown?.kind === "add" && planned
-      ? planned.windows.findIndex((w) => w.range.start === windowSheetShown.start)
-      : -1;
 
   return (
     <View style={styles.root}>
@@ -553,8 +590,18 @@ export default function TodayScreen() {
                 }
                 onPullIn={(start) => setPulledIn((p) => new Map(p).set(start, (p.get(start) ?? 0) + 1))}
                 onAddFromOpen={(start) => {
+                  const index = planned.windows.findIndex((w) => w.range.start === start);
+                  const w = planned.windows[index];
+                  if (!w) return;
                   setOpened((n) => n + 1);
-                  setWindowSheet({ kind: "add", start });
+                  setWindowSheet({
+                    kind: "add",
+                    start,
+                    label: spanLabel(w.range),
+                    tasks: addableTo(index, planned)
+                      .map((id) => plan.tasks.get(id))
+                      .filter((t): t is TodayTask => t !== undefined),
+                  });
                 }}
                 onEditTimes={(range) => {
                   setOpened((n) => n + 1);
@@ -567,15 +614,17 @@ export default function TodayScreen() {
               // A past day's record: only what was done (spec §5.2). It
               // never lists what wasn't, events included (ADR-0038).
               <View style={styles.past}>
-                <AppText variant="caption" color={theme.muted}>
-                  Done
-                </AppText>
-                {doneOnDay.length === 0 ? (
-                  <AppText color={theme.muted}>Nothing ticked on this day.</AppText>
-                ) : (
-                  doneOnDay.map((t) => <View key={t.id}>{taskRow(t)}</View>)
-                )}
-                {day.editable && notDoneOnDay.length > 0 ? (
+                {doneOnDay.length > 0 ? (
+                  <>
+                    <AppText variant="caption" color={theme.muted}>
+                      Done
+                    </AppText>
+                    {doneOnDay.map((t) => (
+                      <View key={t.id}>{taskRow(t)}</View>
+                    ))}
+                  </>
+                ) : null}
+                {day.editable ? (
                   <Pressable onPress={() => setRecording(true)} accessibilityRole="button" style={styles.link}>
                     <AppText color={theme.accent}>＋ Add something you did that day</AppText>
                   </Pressable>
@@ -639,15 +688,13 @@ export default function TodayScreen() {
         />
       ) : null}
 
-      {windowSheetShown?.kind === "add" && planned && addIndex >= 0 && plan ? (
+      {windowSheetShown?.kind === "add" ? (
         <AddFromOpenSheet
           key={`add-${opened}`}
           visible={windowSheet?.kind === "add"}
           onDismissed={windowSheetGone}
-          windowLabel={spanLabel(planned.windows[addIndex]!.range)}
-          tasks={addableTo(addIndex, planned)
-            .map((id) => plan.tasks.get(id))
-            .filter((t): t is TodayTask => t !== undefined)}
+          windowLabel={windowSheetShown.label}
+          tasks={windowSheetShown.tasks}
           hueFor={hueFor}
           theme={theme}
           onClose={() => setWindowSheet(null)}
@@ -665,23 +712,25 @@ export default function TodayScreen() {
         />
       ) : null}
 
-      {/* A past day: tick what you forgot (spec §5.2). */}
-      <AddFromOpenSheet
-        visible={recording}
-        onDismissed={() => undefined}
-        windowLabel=""
-        title="Add something you did"
-        pickHint="Ticks it on this day"
-        emptyNote="Everything on this day is ticked."
-        tasks={notDoneOnDay}
-        hueFor={hueFor}
-        theme={theme}
-        onClose={() => setRecording(false)}
-        onPick={(t) => {
-          setRecording(false);
-          void toggle(t);
-        }}
-      />
+      {/* A past day: tick what you forgot (spec §5.2). Every task and
+          event on the day, ticked or not, so the list never shows what
+          wasn't done (ADR-0038 §5). */}
+      {!isToday ? (
+        <NativeSheet
+          visible={recording}
+          onClose={() => setRecording(false)}
+          dismiss="done"
+          title="Add something you did"
+          size="large"
+          scroll
+        >
+          {[...allTasks]
+            .sort((a, b) => a.title.localeCompare(b.title))
+            .map((t) => (
+              <View key={`r-${t.id}`}>{taskRow(t)}</View>
+            ))}
+        </NativeSheet>
+      ) : null}
 
       {movingTaskShown ? (
         <MoveToWindowSheet
@@ -815,6 +864,12 @@ export default function TodayScreen() {
  *  waiting or landing (`useUndoDelete`). */
 function withoutRecord(day: DayData | null, hidden: ReadonlySet<string>): DayData | null {
   if (day === null || hidden.size === 0) return day;
+  const touches = (id: string) => hidden.has(id);
+  // Only a note, photo or activity changes the day; a window waiting on
+  // Undo doesn't, and a new object here would reload what depends on it.
+  if (!day.journal.some((j) => touches(j.id)) && !day.photos.some((p) => touches(p.id)) && !day.activities.some((a) => touches(a.id))) {
+    return day;
+  }
   return {
     ...day,
     journal: day.journal.filter((j) => !hidden.has(j.id)),
