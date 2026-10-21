@@ -142,6 +142,17 @@ describe("plan weeks", () => {
     expect(valueOf(f, "weeklyTargetRun", "run")).toMatchObject({ earned: 1, current: 1 });
   });
 
+  it("asks nothing of a day off, so it never breaks a run", () => {
+    const daily = task("med", { timesPerWeek: 7, createdAt: "2026-10-11T00:00:00.000Z" });
+    const week = ["2026-10-11", "2026-10-12", "2026-10-13", "2026-10-15", "2026-10-16", "2026-10-17"];
+    const f = facts({
+      tasks: [daily],
+      completions: week.map((d) => tick("med", d)),
+      grades: [{ localDate: "2026-10-14", kind: "rest", pointsEarned: 0, pointsPossible: 0, flagged: false }],
+    });
+    expect(valueOf(f, "weeklyTargetRun", "med")).toMatchObject({ earned: 1, current: 1 });
+  });
+
   it("counts a whole unit's week only when every task met its target", () => {
     const run = task("run", { createdAt: "2026-10-11T00:00:00.000Z", timesPerWeek: 1 });
     const lift = task("lift", { createdAt: "2026-10-11T00:00:00.000Z", timesPerWeek: 1 });

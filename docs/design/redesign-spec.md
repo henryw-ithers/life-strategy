@@ -858,7 +858,9 @@ Where they show:
   run of at least the first rank (7 days or 2 weeks) is going. It goes
   quietly when the run ends.
 - **Celebration**: a success haptic and a short card on Home ("You
-  earned…"), shown once.
+  earned…"), shown once. Plan-week ranks never appear there: that
+  exception stays off Home (AGENTS.md, ADR-0047 §4), so they show on
+  Achievements and in the month review only.
 - **The month review** in Log lists what was earned that month.
 
 Rank colours come from the palette (DESIGN.md): Bronze is Brown,

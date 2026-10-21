@@ -40,6 +40,7 @@ import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
 import { RANK_LABEL } from "../../../lib/achievementCopy";
 import { currentLocalDate } from "../../../lib/calendar";
+import { recordProblem } from "../../../lib/problemLog";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
 import { radius, space } from "../../../theme/tokens";
 
@@ -64,7 +65,12 @@ export default function LifeScreen() {
       loadCommitmentsScreen(),
       loadPlan(),
       loadWorkShares(addDays(today, -(SHARE_DAYS - 1)), today),
-      loadAchievements(),
+      // Badges are a nicety: if they can't load, Life goes on without
+      // them, and the problem log keeps why.
+      loadAchievements().catch((e: unknown) => {
+        recordProblem(e, "load");
+        return [];
+      }),
     ]);
     setCommitments(nextCommitments);
     setBadges(badgesByUnit(achievements));

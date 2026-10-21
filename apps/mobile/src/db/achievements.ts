@@ -134,41 +134,43 @@ const keyOf = (series: string, subjectId: string, rank: string) => `${series}|${
  */
 export async function awardAchievements(): Promise<EarnedAchievement[]> {
   const today = currentLocalDate();
-  return db.transaction((tx) => {
-    const values = seriesValues(readFacts(tx, today));
-    const have = new Set(
-      tx
-        .select({ series: achievement.series, subjectId: achievement.subjectId, rank: achievement.rank })
-        .from(achievement)
-        .all()
-        .map((r) => keyOf(r.series, r.subjectId, r.rank)),
-    );
-    const fresh: AchievementRow[] = [];
-    for (const v of values) {
-      const { thresholds } = seriesById(v.series);
-      const reached = ranksReached(thresholds, v.earned);
-      for (let i = 0; i < reached; i++) {
-        const rank = RANKS[i]!;
-        if (have.has(keyOf(v.series, v.subjectId, rank))) continue;
-        const now = new Date().toISOString();
-        fresh.push({
-          id: Crypto.randomUUID(),
-          series: v.series,
-          subjectKind: v.subjectKind,
-          subjectId: v.subjectId,
-          subjectName: v.subjectName,
-          rank,
-          threshold: thresholds[i]!,
-          earnedOn: today,
-          celebratedAt: null,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+  return db.transaction((tx) => awardIn(tx, seriesValues(readFacts(tx, today)), today));
+}
+
+/** Store every rank `values` reach that isn't stored yet; return them. */
+function awardIn(tx: Tx, values: readonly SeriesValue[], today: string): EarnedAchievement[] {
+  const have = new Set(
+    tx
+      .select({ series: achievement.series, subjectId: achievement.subjectId, rank: achievement.rank })
+      .from(achievement)
+      .all()
+      .map((r) => keyOf(r.series, r.subjectId, r.rank)),
+  );
+  const fresh: AchievementRow[] = [];
+  for (const v of values) {
+    const { thresholds } = seriesById(v.series);
+    const reached = ranksReached(thresholds, v.earned);
+    for (let i = 0; i < reached; i++) {
+      const rank = RANKS[i]!;
+      if (have.has(keyOf(v.series, v.subjectId, rank))) continue;
+      const now = new Date().toISOString();
+      fresh.push({
+        id: Crypto.randomUUID(),
+        series: v.series,
+        subjectKind: v.subjectKind,
+        subjectId: v.subjectId,
+        subjectName: v.subjectName,
+        rank,
+        threshold: thresholds[i]!,
+        earnedOn: today,
+        celebratedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
     }
-    if (fresh.length > 0) tx.insert(achievement).values(fresh).onConflictDoNothing().run();
-    return fresh.map(toEarned);
-  });
+  }
+  if (fresh.length > 0) tx.insert(achievement).values(fresh).onConflictDoNothing().run();
+  return fresh.map(toEarned);
 }
 
 export { highestRank, runShown, type UnitBadge } from "./achievementRules";
@@ -227,16 +229,16 @@ function itemFor(v: SeriesValue | null, rows: readonly AchievementRow[]): Achiev
 /**
  * Every achievement, earned and locked (§7): each series for each live
  * subject, plus the ranks of subjects since removed. Awards anything
- * newly reached first, so the list never shows a rank as locked that
- * has been reached.
+ * newly reached first, in the same pass and transaction, so the list
+ * never shows a rank as locked that has been reached.
  */
 export async function loadAchievements(): Promise<AchievementItem[]> {
-  await awardAchievements();
   const today = currentLocalDate();
-  const { values, rows } = db.transaction((tx) => ({
-    values: seriesValues(readFacts(tx, today)),
-    rows: tx.select().from(achievement).all(),
-  }));
+  const { values, rows } = db.transaction((tx) => {
+    const values = seriesValues(readFacts(tx, today));
+    awardIn(tx, values, today);
+    return { values, rows: tx.select().from(achievement).all() };
+  });
   const rowsBy = new Map<string, AchievementRow[]>();
   for (const r of rows) {
     const k = `${r.series}|${r.subjectId}`;

@@ -235,7 +235,9 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
     // is never judged by the ones not ticked.
     if (!isRecurringTask(t) || t.timesPerWeek < 1) continue;
     const from = firstDay(t);
-    const skippedDates = new Set([...(f.skipped.get(t.id) ?? []), ...awayAll]);
+    // Days off and Away days ask nothing, so they lower the week's
+    // target rather than break a run (§4).
+    const skippedDates = new Set([...(f.skipped.get(t.id) ?? []), ...awayAll, ...restDays]);
     const load: LoadTask = {
       taskId: t.id,
       weight: 0,

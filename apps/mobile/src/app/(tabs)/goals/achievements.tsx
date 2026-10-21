@@ -9,7 +9,7 @@
  * Progress is shown, never announced (§5): a run that ended simply
  * counts again from where it is. Nothing here grades a day.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
 import { achievementSections, type AchievementSection, type SubjectRow } from "../../../components/achievements/achievementGroups";
@@ -29,8 +29,12 @@ export default function AchievementsScreen() {
   const [sections, setSections] = useState<AchievementSection[] | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
 
+  /** Only the latest load lands. */
+  const turn = useRef(0);
   const reload = useCallback(async () => {
-    setSections(achievementSections(await loadAchievements()));
+    const mine = ++turn.current;
+    const items = await loadAchievements();
+    if (mine === turn.current) setSections(achievementSections(items));
   }, []);
   const { error, retry } = useScreenLoad(reload);
 
@@ -98,6 +102,7 @@ function Row({
         onPress={onToggle}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityHint={open ? "Hides each achievement" : "Shows each achievement"}
         accessibilityState={{ expanded: open }}
         style={({ pressed }) => [styles.row, row.nested && styles.nested, { opacity: pressed ? 0.6 : 1 }]}
       >

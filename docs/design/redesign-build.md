@@ -110,6 +110,14 @@ Left open after 10c:
   as drizzle-kit generated it. With foreign keys on and goal rows
   present that order would fail, but the app's connection doesn't turn
   them on and nobody has goal rows.
+- **Plan-week ranks stay off Home's celebration card.** ADR-0047 §6
+  puts the card on Home without excluding a series, but AGENTS.md keeps
+  the plan-week exception off Home; the invariant won. Worth a line in
+  the ADR if Henry wants it the other way.
+- **A day with no stored grade counts as nothing** for the score series,
+  as `periodDays` does. A day that asked nothing but was never opened
+  past the edit window has no row, so it breaks a great-day run. An
+  automatic rest day scores 70, so it breaks one too.
 - Ranks are awarded on Home and Life coming into view and after a tick.
   A rank earned only by a week ending waits for the next open, as the
   ADR says.

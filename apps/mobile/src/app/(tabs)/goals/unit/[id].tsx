@@ -69,6 +69,7 @@ export default function UnitScreen() {
   useFocusEffect(
     useCallback(() => {
       let live = true;
+      setBadge((was) => (was === null ? was : null));
       // A badge is a nicety: if it can't load, the screen goes on
       // without it, and the problem log keeps why.
       loadAchievements()

@@ -69,8 +69,8 @@ export function MonthReview({
       {/* What was earned, listed (ADR-0047 §7). Only ever a list of
           what happened: a month with none shows nothing. */}
       {earned.length > 0 ? (
-        <View style={styles.earned} accessibilityRole="summary">
-          <AppText variant="caption" color={theme.muted}>
+        <View style={styles.earned}>
+          <AppText variant="caption" color={theme.muted} accessibilityRole="header">
             Earned this month
           </AppText>
           {earned.map((title, i) => (
