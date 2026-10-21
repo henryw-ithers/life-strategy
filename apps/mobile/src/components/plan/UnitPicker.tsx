@@ -81,7 +81,8 @@ export function UnitPicker({
   /** The Not now unit last tapped, to say why it can't be picked. */
   const [notNowTapped, setNotNowTapped] = useState<string | null>(null);
   const toggle = (id: string) => {
-    if (units.find((u) => u.id === id)?.notNow === true) {
+    // One already on the task can always come off.
+    if (!value.includes(id) && units.find((u) => u.id === id)?.notNow === true) {
       setNotNowTapped(id);
       return;
     }
@@ -137,7 +138,7 @@ export function UnitPicker({
           const index = value.indexOf(u.id);
           const selected = index >= 0;
           const hue = areaColors[u.areaId] ?? theme.accent;
-          const notNow = u.notNow === true;
+          const notNow = u.notNow === true && !selected;
           // A Not now chip stays tappable, to say why it can't be picked.
           const blocked = !notNow && !canPick(value, u.id, units, max);
           return (

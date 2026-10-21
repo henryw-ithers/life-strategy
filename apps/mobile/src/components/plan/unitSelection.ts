@@ -125,7 +125,8 @@ export function pickableUnits(plan: PlanData | null): PickableUnit[] {
   // went, but they hold no tasks until moved up (spec §5.4.1).
   const notNow = plan.areas.flatMap((a) =>
     a.units
-      .filter((u) => u.tier === "notNow")
+      // The same test the tiers use (`tierRules`): out of scoring.
+      .filter((u) => !u.includeInScoring)
       .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId, notNow: true })),
   );
   return [...commitments, ...life, ...notNow];
