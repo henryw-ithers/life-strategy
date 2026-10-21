@@ -1,6 +1,6 @@
 # ADR-0047: Achievements replace goals
 
-> **Status:** Proposed\
+> **Status:** Accepted (Henry, 2026-10-21)\
 > **Date:** 2026-10-21
 
 ## Context
@@ -25,6 +25,12 @@ questions this raised:
   included**.
 - The goals work in progress (PR #30) is closed; goals are replaced,
   not shipped.
+- Accepting this ADR (2026-10-21): **locked achievements show their
+  progress, runs included**: "failure is a part of any journey and it
+  shouldn't be something to hide or avoid. We don't need to bring it
+  up". And **the peaks go high**, to 1,000, "so that getting that top
+  rank is a really impressive achievement and something someone can
+  work towards and be proud of".
 
 The goal tables from Phase 5c (`goal`, `goal_task`, `goal_entry`) are
 merged, with no screen that writes them, and there are no users yet
@@ -107,12 +113,13 @@ catalogue. ADR-0042 is superseded.
 
 ### 2. Ranks
 
-Each achievement is a **series** with ranks: **Bronze, Silver, Gold,
-Platinum**. A series names what it counts and a threshold for each
-rank, for example task completions 20, 50, 100 and 250. Earning a rank
-keeps the lower ones. Ranks go up in steps that get further apart, so
-the first comes soon and the last takes a long time, as PlayStation's
-tiers do.
+Each achievement is a **series** with five ranks: **Bronze, Silver,
+Gold, Platinum, Diamond**. A series names what it counts and a
+threshold for each rank, for example task completions 20, 50, 100, 250
+and 1,000. Earning a rank keeps the lower ones. Ranks go up in steps
+that get further apart, so the first comes soon and the top is a
+genuine feat, years of steady work (Henry: peaks "all the way to
+1000").
 
 ### 3. The catalogue
 
@@ -121,16 +128,19 @@ below are a first pass, set in the engine.
 
 | Series | Counts | For each | Ranks |
 |---|---|---|---|
-| **Completions** | Ticks of a task | task | 20 · 50 · 100 · 250 |
-| **Unit completions** | Ticks of a unit's tasks | unit, and its area | 50 · 150 · 400 · 1,000 |
-| **Hours** | A tick's size, or "Took about…" if entered | unit, commitment | 10 · 50 · 150 · 500 h |
-| **Every-day streak** | Days in a row of an every-day task (the existing streak rules) | task | 7 · 30 · 66 · 365 |
-| **Weekly target** | Weeks a task's weekly target was met | task | total 4 · 12 · 26 · 52; in a row 2 · 4 · 8 · 16 |
-| **Whole unit** | Weeks every task in a unit met its weekly target | unit | total 4 · 12 · 26 · 52; in a row 2 · 4 · 8 · 16 |
-| **Attended** | Events you ticked | commitment | 10 · 25 · 50 · 100 |
-| **Good days** | Graded days at 80 or above | everything | 10 · 30 · 100 · 250 |
-| **Great days** | Graded days at 90 or above, in total and in a row | everything | total 5 · 20 · 60 · 150; in a row 3 · 7 · 14 · 30 |
-| **Record** | Activities logged, days flagged ☆ | everything | 10 · 50 · 150 · 500 |
+| **Completions** | Ticks of a task | task | 20 · 50 · 100 · 250 · 1,000 |
+| **Unit completions** | Ticks of a unit's tasks | unit, and its area | 50 · 150 · 400 · 1,000 · 2,500 |
+| **Hours** | A tick's size, or "Took about…" if entered | unit, commitment | 10 · 50 · 150 · 500 · 1,000 h |
+| **Every-day streak** | Days in a row of an every-day task (the existing streak rules) | task | 7 · 30 · 100 · 365 · 1,000 |
+| **Weekly target** | Weeks a task's weekly target was met | task | total 4 · 12 · 52 · 156 · 520; in a row 2 · 4 · 12 · 52 · 156 |
+| **Whole unit** | Weeks every task in a unit met its weekly target | unit | total 4 · 12 · 52 · 156 · 520; in a row 2 · 4 · 12 · 52 · 156 |
+| **Attended** | Events you ticked | commitment | 10 · 25 · 100 · 250 · 1,000 |
+| **Good days** | Graded days at 80 or above | everything | 10 · 30 · 100 · 365 · 1,000 |
+| **Great days** | Graded days at 90 or above, in total and in a row | everything | total 5 · 20 · 100 · 365 · 1,000; in a row 3 · 7 · 30 · 100 · 365 |
+| **Record** | Activities logged, days flagged ☆ | everything | 10 · 50 · 150 · 500 · 1,000 |
+
+Weeks peak lower than days, since a week is seven of them: 520 weeks
+is ten years.
 
 Never in the catalogue:
 
@@ -174,10 +184,11 @@ a low grade or a low count.
 - A run's **earned ranks stay earned**. The Achievements screen shows
   them with when they were earned, and never puts a past best beside a
   shorter current run (copy guide).
-- **Locked achievements** show their requirement ("Gold: 100
-  completions"). A series that counts a total shows its progress ("62 /
-  100"). A series that counts a run shows no progress, so a broken run
-  never reads as falling back.
+- **Locked achievements** show their requirement and their progress:
+  "Gold: 100 completions · 62 / 100", and for a run, the current run
+  against the next rank. When a run ends its progress simply starts
+  again, and nothing says so (Henry, 2026-10-21: failure is part of the
+  journey, not something to hide, and not something to bring up).
 
 ### 6. When they're awarded
 
@@ -219,8 +230,9 @@ a low grade or a low count.
 
 ## Action items
 
-1. [ ] Henry accepts this ADR, or changes it.
-2. [ ] Amend AGENTS.md: the goal vocabulary, "Goals never grade a day"
+1. [x] Henry accepts this ADR (2026-10-21), with progress shown on
+       locked runs and peaks to 1,000.
+2. [x] Amend AGENTS.md: the goal vocabulary, "Goals never grade a day"
        (which becomes the same rule for achievements), and the §4
        exception to the plan-completion invariant.
 3. [ ] Engine: `achievements.ts`, pure, holding the catalogue and the
