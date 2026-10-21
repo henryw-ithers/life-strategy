@@ -142,6 +142,7 @@ describe("pickableUnits", () => {
               tier: "top",
               tierOrder: 0,
               weight: 10,
+              recommendedWeight: null,
               tasks: [],
             },
             {
@@ -153,6 +154,7 @@ describe("pickableUnits", () => {
               tier: "notNow",
               tierOrder: 0,
               weight: null,
+              recommendedWeight: null,
               tasks: [],
             },
           ],

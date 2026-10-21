@@ -11,7 +11,7 @@
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
@@ -63,6 +63,12 @@ export default function UnitScreen() {
   const [dragging, setDragging] = useState(false);
   const [editingShown, editingGone] = useRetained(editing);
   const [addingEventShown, addingEventGone] = useRetained(addingEvent ? true : null);
+  // A new row is tinted long enough to find, then fades.
+  useEffect(() => {
+    if (justAdded === null) return;
+    const timer = setTimeout(() => setJustAdded(null), 2600);
+    return () => clearTimeout(timer);
+  }, [justAdded]);
 
   const deleteTask = (t: PlanTask) =>
     undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) });
@@ -73,9 +79,12 @@ export default function UnitScreen() {
     setJustAdded(taskId);
   };
 
+  const title = <Stack.Screen options={{ title: unit?.name ?? "" }} />;
+
   if (error) {
     return (
       <View style={styles.root}>
+        {title}
         <LoadFailure error={error} onRetry={retry} theme={theme} />
       </View>
     );
@@ -83,7 +92,15 @@ export default function UnitScreen() {
   if (!unit) {
     return (
       <View style={styles.root}>
-        <ActivityIndicator color={theme.muted} style={styles.loading} />
+        {title}
+        {plan === null ? (
+          <ActivityIndicator color={theme.muted} style={styles.loading} />
+        ) : (
+          // Gone since the link was made (a custom unit removed).
+          <AppText color={theme.muted} style={styles.gone}>
+            This unit isn&apos;t in your list any more.
+          </AppText>
+        )}
       </View>
     );
   }
@@ -93,7 +110,7 @@ export default function UnitScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: unit.name }} />
+      {title}
       <ScrollView
         style={styles.root}
         scrollEnabled={!dragging}
@@ -101,10 +118,14 @@ export default function UnitScreen() {
         contentContainerStyle={styles.container}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
-        <View style={styles.header} accessible accessibilityLabel={headerLabel(unit.name, tier, unit.weight)}>
+        <View style={styles.header} accessible accessibilityLabel={headerLabel(unit.name, tier, unit.weight, unit.recommendedWeight)}>
           <View style={[styles.dot, { backgroundColor: hue }]} />
           <AppText variant="caption" color={theme.muted}>
-            {[tier, unit.weight !== null ? `${unit.weight} of the day's 100` : "No weight"]
+            {[
+              tier,
+              unit.weight !== null ? `${unit.weight} of the day's 100` : "No weight",
+              unit.recommendedWeight !== null ? `recommended ${unit.recommendedWeight}` : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </AppText>
@@ -143,10 +164,13 @@ export default function UnitScreen() {
         homeUnitId={unit.id}
         areaColors={theme.areas}
         theme={theme}
-        onCommit={async (title, timesPerWeek, unitIds, plannedWeekdays, partOfDay, oneOff, detail) => {
-          const taskId = await addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail);
-          await added(taskId);
-        }}
+        onCommit={(name, timesPerWeek, unitIds, plannedWeekdays, partOfDay, oneOff, detail) =>
+          void save(async () => {
+            const taskId = await addTask(unitIds, name, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail);
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setJustAdded(taskId);
+          })
+        }
       />
 
       {addingEventShown ? (
@@ -192,7 +216,7 @@ export default function UnitScreen() {
             const t = editingShown;
             const saved = await savedOrSaid(() => saveEventEdit({ ...t, notes: t.description }, input, bounds));
             if (saved) setEditing(null);
-            await reload();
+            retry();
           }}
           onDelete={() => {
             const t = editingShown;
@@ -212,11 +236,12 @@ export default function UnitScreen() {
           accent={hue}
           theme={theme}
           onClose={() => setEditing(null)}
-          onSave={async (next) => {
-            await applyTaskEdit(editingShown, next);
-            await reload();
+          onSave={(next) => void save(() => applyTaskEdit(editingShown, next))}
+          onDelete={() => {
+            const t = editingShown;
+            setEditing(null);
+            deleteTask(t);
           }}
-          onDelete={() => deleteTask(editingShown)}
         />
       ) : null}
 
@@ -258,8 +283,18 @@ export default function UnitScreen() {
   );
 }
 
-function headerLabel(name: string, tier: string | null, weight: number | null): string {
-  return [name, tier ? `${tier} tier` : null, weight !== null ? `${weight} of the day's 100` : "no weight"]
+function headerLabel(
+  name: string,
+  tier: string | null,
+  weight: number | null,
+  recommended: number | null,
+): string {
+  return [
+    name,
+    tier ? `${tier} tier` : null,
+    weight !== null ? `${weight} of the day's 100` : "no weight",
+    recommended !== null ? `your own weight, recommended ${recommended}` : null,
+  ]
     .filter(Boolean)
     .join(", ");
 }
@@ -267,6 +302,7 @@ function headerLabel(name: string, tier: string | null, weight: number | null): 
 const styles = StyleSheet.create({
   root: { flex: 1 },
   loading: { marginTop: space.xxl },
+  gone: { marginTop: space.xxl, paddingHorizontal: space.screen, textAlign: "center" },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl, gap: space.md },
   header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 32 },
   dot: { width: 12, height: 12, borderRadius: 6 },

@@ -117,6 +117,9 @@ export interface PlanUnit {
    * area and Tasks-screen totals sum to 100 again.
    */
   weight: number | null;
+  /** The recommended weight, when yours replaces it: shown beside it,
+   *  as every override is (AGENTS.md). Null with no override. */
+  recommendedWeight: number | null;
   tasks: PlanTask[];
 }
 
@@ -214,6 +217,15 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * "no plan yet" means.
  */
 export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
+  return weightsAndRecommended(dbOrTx).weights;
+}
+
+/** The weights that score (`latestWeights`), and the recommended ones
+ *  from tier and order alone, for showing beside an override. */
+function weightsAndRecommended(dbOrTx: Tx | typeof db): {
+  weights: Map<string, number>;
+  recommended: Map<string, number>;
+} {
   const rows = dbOrTx
     .select({
       id: lifeUnit.id,
@@ -230,7 +242,7 @@ export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
     .all()
     .filter((u) => !isCommitmentUnit(u));
   const units = tieredUnits(rows);
-  if (units === null || !hasPlannedUnit(units)) return new Map();
+  if (units === null || !hasPlannedUnit(units)) return { weights: new Map(), recommended: new Map() };
   const recommended = new Map(
     deriveTierWeights(units)
       .filter((w) => w.weight > 0)
@@ -241,9 +253,11 @@ export function latestWeights(dbOrTx: Tx | typeof db): Map<string, number> {
   // unless the plan changed since: a unit archived by the taxonomy sync,
   // say. Then the recommended weights score, and Priorities shows why
   // (`loadPriorities`' `problem`) until you save again.
-  return overrideProblem(recommended, overrides) === null
-    ? applyWeightOverrides(recommended, overrides)
-    : recommended;
+  const weights =
+    overrideProblem(recommended, overrides) === null
+      ? applyWeightOverrides(recommended, overrides)
+      : recommended;
+  return { weights, recommended };
 }
 
 /** The weights you set on the latest snapshot (ADR-0041 §2). */
@@ -266,7 +280,8 @@ export function latestOverrides(dbOrTx: Tx | typeof db): Map<string, number> {
 }
 
 export async function loadPlan(): Promise<PlanData> {
-  const weights = latestWeights(db);
+  const { weights, recommended } = weightsAndRecommended(db);
+  const overridden = latestOverrides(db);
   const areas = await db
     .select()
     .from(lifeArea)
@@ -368,6 +383,8 @@ export async function loadPlan(): Promise<PlanData> {
           tier: isTier(u.tier) ? u.tier : null,
           tierOrder: u.tierOrder ?? null,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
+          recommendedWeight:
+            u.includeInScoring && overridden.has(u.id) ? (recommended.get(u.id) ?? null) : null,
           // A task is listed under every unit it *scores* in, ranked by
           // that unit's own membership — not only its home unit. A note
           // membership earns nothing there and holds no rank, so listing

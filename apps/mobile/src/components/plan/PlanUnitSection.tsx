@@ -46,7 +46,6 @@ export function PlanUnitSection({
   hue: string;
   /** The task just created, tinted until the timer clears it. */
   justAdded: string | null;
-  /** Put the unit in or out of the 100 (ADR-0027 §2). */
   /** Not now and back go through Priorities (ADR-0041 §3), which asks
    *  before pausing tasks and keeps one snapshot. */
   onOpenPriorities: () => void;
@@ -200,7 +199,6 @@ export function PlanUnitSection({
 }
 
 const styles = StyleSheet.create({
-  grow: { flex: 1 },
   /** The unit's tasks sit on one surface, which is what makes it read
    *  as the thing being worked on. */
   panel: {
