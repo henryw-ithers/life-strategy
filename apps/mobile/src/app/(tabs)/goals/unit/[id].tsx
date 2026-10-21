@@ -4,9 +4,8 @@
  * order (drag to reorder, which sets how the unit's weight is split),
  * its events, "Need ideas?", and what the unit covers.
  *
- * Only custom units can be renamed, and that's on the unit's own
- * Priorities row; the 18 keep their names. Goals join this screen in
- * Phase 10c.
+ * Its goals are listed under its tasks, with Add a goal (spec §5.6).
+ * Only custom units can be renamed; the 18 keep their names.
  */
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
@@ -16,6 +15,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from 
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
 import { UnitInfoSheet } from "../../../../components/diagnostic/UnitInfoSheet";
+import { GoalRows } from "../../../../components/goals/GoalRows";
+import { GoalSheet } from "../../../../components/goals/GoalSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
@@ -29,10 +30,12 @@ import { constellation, ScrollBackdrop } from "../../../../components/ui/Backdro
 import { LoadFailure } from "../../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../../components/ui/UndoBar";
 import { UNIT_INFO } from "../../../../content/units";
+import { loadGoals, type GoalSummary } from "../../../../db/goals";
 import { addTask, archiveTask, reorderUnitTasks, type PlanTask } from "../../../../db/tasks";
 import { usePlanData } from "../../../../hooks/usePlanData";
 import { useRetained } from "../../../../hooks/useRetained";
 import { useUndoDelete } from "../../../../hooks/useUndoDelete";
+import { recordProblem } from "../../../../lib/problemLog";
 import { getTheme } from "../../../../theme/colors";
 import { space } from "../../../../theme/tokens";
 
@@ -46,6 +49,22 @@ export default function UnitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { plan, reload, save, error, retry } = usePlanData();
+  const [goals, setGoals] = useState<GoalSummary[]>([]);
+  const [addingGoal, setAddingGoal] = useState(false);
+  const [addingGoalShown, addingGoalGone] = useRetained(addingGoal ? true : null);
+  // The unit's goals, read with the plan on each visit.
+  useEffect(() => {
+    if (plan === null) return;
+    let live = true;
+    void loadGoals()
+      .then((all) => {
+        if (live) setGoals(all.filter((g) => g.unitId === id));
+      })
+      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+    return () => {
+      live = false;
+    };
+  }, [plan, id]);
   const undo = useUndoDelete(save);
   const unit = useMemo(() => {
     const found = plan?.areas.flatMap((a) => a.units).find((u) => u.id === id) ?? null;
@@ -148,6 +167,15 @@ export default function UnitScreen() {
           theme={theme}
         />
 
+        {!unit.includeInScoring ? null : (
+          <>
+            <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.goals}>
+              Goals
+            </AppText>
+            <GoalRows goals={goals} onAdd={() => setAddingGoal(true)} theme={theme} />
+          </>
+        )}
+
         {unitInfo ? (
           <AppText variant="caption" color={theme.accent} onPress={() => setInfo(true)} accessibilityRole="button" style={styles.link}>
             What {unit.name} covers ›
@@ -156,6 +184,22 @@ export default function UnitScreen() {
       </ScrollView>
 
       <UndoBar undo={undo} theme={theme} />
+
+      {addingGoalShown ? (
+        <GoalSheet
+          visible={addingGoal}
+          onDismissed={addingGoalGone}
+          unit={{ id: unit.id, name: unit.name, areaId: unit.areaId, commitment: false }}
+          units={[]}
+          theme={theme}
+          onClose={() => setAddingGoal(false)}
+          onSaved={(goalId) => {
+            setAddingGoal(false);
+            void reload();
+            router.push(`/goals/goal/${goalId}` as Href);
+          }}
+        />
+      ) : null}
 
       <AddTaskModal
         visible={adding}
@@ -307,4 +351,5 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 32 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   link: { minHeight: 44, textAlignVertical: "center", paddingTop: space.md },
+  goals: { paddingTop: space.lg },
 });

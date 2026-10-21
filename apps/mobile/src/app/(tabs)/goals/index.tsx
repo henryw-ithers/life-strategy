@@ -9,8 +9,10 @@
  *   **no target** (ADR-0041 §5); weights live on Priorities, so a bar
  *   can't read as falling short. Not now starts closed.
  *
- * Goals join this list in Phase 10c. Adding a task or event from the +
- * menu happens on Plan (`openAdd`).
+ * - **Goals**, active and paused, each with its running total
+ *   (spec §5.6), and Add a goal.
+ *
+ * Adding a task or event from the + menu happens on Plan (`openAdd`).
  */
 import { addDays } from "@glide/scoring";
 import { router, type Href } from "expo-router";
@@ -22,6 +24,8 @@ import {
   type CommitmentSheetMode,
 } from "../../../components/commitments/CommitmentSheet";
 import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
+import { GoalRows } from "../../../components/goals/GoalRows";
+import { GoalSheet, type GoalUnit } from "../../../components/goals/GoalSheet";
 import { tierGroups, type TierGroup } from "../../../components/life/lifeRows";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AppText } from "../../../components/ui/AppText";
@@ -32,6 +36,8 @@ import { Group, GroupDivider } from "../../../components/ui/Group";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/commitments";
 import { createCommitment } from "../../../db/commitmentWrites";
+import { loadGoals, type GoalSummary } from "../../../db/goals";
+import { COMMITMENT_AREA } from "../../../components/plan/unitSelection";
 import { loadPlan } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
@@ -51,15 +57,29 @@ export default function LifeScreen() {
   const [notNowOpen, setNotNowOpen] = useState(false);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
+  const [goals, setGoals] = useState<GoalSummary[]>([]);
+  const [goalUnits, setGoalUnits] = useState<GoalUnit[]>([]);
+  const [addingGoal, setAddingGoal] = useState(false);
+  const [addingGoalShown, addingGoalGone] = useRetained(addingGoal ? true : null);
 
   const reload = useCallback(async () => {
     const today = currentLocalDate();
-    const [nextCommitments, plan, shares] = await Promise.all([
+    const [nextCommitments, plan, shares, nextGoals] = await Promise.all([
       loadCommitmentsScreen(),
       loadPlan(),
       loadWorkShares(addDays(today, -(SHARE_DAYS - 1)), today),
+      loadGoals(),
     ]);
     setCommitments(nextCommitments);
+    setGoals(nextGoals);
+    // A goal lives in a unit in your plan, or a commitment.
+    setGoalUnits([
+      ...plan.commitments.map((c) => ({ id: c.id, name: c.name, areaId: COMMITMENT_AREA, commitment: true })),
+      ...plan.areas
+        .flatMap((a) => a.units)
+        .filter((u) => u.includeInScoring)
+        .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId, commitment: false })),
+    ]);
     setHasPlan(plan.hasSnapshot);
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
   }, []);
@@ -105,6 +125,11 @@ export default function LifeScreen() {
                 Three commitments is the most at once. Archive one to add another.
               </AppText>
             )}
+
+            <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.heading}>
+              Goals
+            </AppText>
+            <GoalRows goals={goals} onAdd={hasPlan ? () => setAddingGoal(true) : undefined} theme={theme} />
 
             <View style={styles.unitsHeading}>
               <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.grow}>
@@ -166,8 +191,24 @@ export default function LifeScreen() {
         onTask={() => openAdd("task")}
         onEvent={() => openAdd("event")}
         onLog={() => openAdd("activity")}
+        onGoal={hasPlan ? () => setAddingGoal(true) : undefined}
         settings
       />
+
+      {addingGoalShown ? (
+        <GoalSheet
+          visible={addingGoal}
+          onDismissed={addingGoalGone}
+          units={goalUnits}
+          theme={theme}
+          onClose={() => setAddingGoal(false)}
+          onSaved={(id) => {
+            setAddingGoal(false);
+            void reload();
+            router.push(`/goals/goal/${id}` as Href);
+          }}
+        />
+      ) : null}
 
       {sheetShown !== null ? (
         <CommitmentSheet

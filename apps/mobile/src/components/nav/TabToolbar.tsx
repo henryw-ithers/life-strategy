@@ -4,7 +4,7 @@
  *
  * The menu is the same on every tab: Task, Event and Log something,
  * and Window where the tab can add one (Plan since Phase 8; Home with
- * Phase 9). Goal on Life comes with Phase 10. Each tab opens what
+ * Phase 9), and Goal on Life. Each tab opens what
  * it owns in place; anything another tab owns switches to that tab and
  * opens it there (`openAdd`), until Phases 8 to 10 let every tab open
  * every sheet (Henry, 2026-10-16).
@@ -31,6 +31,8 @@ interface TabToolbarProps {
   onEvent: () => void;
   /** Adds a window to the day shown. Omitted, the menu has no Window. */
   onWindow?: () => void;
+  /** Makes a goal (Life). Omitted, the menu has no Goal. */
+  onGoal?: () => void;
   onLog: () => void;
   /** Home and Life show Settings here. */
   settings?: boolean;
@@ -58,6 +60,11 @@ export function TabToolbar(props: TabToolbarProps) {
         {props.onWindow ? (
           <Stack.Toolbar.MenuAction icon="rectangle.badge.plus" onPress={() => latest.current.onWindow?.()}>
             Window
+          </Stack.Toolbar.MenuAction>
+        ) : null}
+        {props.onGoal ? (
+          <Stack.Toolbar.MenuAction icon="target" onPress={() => latest.current.onGoal?.()}>
+            Goal
           </Stack.Toolbar.MenuAction>
         ) : null}
         <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => latest.current.onLog()}>

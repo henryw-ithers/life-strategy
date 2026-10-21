@@ -14,8 +14,8 @@
  * sub-commitments (EC-41): the tasks it links must be there, so a goal
  * can't be left counting a task that another unit's change removed.
  *
- * The goal screens are hidden until Phase 10 rebuilds them, so for now
- * only ticks and the tests call this.
+ * Life lists goals and the goal sheet makes them from templates
+ * (`content/goalTemplates.ts`, Phase 10c).
  */
 import {
   clampTookAbout,
