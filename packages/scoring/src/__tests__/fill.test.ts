@@ -25,7 +25,6 @@ const task = (taskId: string, over: Partial<OpenTask> = {}): OpenTask => ({
   size: "normal",
   dueToday: false,
   carried: false,
-  goalLinked: false,
   partOfDay: null,
   tierRank: 1,
   unitOrder: 0,
@@ -75,18 +74,17 @@ const suggestedIn = (day: PlannedDay, i: number) =>
   [...(day.windows[i]?.suggested ?? []), ...(day.windows[i]?.showAll ?? [])].map((s) => s.taskId);
 
 describe("suggestions (§3.1)", () => {
-  it("ranks due, then carried, then goal, then part of day, tier, your order, oldest", () => {
+  it("ranks due, then carried, then part of day, tier, your order, oldest", () => {
     const quick = { size: "quick" as const };
     const open = [
       task("oldest", { ...quick, createdAt: "2025-01-01" }),
       task("top", { ...quick, tierRank: 0 }),
       task("evening", { ...quick, partOfDay: "evening" }),
-      task("goal", { ...quick, goalLinked: true }),
       task("carried", { ...quick, carried: true }),
       task("due", { ...quick, dueToday: true }),
     ];
     const day = plan({ windows: [r(h(18), h(23))], open, maxRows: 10 });
-    expect(suggestedIn(day, 0)).toEqual(["due", "carried", "goal", "evening", "top", "oldest"]);
+    expect(suggestedIn(day, 0)).toEqual(["due", "carried", "evening", "top", "oldest"]);
   });
 
   it("gives each suggestion its reason", () => {

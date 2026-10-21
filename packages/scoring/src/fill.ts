@@ -54,8 +54,6 @@ export interface OpenTask {
   readonly dueToday: boolean;
   /** Carried forward from an earlier window or day (§3.4). */
   readonly carried: boolean;
-  /** Linked to an active goal (ADR-0042 §4). */
-  readonly goalLinked: boolean;
   /** Its preferred part of the day, if it has one. */
   readonly partOfDay: PartOfDay | null;
   /** Its unit's tier, 0 for Top, 1 Important, 2 Background. A Not now
@@ -120,7 +118,7 @@ export interface PlanDayInput {
 }
 
 /** Why a suggestion is there: the reason line under it (§3.3). */
-export type SuggestionReason = "due" | "carried" | "goal" | "partOfDay" | "fits";
+export type SuggestionReason = "due" | "carried" | "partOfDay" | "fits";
 
 export interface PlacedPin {
   /** The rule behind it, so a screen can move or remove it, or change
@@ -206,7 +204,6 @@ function compareFor(window: TimeRange | null, suggestBy: SuggestOrder) {
     return (
       flag(a.dueToday) - flag(b.dueToday) ||
       flag(a.carried) - flag(b.carried) ||
-      flag(a.goalLinked) - flag(b.goalLinked) ||
       flag(part !== null && a.partOfDay === part) - flag(part !== null && b.partOfDay === part) ||
       a.tierRank - b.tierRank ||
       a.unitOrder - b.unitOrder ||
@@ -219,7 +216,6 @@ function compareFor(window: TimeRange | null, suggestBy: SuggestOrder) {
 function reasonFor(task: OpenTask, window: TimeRange): SuggestionReason {
   if (task.dueToday) return "due";
   if (task.carried) return "carried";
-  if (task.goalLinked) return "goal";
   if (task.partOfDay !== null && task.partOfDay === partOfDayOf(window)) return "partOfDay";
   return "fits";
 }

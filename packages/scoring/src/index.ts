@@ -79,31 +79,29 @@ export {
   rungReachedOn,
   HABIT_LADDER,
 } from "./streak";
-export type { GoalStatus, GoalAction } from "./goals";
-export { nextGoalStatus } from "./goals";
 export type {
-  GoalDefinition,
-  GoalEntry,
-  GoalKind,
-  GoalMeasure,
-  GoalProgress,
-  GoalTaskFacts,
-  GoalTick,
-  StreakContext,
-} from "./goalKinds";
+  GradedDay,
+  PlanWeek,
+  Rank,
+  Series,
+  SeriesId,
+  Subject,
+  Thresholds,
+} from "./achievements";
 export {
   clampTookAbout,
-  countsToward,
-  entryFor,
-  goalProblem,
-  goalProgress,
-  goalStreak,
-  streakRungs,
-  streakShown,
+  everyDayRun,
+  gradeRuns,
+  nextRank,
+  ranksReached,
+  seriesById,
   tickMinutes,
-  STREAK_SHOWN_FROM,
+  topRank,
+  weekRuns,
+  RANKS,
+  SERIES,
   TOOK_ABOUT_RANGE,
-} from "./goalKinds";
+} from "./achievements";
 export { recommendedTaskRange, recommendedTaskRangeForTier } from "./taskGuidance";
 export type { PartialFraction } from "./partial";
 export {
