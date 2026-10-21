@@ -59,6 +59,12 @@ Top, Important, Background and Not now. You drag units between tiers
 and within them. With VoiceOver, the context menu has Move to tier and
 Move up/down. Onboarding starts from a suggested sort.
 
+> **Amended 2026-10-21 (Henry).** There is no suggested sort.
+> Onboarding makes you sort every unit into a tier yourself: a first
+> run starts with all 18 in an Unsorted section above Top, and Done
+> waits until it's empty. The app offers no opinion about which parts
+> of your life matter more.
+
 ### 2. Weights come from tier, then order
 
 Each tier has a base value. The first unit in a tier gets ×1.1 and the

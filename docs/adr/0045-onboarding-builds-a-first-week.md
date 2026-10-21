@@ -49,6 +49,10 @@ matters here.
    everything stays on your phone. One button.
 2. **Priorities.** Drag the 18 units into tiers, starting from a
    suggested sort (ADR-0041). Required. About 30 seconds.
+
+   > **Amended 2026-10-21 (Henry).** No suggested sort: you sort every
+   > unit into a tier yourself, starting from all of them Unsorted
+   > (ADR-0041 §1 as amended).
 3. **Commitments.** Pick Student, 9–5 job, Shift work or Nothing fixed.
    Add up to three commitments with their events, defaulting to weekly
    for 12 weeks. With Shift work, events default to not repeating.

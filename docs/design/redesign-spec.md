@@ -958,8 +958,8 @@ running onboarding again from Settings deletes nothing.
 
 1. Welcome: "Plan your week around what matters, and the time you
    actually have." One button.
-2. Priorities: drag the 18 units into four tiers, starting from a
-   suggested sort. About 30 seconds. "Rough is fine. You can change it
+2. Priorities: sort each of the 18 units into one of four tiers,
+   starting from all of them Unsorted (Henry, 2026-10-21). About 30 seconds. "Rough is fine. You can change it
    any time."
 3. Commitments: "Anything with set hours?" Pick Student, 9–5 job,
    Shift work or Nothing fixed. Add up to 3 commitments with their

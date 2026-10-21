@@ -99,10 +99,11 @@ work every day 8–20; Nothing fixed every day 9–17.
 
 Left open:
 
-- **The suggested sort.** ADR-0041 §1 and ADR-0045 step 2 say
-  onboarding starts Priorities from a suggested sort, but neither says
-  what it sorts by. A first run still starts with every unit in
-  Important (Henry, 2026-10-19). Waiting on Henry.
+- **No suggested sort** (Henry, 2026-10-21; ADR-0041 §1 and ADR-0045
+  step 2 amended): a first run starts every unit in an Unsorted
+  section above Top (`board.ts`), shown only while it holds a unit. A
+  tap on an unsorted unit asks which tier, and Done waits until every
+  unit has one (`sortedPlacement`).
 - **Step 7 asks for the existing daily reminder**, not a morning
   summary: the only notification is ADR-0010's nudge. A summary would
   be new notification content.
@@ -385,10 +386,9 @@ Built from ADR-0041 and spec §5.4.1 and §8.2, with Henry's calls on
   own weight equal to the recommended one is no override.
 - **`unitProfile`** reads tier: Top gap-closing, Important and
   Background maintenance, a unit too small for two tasks light.
-- **A first run** starts with every unit in Important, in the default
-  order. Saving it unchanged gives ×1.1 down to ×0.9 by that order, an
-  order nobody chose (open: an equal-weight first save, if Henry
-  wants one).
+- **A first run** started with every unit in Important, in the default
+  order. Since Phase 11 it starts every unit Unsorted, and you sort
+  them all before Done (Henry, 2026-10-21).
 - **Not now** pauses a unit's tasks (archived, marked
   `paused_for_not_now`, pins dropped) and moving it back restores them.
   Priorities is the only way in or out of the plan: the Plan tab's

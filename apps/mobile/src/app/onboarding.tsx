@@ -234,8 +234,9 @@ export default function OnboardingScreen() {
           What matters most right now?
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          Drag the 18 parts of your life into four tiers: Top, Important,
-          Background and Not now. Suggestions come from the top down.
+          Sort each of the 18 parts of your life into a tier: Top,
+          Important, Background or Not now. What you put at the top is what
+          your days suggest first.
         </AppText>
         <AppText color={theme.muted} style={styles.lead}>
           Rough is fine. You can change it any time. About 30 seconds.

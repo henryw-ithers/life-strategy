@@ -4,7 +4,15 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { boardRows, headerTier, moveToTier, moveWithinTier, placementFromRows } from "../board";
+import {
+  boardRows,
+  headerTier,
+  inTiers,
+  moveToTier,
+  moveWithinTier,
+  placementFromRows,
+  sortedPlacement,
+} from "../board";
 
 const placement = [
   { unitId: "a", tier: "top" as const },
@@ -84,5 +92,33 @@ describe("moveWithinTier", () => {
   it("doesn't cross into another tier", () => {
     expect(moveWithinTier(placement, "b", -1)).toEqual(placement);
     expect(moveWithinTier(placement, "a", 1)).toEqual(placement);
+  });
+});
+
+describe("Unsorted, on a first run", () => {
+  const fresh = [
+    { unitId: "a", tier: "unsorted" as const },
+    { unitId: "b", tier: "unsorted" as const },
+  ];
+
+  it("shows above Top while it holds a unit, and goes once it's empty", () => {
+    expect(boardRows(fresh).slice(0, 4)).toEqual(["tier:unsorted", "a", "b", "tier:top"]);
+    const sorted = moveToTier(moveToTier(fresh, "a", "top"), "b", "notNow");
+    expect(boardRows(sorted)[0]).toBe("tier:top");
+    expect(boardRows(sorted)).not.toContain("tier:unsorted");
+  });
+
+  it("keeps a unit below Unsorted's header unsorted", () => {
+    expect(placementFromRows(boardRows(fresh))).toEqual(fresh);
+  });
+
+  it("can't be saved until every unit is in a tier", () => {
+    const half = moveToTier(fresh, "a", "important");
+    expect(sortedPlacement(half)).toBeNull();
+    expect(inTiers(half)).toEqual([{ unitId: "a", tier: "important" }]);
+    expect(sortedPlacement(moveToTier(half, "b", "top"))).toEqual([
+      { unitId: "b", tier: "top" },
+      { unitId: "a", tier: "important" },
+    ]);
   });
 });
