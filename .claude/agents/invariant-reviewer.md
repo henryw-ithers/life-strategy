@@ -29,7 +29,12 @@ accepted ADR. Examples of the kind of thing to catch:
 - A new credit source that is not placed on one side of the
   `UNPLANNED_CAP` line.
 - Any adherence rate, streak, plan-completion percentage, attendance
-  rate or count of missed events — computed, stored or derivable.
+  rate or count of missed events — computed, stored or derivable. The
+  one exception is ADR-0047 §4: achievements may count weeks a plan
+  was met (in total and in a row), but never as a rate, a percentage or
+  a missed count, never on Home, Plan or a grade, and never mentioning
+  a run that ended. Flag anything that leaks past those limits, and any
+  achievement derived from events not ticked.
 - Copy or UI that conditions on a low grade or low contentment, uses
   alarm colours, or shames. User-facing "Importance" instead of
   "Priority".
