@@ -8,6 +8,7 @@
  * commitment from a life unit is its band, not its table.**
  */
 import {
+  addDays,
   commitmentDayFromShare,
   commitmentShare,
   isDueOn,
@@ -141,6 +142,43 @@ export async function loadCommitmentDay(
    */
   options: { includeCovered?: boolean } = {},
 ): Promise<CommitmentDay | null> {
+  const parts = await shareParts(date, options);
+  if (parts === null) return null;
+  return commitmentDayFromShare(
+    parts.share,
+    parts.groups,
+    parts.eligible,
+    await choicesOn(date, new Set(parts.eligible)),
+  );
+}
+
+/**
+ * What a commitment's share of the days ahead would be: for each day
+ * from `today` through the next six with work for it, its automatic
+ * share (`DayShare.automatic`). The commitment screen says "about 44%
+ * on Wednesdays" from the largest (spec §5.5), beside a share you set.
+ * Display only.
+ */
+export async function loadShareWeek(
+  commitmentId: string,
+  today: string,
+): Promise<{ date: string; automatic: number }[]> {
+  const out: { date: string; automatic: number }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(today, i);
+    const parts = await shareParts(date, {});
+    const auto = parts?.share.automatic.get(commitmentId);
+    if (auto !== undefined) out.push({ date, automatic: auto });
+  }
+  return out;
+}
+
+/** A day's commitment share and what it's shared across, or null on a
+ *  day with no commitment work (`loadCommitmentDay`). */
+async function shareParts(
+  date: string,
+  options: { includeCovered?: boolean },
+) {
   const units = await db
     .select()
     .from(lifeUnit)
@@ -199,12 +237,7 @@ export async function loadCommitmentDay(
       )
       .map((t) => ({ start: t.startMinute!, end: t.endMinute! })),
   });
-  return commitmentDayFromShare(
-    share,
-    groups,
-    eligible,
-    await choicesOn(date, new Set(eligible)),
-  );
+  return { share, groups, eligible };
 }
 
 /**
@@ -372,6 +405,11 @@ export interface CommitmentUnitScreen {
   /** What this unit holds directly. Empty on a split commitment. */
   events: UnitItem[];
   tasks: UnitItem[];
+  /** A commitment's own share of the day, or null for automatic
+   *  (ADR-0044 §3). Always null on a sub-commitment. */
+  setShare: number | null;
+  /** How many commitments there are, for the share's limit. */
+  commitmentCount: number;
 }
 
 /** What a commitment's nav bar shows: its name and the shape of its •••
@@ -472,5 +510,9 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
       .length,
     events: own.filter((t) => t.kind === "event").sort(byStart),
     tasks: own.filter((t) => t.kind !== "event"),
+    setShare: parentRow === null ? row.setShare : null,
+    commitmentCount: units.filter(
+      (u) => u.parentUnitId === null && u.archivedAt === null && u.commitmentShare !== null,
+    ).length,
   };
 }
