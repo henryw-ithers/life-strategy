@@ -58,6 +58,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Accepted |
 | [0046](0046-backups-are-plain-files.md) | Backups are plain files: no passphrase, no encryption, a CRC-32 check | Accepted |
+| [0047](0047-achievements-replace-goals.md) | Achievements the app defines and ranks replace goals; plan weeks and good days count, with guard rails | Proposed |
 
 ## Reading guide
 
