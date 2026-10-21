@@ -199,6 +199,12 @@ describe("guessUnit (spec §5.7)", () => {
     expect(guessUnit("School run", all)).toBe("school");
   });
 
+  it("matches a commitment's name as a whole word only", () => {
+    // "Work" is a commitment; a workout isn't work.
+    expect(guessUnit("Morning workout", all)).toBe("exercise-fitness");
+    expect(guessUnit("Work: rota emails", all)).toBe("work");
+  });
+
   it("never guesses a Not now unit, or from almost nothing", () => {
     expect(guessUnit("Plan a road trip", all)).toBeNull();
     expect(guessUnit("ru", all)).toBeNull();

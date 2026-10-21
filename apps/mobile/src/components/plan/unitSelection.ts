@@ -140,9 +140,11 @@ export function pickableUnits(plan: PlanData | null): PickableUnit[] {
 export function guessUnit(title: string, units: readonly PickableUnit[]): string | null {
   const t = title.trim().toLowerCase();
   if (t.length < 3) return null;
+  // As a whole word: "Work" mustn't claim "workout", which would make
+  // a run commitment work.
   const named = units
     .filter((u) => u.commitment === true && u.name.trim().length >= 3)
-    .filter((u) => t.includes(u.name.trim().toLowerCase()))
+    .filter((u) => wholeWord(t, u.name.trim().toLowerCase()))
     // The longest name is the most specific: "COMP2521" over "School".
     .sort((a, b) => b.name.length - a.name.length)[0];
   if (named) return named.id;
@@ -152,3 +154,17 @@ export function guessUnit(title: string, units: readonly PickableUnit[]): string
 
 /** The hue commitments are drawn in everywhere else in the app. */
 export const COMMITMENT_AREA = "work-money";
+
+/** Whether `word` appears in `text` with no letter or digit either side. */
+function wholeWord(text: string, word: string): boolean {
+  let from = 0;
+  for (;;) {
+    const i = text.indexOf(word, from);
+    if (i === -1) return false;
+    const before = text[i - 1];
+    const after = text[i + word.length];
+    const edge = (c: string | undefined) => c === undefined || !/[a-z0-9]/.test(c);
+    if (edge(before) && edge(after)) return true;
+    from = i + 1;
+  }
+}
