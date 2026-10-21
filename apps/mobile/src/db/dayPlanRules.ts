@@ -111,7 +111,6 @@ export interface TaskFacts {
   /** Its place in your order within its unit. */
   readonly unitOrder: number;
   readonly createdAt: string;
-  readonly goalLinked: boolean;
 }
 
 /**
@@ -143,7 +142,6 @@ export function toOpenTask(
     size: t.size ?? t.oneOffSize,
     dueToday: t.band === "due" && !carried && !plannedLater,
     carried,
-    goalLinked: facts.goalLinked,
     partOfDay: t.partOfDay,
     tierRank: facts.tierRank,
     unitOrder: facts.unitOrder,

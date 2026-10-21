@@ -48,8 +48,8 @@ appears:
 | Working hours | "When you're free to get things done." |
 | Window | "Free time inside your working hours, between events." |
 
-Goals (§5.6), activities ("+ Log something", §5.1) and sub-commitments
-(§5.5) stay out of sight until someone goes looking.
+Achievements (§5.6), activities ("+ Log something", §5.1) and
+sub-commitments (§5.5) stay out of sight until someone goes looking.
 
 ### 1.2 How the pieces fit
 
@@ -57,9 +57,9 @@ Goals (§5.6), activities ("+ Log something", §5.1) and sub-commitments
     ───────────                            ──────────────
     Area (colour and grouping only)        Working hours (weekly template)
      └ Unit: tier → weight                  − events
-        ├ Goal (optional, measurable)       − buffers and gaps
-        │  └ linked tasks                   = windows, per day
-        └ Task (size, how often)               └ tasks in them, pinned
+        └ Task (size, how often)            − buffers and gaps
+                                            = windows, per day
+                                               └ tasks in them, pinned
     Commitment (up to 3): its own share          by you or suggested
      ├ Sub-commitment (optional)
      │  ├ Event (fixed time)
@@ -90,8 +90,7 @@ checks this (INV-1).
 | Diagnostic (rank and rate) | Priorities (tiers) | Satisfaction is no longer asked. Old ratings stay in the database |
 | Portfolio graph | Removed | Life shows where your effort went instead (§5.4) |
 | Pool | "Do N of these" on a window | Same scoring rule as ADR-0033 §3 |
-| Goal conditions, milestones, manual goal metrics | Removed | Existing goals are erased. A goal is one of four types and links to tasks directly |
-| Goal library | Goal templates | One template per goal type for each unit and kind of commitment |
+| Goals, their conditions, milestones and library | Achievements | The app defines and awards them from what it records; nothing is set up (ADR-0047, which superseded ADR-0042) |
 | Parts of the day as plan slots | Windows | Morning/afternoon/evening stays as a task preference |
 | List / Hours toggle | Removed | Home has one layout |
 | Event location | Removed | Column dropped |
@@ -113,8 +112,8 @@ Four tabs in the native iOS 26 tab bar:
 The tab bar shrinks when you scroll on Home and Log. Settings opens
 from a toolbar button on Home and Life rather than from a tab, since
 Apple's guidelines keep tabs for navigation. A `+` button in the
-toolbar on Home, Plan and Life opens a menu: Task, Event, Window, Log
-something, and Goal on Life.
+toolbar on Home, Plan and Life opens a menu: Task, Event, Window and
+Log something.
 
 ### 2.2 System parts
 
@@ -260,7 +259,7 @@ How day edits behave:
 
 ### 4.1 Sizes
 
-| Size | Label | Hours used for fitting and time goals |
+| Size | Label | Hours used for fitting and hours achievements |
 |---|---|---|
 | quick | Quick · under 30 min | 0.5 |
 | normal | Normal · about an hour | 1 |
@@ -301,11 +300,10 @@ saved. For each day:
 3. Everything else is ranked:
    1. due today (pinned to today, every day, or a one-off due by today)
    2. carried forward from an earlier window or day
-   3. linked to an active goal
-   4. its preferred part of the day matches the window
-   5. unit tier, Top first
-   6. your order within the unit
-   7. oldest first
+   3. its preferred part of the day matches the window
+   4. unit tier, Top first
+   5. your order within the unit
+   6. oldest first
 
    Settings → Task defaults → "Suggest tasks by" can put due date or
    priority first instead. Points are never used to rank (ADR-0033):
@@ -323,8 +321,8 @@ saved. For each day:
    fit (P6). The rest are under "Show all".
 
 Each suggested row has a short reason underneath (P11): "Fits this
-hour · Exercise", "Due today", "Still open · School", "For your goal:
-Run 30 times". A pinned row shows a pin.
+hour · Exercise", "Due today", "Still open · School". A pinned row
+shows a pin.
 
 ### 4.4 Pinning
 
@@ -643,7 +641,7 @@ Finish works at any step.
 
 1. **Last week.** "Here's where last week went." Each unit's share of
    everything you completed, as a bar with no target. Below that, days
-   you flagged ☆, goals that moved, and how many activities you logged.
+   you flagged ☆ and how many activities you logged.
    No missed counts, no percentages of the plan, no comparison with the
    week before.
 2. **Anything different this week?** This week's events, each with a
@@ -668,16 +666,14 @@ Life is a list. Each row opens its own screen and has a context menu.
 
      Life                                       ＋
      ─────────────────────────────────────────────
+     ◉ Achievements                 12 earned    ›
      Commitments
        ● School         4 events/wk · 6 tasks    ›
        ● Café job       shifts, week by week      ›
        + Add a commitment (1 more)
-     Goals
-       ● Run 30 times by December   18 / 30       ›
-       + Add a goal
      Your units                     Priorities ›
        Top
-        ● Exercise & fitness   4 tasks    ▇▇▇▁
+        ● Exercise & fitness  🔥9 ◉ 4 tasks ▇▇▇▁
         ● Learning & growth    2 tasks    ▇▇▁▁
        Important
         ...
@@ -687,6 +683,10 @@ The bars show each unit's share of everything you completed in the
 last 4 weeks. They aren't drawn against a target: weights live on the
 Priorities screen, so a bar can't read as falling short. The caption
 says "Where your time went".
+
+A unit's row carries its highest achievement rank (◉, in the rank's
+colour) and, while a run is going, a flame with its length (§5.6).
+Achievements open from the top of the list.
 
 #### 5.4.1 Priorities
 
@@ -733,8 +733,8 @@ keeps a snapshot, as the diagnostic does now.
 The header shows the unit's colour, name, tier and weight. Only custom
 units can be renamed. Below that: its tasks in your order (drag to
 reorder, which sets how the unit's weight is split, as now), its
-goals, "Need ideas?", colour, and the existing information about the
-unit.
+highest achievement rank and any run going now (opening Achievements),
+"Need ideas?", colour, and the existing information about the unit.
 
 ### 5.5 Commitment screen
 
@@ -804,60 +804,68 @@ Other rules:
 event of this commitment that week, including events added later.
 Weeks that have started can't be skipped (EC-25).
 
-### 5.6 Goals
+### 5.6 Achievements
 
-Goals are optional. Each one has to be built on something the app can
-count:
+Goals are gone (ADR-0047). The app watches what you do and awards
+achievements from a fixed catalogue; there is nothing to set up. Each
+achievement is a **series** counting one thing, with five ranks:
+Bronze, Silver, Gold, Platinum and Diamond. The first comes soon and
+the top takes years (peaks near 1,000).
 
-| Type | Example | What counts | Counted as |
-|---|---|---|---|
-| Times done | Run 30 times by December | One or more tasks you choose | Ticks |
-| Time spent | 40 h of study this term | Tasks you choose, or every task in the unit or commitment | Each tick's size, or the time you entered when ticking (§5.7) |
-| Points earned | Earn 300 Exercise points this term | The whole unit, always | A running total, never a percentage of the points on offer |
-| Streak | Meditate every day | Exactly one every-day task | Days in a row, using the existing `streak.ts` (ADR-0004 §5) |
+| Series | Counts | For each |
+|---|---|---|
+| Completions | Ticks of a task | task |
+| Unit completions | Ticks of a unit's tasks | unit, and its area |
+| Hours | Each tick's size or event length, or "Took about…" (§5.7) | unit, commitment |
+| Every day | Days in a row of an every-day task (ADR-0004 §5's rules) | task |
+| Weeks on target | Weeks a task's weekly target was met, in total and in a row | task |
+| Whole weeks | Weeks every task in a unit met its target, in total and in a row | unit |
+| Attended | Events ticked | commitment |
+| Days at 80 or 90 | Days scoring 80 or above; 90 or above, in total and in a row. Named by the score, never "good" or "great" | everything |
+| Record | Activities logged; days worth remembering | everything |
 
-Which tasks count depends on the kind of goal, so the sheet asks only
-what that kind needs. A tick counts if its task was linked when it was
-ticked, and each counted tick is kept, so unlinking a task later
-doesn't change past progress.
+Thresholds live in the engine (`achievements.ts` in `@glide/scoring`).
 
-Making a goal starts from a template. For each unit and each kind of
-commitment, the library has one template per goal type that makes
-sense there (for Exercise: "Work out [30] times by [date]", "[20] hours
-of training", "Earn [300] Exercise points", "Stretch every day"). A
-template fills in the type, unit, a suggested target and the tasks
-that count, all editable. "Start from scratch" is the same sheet,
-empty. These templates replace the old goal library; the task library
-stays.
+Rules:
 
-Streak goals follow the existing streak rules:
+- **Earned is kept.** A rank is never taken back, even if the tick that
+  earned it is undone. A run's rank comes from its longest run.
+- **Locked achievements show their progress**, runs included: "Gold:
+  100 completions · 62 / 100". For a run, the run going now against the
+  next rank. When a run ends its progress starts again, and nothing says
+  so. A past best is never put beside a shorter run (copy guide).
+- **Plan weeks** count only weeks that have ended. A week with nothing
+  asked (Away all week) is passed over. Never a rate, a percentage or a
+  missed count, and never on Home, Plan or a grade (ADR-0047 §4).
+- **Events** count toward hours and Attended only. Nothing is derived
+  from an event not ticked (ADR-0038 §5).
+- **Score series** read stored grades of days that have ended. A day
+  off or an Away day is skipped, and a day with no stored grade scored
+  nothing (`periodDays`).
+- Counted series are awarded as the tick lands; every-day streaks and
+  score series once the day ends; plan weeks once the week ends.
 
-- Only every-day tasks can have one, never events, since a run ending
-  on an unticked event would count events not attended (ADR-0038). A
-  task done 3 times a week has no
-  days in a row, and counting weeks in a row would compare what you did
-  with what you planned.
-- One missed day ends the run. Days off and Away days are skipped, and
-  an unfinished today doesn't count as missed.
-- There's no target and nothing to complete. The 7, 30 and 66-day marks
-  are celebrated when you reach them.
-- The copy rules in the [copy guide](copy-guide.md) apply: nothing is
-  said when a run ends, a past best is never shown next to a shorter
-  current run, and nothing shows under 7 days.
+Where they show:
 
-Other goal rules:
+- **Life → Achievements**: everything first, then each commitment, then
+  each area with its units and their tasks. A row shows a subject's
+  marks, one per series: a circle for a count, a hexagon for a run,
+  filled in the rank's colour when earned and a grey outline when not.
+  Tapping a row shows each series' ranks with the day each was earned,
+  and what's next. Ranks of a task or unit since removed are kept under
+  "From before".
+- **Life rows and unit screens**: the highest rank, and a flame while a
+  run of at least the first rank (7 days or 2 weeks) is going. It goes
+  quietly when the run ends.
+- **Celebration**: a success haptic and a short card on Home ("You
+  earned…"), shown once. Plan-week ranks never appear there: that
+  exception stays off Home (AGENTS.md, ADR-0047 §4), so they show on
+  Achievements and in the month review only.
+- **The month review** in Log lists what was earned that month.
 
-- Progress is a running total, like "18 / 30 runs".
-- There's no "on pace" line, because it shows when you're behind
-  without saying so (ADR-0008, INV-4).
-- Reaching a target is an achievement. It appears in the monthly
-  summary, not the daily grade.
-- An active goal moves its tasks up slightly in suggestions (§4.3).
-- Goals can be paused, finished early or revised (ADR-0007).
-- Existing goals are erased by the migration, along with their
-  conditions, milestones, progress entries and goal achievements. Their
-  tasks stay as ordinary unit tasks. Nobody uses the app yet, so
-  nothing real is lost (Henry, 2026-10-13).
+Rank colours come from the palette (DESIGN.md): Bronze is Brown,
+Silver the muted grey, Gold Yellow, Platinum Mint and Diamond Cyan,
+and the rank is always named in words too.
 
 ### 5.7 New and edit task
 
@@ -872,7 +880,7 @@ up shows the rest.
      How often  ( Once )( Repeats● )
        3 a week  − +     Days: any ›
      ▸ More: time of day · clock time · due date ·
-             goal · part credit · notes
+             part credit · notes
 
 The unit is guessed from words in the title, on the device. If there's
 no good match, the chip says "Choose a unit". The three relationship
@@ -883,8 +891,8 @@ with one goes in the window containing that time.
 
 Tap a task to tick it. A long press on a done task opens a menu with
 "Took about…" (P4) and the existing tagging (ADR-0025 §4). "Took
-about…" records the real time, which only time goals use. It doesn't
-change points.
+about…" records the real time, which only hours achievements use. It
+doesn't change points.
 
 ### 5.8 New and edit event
 
@@ -925,8 +933,8 @@ On every text field:
 
 A month calendar with grades. Days you flagged, photos and notes come
 first. Each day opens its record (§5.2). Future days can be marked
-Special or Day off. Weekly and monthly summaries include goal
-achievements. The weekly contentment question stays (ADR-0008).
+Special or Day off. Each month's review lists the achievements earned
+that month (§5.6). The weekly contentment question stays (ADR-0008).
 
 ### 5.10 Settings
 
@@ -1049,22 +1057,22 @@ the phone.
 | EC-32 | Editing an away range later | Past away days can be changed back within 14 days | D |
 | EC-33 | A day off set on a future day with pins | Pins are kept but hidden, and return if the day off is removed | D |
 
-### Tasks, goals and units
+### Tasks, achievements and units
 
 | ID | Case | Behaviour | Test |
 |---|---|---|---|
 | EC-34 | No unit match for a title | Chip reads "Choose a unit". A unit is needed to save | M |
 | EC-35 | "Dinner with mum" | Suggests Family (ADR-0027 §4) | U |
-| EC-36 | A goal linked to an archived task | Past ticks still count. The task isn't listed | D |
-| EC-37 | A Points goal across days off | A running total, so days off add nothing | U |
+| EC-36 | An achievement of an archived or deleted task | Its ranks are kept under "From before", with the name it had. It's no longer counted on | D |
+| EC-37 | A run across days off and Away | Skipped: they neither count nor break it, for every-day streaks, plan weeks and days at 90 or above | U |
 | EC-38 | "Took about…" set to 0 or over 12 h | Kept between 1 minute and 12 hours | U |
 | EC-39 | A unit with tasks moves to Not now | Its tasks are paused after you confirm, and their pins removed. Moving it back restores the tasks without the pins. Other weights adjust to 100 | U + D |
 | EC-40 | All 18 units in one tier | Weights still add to 100 | U |
-| EC-41 | A goal on a commitment | Allowed. It counts only that commitment's tasks or time and never creates a scoring `task_unit` (ADR-0035 §3) | U |
+| EC-41 | A commitment's achievements | Its hours and Attended, and its tasks' own series. Its ticks never count toward a life unit's or area's | U |
 | EC-48 | A repeating task unfinished on Sunday night | Doesn't carry into Monday. Its count starts again (§4.5) | U |
 | EC-49 | A carried task done two days later | Paid what its original day would have paid, uncapped. That day's grade doesn't change | U |
 | EC-50 | Hours changed "this week and after" mid-week | Settled days keep their commitment share. Today on uses the new hours | D |
-| EC-51 | Clearing a day during a streak goal | A cleared day isn't a day off, so an every-day task not done ends the run. "Make it a day off instead" keeps it | U |
+| EC-51 | Clearing a day during an every-day run | A cleared day isn't a day off, so an every-day task not done ends the run. "Make it a day off instead" keeps it | U |
 
 ### Data and system
 
@@ -1086,10 +1094,10 @@ the phone.
 | INV-1 | Windows, pins, suggestions, refilling, carrying forward and sort order never change what's due or any `DayScore`. Two exceptions: a saved "Do N of these" choice (ADR-0033 §3), and working hours, which set the size of the commitment share (§5.5) |
 | INV-2 | Every open task is in exactly one window or in Other open tasks |
 | INV-3 | Only repeat bounds, skips, Clear today and Away change what's due, through `isDueOn` / `isAnchoredOn` and the day-type path |
-| INV-4 | Nothing computes or shows adherence, attendance, missed counts or a percentage of the plan done (AGENTS.md) |
+| INV-4 | Nothing computes or shows adherence, attendance, missed counts or a percentage of the plan done (AGENTS.md). The one exception is achievements' weeks met, in total and in a row (ADR-0047 §4) |
 | INV-5 | Unit weights add up to 100 |
 | INV-6 | Points are never used to rank suggestions |
-| INV-7 | Goal progress never feeds a daily grade |
+| INV-7 | Achievements never feed a daily grade |
 | INV-8 | The commitment share uses only the day's working hours as they stood at the start of the day, plus its commitment events and commitment task sizes. It is fixed once the day's grade settles |
 
 ### 8.2 Changes (the next formula version)
@@ -1159,7 +1167,8 @@ amends.
 | [0039](../adr/0039-work-windows-come-from-your-hours.md) | Work windows, suggestions, pins, day edits, carrying forward, the weekly pass |
 | [0040](../adr/0040-schedules-can-end-skip-and-clear.md) | Repeat bounds, skipped weeks, Clear today, Away, event location removed |
 | [0041](../adr/0041-priorities-are-tiers.md) | Priorities as tiers; satisfaction and the graph removed |
-| [0042](../adr/0042-goals-are-measured-by-the-app.md) | Goals the app can count, including streaks; conditions retired |
+| [0042](../adr/0042-goals-are-measured-by-the-app.md) | Goals the app can count, including streaks; conditions retired. Superseded by 0047 |
+| [0047](../adr/0047-achievements-replace-goals.md) | Achievements the app awards replace goals |
 | [0043](../adr/0043-the-app-uses-native-ios-controls.md) | Native controls, Liquid Glass, Prism, user colours, EAS builds |
 | [0044](../adr/0044-a-commitment-share-comes-from-your-day.md) | A commitment's share from your working day, with an override |
 | [0045](../adr/0045-onboarding-builds-a-first-week.md) | Onboarding that sets up a first week |
@@ -1175,7 +1184,7 @@ Answered on 2026-10-13:
 - Q9. Repeating tasks don't carry into the next week. Their count
   starts again (§4.5).
 
-- Q4. Points goals are running totals only (§5.6).
+- Q4. Points goals are running totals only. Goals have since gone (ADR-0047).
 - Q5. The evening card appears an hour before the last window ends, or
   at 6 pm (§5.1).
 - Q6. Home jumps to the current window only when the app opens or

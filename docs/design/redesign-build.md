@@ -61,7 +61,9 @@ split switch. Phase 12 runs the `pr-test-analyzer` agent,
 ## Phase 10: Life
 
 Three PRs: **10a** Life as rows and a unit screen, **10b** the
-commitment screen and its share, **10c** goals from templates.
+commitment screen and its share, **10c** achievements, which replaced
+goals (ADR-0047, accepted 2026-10-21; it supersedes ADR-0042, so goals
+from templates were never built).
 
 Built in 10a: Life as a list of rows (spec §5.4): commitments, then
 units by tier in your order, each with its task count and a bar of its
@@ -77,6 +79,48 @@ or a share you set between 10% and the limit, with a typical day's
 automatic share beside it, never above the limit. Adding the first
 sub-commitment splits the commitment, moving its work into General, so
 the sub-commitments switch is gone (ADR-0044 §7).
+
+Built in 10c (spec §5.6): goals are gone, and the app awards
+achievements itself. The engine's series, ranks and runs are
+`achievements.ts` in `@glide/scoring` (it replaced `goals.ts` and
+`goalKinds.ts`, keeping `clampTookAbout` and `tickMinutes`). What each
+series stands at is `db/achievementRules.ts`, pure, from completions,
+tasks, units, stored grades, activities, Away and skips (the every-day
+streak reuses the old streak goal's reading of skips and days off).
+`db/achievements.ts` awards new ranks (insert-only) and serves the
+screens. Migrations 0027 (drops `goal`, `goal_task`, `goal_entry` and
+the old `achievement`) and 0028 (creates the new `achievement`, unique
+on series, subject and rank). Screens: Life → Achievements
+(`goals/achievements.tsx`), a rank and a flame on Life's unit rows and
+the unit screen, a celebration card on Home (`useCelebration`), and
+the month review's list. `setTookAbout` moved to `completions.ts`;
+suggestions no longer rank by goal (`goalLinked` and "For your goal"
+are gone).
+
+Left open after 10c:
+
+- **Nothing writes "Took about…" yet** (the long-press menu, spec
+  §5.7). Hours count each tick's size or event length until it lands.
+- **The ☆ day flag has no writer either**, so "Worth remembering"
+  counts flagged activities until it does.
+- **The goal templates in `content/library.ts`** are dead data: nothing
+  reads `goals` now. Its source is `docs/content/library.md` and its
+  generator; removing them is Phase 12's dead-code pass.
+- **Migration 0027 drops `goal` before `goal_entry` and `goal_task`**,
+  as drizzle-kit generated it. With foreign keys on and goal rows
+  present that order would fail, but the app's connection doesn't turn
+  them on and nobody has goal rows.
+- **Plan-week ranks stay off Home's celebration card.** ADR-0047 §6
+  puts the card on Home without excluding a series, but AGENTS.md keeps
+  the plan-week exception off Home; the invariant won. Worth a line in
+  the ADR if Henry wants it the other way.
+- **A day with no stored grade counts as nothing** for the score series,
+  as `periodDays` does. A day that asked nothing but was never opened
+  past the edit window has no row, so it breaks a great-day run. An
+  automatic rest day scores 70, so it breaks one too.
+- Ranks are awarded on Home and Life coming into view and after a tick.
+  A rank earned only by a week ending waits for the next open, as the
+  ADR says.
 
 Open for an ADR (invariant review): a share you set is scaled with the
 others on a day another commitment has work too, as ADR-0044 §3's
@@ -209,8 +253,8 @@ Decided while building 8c, and open for Henry:
   uses it up; Priorities is always on Life.
 
 Left for later: offering the pass on Home from Sunday 6 pm until the
-week's first window (ADR-0039 §11) comes with Home in Phase 9; "goals
-that moved" in Last week comes with goals in Phase 10.
+week's first window (ADR-0039 §11) comes with Home in Phase 9. "Goals
+that moved" in Last week went with goals (ADR-0047).
 
 Built in 8d: the New task form's unit guess (`guessUnit`: a
 commitment named in the title as a whole word, then the keyword match,
@@ -349,7 +393,8 @@ brackets. Phase 5 ships as three PRs (5a, 5b, 5c). Henry's calls on
 - Commitment shares are all automatic. The old `commitment.band`
   setting and the relative `commitment_share` are retired (5b).
 - The goal screens are hidden from 5c until Phase 10 rebuilds them,
-  with no interim UI.
+  with no interim UI. (Phase 10c replaced goals with achievements
+  instead, ADR-0047; the goal notes below are history.)
 - Database tests run on better-sqlite3 (a dev dependency) through
   `src/db/__tests__/harness.ts`, which runs the real migrations.
 - **Old placements and pools go with their screens**, not in 5a:

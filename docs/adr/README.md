@@ -21,15 +21,15 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0003](0003-scoring-and-weight-derivation.md) | First weight formula, rounding, overrides, and pricing tasks by rank | Accepted; §1 amended by 0028 |
 | [0004](0004-grade-lifecycle-and-aggregation.md) | When a day closes, day kinds, and weekly and monthly totals | Accepted; §2 superseded by 0014; Away and emptied days per 0040 |
 | [0005](0005-diagnostic-snapshots-and-history.md) | Monthly diagnostic, snapshots that never destroy data, measured bubble size | Accepted; §1 amended and §§3–4 removed by 0041 |
-| [0006](0006-task-and-goal-recommendations.md) | Suggestions come from a curated library shipped with the app | Accepted; goal library replaced by templates (0042) |
-| [0007](0007-goal-lifecycle.md) | Goal states, the three ways to complete a goal, achievements | Accepted; goal types and milestones amended by 0042 |
+| [0006](0006-task-and-goal-recommendations.md) | Suggestions come from a curated library shipped with the app | Accepted; goal library replaced by templates (0042), then goals by achievements (0047) |
+| [0007](0007-goal-lifecycle.md) | Goal states, the three ways to complete a goal, achievements | Accepted; goal types and milestones amended by 0042; goals replaced by achievements (0047) |
 | [0008](0008-contentment-calibration.md) | Weekly contentment check-in; suggestions apply only when confirmed | Accepted |
 | [0009](0009-spontaneous-activities.md) | Logging unplanned activities and how they are credited | Accepted; §3 amended by 0023 |
 | [0010](0010-notifications-and-reminders.md) | One daily reminder, generic copy, nothing personal on the lock screen | Accepted |
 | [0011](0011-onboarding-and-first-run.md) | The first-run flow; the first diagnostic is required | Accepted; flow replaced by 0045 |
 | [0013](0013-crash-reporting-and-telemetry.md) | No telemetry; crashes are logged on the device and sent only by the user | Accepted |
 | [0014](0014-partial-credit.md) | Tasks can opt in to partial completion in 25% steps | Accepted |
-| [0015](0015-metric-linked-goals.md) | Goals that track a number or a habit streak | Accepted; metric kinds replaced by 0042 |
+| [0015](0015-metric-linked-goals.md) | Goals that track a number or a habit streak | Accepted; metric kinds replaced by 0042; goals replaced by achievements (0047) |
 | [0019](0019-multi-unit-tasks.md) | One task can serve up to three units | Accepted |
 | [0020](0020-backup-cryptography-and-export-exemption.md) | Backups use only Apple's cryptography, which keeps the app export-exempt; iOS only | Superseded by 0046 |
 | [0021](0021-areas-are-presentational.md) | Life areas affect colour and grouping, never scores | Accepted; §2 colours amended by 0043 |
@@ -53,11 +53,12 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0039](0039-work-windows-come-from-your-hours.md) | Windows come from your working hours; suggestions are live and pins are yours | Accepted |
 | [0040](0040-schedules-can-end-skip-and-clear.md) | Repeats can end and skip weeks; Clear today and Away; event location removed | Accepted |
 | [0041](0041-priorities-are-tiers.md) | Priorities are four tiers; satisfaction and the portfolio graph go | Accepted |
-| [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; existing goals erased; templates replace the goal library | Accepted |
+| [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; existing goals erased; templates replace the goal library | Superseded by 0047 |
 | [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Accepted |
 | [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Accepted |
 | [0046](0046-backups-are-plain-files.md) | Backups are plain files: no passphrase, no encryption, a CRC-32 check | Accepted |
+| [0047](0047-achievements-replace-goals.md) | Achievements the app defines and ranks replace goals; plan weeks and good days count, with guard rails | Accepted |
 
 ## Reading guide
 

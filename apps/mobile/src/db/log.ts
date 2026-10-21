@@ -26,9 +26,10 @@
  * wall of nothing as failure is exactly the presentation ADR-0004
  * avoided for the calendar tint.
  */
-import { localDateOf, monthStart, type PeriodGrade } from "@glide/scoring";
+import { monthStart, type PeriodGrade, type SeriesId } from "@glide/scoring";
 import { desc, inArray } from "drizzle-orm";
 
+import { achievementTitle } from "../lib/achievementCopy";
 import { db } from "./client";
 import { loadMonthGrade } from "./grades";
 import { achievement, dayGrade, journalEntry, photo } from "./schema";
@@ -40,7 +41,7 @@ export interface LogEntry {
   notes: string[];
   /** File URIs; the screen resolves and handles missing files. */
   photos: { id: string; uri: string; caption: string | null }[];
-  /** Titles of goals and habit rungs reached that day. */
+  /** Ranks earned that day (ADR-0047), as `achievementTitle` reads. */
   achievements: string[];
   /** A day the user marked worth keeping (`day_grade.flagged`). */
   flagged: boolean;
@@ -57,6 +58,9 @@ export interface LogMonth {
   /** Counts for the month's summary line, so the screen does not
    *  recount what this already walked. */
   totals: { notes: number; photos: number; achievements: number };
+  /** What was earned this month, oldest first, for its review
+   *  (ADR-0047 §7). */
+  earned: string[];
   /**
    * The month's own grade, so every month in the log can carry its
    * review (2026-08-26).
@@ -85,7 +89,7 @@ export async function loadLog(): Promise<LogMonth[]> {
   const [notes, photos, achievements, graded] = await Promise.all([
     db.select().from(journalEntry).orderBy(desc(journalEntry.localDate)),
     db.select().from(photo).orderBy(desc(photo.localDate)),
-    db.select().from(achievement).orderBy(desc(achievement.achievedAt)),
+    db.select().from(achievement).orderBy(desc(achievement.createdAt)),
     db
       .select()
       .from(dayGrade)
@@ -118,13 +122,9 @@ export async function loadLog(): Promise<LogMonth[]> {
       caption: p.caption,
     });
   }
-  // `achieved_at` is a timestamp, not a local date: the log is keyed by
-  // the day the user was living, so it goes through the same conversion
-  // the rest of the app uses (ADR-0002 — `local_date` exists to stop
-  // exactly this drifting a day west of Greenwich).
   for (const a of achievements) {
-    entryFor(localDateOf(new Date(a.achievedAt))).achievements.push(
-      a.titleSnapshot,
+    entryFor(a.earnedOn).achievements.push(
+      achievementTitle({ ...a, series: a.series as SeriesId }),
     );
   }
 
@@ -175,6 +175,7 @@ export async function loadLog(): Promise<LogMonth[]> {
         photos: entries.reduce((a, e) => a + e.photos.length, 0),
         achievements: entries.reduce((a, e) => a + e.achievements.length, 0),
       },
+      earned: [...entries].reverse().flatMap((e) => [...e.achievements].reverse()),
       grade: grades[i]!,
       daysRecorded: entries.length,
     };

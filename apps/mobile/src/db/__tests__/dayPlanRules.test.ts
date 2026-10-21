@@ -32,7 +32,7 @@ const event = (id: string, over: Partial<EventRow> = {}): EventRow => ({
   ...over,
 });
 
-const facts = { tierRank: 1 as const, unitOrder: 0, createdAt: "2026-01-01", goalLinked: false };
+const facts = { tierRank: 1 as const, unitOrder: 0, createdAt: "2026-01-01" };
 
 function task(over: Partial<TodayTask> = {}): TodayTask {
   return {

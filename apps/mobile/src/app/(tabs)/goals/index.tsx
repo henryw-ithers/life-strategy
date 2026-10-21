@@ -9,8 +9,9 @@
  *   **no target** (ADR-0041 §5); weights live on Priorities, so a bar
  *   can't read as falling short. Not now starts closed.
  *
- * Goals join this list in Phase 10c. Adding a task or event from the +
- * menu happens on Plan (`openAdd`).
+ * Achievements open from the top (ADR-0047 §7), and each unit's row
+ * carries its highest rank and a streak mark while a run is going.
+ * Adding a task or event from the + menu happens on Plan (`openAdd`).
  */
 import { addDays } from "@glide/scoring";
 import { router, type Href } from "expo-router";
@@ -22,6 +23,7 @@ import {
   type CommitmentSheetMode,
 } from "../../../components/commitments/CommitmentSheet";
 import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
+import { Medal, StreakFlame } from "../../../components/achievements/Medal";
 import { tierGroups, type TierGroup } from "../../../components/life/lifeRows";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AppText } from "../../../components/ui/AppText";
@@ -30,12 +32,15 @@ import { Button } from "../../../components/ui/Button";
 import { Chevron } from "../../../components/ui/Chevron";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
+import { badgesByUnit, highestRank, loadAchievements, type UnitBadge } from "../../../db/achievements";
 import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/commitments";
 import { createCommitment } from "../../../db/commitmentWrites";
 import { loadPlan } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
+import { RANK_LABEL } from "../../../lib/achievementCopy";
 import { currentLocalDate } from "../../../lib/calendar";
+import { recordProblem } from "../../../lib/problemLog";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
 import { radius, space } from "../../../theme/tokens";
 
@@ -49,17 +54,30 @@ export default function LifeScreen() {
   const [groups, setGroups] = useState<TierGroup[] | null>(null);
   const [hasPlan, setHasPlan] = useState(true);
   const [notNowOpen, setNotNowOpen] = useState(false);
+  const [badges, setBadges] = useState<ReadonlyMap<string, UnitBadge>>(new Map());
+  const [earned, setEarned] = useState<{ count: number; top: UnitBadge["rank"] }>({ count: 0, top: null });
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
 
   const reload = useCallback(async () => {
     const today = currentLocalDate();
-    const [nextCommitments, plan, shares] = await Promise.all([
+    const [nextCommitments, plan, shares, achievements] = await Promise.all([
       loadCommitmentsScreen(),
       loadPlan(),
       loadWorkShares(addDays(today, -(SHARE_DAYS - 1)), today),
+      // Badges are a nicety: if they can't load, Life goes on without
+      // them, and the problem log keeps why.
+      loadAchievements().catch((e: unknown) => {
+        recordProblem(e, "load");
+        return [];
+      }),
     ]);
     setCommitments(nextCommitments);
+    setBadges(badgesByUnit(achievements));
+    setEarned({
+      count: achievements.reduce((n, a) => n + a.earned.length, 0),
+      top: highestRank(achievements),
+    });
     setHasPlan(plan.hasSnapshot);
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
   }, []);
@@ -81,6 +99,24 @@ export default function LifeScreen() {
           <ActivityIndicator color={theme.muted} style={styles.loading} />
         ) : (
           <>
+            <Group theme={theme} flush>
+              <Pressable
+                onPress={() => router.push("/goals/achievements" as Href)}
+                accessibilityRole="button"
+                accessibilityLabel={`Achievements, ${earned.count} earned`}
+                style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Medal rank={earned.top} run={false} theme={theme} />
+                <AppText color={theme.ink} style={styles.grow}>
+                  Achievements
+                </AppText>
+                <AppText variant="caption" color={theme.muted}>
+                  {earned.count} earned
+                </AppText>
+                <Chevron color={theme.muted} theme={theme} size={13} />
+              </Pressable>
+            </Group>
+
             <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.heading}>
               Commitments
             </AppText>
@@ -145,14 +181,14 @@ export default function LifeScreen() {
                           {notNowOpen ? "▾" : "▸"} Not now ({g.units.length})
                         </AppText>
                       </Pressable>
-                      {notNowOpen ? <UnitRows units={g.units} theme={theme} /> : null}
+                      {notNowOpen ? <UnitRows units={g.units} badges={badges} theme={theme} /> : null}
                     </View>
                   ) : (
                     <View key={g.tier}>
                       <AppText variant="caption" color={theme.muted} style={styles.tier}>
                         {g.label}
                       </AppText>
-                      <UnitRows units={g.units} theme={theme} />
+                      <UnitRows units={g.units} badges={badges} theme={theme} />
                     </View>
                   ),
                 )}
@@ -187,19 +223,37 @@ export default function LifeScreen() {
   );
 }
 
-function UnitRows({ units, theme }: { units: TierGroup["units"]; theme: ThemeTokens }) {
+function UnitRows({
+  units,
+  badges,
+  theme,
+}: {
+  units: TierGroup["units"];
+  badges: ReadonlyMap<string, UnitBadge>;
+  theme: ThemeTokens;
+}) {
   return (
     <Group theme={theme} flush>
       {units.map((u, i) => {
         const hue = theme.areas[u.areaId] ?? theme.accent;
         const pct = Math.round(u.share * 100);
+        const badge = badges.get(u.id);
+        const run = badge?.streak ?? null;
         return (
           <View key={u.id}>
             {i > 0 ? <GroupDivider theme={theme} /> : null}
             <Pressable
               onPress={() => router.push(`/goals/unit/${u.id}` as Href)}
               accessibilityRole="button"
-              accessibilityLabel={`${u.name}, ${u.tasks} ${u.tasks === 1 ? "task" : "tasks"}${pct > 0 ? `, ${pct}% of your time` : ""}`}
+              accessibilityLabel={[
+                u.name,
+                `${u.tasks} ${u.tasks === 1 ? "task" : "tasks"}`,
+                pct > 0 ? `${pct}% of your time` : null,
+                badge?.rank ? `${RANK_LABEL[badge.rank]} earned` : null,
+                run ? `${run.length} ${run.per === "day" ? "days" : "weeks"} in a row` : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
               style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
             >
               <View style={[styles.dot, { backgroundColor: hue }]} />
@@ -212,6 +266,15 @@ function UnitRows({ units, theme }: { units: TierGroup["units"]; theme: ThemeTok
                   <View style={[styles.fill, { width: `${u.bar * 100}%`, backgroundColor: hue }]} />
                 </View>
               </View>
+              {run ? (
+                <View style={styles.streak}>
+                  <StreakFlame theme={theme} />
+                  <AppText variant="caption" color={theme.muted} tabular>
+                    {run.length}
+                  </AppText>
+                </View>
+              ) : null}
+              {badge?.rank ? <Medal rank={badge.rank} run={false} theme={theme} size={16} /> : null}
               <AppText variant="caption" color={theme.muted}>
                 {u.tasks} {u.tasks === 1 ? "task" : "tasks"}
               </AppText>
@@ -243,6 +306,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  streak: { flexDirection: "row", alignItems: "center", gap: 2 },
   track: { height: 4, borderRadius: radius.pill, overflow: "hidden" },
   fill: { height: 4, borderRadius: radius.pill },
 });

@@ -12,6 +12,7 @@ import {
   real,
   sqliteTable,
   text,
+  uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 
@@ -199,114 +200,6 @@ export const unitWeight = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.snapshotId, t.unitId] })],
 );
-
-// ── Goals (ADR-0007, ADR-0042) ──────────────────────────────────────
-
-/**
- * A goal the app can count (ADR-0042 §1): times done, time spent,
- * points earned, or a streak. It belongs to one unit or commitment.
- *
- * Every goal made before formula 11 was erased by migration 0022
- * (ADR-0042 §6), with its conditions, milestones, progress entries and
- * achievements; their tables went with them.
- *
- * **A goal never grades a day** (ADR-0042 §4). Nothing in scoring
- * reads this table or the two below it.
- */
-export const goal = sqliteTable("goal", {
-  id: text("id").primaryKey(),
-  /** The unit or commitment. A commitment's goal reads its
-   *  sub-commitments too (EC-41). */
-  unitId: text("unit_id")
-    .notNull()
-    .references(() => lifeUnit.id),
-  title: text("title").notNull(),
-  description: text("description"),
-  /** `GoalKind` from `@glide/scoring`. */
-  kind: text("kind", {
-    enum: ["timesDone", "timeSpent", "pointsEarned", "streak"],
-  }).notNull(),
-  /**
-   * Times, hours or points: always the number you set (ADR-0042 §1,
-   * clarified 2026-10-17). Never filled from how many sessions are
-   * scheduled. Null for a streak, which has no target.
-   */
-  targetValue: real("target_value"),
-  /**
-   * A time goal counting every task in its unit or commitment,
-   * including tasks added later, rather than the tasks linked in
-   * `goal_task`. Only `timeSpent` reads it.
-   */
-  countsWholeUnit: integer("counts_whole_unit", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  /**
-   * Optional end, at **month granularity**, `'YYYY-MM'` (ADR-0015 §4).
-   * When it passes, nothing happens: no "overdue", no colour, no
-   * prompt (ADR-0008).
-   */
-  targetDate: text("target_date"),
-  status: text("status", {
-    enum: ["active", "paused", "revised", "abandoned", "completed"],
-  })
-    .notNull()
-    .default("active"),
-  statusChangedAt: text("status_changed_at"),
-  linkedFromGoalId: text("linked_from_goal_id").references(
-    (): AnySQLiteColumn => goal.id,
-  ),
-  linkKind: text("link_kind", { enum: ["revision", "follow_up"] }),
-  ...timestamps,
-});
-
-/**
- * The tasks a goal counts (ADR-0042 §1): the chosen tasks of a times
- * done or time spent goal, or a streak's one task. A points goal and a
- * time goal counting the whole unit have none.
- *
- * Only what counts **from now on**. A tick counts if its task was
- * linked when it was made, and it's kept as a `goal_entry`, so removing
- * a link never rewrites a goal's history.
- */
-export const goalTask = sqliteTable(
-  "goal_task",
-  {
-    goalId: text("goal_id")
-      .notNull()
-      .references(() => goal.id),
-    taskId: text("task_id")
-      .notNull()
-      .references((): AnySQLiteColumn => task.id),
-    ...timestamps,
-  },
-  (t) => [primaryKey({ columns: [t.goalId, t.taskId] })],
-);
-
-/**
- * One counted tick (`GoalEntry`, ADR-0042 §1), written with the tick
- * and removed with it.
- *
- * Saved rather than derived so that unlinking a task, archiving it
- * (EC-36) or changing its size later leaves past progress alone.
- * `task_id` is deliberately not a foreign key: a tick outlives its
- * task, as completions do.
- */
-export const goalEntry = sqliteTable("goal_entry", {
-  id: text("id").primaryKey(),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goal.id),
-  completionId: text("completion_id")
-    .notNull()
-    .references((): AnySQLiteColumn => taskCompletion.id),
-  taskId: text("task_id").notNull(),
-  localDate: text("local_date").notNull(),
-  /** What a time goal counts (`tickMinutes`). */
-  minutes: real("minutes").notNull(),
-  /** What the tick earned in the goal's own units only. */
-  points: real("points").notNull(),
-  ...timestamps,
-});
 
 // ── Tasks (ADR-0003) ────────────────────────────────────────────────
 
@@ -566,8 +459,8 @@ export const taskCompletion = sqliteTable("task_completion", {
   fraction: real("fraction").notNull().default(1),
   /**
    * "Took about…", in minutes (ADR-0042 §5), kept between 1 minute and
-   * 12 hours (`clampTookAbout`). Only time goals read it; it never
-   * changes points.
+   * 12 hours (`clampTookAbout`). Only hours achievements read it
+   * (ADR-0047 §3); it never changes points.
    */
   actualMinutes: integer("actual_minutes"),
   ...timestamps,
@@ -895,25 +788,48 @@ export const activityTag = sqliteTable(
   (t) => [primaryKey({ columns: [t.activityId, t.unitId] })],
 );
 
-// ── Achievements, check-ins, calibration (ADR-0007/0008) ────────────
+// ── Achievements (ADR-0047) ─────────────────────────────────────────
 
-export const achievement = sqliteTable("achievement", {
-  id: text("id").primaryKey(),
-  /**
-   * **Nullable since 2026-08-18**, when goals became deletable. An
-   * achievement is a record of something that happened, and PRODUCT.md
-   * principle 5 puts it in the life log alongside journals and photos —
-   * so deleting the goal that produced it nulls this and keeps the
-   * achievement. `title_snapshot` already exists to make that survivable:
-   * it was copied at completion precisely so later goal edits could not
-   * rewrite history, and a deleted goal is the limiting case of an edit.
-   */
-  goalId: text("goal_id").references(() => goal.id),
-  /** Copied at completion so later goal edits don't rewrite history. */
-  titleSnapshot: text("title_snapshot").notNull(),
-  achievedAt: text("achieved_at").notNull(),
-  ...timestamps,
-});
+/**
+ * One rank earned in one series (ADR-0047): Gold in a task's
+ * completions, Bronze in a unit's whole weeks. The app awards these;
+ * nothing is set up. Progress toward the next rank is derived each
+ * time, never stored.
+ *
+ * **Insert-only.** An earned rank is never taken back (§6), so a later
+ * untick, a reshaped plan or a deleted commitment leaves the row, and
+ * `subject_name` keeps what it was called. **Never a grade**: nothing
+ * in scoring reads this table.
+ */
+export const achievement = sqliteTable(
+  "achievement",
+  {
+    id: text("id").primaryKey(),
+    /** `SeriesId` from `@glide/scoring`. */
+    series: text("series").notNull(),
+    subjectKind: text("subject_kind", {
+      enum: ["task", "unit", "area", "commitment", "all"],
+    }).notNull(),
+    /** The task, unit, area or commitment; `all` for the whole-app
+     *  series. Not a foreign key: the record outlives its subject. */
+    subjectId: text("subject_id").notNull(),
+    /** What the subject was called when the rank was earned. */
+    subjectName: text("subject_name").notNull(),
+    rank: text("rank", {
+      enum: ["bronze", "silver", "gold", "platinum", "diamond"],
+    }).notNull(),
+    /** The threshold it was earned at. */
+    threshold: integer("threshold").notNull(),
+    /** The local day it was earned. The month review reads this. */
+    earnedOn: text("earned_on").notNull(),
+    /** When the celebration was shown; null until then (§7). */
+    celebratedAt: text("celebrated_at"),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("achievement_rank").on(t.series, t.subjectId, t.rank)],
+);
+
+// ── Check-ins, calibration (ADR-0008) ───────────────────────────────
 
 export const contentmentCheckin = sqliteTable("contentment_checkin", {
   id: text("id").primaryKey(),

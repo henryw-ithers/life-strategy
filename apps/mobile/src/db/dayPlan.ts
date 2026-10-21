@@ -38,7 +38,6 @@ import {
   tierRankOf,
   toOpenTask,
 } from "./dayPlanRules";
-import { loadGoalLinkedTaskIds } from "./goals";
 import { loadHoursVersions } from "./hours";
 import { loadChoices, loadPinRules, type WindowChoice } from "./pins";
 import { loadSchedule } from "./schedule";
@@ -264,13 +263,12 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
   const all = [...day.due, ...day.week, ...day.doneThisWeek];
   const ids = all.map((t) => t.id);
 
-  const [versions, rows, events, rules, choices, goalLinked, facts, ticks] = await Promise.all([
+  const [versions, rows, events, rules, choices, facts, ticks] = await Promise.all([
     loadHoursVersions(),
     dayRowsBetween(date, date),
     eventRowsAround(date),
     loadPinRules(),
     loadChoices(date),
-    loadGoalLinkedTaskIds(),
     ids.length
       ? db
           .select({
@@ -322,7 +320,6 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
           tierRank: tierRankOf(f?.tier),
           unitOrder: f?.rankInUnit ?? 0,
           createdAt: f?.createdAt ?? "",
-          goalLinked: goalLinked.has(t.id),
         },
         { spreadHere: !(future && isFlexible(t)) || spreadsTo(t, date, free) },
       );

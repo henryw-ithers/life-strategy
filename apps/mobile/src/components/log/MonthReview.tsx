@@ -32,14 +32,13 @@ export function MonthReview({
   theme: ThemeTokens;
   title?: string;
 }) {
-  const { grade, totals, daysRecorded } = month;
+  const { grade, totals, daysRecorded, earned } = month;
 
   const held = [
     totals.notes > 0 ? `${totals.notes} note${totals.notes === 1 ? "" : "s"}` : null,
     totals.photos > 0
       ? `${totals.photos} photo${totals.photos === 1 ? "" : "s"}`
       : null,
-    totals.achievements > 0 ? `${totals.achievements} reached` : null,
   ].filter(Boolean);
 
   return (
@@ -67,6 +66,21 @@ export function MonthReview({
           : "Nothing written down this month."}
       </AppText>
 
+      {/* What was earned, listed (ADR-0047 §7). Only ever a list of
+          what happened: a month with none shows nothing. */}
+      {earned.length > 0 ? (
+        <View style={styles.earned}>
+          <AppText variant="caption" color={theme.muted} accessibilityRole="header">
+            Earned this month
+          </AppText>
+          {earned.map((title, i) => (
+            <AppText key={`${i}-${title}`} color={theme.ink}>
+              {title}
+            </AppText>
+          ))}
+        </View>
+      ) : null}
+
     </Group>
   );
 }
@@ -74,4 +88,5 @@ export function MonthReview({
 const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "baseline", gap: space.md },
   grow: { flex: 1 },
+  earned: { gap: space.xs },
 });

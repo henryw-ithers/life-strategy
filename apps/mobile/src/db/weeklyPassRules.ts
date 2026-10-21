@@ -29,7 +29,8 @@ export function daysLeft(today: string): string[] {
 /**
  * How long a tick counts for: an event by its length; a task by its
  * size (Normal when it has none); times how much of it was done. Never
- * "Took about…": that's a goal's measure, and many ticks don't have it.
+ * "Took about…": that's an hours achievement's measure (ADR-0047), and
+ * many ticks don't have it.
  */
 export function doneMinutes(t: {
   kind: "task" | "event";

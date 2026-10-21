@@ -93,8 +93,7 @@ describe("children are deleted before their parents", () => {
     // would pass vacuously and prove nothing.
     const deps = dependencies();
     expect(deps.length).toBeGreaterThan(10);
-    expect(deps).toContainEqual({ child: "goal_entry", parent: "goal" });
-    expect(deps).toContainEqual({ child: "goal_task", parent: "task" });
+    expect(deps).toContainEqual({ child: "window_placement", parent: "task" });
     expect(deps).toContainEqual({
       child: "task_completion_tag",
       parent: "task_completion",
@@ -113,17 +112,11 @@ describe("children are deleted before their parents", () => {
     );
     expect(wrong).toEqual([]);
   });
-
-  /**
-   * Self-references can't be ordered by the list, so the loop clears
-   * them first. `task.goal_id` and `goal.autocount_task_id` used to
-   * make a cycle between two tables too; both went in Phase 5c.
-   */
-  it("clears the self-references it cannot order around", () => {
-    expect(read("reset.ts")).toContain("UPDATE goal SET linked_from_goal_id = NULL");
-  });
 });
 
+// Self-references can't be ordered by the list, so the loop clears
+// them first. Goals had one too (`linked_from_goal_id`), and went with
+// ADR-0047; `life_unit` is the one left.
 describe("the self-referencing table is handled in the loop", () => {
   it("clears sub-commitments before the bulk life_unit delete", () => {
     // `life_unit.parent_unit_id` (ADR-0035) means one DELETE can trip

@@ -5,16 +5,18 @@
  * its events, "Need ideas?", and what the unit covers.
  *
  * Only custom units can be renamed, and that's on the unit's own
- * Priorities row; the 18 keep their names. Goals join this screen in
- * Phase 10c.
+ * Priorities row; the 18 keep their names. Its highest achievement rank
+ * and any run going now sit under the header, opening Achievements
+ * (ADR-0047 §7).
  */
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
-import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { router, Stack, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
+import { Medal, StreakFlame } from "../../../../components/achievements/Medal";
 import { UnitInfoSheet } from "../../../../components/diagnostic/UnitInfoSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
@@ -29,10 +31,13 @@ import { constellation, ScrollBackdrop } from "../../../../components/ui/Backdro
 import { LoadFailure } from "../../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../../components/ui/UndoBar";
 import { UNIT_INFO } from "../../../../content/units";
+import { badgesByUnit, loadAchievements, type UnitBadge } from "../../../../db/achievements";
 import { addTask, archiveTask, reorderUnitTasks, type PlanTask } from "../../../../db/tasks";
 import { usePlanData } from "../../../../hooks/usePlanData";
 import { useRetained } from "../../../../hooks/useRetained";
 import { useUndoDelete } from "../../../../hooks/useUndoDelete";
+import { RANK_LABEL } from "../../../../lib/achievementCopy";
+import { recordProblem } from "../../../../lib/problemLog";
 import { getTheme } from "../../../../theme/colors";
 import { space } from "../../../../theme/tokens";
 
@@ -60,6 +65,26 @@ export default function UnitScreen() {
   const [suggesting, setSuggesting] = useState(false);
   const [info, setInfo] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [badge, setBadge] = useState<UnitBadge | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      setBadge((was) => (was === null ? was : null));
+      // A badge is a nicety: if it can't load, the screen goes on
+      // without it, and the problem log keeps why.
+      loadAchievements()
+        .then((items) => {
+          if (live) setBadge(badgesByUnit(items).get(id) ?? null);
+        })
+        .catch((e: unknown) => {
+          recordProblem(e, "load");
+          if (live) setBadge(null);
+        });
+      return () => {
+        live = false;
+      };
+    }, [id]),
+  );
   const [dragging, setDragging] = useState(false);
   const [editingShown, editingGone] = useRetained(editing);
   const [addingEventShown, addingEventGone] = useRetained(addingEvent ? true : null);
@@ -130,6 +155,29 @@ export default function UnitScreen() {
               .join(" · ")}
           </AppText>
         </View>
+
+        <Pressable
+          onPress={() => router.push("/goals/achievements" as Href)}
+          accessibilityRole="button"
+          accessibilityLabel={badgeLabel(badge)}
+          style={({ pressed }) => [styles.badge, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Medal rank={badge?.rank ?? null} run={false} theme={theme} size={16} />
+          <AppText variant="caption" color={theme.muted}>
+            {badge?.rank ? `${RANK_LABEL[badge.rank]} earned` : "Achievements"}
+          </AppText>
+          {badge?.streak ? (
+            <>
+              <StreakFlame theme={theme} />
+              <AppText variant="caption" color={theme.muted}>
+                {runText(badge.streak)}
+              </AppText>
+            </>
+          ) : null}
+          <AppText variant="caption" color={theme.accent}>
+            ›
+          </AppText>
+        </Pressable>
 
         <PlanUnitSection
           unit={unit}
@@ -299,7 +347,22 @@ function headerLabel(
     .join(", ");
 }
 
+function runText(run: NonNullable<UnitBadge["streak"]>): string {
+  return `${run.length} ${run.per === "day" ? "days" : "weeks"} in a row`;
+}
+
+function badgeLabel(badge: UnitBadge | null): string {
+  return [
+    "Achievements",
+    badge?.rank ? `${RANK_LABEL[badge.rank]} earned` : null,
+    badge?.streak ? runText(badge.streak) : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 const styles = StyleSheet.create({
+  badge: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: 44 },
   root: { flex: 1 },
   loading: { marginTop: space.xxl },
   gone: { marginTop: space.xxl, paddingHorizontal: space.screen, textAlign: "center" },
