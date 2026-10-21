@@ -12,7 +12,7 @@
  *   achievement for the month, never a day's grade.
  */
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
 import { KIND_LABEL, progressText, statusText, streakMarks } from "../../../../components/goals/goalText";
@@ -46,17 +46,24 @@ export default function GoalScreen() {
   const [options, setOptions] = useState<GoalTaskOption[]>([]);
   const [gone, setGone] = useState(false);
 
+  /** Only the latest load lands, and it lands whole: the goal and its
+   *  task list together. */
+  const turn = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++turn.current;
     const found = (await loadGoals()).find((g) => g.id === id) ?? null;
+    const nextOptions = found ? await loadGoalTaskOptions(found.unitId) : [];
+    if (mine !== turn.current) return;
     setGone(found === null);
     setGoal(found);
-    if (found) setOptions(await loadGoalTaskOptions(found.unitId));
+    setOptions(nextOptions);
   }, [id]);
   const { error, retry, save } = useScreenLoad(load);
 
   const chooses = goal !== null && (goal.kind === "timesDone" || (goal.kind === "timeSpent" && goal.taskIds.length > 0));
   const counted = options.filter((o) => goal?.taskIds.includes(o.id));
-  const others = options.filter((o) => o.kind === "task" && !goal?.taskIds.includes(o.id));
+  // Events count too (ADR-0042, clarified 2026-10-17).
+  const others = options.filter((o) => !goal?.taskIds.includes(o.id));
   const shown = goal
     ? { kind: goal.kind, status: goal.status, value: goal.value, target: goal.target, reached: goal.reached }
     : null;
@@ -81,10 +88,10 @@ export default function GoalScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: goal?.title ?? "" }} />
-      {goal && goal.status !== "completed" ? (
+      {goal ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={`Options for ${goal.title}`}>
-            {goal.status !== "abandoned" ? (
+            {goal.status !== "abandoned" && goal.status !== "completed" ? (
               <Stack.Toolbar.MenuAction icon={goal.status === "paused" ? "play" : "pause"} onPress={() => actions.current.pause()}>
                 {goal.status === "paused" ? "Resume" : "Pause"}
               </Stack.Toolbar.MenuAction>
@@ -94,9 +101,11 @@ export default function GoalScreen() {
                 Finish
               </Stack.Toolbar.MenuAction>
             ) : null}
-            <Stack.Toolbar.MenuAction icon="tray" onPress={() => actions.current.aside()}>
-              {goal.status === "abandoned" ? "Revive" : "Set aside"}
-            </Stack.Toolbar.MenuAction>
+            {goal.status !== "completed" ? (
+              <Stack.Toolbar.MenuAction icon="tray" onPress={() => actions.current.aside()}>
+                {goal.status === "abandoned" ? "Revive" : "Set aside"}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
             <Stack.Toolbar.MenuAction icon="trash" destructive onPress={() => actions.current.remove()}>
               Delete
             </Stack.Toolbar.MenuAction>

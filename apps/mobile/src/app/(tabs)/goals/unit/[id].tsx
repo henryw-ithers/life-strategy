@@ -10,7 +10,7 @@
 import { unitProfile } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
@@ -52,6 +52,7 @@ export default function UnitScreen() {
   const [goals, setGoals] = useState<GoalSummary[]>([]);
   const [addingGoal, setAddingGoal] = useState(false);
   const [addingGoalShown, addingGoalGone] = useRetained(addingGoal ? true : null);
+  const newGoal = useRef<string | null>(null);
   // The unit's goals, read with the plan on each visit.
   useEffect(() => {
     if (plan === null) return;
@@ -188,15 +189,19 @@ export default function UnitScreen() {
       {addingGoalShown ? (
         <GoalSheet
           visible={addingGoal}
-          onDismissed={addingGoalGone}
+          onDismissed={() => {
+            addingGoalGone();
+            // Pushed once the sheet has closed; this screen reloads on return.
+            if (newGoal.current) router.push(`/goals/goal/${newGoal.current}` as Href);
+            newGoal.current = null;
+          }}
           unit={{ id: unit.id, name: unit.name, areaId: unit.areaId, commitment: false }}
           units={[]}
           theme={theme}
           onClose={() => setAddingGoal(false)}
           onSaved={(goalId) => {
+            newGoal.current = goalId;
             setAddingGoal(false);
-            void reload();
-            router.push(`/goals/goal/${goalId}` as Href);
           }}
         />
       ) : null}

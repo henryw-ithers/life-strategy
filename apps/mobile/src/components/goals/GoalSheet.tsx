@@ -20,7 +20,7 @@ import {
   type GoalMeasure,
   type GoalTaskFacts,
 } from "@glide/scoring";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Switch, View } from "react-native";
 
 import { goalTemplatesFor, titleWith, type GoalTemplate } from "../../content/goalTemplates";
@@ -55,6 +55,14 @@ interface GoalSheetProps {
   onSaved: (goalId: string) => void;
 }
 
+/** Where a kind's target starts when you switch to it. */
+const DEFAULT_TARGET: Record<GoalKind, number> = {
+  timesDone: 20,
+  timeSpent: 20,
+  pointsEarned: 300,
+  streak: 1,
+};
+
 const KINDS: { value: GoalKind; label: string }[] = [
   { value: "timesDone", label: "Times" },
   { value: "timeSpent", label: "Time" },
@@ -80,9 +88,12 @@ const monthLabel = (m: string) =>
 export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismissed, onSaved }: GoalSheetProps) {
   const [unit, setUnit] = useState<GoalUnit | null>(given ?? null);
   const [step, setStep] = useState<"unit" | "template" | "form">(given ? "template" : "unit");
-  const [options, setOptions] = useState<GoalTaskOption[]>([]);
+  const [options, setOptions] = useState<GoalTaskOption[] | null>(null);
   const [kind, setKind] = useState<GoalKind>("timesDone");
   const [title, setTitle] = useState("");
+  /** A template's title, with `{n}`: it follows the target until you
+   *  write your own. */
+  const [titlePattern, setTitlePattern] = useState<string | null>(null);
   const [target, setTarget] = useState(20);
   const [month, setMonth] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
@@ -108,16 +119,25 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
       setKind(t.kind);
       setTarget(t.target ?? 20);
       setTitle(titleWith(t.title, t.target));
+      setTitlePattern(t.title.includes("{n}") ? t.title : null);
       setWholeUnit(t.wholeUnit === true);
     } else {
       setTitle("");
+      setTitlePattern(null);
     }
     setChosen([]);
     setStep("form");
   };
 
-  const everyDay = options.filter((o) => o.kind === "task" && o.timesPerWeek === 7);
-  const countable = options.filter((o) => o.kind === "task");
+  const loaded = options ?? [];
+  const everyDay = loaded.filter((o) => o.kind === "task" && o.timesPerWeek === 7);
+  // Events count toward times done and time spent (ADR-0042, clarified
+  // 2026-10-17); a streak follows one every-day task, never an event.
+  const countable = loaded;
+  const changeTarget = (next: number) => {
+    setTarget(next);
+    if (titlePattern) setTitle(titleWith(titlePattern, next));
+  };
   const measure: GoalMeasure | null =
     kind === "timesDone"
       ? { kind, taskIds: new Set(chosen), target }
@@ -129,7 +149,7 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
             ? { kind, taskId: chosen[0] }
             : null;
   const facts = new Map<string, GoalTaskFacts>(
-    options.map((o) => [o.id, { taskId: o.id, timesPerWeek: o.timesPerWeek, isEvent: o.kind === "event" }]),
+    loaded.map((o) => [o.id, { taskId: o.id, timesPerWeek: o.timesPerWeek, isEvent: o.kind === "event" }]),
   );
   const problem = !unit
     ? null
@@ -139,22 +159,31 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
         ? "Give it a name."
         : goalProblem({ measure, unitIds: new Set([unit.id]) }, facts);
 
+  /** One save at a time, even from two taps before a re-render. */
+  const busy = useRef(false);
   const save = async () => {
-    if (!unit || !measure || problem !== null || saving) return;
+    if (!unit || !measure || problem !== null || busy.current) return;
+    busy.current = true;
     setSaving(true);
+    setFailed(null);
+    let id: string | null = null;
     try {
-      const id = await createGoal({ unitId: unit.id, title, measure, targetDate: kind === "streak" ? null : month });
-      onSaved(id);
+      id = await createGoal({ unitId: unit.id, title, measure, targetDate: kind === "streak" ? null : month });
     } catch (e) {
-      setFailed(e instanceof Error ? e.message : String(e));
+      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      // About the app, never the person.
+      setFailed("That didn\u2019t save. Try again, and if it keeps happening, the problem log in Settings has the details.");
     } finally {
+      busy.current = false;
       setSaving(false);
     }
+    if (id !== null) onSaved(id);
   };
 
   const toggle = (id: string) =>
     setChosen((c) => (kind === "streak" ? [id] : c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
-  const step_ = kind === "pointsEarned" ? 50 : kind === "timeSpent" ? 5 : 5;
+  // Points move in fifties; times and hours one at a time, from 1.
+  const step_ = kind === "pointsEarned" ? 50 : 1;
 
   return (
     <NativeSheet
@@ -210,7 +239,10 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
           <TextField
             theme={theme}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(next) => {
+              setTitle(next);
+              setTitlePattern(null);
+            }}
             placeholder="Name it, like Run 30 times"
             accessibilityLabel="Goal name"
             maxLength={80}
@@ -219,8 +251,11 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
             segments={KINDS}
             value={kind}
             onChange={(k) => {
+              // Each kind counts in its own unit, so its target starts fresh.
               setKind(k);
               setChosen([]);
+              setFailed(null);
+              changeTarget(DEFAULT_TARGET[k]);
             }}
             accent={theme.accent}
             theme={theme}
@@ -235,7 +270,7 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
               <AppText color={theme.ink} style={styles.grow}>
                 Target
               </AppText>
-              <Step label="Less" icon="−" disabled={target <= step_} onPress={() => setTarget(Math.max(step_, target - step_))} theme={theme} />
+              <Step label="Less" icon="−" disabled={target <= 1} onPress={() => changeTarget(Math.max(1, target - step_))} theme={theme} />
               <View
                 accessible
                 accessibilityRole="adjustable"
@@ -243,7 +278,7 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
                 accessibilityValue={{ text: String(target) }}
                 accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
                 onAccessibilityAction={(e) =>
-                  setTarget(Math.max(step_, target + (e.nativeEvent.actionName === "increment" ? step_ : -step_)))
+                  changeTarget(Math.max(1, target + (e.nativeEvent.actionName === "increment" ? step_ : -step_)))
                 }
                 style={styles.value}
               >
@@ -251,7 +286,7 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
                   {target} {kind === "timesDone" ? "times" : kind === "timeSpent" ? "hours" : "points"}
                 </AppText>
               </View>
-              <Step label="More" icon="+" onPress={() => setTarget(target + step_)} theme={theme} />
+              <Step label="More" icon="+" onPress={() => changeTarget(target + step_)} theme={theme} />
             </View>
           ) : null}
 
@@ -274,7 +309,7 @@ export function GoalSheet({ visible, unit: given, units, theme, onClose, onDismi
               <AppText variant="caption" color={theme.muted}>
                 {kind === "streak" ? "The every-day task to keep going" : "Tasks that count"}
               </AppText>
-              {(kind === "streak" ? everyDay : countable).length === 0 ? (
+              {options === null ? null : (kind === "streak" ? everyDay : countable).length === 0 ? (
                 <AppText color={theme.muted}>
                   {kind === "streak"
                     ? `${unit.name} has no every-day task yet.`

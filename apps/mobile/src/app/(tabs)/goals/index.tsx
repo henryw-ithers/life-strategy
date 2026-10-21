@@ -16,7 +16,7 @@
  */
 import { addDays } from "@glide/scoring";
 import { router, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
 import {
@@ -24,7 +24,7 @@ import {
   type CommitmentSheetMode,
 } from "../../../components/commitments/CommitmentSheet";
 import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
-import { GoalRows } from "../../../components/goals/GoalRows";
+import { GoalRows, listedGoals } from "../../../components/goals/GoalRows";
 import { GoalSheet, type GoalUnit } from "../../../components/goals/GoalSheet";
 import { tierGroups, type TierGroup } from "../../../components/life/lifeRows";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
@@ -42,6 +42,7 @@ import { loadPlan } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
 import { currentLocalDate } from "../../../lib/calendar";
+import { recordProblem } from "../../../lib/problemLog";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
 import { radius, space } from "../../../theme/tokens";
 
@@ -61,6 +62,7 @@ export default function LifeScreen() {
   const [goalUnits, setGoalUnits] = useState<GoalUnit[]>([]);
   const [addingGoal, setAddingGoal] = useState(false);
   const [addingGoalShown, addingGoalGone] = useRetained(addingGoal ? true : null);
+  const newGoal = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     const today = currentLocalDate();
@@ -68,7 +70,11 @@ export default function LifeScreen() {
       loadCommitmentsScreen(),
       loadPlan(),
       loadWorkShares(addDays(today, -(SHARE_DAYS - 1)), today),
-      loadGoals(),
+      // A goals read that fails leaves Life standing: logged, and no goals.
+      loadGoals().catch((e: unknown) => {
+        recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
+        return [] as GoalSummary[];
+      }),
     ]);
     setCommitments(nextCommitments);
     setGoals(nextGoals);
@@ -126,10 +132,14 @@ export default function LifeScreen() {
               </AppText>
             )}
 
-            <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.heading}>
-              Goals
-            </AppText>
-            <GoalRows goals={goals} onAdd={hasPlan ? () => setAddingGoal(true) : undefined} theme={theme} />
+            {hasPlan || listedGoals(goals).length > 0 ? (
+              <>
+                <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.heading}>
+                  Goals
+                </AppText>
+                <GoalRows goals={goals} onAdd={hasPlan ? () => setAddingGoal(true) : undefined} theme={theme} />
+              </>
+            ) : null}
 
             <View style={styles.unitsHeading}>
               <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.grow}>
@@ -198,14 +208,18 @@ export default function LifeScreen() {
       {addingGoalShown ? (
         <GoalSheet
           visible={addingGoal}
-          onDismissed={addingGoalGone}
+          onDismissed={() => {
+            addingGoalGone();
+            // Pushed once the sheet has closed; Life reloads on return.
+            if (newGoal.current) router.push(`/goals/goal/${newGoal.current}` as Href);
+            newGoal.current = null;
+          }}
           units={goalUnits}
           theme={theme}
           onClose={() => setAddingGoal(false)}
           onSaved={(id) => {
+            newGoal.current = id;
             setAddingGoal(false);
-            void reload();
-            router.push(`/goals/goal/${id}` as Href);
           }}
         />
       ) : null}

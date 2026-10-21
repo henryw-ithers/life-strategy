@@ -83,6 +83,22 @@ others on a day another commitment has work too, as ADR-0044 §3's
 "within the same limits" allows. Whether a set share should hold while
 the others shrink is undecided; the sheet says they're scaled to fit.
 
+Built in 10c: goals (spec §5.6). Templates per unit and for any
+commitment (`content/goalTemplates.ts`, a first pass of wording for
+Henry); the goal sheet (where it lives, a template or Start from
+scratch, then only what the kind needs; events count toward times done
+and time spent, a streak follows one every-day task); a goal's screen
+(running total, a streak from 7 days with its 7/30/66 marks, the tasks
+it counts, Pause, Finish, Set aside, Delete); goals on Life, on each
+unit screen, and Goal in Life's + menu.
+
+Open from 10c (invariant review): ADR-0007 §2 routes finishing a goal
+into a three-path flow (archive, a follow-up goal, keep the tasks as
+habits) with a celebration. Finish now only completes it and records
+the achievement. Since goals no longer own their tasks, two of the
+three paths may mean nothing; Henry to decide whether the flow survives
+or ADR-0042 retires it. Revise isn't offered either.
+
 Henry, 2026-10-21: he'll stop for a phone walk before Phase 12.
 
 ## Phase 9: Home
