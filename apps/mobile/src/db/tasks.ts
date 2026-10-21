@@ -105,6 +105,8 @@ export interface PlanUnit {
   motivationKind: "instrumental" | "communal";
   /** Its Priorities tier, or null before the first save. */
   tier: Tier | null;
+  /** Its place inside its tier, 0 first; null before the first save. */
+  tierOrder: number | null;
   /**
    * Effective weight from the latest snapshot; null when excluded.
    *
@@ -364,6 +366,7 @@ export async function loadPlan(): Promise<PlanData> {
           includeInScoring: u.includeInScoring,
           motivationKind: u.motivationKind,
           tier: isTier(u.tier) ? u.tier : null,
+          tierOrder: u.tierOrder ?? null,
           weight: u.includeInScoring ? (weights.get(u.id) ?? null) : null,
           // A task is listed under every unit it *scores* in, ranked by
           // that unit's own membership — not only its home unit. A note

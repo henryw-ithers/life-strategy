@@ -1,23 +1,17 @@
 /**
- * One life unit on the Tasks screen: its row (name, weight, task count)
- * and, when open, the panel of its tasks and events.
- *
- * A unit's tasks open in place rather than on a pushed route — the
- * question people have ("where are my points going?") is answered by
- * seeing several units at once. Only one opens at a time.
+ * A life unit's tasks and events, on the unit's own screen (spec
+ * §5.4.2): its tasks in your order to drag, its events apart, adding
+ * either, "Need ideas?" and Change tier. A Not now unit holds none and
+ * says how to bring it back.
  */
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { type Ref } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeIn, type LinearTransition } from "react-native-reanimated";
 
 import { LIBRARY } from "../../content/library";
-import { UNIT_INFO } from "../../content/units";
 import type { PlanTask, PlanUnit } from "../../db/tasks";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Disclosure } from "../ui/Chevron";
 import { OutlineAction } from "../ui/OutlineAction";
 import { ReorderableList } from "../ui/ReorderableList";
 import { eventWhen, ItemRow } from "./ItemRow";
@@ -35,11 +29,7 @@ const eventsOf = (unit: PlanUnit) => unit.tasks.filter((t) => t.kind === "event"
 export function PlanUnitSection({
   unit,
   hue,
-  open,
-  rowRef,
   justAdded,
-  onToggle,
-  onShowInfo,
   onOpenPriorities,
   onReorder,
   onEditTask,
@@ -54,13 +44,8 @@ export function PlanUnitSection({
 }: {
   unit: PlanUnit;
   hue: string;
-  open: boolean;
-  /** For scrolling the unit into view after something is added to it. */
-  rowRef: Ref<View>;
   /** The task just created, tinted until the timer clears it. */
   justAdded: string | null;
-  onToggle: () => void;
-  onShowInfo: () => void;
   /** Put the unit in or out of the 100 (ADR-0027 §2). */
   /** Not now and back go through Priorities (ADR-0041 §3), which asks
    *  before pausing tasks and keeps one snapshot. */
@@ -78,99 +63,14 @@ export function PlanUnitSection({
   theme: ThemeTokens;
 }) {
   const excluded = !unit.includeInScoring;
-  /** Whether "what this unit covers" is on offer — to the eye only while
-   *  open, but to VoiceOver whenever, since the rotor costs no room. */
-  const hasInfo = !excluded && UNIT_INFO[unit.id] !== undefined;
-  const points = unit.weight ?? 0;
   const tasks = tasksOf(unit);
   const events = eventsOf(unit);
   const entering = reduceMotion ? undefined : FadeIn.duration(160);
 
   return (
     <Animated.View layout={layout}>
-      <Pressable
-        ref={rowRef}
-        // Excluded units open too (ADR-0027 §2): the panel is the only way
-        // back into the plan.
-        onPress={onToggle}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={
-          excluded
-            ? `${unit.name}, not part of your plan`
-            : unit.tasks.length === 0
-              ? `${unit.name}, no tasks, ${points} points not in play`
-              : `${unit.name}, ${points} points, ${unit.tasks.length} tasks`
-        }
-        accessibilityHint={open ? "Collapses its tasks" : "Shows its tasks"}
-        // The info button below is nested in this row, and VoiceOver
-        // treats the row as one element and never reaches it — so the
-        // same action is offered on the row itself, in the actions rotor.
-        accessibilityActions={
-          hasInfo ? [{ name: "info", label: `What ${unit.name} covers` }] : undefined
-        }
-        onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === "info") onShowInfo();
-        }}
-        style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
-      >
-        <View style={styles.chev}>
-          <Disclosure open={open} theme={theme} size={15} />
-        </View>
-        {/* Shrinks rather than grows, so the info glyph sits against the
-            end of the name and a long name truncates. */}
-        <AppText color={excluded ? theme.muted : theme.ink} style={styles.name} numberOfLines={1}>
-          {unit.name}
-        </AppText>
 
-        {/* What the unit covers, beside the name where the question is
-            asked; only while open. Nested in the row's Pressable on
-            purpose: the deepest responder wins, so the row stays one
-            large tap target. */}
-        {open && hasInfo ? (
-          <Pressable
-            onPress={onShowInfo}
-            accessibilityRole="button"
-            accessibilityLabel={`What ${unit.name} covers`}
-            hitSlop={12}
-            style={({ pressed }) => [styles.info, { opacity: pressed ? 0.4 : 1 }]}
-          >
-            <Ionicons name="information-circle-outline" size={17} color={theme.muted} />
-          </Pressable>
-        ) : null}
-
-        <View style={styles.grow} />
-
-        {excluded ? (
-          <AppText variant="caption" color={theme.muted}>
-            not scored
-          </AppText>
-        ) : (
-          <>
-            {/* The count is only useful while the unit is shut. */}
-            {unit.tasks.length === 0 ? (
-              <AppText variant="caption" color={theme.muted}>
-                no tasks
-              </AppText>
-            ) : open ? null : (
-              <AppText variant="caption" color={theme.muted}>
-                {unit.tasks.length} {unit.tasks.length === 1 ? "task" : "tasks"}
-              </AppText>
-            )}
-            {/* Muted means "not in play": what this unit would bring, not
-                what it currently spends. */}
-            <AppText
-              color={unit.tasks.length === 0 ? theme.muted : theme.ink}
-              tabular
-              style={styles.pts}
-            >
-              {points}
-            </AppText>
-          </>
-        )}
-      </Pressable>
-
-      {open && excluded ? (
+      {excluded ? (
         <Animated.View
           entering={entering}
           layout={layout}
@@ -189,7 +89,7 @@ export function PlanUnitSection({
         </Animated.View>
       ) : null}
 
-      {open && !excluded ? (
+      {!excluded ? (
         <Animated.View
           entering={entering}
           layout={layout}
@@ -300,30 +200,9 @@ export function PlanUnitSection({
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    minHeight: 46,
-    paddingLeft: space.sm,
-  },
-  /** Shrinks, never grows: a spacer after the info glyph does the
-   *  pushing, so the glyph stays against the name. */
-  name: { flexShrink: 1 },
-  chev: { width: 14 },
   grow: { flex: 1 },
-  /** One right-hand column for every number on the page. */
-  pts: { minWidth: 30, textAlign: "right" },
-  /** The negative inset pulls the glyph against the name, inside the
-   *  row's own gap, so it reads as part of the title. */
-  info: {
-    minHeight: 28,
-    marginLeft: -space.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  /** The open unit is the only surface on the screen, which is what
-   *  makes it read as the thing being worked on. */
+  /** The unit's tasks sit on one surface, which is what makes it read
+   *  as the thing being worked on. */
   panel: {
     gap: space.sm,
     borderRadius: radius.md,
