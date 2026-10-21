@@ -705,3 +705,43 @@ export async function loadGoalLinkedTaskIds(): Promise<Set<string>> {
     .where(eq(goal.status, "active"));
   return new Set(rows.map((r) => r.taskId));
 }
+
+/** A task a goal on some unit could count, for the goal sheet. */
+export interface GoalTaskOption {
+  id: string;
+  title: string;
+  timesPerWeek: number;
+  kind: "task" | "event";
+}
+
+/**
+ * The tasks a goal on `unitId` may count (EC-41): its own and its
+ * sub-commitments', and any that score in it from another home. Active
+ * only; the sheet chooses among them by the goal's kind.
+ */
+export async function loadGoalTaskOptions(unitId: string): Promise<GoalTaskOption[]> {
+  return db.transaction((tx) => {
+    const scope = scopeOf(tx, unitId);
+    const ids = [...scope];
+    const homes = tx
+      .select({ id: task.id })
+      .from(task)
+      .where(and(inArray(task.unitId, ids), eq(task.active, true)))
+      .all()
+      .map((r) => r.id);
+    const scoring = tx
+      .select({ taskId: taskUnit.taskId })
+      .from(taskUnit)
+      .where(and(inArray(taskUnit.unitId, ids), eq(taskUnit.membership, "scoring")))
+      .all()
+      .map((r) => r.taskId);
+    const all = [...new Set([...homes, ...scoring])];
+    if (all.length === 0) return [];
+    return tx
+      .select({ id: task.id, title: task.title, timesPerWeek: task.timesPerWeek, kind: task.kind })
+      .from(task)
+      .where(and(inArray(task.id, all), eq(task.active, true)))
+      .all()
+      .sort((a, b) => a.title.localeCompare(b.title));
+  });
+}
