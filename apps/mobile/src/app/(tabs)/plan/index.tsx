@@ -1,579 +1,610 @@
 /**
- * The Plan screen: your portfolio's units with their weights, and the
- * tasks that spend them. The durable home of "do."
+ * The Plan tab: is my week set up? (spec §5.3). A week strip across the
+ * top, Sunday to Saturday (ADR-0004 §1), and below it the chosen day:
+ * its windows, events and named gaps in time order, each window filled
+ * with its pins and live suggestions.
  *
- * One screen, not two. A unit's tasks open in place rather than on a
- * pushed route — the whole plan is ~18 rows, and the question people
- * actually have ("where are my points going?") is answered by seeing
- * several units at once, which a drill-down destroys. Expanding one
- * collapses the rest, so the screen never becomes a wall.
+ * Suggestions are worked out each time and never saved
+ * (`loadDayPlan`); only what you pin is. **Nothing here changes a
+ * score** but a "Do N of these" choice and the hours (ADR-0039 §12),
+ * and there's no warning about load anywhere (P3, ADR-0026 §3).
  *
- * Composition only: data is `usePlanData`, each unit is a
- * `PlanUnitSection`, each commitment a `CommitmentTasks`. What stays
- * here is which sheet is open and what each one commits.
+ * The units and their tasks moved to Life in Phase 8 (Henry,
+ * 2026-10-20). This tab still opens the New task and New event sheets
+ * from its + menu, and from another tab's (`openAdd`).
  */
-import { unitProfile } from "@glide/scoring";
+import { addDays, addedWindowPieces, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
-import { LinearTransition, useReducedMotion } from "react-native-reanimated";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useColorScheme,
+  View,
+} from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 
-import { UnitInfoSheet } from "../../../components/diagnostic/UnitInfoSheet";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { AddTaskModal } from "../../../components/plan/AddTaskModal";
-import { applyTaskEdit, editableFrom } from "../../../components/plan/applyTaskEdit";
-import { CommitmentTasks } from "../../../components/plan/CommitmentTasks";
-import { CoverageBar } from "../../../components/plan/CoverageBar";
+import { ChoiceSheet } from "../../../components/plan/ChoiceSheet";
+import {
+  addableTo,
+  dayHeading,
+  spanLabel,
+  timeline,
+  weekLabel,
+} from "../../../components/plan/dayView";
 import { EventSheet } from "../../../components/plan/EventSheet";
-import { FirstRunCard } from "../../../components/plan/FirstRunCard";
-import { type PartOfDay } from "../../../components/plan/planning";
-import { PlanUnitSection } from "../../../components/plan/PlanUnitSection";
-import type { OneOffState } from "../../../components/plan/SchedulePicker";
-import { SuggestionsSheet } from "../../../components/plan/SuggestionsSheet";
-import { NO_DETAIL, type TaskDetail } from "../../../components/plan/TaskDetailPicker";
-import { TaskEditSheet } from "../../../components/plan/TaskEditSheet";
-import type { PickableUnit } from "../../../components/plan/UnitPicker";
-import { COMMITMENT_AREA, pickableUnits } from "../../../components/plan/unitSelection";
+import { PlanWeekStrip } from "../../../components/plan/PlanWeekStrip";
+import { savedOrSaid, saveNewEvent } from "../../../components/plan/saveEvent";
+import { pickableUnits } from "../../../components/plan/unitSelection";
+import { WindowCard } from "../../../components/plan/WindowCard";
+import { WindowTimesSheet } from "../../../components/plan/WindowTimesSheet";
+import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { AppText } from "../../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
-import { Group } from "../../../components/ui/Group";
-import { LoadFailure } from "../../../components/ui/ScreenLoad";
+import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
-import { savedOrSaid, saveEventEdit, saveNewEvent } from "../../../components/plan/saveEvent";
-import { UNIT_INFO } from "../../../content/units";
+import { setDayKind } from "../../../db/dayGrades";
+import { loadDayPlan, loadWeek, type DayPlan, type WeekDay } from "../../../db/dayPlan";
+import { addDayEdit } from "../../../db/hours";
 import {
-  addTask,
-  archiveTask,
-  reorderUnitTasks,
-  type PlanData,
-  type PlanTask,
-  type PlanUnit,
-} from "../../../db/tasks";
-import { usePlanData } from "../../../hooks/usePlanData";
-import { getTheme } from "../../../theme/colors";
-import { space } from "../../../theme/tokens";
+  createChoice,
+  deleteChoice,
+  pinForDay,
+  setPinKind,
+  unpinForDay,
+  updateChoice,
+} from "../../../db/pins";
+import { addTask, copyLastWeeksEvents, loadPlan, type PlanData } from "../../../db/tasks";
+import type { TodayTask } from "../../../db/today";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
+import { currentLocalDate } from "../../../lib/calendar";
+import { spokenDate } from "../../../lib/format";
+import { getTheme } from "../../../theme/colors";
+import { radius, space } from "../../../theme/tokens";
 
-interface EditTarget {
-  task: PlanTask;
-  /** Where it is listed — a life unit, or a commitment or its part.
-   *  Only its id and hue are read. */
-  unit: { id: string; areaId: string };
-}
+const DAY_KIND_LABEL = { normal: "Normal", special: "Special day", rest: "Day off" } as const;
+
+/** What a window sheet is about. A window is named by its start, not
+ *  its place in the list, so a reload can't point an open sheet at a
+ *  different window. */
+type WindowSheet =
+  | { kind: "times"; range?: TimeRange }
+  | { kind: "add"; start: number }
+  | { kind: "choice"; start: number };
 
 export default function PlanScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();
-  // Reanimated's layout transition, matching the Today screen —
-  // `LayoutAnimation` is the legacy path and behaves inconsistently
-  // under the New Architecture this SDK defaults to.
-  const layout = reduceMotion ? undefined : LinearTransition.duration(180);
+  const today = currentLocalDate();
 
-  /** The post-diagnostic diff links here with a unit to open — the
-   *  prompts say "Friendship rose to 12 points" and landing on a
-   *  collapsed list would strand that intent (ADR-0005 §2). */
-  const { unit: unitParam, add: addParam } = useLocalSearchParams<{
-    unit?: string;
-    add?: string;
-  }>();
-
-  const {
-    plan: storedPlan,
-    commitmentDay,
-    reload,
-    save,
-    error,
-    retry,
-  } = usePlanData();
-  const undo = useUndoDelete(save);
-  /** The plan as shown: a task waiting on Undo is already gone from it. */
-  const plan = withoutTask(storedPlan, undo.hidden);
-  const [openUnitId, setOpenUnitId] = useState<string | null>(unitParam ?? null);
-  /** `homeUnit: null` is the quick add from the top of the screen — the
-   *  sheet opens with no unit chosen and asks for one. */
-  const [adding, setAdding] = useState<{ homeUnit: { id: string } | null } | null>(null);
-  const [editing, setEditing] = useState<EditTarget | null>(null);
-  /** Adding an event (ADR-0038). `unitName` is set when added from a
-   *  unit, which then needs no choosing. */
-  const [addingEvent, setAddingEvent] = useState<{
-    unitIds: string[];
-    unitName?: string;
-  } | null>(null);
-  const [infoUnit, setInfoUnit] = useState<PlanUnit | null>(null);
-  /** The unit whose library ideas are open (ADR-0006 §3: pull). */
-  const [suggestingFor, setSuggestingFor] = useState<PlanUnit | null>(null);
-  /** The task just created, tinted until the timer clears it. */
-  const [justAdded, setJustAdded] = useState<string | null>(null);
-  /** A task being dragged owns the finger; the page must hold still. */
-  const [draggingTask, setDraggingTask] = useState(false);
-
-  const scrollRef = useRef<ScrollView>(null);
-  /** The scroll content, as the frame every unit's offset is measured
-   *  against — `onLayout` only reports a position inside its own parent,
-   *  and a unit sits two boxes deep. */
-  const contentRef = useRef<View>(null);
-  const unitRefs = useRef<Record<string, View | null>>({});
-  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (revealTimer.current) clearTimeout(revealTimer.current);
-      if (freshTimer.current) clearTimeout(freshTimer.current);
-    },
-    [],
-  );
-
-  /** Commitments and their parts first, then the scored life units — one
-   *  list for every sheet that files a task (see `pickableUnits`). */
-  const allUnits: PickableUnit[] = useMemo(() => pickableUnits(plan), [plan]);
-
-  /** The unit holding the most points, which is where a first task is
-   *  worth the most. Onboarding hands the user straight to this screen
-   *  (ADR-0011 as amended), so the opening move has to be obvious. */
-  const topUnit = useMemo(() => {
-    const scored = (plan?.areas ?? [])
-      .flatMap((a) => a.units)
-      .filter((u) => u.includeInScoring && u.weight !== null);
-    return scored.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))[0] ?? null;
-  }, [plan]);
-
-  /** A fresh plan, or one cleared of every task — the same situation,
-   *  deserving the same help. */
-  const noTasksYet =
-    plan !== null &&
-    plan.hasSnapshot &&
-    plan.areas.every((a) => a.units.every((u) => u.tasks.length === 0));
-
-  const deleteTask = (t: PlanTask) => {
-    undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) });
-  };
-
-  /**
-   * Scroll a unit to the top of the viewport. Waits out the expand and
-   * collapse first: both run at 180ms, and measuring mid-transition lands
-   * on wherever the row happened to be that frame.
-   */
-  const revealUnit = useCallback(
-    (unitId: string) => {
-      if (revealTimer.current) clearTimeout(revealTimer.current);
-      revealTimer.current = setTimeout(() => {
-        const node = unitRefs.current[unitId];
-        const content = contentRef.current;
-        if (!node || !content) return;
-        node.measureLayout(
-          content,
-          (_x, y) => {
-            scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: !reduceMotion });
-          },
-          () => {},
-        );
-      }, 260);
-    },
-    [reduceMotion],
-  );
-
-  /** A tab stays mounted, so the `unit` param only seeds state on the
-   *  first visit. Every later link — from a goal, or the post-diagnostic
-   *  diff — arrives here instead, and must open its unit too. Cleared
-   *  once handled, so a second link to the same unit still changes it.
-   *  Opening the unit happens as the link arrives (during render, the
-   *  React way to follow a changed value); scrolling to it and clearing
-   *  the link are side effects, so they stay in the effect. */
-  const [seenUnitParam, setSeenUnitParam] = useState(unitParam);
-  if (unitParam !== seenUnitParam) {
-    setSeenUnitParam(unitParam);
-    if (unitParam) setOpenUnitId(unitParam);
+  /** `date` opens a day (from Home, or a link); `add` asks for a sheet
+   *  from another tab's + menu (`openAdd`). */
+  const { date: dateParam, add: addParam } = useLocalSearchParams<{ date?: string; add?: string }>();
+  const [selected, setSelected] = useState(dateParam ?? today);
+  const [seenDate, setSeenDate] = useState(dateParam);
+  if (dateParam !== seenDate) {
+    setSeenDate(dateParam);
+    if (dateParam) setSelected(dateParam);
   }
-  useEffect(() => {
-    if (!unitParam) return;
-    revealUnit(unitParam);
-    router.setParams({ unit: undefined });
-  }, [unitParam, revealUnit]);
 
-  /** Another tab's + menu asked for a task or an event (`openAdd`).
-   *  It waits for the plan to load. Then, with something to file it
-   *  under, the sheet opens as the request is seen (during render, as
-   *  for the unit link above); with no plan yet, the effect sends it to
-   *  the diagnostic, which is where Plan's own empty state points. The
-   *  effect also clears the request so the next one registers. */
-  const canAdd = plan?.hasSnapshot === true && allUnits.length > 0;
-  const [editingShown, editingGone] = useRetained(editing);
-  const [infoUnitShown, infoUnitGone] = useRetained(infoUnit);
-  const [suggestingForShown, suggestingForGone] = useRetained(suggestingFor);
-  const [addingEventShown, addingEventGone] = useRetained(addingEvent);
+  const [loaded, setLoaded] = useState<DayPlan | null>(null);
+  const [week, setWeek] = useState<WeekDay[] | null>(null);
+  const [plan, setPlan] = useState<PlanData | null>(null);
+  const [sheet, setSheet] = useState<WindowSheet | null>(null);
+  const [sheetShown, sheetGone] = useRetained(sheet);
+  const [kindSheet, setKindSheet] = useState(false);
+  const [adding, setAdding] = useState<"task" | "event" | null>(null);
   const [addingShown, addingGone] = useRetained(adding);
+  const [eventUnits, setEventUnits] = useState<string[]>([]);
+
+  /** Each load's turn: only the latest may land, so a slow load for a
+   *  day you've moved on from can't overwrite the one you're looking at. */
+  const loadTurn = useRef(0);
+  const load = useCallback(async () => {
+    const turn = ++loadTurn.current;
+    const [nextDay, nextWeek, nextPlan] = await Promise.all([
+      loadDayPlan(selected),
+      loadWeek(selected),
+      loadPlan(),
+    ]);
+    if (turn !== loadTurn.current) return;
+    setLoaded(nextDay);
+    setWeek(nextWeek);
+    setPlan(nextPlan);
+  }, [selected]);
+  const { error, retry, save } = useScreenLoad(load);
+  const undo = useUndoDelete(save);
+
+  const allUnits = useMemo(() => pickableUnits(plan), [plan]);
+  const canAdd = plan?.hasSnapshot === true && allUnits.length > 0;
+
+  /** Another tab's + asked for a sheet. With no plan to file it under,
+   *  Priorities comes first. */
   const [handledAdd, setHandledAdd] = useState<string | undefined>(undefined);
   if (addParam !== handledAdd && plan !== null) {
     setHandledAdd(addParam);
-    if (canAdd && addParam === "task") setAdding({ homeUnit: null });
-    else if (canAdd && addParam === "event") setAddingEvent({ unitIds: [] });
+    if (canAdd && (addParam === "task" || addParam === "event")) setAdding(addParam);
   }
+  // Navigation is a side effect, so it waits for the commit.
   useEffect(() => {
     if (!addParam || plan === null) return;
     router.setParams({ add: undefined });
     if (!canAdd) router.push("/priorities" as Href);
   }, [addParam, plan, canAdd]);
-
-  /** Plan's own + menu: the same rule, decided at the tap. */
+  // A day link is cleared once followed, so the same link works again.
+  useEffect(() => {
+    if (dateParam) router.setParams({ date: undefined });
+  }, [dateParam]);
   const addHere = (what: "task" | "event") => {
     if (!canAdd) router.push("/priorities" as Href);
-    else if (what === "task") setAdding({ homeUnit: null });
-    else setAddingEvent({ unitIds: [] });
+    else setAdding(what);
   };
 
-  /**
-   * Something new lands last in its unit, so the screen has to say where
-   * it went: open that unit, bring it into view, and tint the row for
-   * long enough to find it. The drag handle is then right there.
-   */
-  const revealAdded = async (id: string | null, home: string | undefined) => {
-    if (home) setOpenUnitId(home);
-    await reload();
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (home) revealUnit(home);
-    if (id) {
-      setJustAdded(id);
-      if (freshTimer.current) clearTimeout(freshTimer.current);
-      freshTimer.current = setTimeout(() => setJustAdded(null), 2600);
-    }
+  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
+  const date = selected;
+  /** The day on screen is only ever the one chosen: until its load
+   *  lands it shows as loading, and nothing writes to it. */
+  const day = loaded !== null && loaded.day.date === selected ? loaded : null;
+  const editable = day !== null && date >= today;
+  const dayLabel = date === today ? "today" : (spokenDate(date).split(",")[0] ?? date);
+
+  const goTo = (next: string) => {
+    setSelected(next);
+    void Haptics.selectionAsync();
   };
 
-  const commitTask = async (
-    title: string,
-    timesPerWeek: number,
-    unitIds: string[],
-    plannedWeekdays: string | null,
-    partOfDay: PartOfDay | null,
-    oneOff: OneOffState | null = null,
-    detail: TaskDetail = NO_DETAIL,
-  ) => {
-    const id = await addTask(
-      unitIds,
-      title,
-      timesPerWeek,
-      plannedWeekdays,
-      partOfDay,
-      oneOff,
-      detail,
+  // ── Writes ───────────────────────────────────────────────────────
+
+  const windowAt = (index: number) => day?.planned.windows[index];
+  const indexAt = (start: number) =>
+    day ? day.planned.windows.findIndex((w) => w.range.start === start) : -1;
+  /** A sheet opened afresh each time, so its draft is seeded anew. */
+  const [opened, setOpened] = useState(0);
+  const openSheet = (next: WindowSheet) => {
+    setOpened((n) => n + 1);
+    setSheet(next);
+  };
+  const pin = (taskId: string, index: number) => {
+    const w = windowAt(index);
+    const t = day?.tasks.get(taskId);
+    if (!w || !t) return;
+    void save(() =>
+      pinForDay(taskId, date, w.range.start, "window", {
+        // Pinned after the week's runs are done: an extra run on
+        // purpose (windows-and-pins §2.8). Life tasks only.
+        extra: t.band === "doneThisWeek" && !t.commitment,
+      }),
     );
-    await revealAdded(id, unitIds[0]);
   };
+  const acceptAll = (index: number) => {
+    const w = windowAt(index);
+    if (!w) return;
+    void save(async () => {
+      for (const s of w.suggested) await pinForDay(s.taskId, date, w.range.start, "window");
+    });
+  };
+  const unpin = (taskId: string) => void save(() => unpinForDay(taskId, date));
+  const pinKind = (ruleId: string, kind: PinKind) => void save(() => setPinKind(ruleId, kind));
+
+  const removeWindow = (range: TimeRange) => {
+    undo.remove({
+      id: windowKey(date, range),
+      message: `Removed ${spanLabel(range)}`,
+      run: () => addDayEdit(date, { kind: "remove", range }),
+    });
+  };
+
+  /** A problem to show in the sheet, or null once saved. */
+  const saveTimes = async (range: TimeRange): Promise<string | null> => {
+    const from = sheet?.kind === "times" ? sheet.range : undefined;
+    // A window over an event is trimmed around it, and can come to
+    // nothing (EC-53): say so and save nothing.
+    const events = (day?.events ?? []).map((e) => ({ start: e.start, end: e.end }));
+    if (addedWindowPieces(range, events).length === 0) {
+      return "That time is taken up by an event, so there's no window left.";
+    }
+    try {
+      await addDayEdit(date, from ? { kind: "change", from, to: range } : { kind: "add", range });
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    setSheet(null);
+    retry();
+    return null;
+  };
+
+  const choiceIn = (index: number) => {
+    const w = windowAt(index);
+    if (!w || !day) return undefined;
+    return day.choices.find((c) => c.anchorMinute >= w.range.start && c.anchorMinute < w.range.end);
+  };
+  const saveChoice = async (start: number, taskIds: string[], plannedCount: number) => {
+    const index = indexAt(start);
+    const w = windowAt(index);
+    if (!w) return "That window has gone.";
+    const existing = choiceIn(index);
+    try {
+      if (existing) await updateChoice(existing.id, { taskIds, plannedCount });
+      else {
+        // A choice is tasks pinned in one window (ADR-0039 §6).
+        for (const id of taskIds) await pinForDay(id, date, w.range.start, "window");
+        await createChoice({ localDate: date, anchorMinute: w.range.start, taskIds, plannedCount });
+      }
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      // Pins written before a failure show too.
+      retry();
+    }
+    setSheet(null);
+    return null;
+  };
+
+  const copyEvents = () => {
+    void save(async () => {
+      const added = await copyLastWeeksEvents(weekStart(date));
+      Alert.alert(
+        added === 0 ? "Nothing to copy" : "Copied",
+        added === 0
+          ? "Last week had no one-time events to bring forward, or they're already here."
+          : `${added} ${added === 1 ? "event" : "events"} from last week, a week later. Change any times that moved.`,
+      );
+    });
+  };
+
+  // ── Render ───────────────────────────────────────────────────────
+
+  const items = day ? timeline(day.hours, day.events) : [];
+  const visibleWindows = day
+    ? day.planned.windows.filter((w) => !undo.hidden.has(windowKey(date, w.range)))
+    : [];
+  const openList = day
+    ? [...day.planned.unplacedPins.map((p) => p.taskId), ...day.planned.later, ...day.planned.doesntFit]
+    : [];
 
   return (
     <View style={styles.root}>
-      {/* The scroll view comes first: iOS follows the first child down to
-          find what drives the large title and the tab bar's shrinking.
-          So the backdrop goes inside it. */}
       <ScrollView
-        ref={scrollRef}
         style={styles.body}
-        scrollEnabled={!draggingTask}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
-        <View ref={contentRef}>
-          {/* The screen's own thesis, above everything it applies to: how
-              much of your hundred is in play, and so what today can score.
-              It scrolls with the list now that the nav bar is native. */}
-          {plan?.hasSnapshot ? (
-            <CoverageBar areas={plan.areas} day={commitmentDay} theme={theme} />
-          ) : null}
-          {error ? (
-            <LoadFailure error={error} onRetry={retry} theme={theme} />
-          ) : plan === null ? (
-            <ActivityIndicator color={theme.muted} style={styles.loading} />
-          ) : !plan.hasSnapshot ? (
-            <View style={styles.empty}>
-              <AppText color={theme.ink} style={styles.centerText}>
-                Your plan starts with your priorities. Sort what matters into tiers first, and the
-                weights land here.
-              </AppText>
-              <Button
-                label="Set your priorities"
-                onPress={() => router.push("/priorities" as Href)}
-                theme={theme}
-              />
-            </View>
-          ) : (
-            <>
-              {noTasksYet ? (
-                <FirstRunCard
-                  topUnitName={topUnit?.name ?? null}
-                  onAddToTopUnit={() => {
-                    if (!topUnit) return;
-                    setOpenUnitId(topUnit.id);
-                    setAdding({ homeUnit: topUnit });
-                  }}
-                  theme={theme}
-                />
-              ) : null}
+        {week ? (
+          <PlanWeekStrip
+            days={week}
+            label={weekLabel(selected)}
+            selected={selected}
+            today={today}
+            onSelect={goTo}
+            onPrevWeek={() => goTo(addDays(selected, -7))}
+            onNextWeek={() => goTo(addDays(selected, 7))}
+            theme={theme}
+          />
+        ) : null}
 
-              {plan.areas.map((area) => (
-                <Group key={area.id} theme={theme}>
-                  <View style={styles.groupHeader}>
-                    <View
-                      style={[styles.dot, { backgroundColor: theme.areas[area.id] ?? theme.muted }]}
-                    />
-                    <AppText variant="headline" color={theme.ink} style={styles.grow}>
-                      {area.name}
+        {error ? (
+          <LoadFailure error={error} onRetry={retry} theme={theme} />
+        ) : day === null ? (
+          <ActivityIndicator color={theme.muted} style={styles.loading} />
+        ) : (
+          <View style={styles.day}>
+            <AppText variant="headline" color={theme.ink} accessibilityRole="header">
+              {dayHeading(date, visibleWindows.length, day.freeMinutes)}
+            </AppText>
+            {day.day.away ? (
+              <AppText variant="caption" color={theme.muted}>
+                Away{day.day.away.label ? ` · ${day.day.away.label}` : ""}. Nothing is planned.
+              </AppText>
+            ) : day.day.cleared ? (
+              <AppText variant="caption" color={theme.muted}>
+                Today&apos;s cleared. Its windows are set aside.
+              </AppText>
+            ) : day.hours.usingDefaults ? (
+              <Pressable
+                onPress={() => router.push("/hours" as Href)}
+                accessibilityRole="button"
+                style={styles.link}
+              >
+                <AppText variant="caption" color={theme.accent}>
+                  These are starter windows. Set your working hours ›
+                </AppText>
+              </Pressable>
+            ) : null}
+
+            {items.map((item) => {
+              if (item.kind === "event") {
+                const e = item.event;
+                return (
+                  <View
+                    key={`e-${e.id}`}
+                    style={[styles.event, { borderLeftColor: theme.areas[e.areaId] ?? theme.accent }]}
+                    accessible
+                    accessibilityLabel={`${e.title}, ${spanLabel({ start: e.start, end: e.end })}${e.done ? ", attended" : ""}`}
+                  >
+                    <AppText variant="label" color={theme.ink} tabular>
+                      {spanLabel({ start: e.start, end: e.end })}
                     </AppText>
-                    {/* A number in the right-hand column at every level, so
-                        "where are my points going" reads down one edge: the
-                        area's own share of the 100. */}
-                    <AppText variant="label" color={theme.muted} tabular style={styles.pts}>
-                      {area.units
-                        .filter((u) => u.includeInScoring)
-                        .reduce((sum, u) => sum + (u.weight ?? 0), 0)}
+                    <AppText variant="body" color={theme.ink} style={styles.grow} numberOfLines={2}>
+                      {e.title}
                     </AppText>
                   </View>
-
-                  {area.units.map((unit) => (
-                    <PlanUnitSection
-                      key={unit.id}
-                      unit={unit}
-                      hue={theme.areas[area.id] ?? theme.accent}
-                      open={openUnitId === unit.id}
-                      rowRef={(node) => {
-                        unitRefs.current[unit.id] = node;
-                      }}
-                      justAdded={justAdded}
-                      onToggle={() =>
-                        setOpenUnitId((current) => (current === unit.id ? null : unit.id))
-                      }
-                      onShowInfo={() => setInfoUnit(unit)}
-                      onOpenPriorities={() => router.push("/priorities" as Href)}
-                      onReorder={(ids) => save(() => reorderUnitTasks(unit.id, ids))}
-                      onEditTask={(t) => setEditing({ task: t, unit })}
-                      onDeleteTask={deleteTask}
-                      onAddTask={() => setAdding({ homeUnit: unit })}
-                      onAddEvent={() => setAddingEvent({ unitIds: [unit.id], unitName: unit.name })}
-                      onSuggest={() => setSuggestingFor(unit)}
-                      onDragStateChange={setDraggingTask}
-                      layout={layout}
-                      reduceMotion={reduceMotion}
-                      theme={theme}
-                    />
-                  ))}
-                </Group>
-              ))}
-
-              {plan.commitments.map((c) => (
-                <CommitmentTasks
-                  key={c.id}
-                  commitment={c}
-                  justAdded={justAdded}
-                  onEditTask={(t) =>
-                    setEditing({ task: t, unit: { id: t.homeUnitId, areaId: COMMITMENT_AREA } })
-                  }
-                  onDeleteTask={deleteTask}
-                  onAddTask={() => setAdding({ homeUnit: { id: c.id } })}
-                  onAddEvent={() => setAddingEvent({ unitIds: [c.id], unitName: c.name })}
+                );
+              }
+              if (item.kind === "gap" || item.kind === "buffer") {
+                const label =
+                  item.kind === "gap" ? item.name.toLowerCase() : `${item.range.end - item.range.start} min`;
+                return (
+                  <AppText
+                    key={`${item.kind}-${item.range.start}`}
+                    variant="footnote"
+                    color={theme.muted}
+                    style={styles.gap}
+                  >
+                    · {label} ·
+                  </AppText>
+                );
+              }
+              const w = day.planned.windows[item.index];
+              if (!w || undo.hidden.has(windowKey(date, w.range))) return null;
+              const choice = choiceIn(item.index);
+              return (
+                <WindowCard
+                  key={windowKey(date, w.range)}
+                  window={w}
+                  tasks={day.tasks}
+                  choices={choice ? [choice] : []}
+                  addable={addableTo(item.index, day.planned).length}
+                  editable={editable}
+                  isToday={date === today}
+                  hueFor={hueFor}
                   theme={theme}
+                  onPin={(id) => pin(id, item.index)}
+                  onAcceptAll={() => acceptAll(item.index)}
+                  onUnpin={unpin}
+                  onPinKind={pinKind}
+                  onAddFromOpen={() => openSheet({ kind: "add", start: w.range.start })}
+                  onEditTimes={() => openSheet({ kind: "times", range: w.range })}
+                  onRemove={() => removeWindow(w.range)}
+                  onChoice={() => openSheet({ kind: "choice", start: w.range.start })}
                 />
-              ))}
-            </>
-          )}
-        </View>
+              );
+            })}
+
+            {openList.length > 0 ? (
+              <View style={styles.section}>
+                <AppText variant="caption" color={theme.muted}>
+                  Other open tasks
+                </AppText>
+                {openList.map((id) => {
+                  const t = day.tasks.get(id);
+                  return t ? (
+                    <AppText key={id} variant="body" color={theme.ink}>
+                      {t.title}
+                    </AppText>
+                  ) : null;
+                })}
+              </View>
+            ) : null}
+
+            {editable && !day.day.away ? (
+              <Button
+                variant="tonal"
+                icon="add"
+                label="Add window"
+                onPress={() => openSheet({ kind: "times" })}
+                theme={theme}
+              />
+            ) : null}
+
+            <View style={styles.links}>
+              {date <= today ? (
+                <Pressable
+                  onPress={() => setKindSheet(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Day type, ${DAY_KIND_LABEL[day.day.kind]}`}
+                  style={styles.link}
+                >
+                  <AppText variant="caption" color={theme.accent}>
+                    Day type: {DAY_KIND_LABEL[day.day.kind]} ›
+                  </AppText>
+                </Pressable>
+              ) : null}
+              {editable ? (
+                <Pressable onPress={copyEvents} accessibilityRole="button" style={styles.link}>
+                  <AppText variant="caption" color={theme.accent}>
+                    Copy last week&apos;s events ›
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Shown in every state, so the + never pops in late. */}
       <TabToolbar
         onTask={() => addHere("task")}
         onEvent={() => addHere("event")}
+        onWindow={editable ? () => openSheet({ kind: "times" }) : undefined}
         onLog={() => openAdd("activity")}
+        more={[
+          { label: "Working hours", icon: "clock", onPress: () => router.push("/hours" as Href) },
+          { label: "Copy last week's events", icon: "doc.on.doc", onPress: copyEvents },
+          { label: "Time away", icon: "airplane", onPress: () => router.push("/away" as Href) },
+        ]}
       />
 
       <UndoBar undo={undo} theme={theme} />
 
-      {addingShown ? (
+      {sheetShown?.kind === "times" ? (
+        <WindowTimesSheet
+          key={`times-${opened}`}
+          visible={sheet?.kind === "times"}
+          onDismissed={sheetGone}
+          initial={sheetShown.range}
+          dayLabel={dayLabel}
+          theme={theme}
+          onClose={() => setSheet(null)}
+          onSave={saveTimes}
+        />
+      ) : null}
+
+      {sheetShown?.kind === "add" && day && indexAt(sheetShown.start) >= 0 ? (
+        <AddFromOpenSheet
+          key={`add-${opened}`}
+          visible={sheet?.kind === "add"}
+          onDismissed={sheetGone}
+          windowLabel={spanLabel(day.planned.windows[indexAt(sheetShown.start)]!.range)}
+          tasks={addableTo(indexAt(sheetShown.start), day.planned)
+            .map((id) => day.tasks.get(id))
+            .filter((t): t is TodayTask => t !== undefined)}
+          hueFor={hueFor}
+          theme={theme}
+          onClose={() => setSheet(null)}
+          onPick={(t) => {
+            setSheet(null);
+            pin(t.id, indexAt(sheetShown.start));
+          }}
+        />
+      ) : null}
+
+      {sheetShown?.kind === "choice" && day && indexAt(sheetShown.start) >= 0 ? (
+        <ChoiceSheet
+          key={`choice-${opened}`}
+          visible={sheet?.kind === "choice"}
+          onDismissed={sheetGone}
+          windowLabel={spanLabel(day.planned.windows[indexAt(sheetShown.start)]!.range)}
+          candidates={choiceCandidates(day, indexAt(sheetShown.start))}
+          initial={choiceIn(indexAt(sheetShown.start))}
+          hueFor={hueFor}
+          theme={theme}
+          onClose={() => setSheet(null)}
+          onSave={(ids, n) => saveChoice(sheetShown.start, ids, n)}
+          onRemove={
+            choiceIn(indexAt(sheetShown.start))
+              ? () => {
+                  const c = choiceIn(indexAt(sheetShown.start));
+                  setSheet(null);
+                  if (c) void save(() => deleteChoice(c.id));
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {day && date <= today ? (
+        <DayKindSheet
+          visible={kindSheet}
+          dayLabel={dayLabel}
+          kind={day.day.kind}
+          title={day.day.title}
+          satisfactionRating={day.day.satisfactionRating}
+          theme={theme}
+          reduceMotion={reduceMotion}
+          onClose={() => setKindSheet(false)}
+          onCommit={(kind, opts) => {
+            setKindSheet(false);
+            void save(() => setDayKind(date, kind, opts));
+          }}
+        />
+      ) : null}
+
+      {addingShown === "task" ? (
         <AddTaskModal
-          visible={adding !== null}
+          visible={adding === "task"}
           onDismissed={addingGone}
           onClose={() => setAdding(null)}
           units={allUnits}
-          homeUnitId={addingShown.homeUnit?.id}
           areaColors={theme.areas}
           theme={theme}
-          onCommit={commitTask}
+          onCommit={async (title, timesPerWeek, unitIds, plannedWeekdays, partOfDay, oneOff, detail) => {
+            await save(() =>
+              addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail),
+            );
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }}
         />
       ) : null}
 
-      {addingEventShown ? (
+      {addingShown === "event" ? (
         <EventSheet
-          visible={addingEvent !== null}
-          onDismissed={addingEventGone}
-          unitName={addingEventShown.unitName}
-          unitChoice={
-            addingEventShown.unitName
-              ? undefined
-              : {
-                  units: allUnits,
-                  value: addingEventShown.unitIds,
-                  onChange: (unitIds) => setAddingEvent({ unitIds }),
-                  areaColors: theme.areas,
-                }
-          }
+          visible={adding === "event"}
+          onDismissed={addingGone}
+          unitChoice={{
+            units: allUnits,
+            value: eventUnits,
+            onChange: setEventUnits,
+            areaColors: theme.areas,
+          }}
           accent={theme.accent}
           theme={theme}
-          onClose={() => setAddingEvent(null)}
+          onClose={() => setAdding(null)}
           onSave={async (input, bounds) => {
-            const unitIds = addingEventShown.unitIds;
-            let id: string | null = null;
             const saved = await savedOrSaid(async () => {
-              id = await saveNewEvent(unitIds, input, bounds);
+              await saveNewEvent(eventUnits, input, bounds);
               return true;
             });
             if (!saved) return;
-            setAddingEvent(null);
-            await revealAdded(id, unitIds[0]);
+            setAdding(null);
+            setEventUnits([]);
+            retry();
           }}
-        />
-      ) : null}
-
-      {/* An event opens its own sheet, not the task editor — it is
-          planned by when, not by how often (ADR-0038). */}
-      {editingShown && editingShown.task.kind === "event" ? (
-        <EventSheet
-          visible={editing !== null}
-          onDismissed={editingGone}
-          initial={{
-            title: editingShown.task.title,
-            plannedWeekdays: editingShown.task.plannedWeekdays,
-            oneOffDate: editingShown.task.oneOffDate,
-            startMinute: editingShown.task.startMinute,
-            endMinute: editingShown.task.endMinute,
-            notes: editingShown.task.description,
-            repeatFrom: editingShown.task.repeatFrom,
-            repeatUntil: editingShown.task.repeatUntil,
-          }}
-          seriesId={editingShown.task.id}
-          accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
-          theme={theme}
-          onClose={() => setEditing(null)}
-          onSave={async (input, bounds) => {
-            const t = editingShown.task;
-            const saved = await savedOrSaid(() =>
-              saveEventEdit({ ...t, notes: t.description }, input, bounds),
-            );
-            if (saved) setEditing(null);
-            await reload();
-          }}
-          onDelete={() => {
-            const t = editingShown.task;
-            setEditing(null);
-            deleteTask(t);
-          }}
-        />
-      ) : null}
-
-      {editingShown && editingShown.task.kind !== "event" ? (
-        <TaskEditSheet
-          visible={editing !== null}
-          onDismissed={editingGone}
-          task={editableFrom(editingShown.task)}
-          units={allUnits}
-          areaColors={theme.areas}
-          accent={theme.areas[editingShown.unit.areaId] ?? theme.accent}
-          theme={theme}
-          onClose={() => setEditing(null)}
-          onSave={async (next) => {
-            await applyTaskEdit(editingShown.task, next);
-            await reload();
-          }}
-          onDelete={() => deleteTask(editingShown.task)}
-        />
-      ) : null}
-
-      {suggestingForShown ? (
-        <SuggestionsSheet
-          visible={suggestingFor !== null}
-          onDismissed={suggestingForGone}
-          unitId={suggestingForShown.id}
-          unitName={suggestingForShown.name}
-          profile={
-            // Null before Priorities is first saved: nothing has a tier
-            // or a weight yet, so there is no situation to read.
-            suggestingForShown.weight !== null && suggestingForShown.tier !== null
-              ? unitProfile({
-                  tier: suggestingForShown.tier,
-                  weight: suggestingForShown.weight,
-                })
-              : null
-          }
-          existingTaskTitles={suggestingForShown.tasks.map((t) => t.title)}
-          accent={theme.areas[suggestingForShown.areaId] ?? theme.accent}
-          theme={theme}
-          onClose={() => setSuggestingFor(null)}
-          onAddTask={(t) => {
-            const unit = suggestingForShown;
-            setSuggestingFor(null);
-            // `commitTask` reloads and reveals the row itself.
-            save(
-              () => commitTask(t.title, t.timesPerWeek, [unit.id], null, null),
-              () => {},
-            );
-          }}
-        />
-      ) : null}
-
-      {infoUnitShown && UNIT_INFO[infoUnitShown.id] ? (
-        <UnitInfoSheet
-          visible={infoUnit !== null}
-          onDismissed={infoUnitGone}
-          onClose={() => setInfoUnit(null)}
-          unitName={infoUnitShown.name}
-          info={UNIT_INFO[infoUnitShown.id]!}
-          accent={theme.areas[infoUnitShown.areaId] ?? theme.accent}
-          theme={theme}
         />
       ) : null}
     </View>
   );
 }
 
-/** The plan without the tasks whose delete is waiting or landing
- *  (`useUndoDelete`), everywhere they're listed. */
-function withoutTask(plan: PlanData | null, hidden: ReadonlySet<string>): PlanData | null {
-  if (plan === null || hidden.size === 0) return plan;
-  return {
-    ...plan,
-    areas: plan.areas.map((a) => ({
-      ...a,
-      units: a.units.map((u) => ({ ...u, tasks: u.tasks.filter((t) => !hidden.has(t.id)) })),
-    })),
-    commitments: plan.commitments.map((c) => ({
-      ...c,
-      tasks: c.tasks.filter((t) => !hidden.has(t.id)),
-    })),
-  };
+/** A window's identity on its day: its times. Windows have no names. */
+const windowKey = (date: string, r: TimeRange) => `win-${date}-${r.start}-${r.end}`;
+
+/** Commitment work due on the day, in this window or offered to it:
+ *  what a "Do N of these" may hold (ADR-0039 §6). */
+function choiceCandidates(day: DayPlan, index: number): TodayTask[] {
+  const w = day.planned.windows[index];
+  if (!w) return [];
+  const ids = [
+    ...w.pinned.map((p) => p.taskId),
+    ...w.timed,
+    ...w.suggested.map((s) => s.taskId),
+    ...w.showAll.map((s) => s.taskId),
+  ];
+  return ids
+    .map((id) => day.tasks.get(id))
+    .filter(
+      (t): t is TodayTask =>
+        t !== undefined && t.commitment && !t.offSchedule && t.band === "due" && t.kind === "task",
+    );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  /** Takes the space between the fixed header and the tab bar; the unit
-   *  list scrolls inside it while both stay put. */
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl },
   loading: { marginTop: space.xxl },
-  empty: { gap: space.lg, marginTop: space.xxl },
-  centerText: { textAlign: "center" },
-  // Areas breathe more than the rows inside them — the rhythm is what
-  // separates six groups without six heavy dividers.
-  groupHeader: {
+  day: { gap: space.md },
+  event: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space.sm + 2,
-    minHeight: 32,
-    marginBottom: space.xs,
+    gap: space.md,
+    minHeight: 44,
+    paddingLeft: space.md,
+    borderLeftWidth: 3,
+    borderRadius: radius.sm,
   },
-  dot: { width: 10, height: 10, borderRadius: 5 },
   grow: { flex: 1 },
-  /** One right-hand column for every number on the page. */
-  pts: { minWidth: 30, textAlign: "right" },
+  gap: { textAlign: "center" },
+  section: { gap: space.xs },
+  links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: space.md },
+  link: { minHeight: 44, justifyContent: "center" },
 });

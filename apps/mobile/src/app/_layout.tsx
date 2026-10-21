@@ -178,6 +178,8 @@ const PUSHED: [route: string, title: string][] = [
   ["priorities/index", "Priorities"],
   ["backup", "Your data"],
   ["away", "Time away"],
+  // From Plan's ⋯ menu (spec §5.3.1).
+  ["hours", "Working hours"],
   ["calibration", "Calibration"],
   // Its heading, "Where your data lives", is too long for a large title.
   ["privacy", "Privacy"],
@@ -235,8 +237,6 @@ function MigrationGate() {
             {PUSHED.map(([name, title]) => (
               <Stack.Screen key={name} name={name} options={{ ...pushedOptions(theme), title }} />
             ))}
-            {/* A small title: the day steps through dates in its own. */}
-            <Stack.Screen name="day/[date]" options={pushedOptions(theme, { inline: true })} />
           </Stack>
         </ThemeProvider>
       </KeyboardProvider>

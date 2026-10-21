@@ -405,9 +405,9 @@ export default function OnboardingScreen() {
       fail(thrown);
       return;
     }
-    // Tasks, not Today: the next useful act is building a plan, and
-    // Today has nothing to show until one exists.
-    router.replace("/plan" as Href);
+    // Your units, on Life, not Home: the next useful act is giving them
+    // tasks, and Home has nothing to show until there are some.
+    router.replace("/goals" as Href);
   };
 
   /** Every scoring unit the user ranked, heaviest first. */

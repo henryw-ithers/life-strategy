@@ -25,6 +25,9 @@ import {
 interface WeekdayPickerProps {
   value: readonly Weekday[];
   onChange: (days: Weekday[]) => void;
+  /** Days another group already has, greyed out and not pickable, as
+   *  in iOS Sleep schedules (working hours, spec §5.3.1). */
+  taken?: readonly Weekday[];
   accent: string;
   theme: ThemeTokens;
 }
@@ -32,6 +35,7 @@ interface WeekdayPickerProps {
 export function WeekdayPicker({
   value,
   onChange,
+  taken = [],
   accent,
   theme,
 }: WeekdayPickerProps) {
@@ -46,14 +50,16 @@ export function WeekdayPicker({
     <View style={styles.row}>
       {WEEKDAY_ORDER.map((day, i) => {
         const on = value.includes(day);
+        const elsewhere = !on && taken.includes(day);
         return (
           <Pressable
             key={day}
             onPress={() => toggle(day)}
+            disabled={elsewhere}
             accessibilityRole="switch"
-            accessibilityState={{ checked: on }}
+            accessibilityState={{ checked: on, disabled: elsewhere }}
             // The letter alone is ambiguous aloud — two Ss and two Ts.
-            accessibilityLabel={WEEKDAY_NAME[day]}
+            accessibilityLabel={elsewhere ? `${WEEKDAY_NAME[day]}, in another group` : WEEKDAY_NAME[day]}
             hitSlop={{ top: space.xs, bottom: space.xs }}
             style={({ pressed }) => [
               styles.chip,
@@ -63,7 +69,7 @@ export function WeekdayPicker({
                 // small text in light theme. See `wash`.
                 backgroundColor: on ? wash(accent, theme) : theme.surface,
                 borderColor: on ? accent : theme.hairline,
-                opacity: pressed ? 0.7 : 1,
+                opacity: elsewhere ? 0.35 : pressed ? 0.7 : 1,
               },
               // Nudges the row's outer chips to the gutter without a
               // wrapper, so the seven stay evenly divided.

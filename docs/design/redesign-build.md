@@ -96,6 +96,28 @@ Decided while building 8a:
 - A tick whose time can't be placed (logged afterwards, or unreadable)
   is still done: it sits in no window and is never suggested again.
 
+Built in 8b: the Plan tab as the week (`app/(tabs)/plan/index.tsx`,
+`PlanWeekStrip`, `WindowCard`, `WindowTimesSheet`, `AddFromOpenSheet`,
+`ChoiceSheet`, `dayView.ts`), the working-hours editor (`app/hours.tsx`,
+`hoursDraft.ts`), and Life holding the units with Priorities and
+commitments. Removed: `app/day/[date].tsx` (a future day opens on
+Plan), `CommitmentTasks`, `planLoadHours`. The + menu gains Window on
+Plan; Home gets it in Phase 9.
+
+Decided while building 8b:
+
+- **"This week and after" saves from today**, not the week's Sunday, so
+  earlier days keep the hours they had (EC-15, invariant review).
+- **Only the latest load lands on Plan**, and the day on screen is
+  always the one chosen: writes wait until it has loaded (React review).
+- Window sheets are named by the window's start, never its place in the
+  list, so a reload can't move an open sheet to another window.
+- Open: Day type can be set on any past day from Plan's strip, as on
+  Home's calendar. Limit it to the edit window if Henry wants.
+- Still to check on the phone: the window cards with real tasks, the
+  native menus and sheets, and VoiceOver on the strip and the stepper.
+  The web preview can't save Priorities, so it shows no tasks.
+
 ## Phase 7: events, skips, Clear today and Away
 
 The data and engine came in 4a, 5a and 5b; Phase 7 is the screens and
