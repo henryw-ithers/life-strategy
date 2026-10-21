@@ -27,7 +27,7 @@
  */
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, useColorScheme, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, useColorScheme, View } from "react-native";
 
 import { CommitmentsStep } from "../components/onboarding/CommitmentsStep";
 import { FirstWeekStep } from "../components/onboarding/FirstWeekStep";
@@ -117,39 +117,61 @@ export default function OnboardingScreen() {
           if (cancelled || now === waiting.before) return;
           go(waiting.screen === "priorities" ? "commitments" : "tasks");
         })
-        .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+        .catch((e: unknown) => {
+          // The step stays put, and Skip or a second try still work.
+          recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
+        });
       return () => {
         cancelled = true;
       };
     }, [go]),
   );
 
-  const open = async (screen: Awaiting["screen"]) => {
-    if (busy) return;
+  /** One action at a time. A ref, checked and set in the same tap, so
+   *  two taps in one frame can't both get through; `busy` only greys
+   *  the buttons. */
+  const running = useRef(false);
+  const run = async (action: () => Promise<void>) => {
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     try {
+      await action();
+    } catch (e) {
+      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      // About the app, never the person (as `saveThen` says it).
+      Alert.alert(
+        "That didn’t work",
+        "Nothing else changed. Try again, and if it keeps happening, the problem log in Settings has the details.",
+      );
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+
+  const open = (screen: Awaiting["screen"]) =>
+    run(async () => {
       const before = screen === "priorities" ? await latestPriorities() : await hoursFingerprint();
       awaiting.current = { screen, before };
       if (screen === "priorities") router.push("/priorities" as Href);
       else {
-        const params = new URLSearchParams({ setup: "1" });
+        // First hours save from today with no question. On a re-run,
+        // with hours already set, the editor asks as it always does.
+        const params = new URLSearchParams();
+        if (before === "[]") params.set("setup", "1");
         if (template) params.set("template", template);
         router.push(`/hours?${params.toString()}` as Href);
       }
-    } catch (e) {
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
-    } finally {
-      setBusy(false);
-    }
-  };
+    });
 
   /** Picking a schedule: remembered for the hours step, and shift work
    *  makes new events one-time. Moving off shift work turns that back
    *  off; otherwise Settings' own choice is left alone. */
   const chooseTemplate = (id: TemplateId) => {
-    const was = template;
     setTemplate(id);
     void save(async () => {
+      const was = await loadOnboardingTemplate();
       await saveOnboardingTemplate(id);
       const once = templateFor(id)?.eventsOnce === true;
       if (once || was === "shifts") {
@@ -158,36 +180,26 @@ export default function OnboardingScreen() {
     });
   };
 
-  const finish = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await completeOnboarding();
-      // Home, at the current window (ADR-0045 §1 step 7).
-      router.replace("/" as Href);
-    } catch (e) {
-      // Without this the button would simply stop working, with no
-      // explanation and no way out of onboarding.
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
-      retry();
-    } finally {
-      setBusy(false);
-    }
+  /** Home, at the current window (ADR-0045 §1 step 7). */
+  const complete = async () => {
+    await completeOnboarding();
+    router.replace("/" as Href);
   };
 
-  const remind = async (yes: boolean) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (yes) await askForNudge();
-      else await declineNudge();
-    } catch (e) {
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
-    } finally {
-      setBusy(false);
-    }
-    void finish();
-  };
+  const finish = () => run(complete);
+
+  /** The reminder's answer, then Home. A failed ask still finishes:
+   *  the reminder is in Settings either way. */
+  const remind = (yes: boolean) =>
+    run(async () => {
+      try {
+        if (yes) await askForNudge();
+        else await declineNudge();
+      } catch (e) {
+        recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      }
+      await complete();
+    });
 
   const hasSnapshot = plan?.hasSnapshot === true;
   const next = () => step && go(nextStep(step));

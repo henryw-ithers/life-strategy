@@ -96,9 +96,10 @@ can be skipped, Priorities included.
 
 ## Action items
 
-1. [ ] Rebuild `app/onboarding.tsx` around the seven steps.
-2. [ ] Templates for Student, 9–5 and Shift work: default hours and
-       event defaults.
-3. [ ] Starter tasks per unit from the content library.
-4. [ ] A first-open explanation on the score breakdown sheet.
-5. [ ] Amend ADR-0011.
+1. [x] Rebuild `app/onboarding.tsx` around the seven steps (Phase 11).
+2. [x] Templates for Student, 9–5 and Shift work: default hours and
+       event defaults (`lib/onboardingTemplates.ts`).
+3. [x] Starter tasks per unit from the content library
+       (`lib/starterTasks.ts`).
+4. [x] A first-open explanation on the score breakdown sheet.
+5. [x] Amend ADR-0011 (done on acceptance).

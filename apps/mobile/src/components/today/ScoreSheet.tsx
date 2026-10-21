@@ -13,7 +13,7 @@ import { PLANNED_BAND, REST_DAY_BASE, UNPLANNED_BAND, type DayScore } from "@gli
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { takeFirstScoreOpen } from "../../db/settings";
+import { markScoreExplained, scoreExplained } from "../../db/settings";
 import { recordProblem } from "../../lib/problemLog";
 
 import type { ThemeTokens } from "../../theme/colors";
@@ -44,9 +44,11 @@ export function ScoreSheet({ visible, score, restDay, dayLabel, theme, onClose }
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
-    void takeFirstScoreOpen()
-      .then((first) => {
-        if (!cancelled && first) setExplain(true);
+    void scoreExplained()
+      .then(async (seen) => {
+        if (cancelled || seen) return;
+        setExplain(true);
+        await markScoreExplained();
       })
       .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
     return () => {
@@ -63,6 +65,10 @@ export function ScoreSheet({ visible, score, restDay, dayLabel, theme, onClose }
             Do all of it and you reach {PLANNED_BAND}. The last{" "}
             {UNPLANNED_BAND} comes from things you log that you didn&apos;t
             plan.
+          </AppText>
+          <AppText color={theme.ink}>
+            On a day with commitment work, each commitment takes its share
+            of the day first, and the rest is scored the same way.
           </AppText>
           <AppText color={theme.ink}>
             A day that asks nothing starts at {REST_DAY_BASE}. Work done

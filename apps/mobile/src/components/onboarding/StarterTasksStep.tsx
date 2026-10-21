@@ -6,7 +6,7 @@
  * a starter you already have is ticked and does nothing.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { LIBRARY } from "../../content/library";
@@ -35,6 +35,21 @@ export function StarterTasksStep({
   /** "Add your own": the unit it opens on, or "" for none chosen. */
   const [adding, setAdding] = useState<string | null>(null);
   const [addingShown, addingGone] = useRetained(adding);
+
+  /** Starters being added. A ref so two quick taps can't both add,
+   *  mirrored in state so the chip shows it at once. */
+  const pendingRef = useRef(new Set<string>());
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  const addStarter = (unitId: string, id: string, title: string, timesPerWeek: number) => {
+    const key = `${unitId}:${id}`;
+    if (pendingRef.current.has(key)) return;
+    pendingRef.current.add(key);
+    setPending(new Set(pendingRef.current));
+    void save(() => addTask([unitId], title, timesPerWeek)).finally(() => {
+      pendingRef.current.delete(key);
+      setPending(new Set(pendingRef.current));
+    });
+  };
 
   const units = useMemo(
     () =>
@@ -77,33 +92,37 @@ export function StarterTasksStep({
         return (
           <Group key={u.id} theme={theme} title={u.name}>
             <View style={styles.chips}>
-              {u.starters.map(({ task, added }) => (
-                <Pressable
-                  key={task.id}
-                  disabled={added}
-                  onPress={() => void save(() => addTask([u.id], task.title, task.timesPerWeek))}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: added, checked: added }}
-                  accessibilityLabel={`${task.title}, ${formatFrequencyShort(task.timesPerWeek)}`}
-                  accessibilityHint={added ? undefined : `Adds it to ${u.name}`}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    {
-                      borderColor: added ? hue : theme.hairline,
-                      backgroundColor: theme.canvas,
-                      opacity: pressed ? 0.6 : 1,
-                    },
-                  ]}
-                >
-                  <Ionicons name={added ? "checkmark" : "add"} size={16} color={hue} />
-                  <AppText variant="label" color={theme.ink}>
-                    {task.title}
-                  </AppText>
-                  <AppText variant="caption" color={theme.muted}>
-                    {formatFrequencyShort(task.timesPerWeek)}
-                  </AppText>
-                </Pressable>
-              ))}
+              {u.starters.map(({ task, added: saved }) => {
+                const added = saved || pending.has(`${u.id}:${task.id}`);
+                const often = formatFrequencyShort(task.timesPerWeek);
+                return (
+                  <Pressable
+                    key={task.id}
+                    disabled={added}
+                    onPress={() => addStarter(u.id, task.id, task.title, task.timesPerWeek)}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: added }}
+                    accessibilityLabel={added ? `${task.title}, ${often}, added` : `${task.title}, ${often}`}
+                    accessibilityHint={added ? undefined : `Adds it to ${u.name}`}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      {
+                        borderColor: added ? hue : theme.hairline,
+                        backgroundColor: theme.canvas,
+                        opacity: pressed ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    <Ionicons name={added ? "checkmark" : "add"} size={16} color={hue} />
+                    <AppText variant="label" color={theme.ink}>
+                      {task.title}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted}>
+                      {often}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
             </View>
             <OutlineAction
               label="Add your own"

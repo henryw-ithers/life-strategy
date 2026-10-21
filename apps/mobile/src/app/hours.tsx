@@ -62,7 +62,8 @@ export default function HoursScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const today = currentLocalDate();
   /** From onboarding (ADR-0045 step 4): `template` fills in hours not
-   *  yet set, and `setup` saves them from today with no question. */
+   *  yet set, and `setup`, sent only when none are, saves them from
+   *  today with no question. */
   const { template, setup } = useLocalSearchParams<{ template?: string; setup?: string }>();
   const [draft, setDraft] = useState<HoursDraft | null>(null);
   const [events, setEvents] = useState<TimeRange[]>([]);
