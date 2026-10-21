@@ -63,3 +63,35 @@ export function deriveEffort(
   if (max <= 0) return null;
   return new Map(raw.map((r) => [r.unitId, r.value / max]));
 }
+
+// ── Where your time went (ADR-0041 §5, spec §5.3.2) ─────────────────
+
+/** Some completed work, in minutes, filed under a unit (a commitment
+ *  counts as one, its sub-commitments with it). */
+export interface DoneWork {
+  readonly unitId: string;
+  readonly minutes: number;
+}
+
+/**
+ * Each unit's share of all completed work, largest first, adding to 1:
+ * the weekly pass's "Here's where last week went" and Life's bars.
+ *
+ * **Measured in time, not points.** Points come from the weights, so a
+ * share of points would only show your tiers back to you; time is what
+ * you actually spent. **No target**: a share is never set against a
+ * weight or a plan, so nothing can read as falling short. Units with
+ * no completed work are left out; with none at all, it's empty.
+ */
+export function workShares(done: readonly DoneWork[]): { unitId: string; share: number }[] {
+  const byUnit = new Map<string, number>();
+  for (const d of done) {
+    if (!(d.minutes > 0)) continue;
+    byUnit.set(d.unitId, (byUnit.get(d.unitId) ?? 0) + d.minutes);
+  }
+  const total = [...byUnit.values()].reduce((a, m) => a + m, 0);
+  if (total <= 0) return [];
+  return [...byUnit]
+    .map(([unitId, m]) => ({ unitId, share: m / total }))
+    .sort((a, b) => b.share - a.share || a.unitId.localeCompare(b.unitId));
+}

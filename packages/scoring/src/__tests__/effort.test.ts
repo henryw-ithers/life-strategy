@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveEffort, rawEffort, type UnitEffortInput } from "../effort";
+import { deriveEffort, rawEffort, workShares, type UnitEffortInput } from "../effort";
 
 const unit = (over: Partial<UnitEffortInput> = {}): UnitEffortInput => ({
   unitId: "u",
@@ -82,5 +82,25 @@ describe("deriveEffort", () => {
     ])!;
     expect([...out.keys()].sort()).toEqual(["a", "b"]);
     expect(out.get("b")).toBe(0);
+  });
+});
+
+describe("workShares (ADR-0041 §5)", () => {
+  it("is each unit's share of the time, largest first, adding to 1", () => {
+    const shares = workShares([
+      { unitId: "fitness", minutes: 60 },
+      { unitId: "school", minutes: 120 },
+      { unitId: "fitness", minutes: 60 },
+      { unitId: "rest", minutes: 0 },
+    ]);
+    expect(shares).toEqual([
+      { unitId: "fitness", share: 0.5 },
+      { unitId: "school", share: 0.5 },
+    ]);
+  });
+
+  it("is empty when nothing was done", () => {
+    expect(workShares([])).toEqual([]);
+    expect(workShares([{ unitId: "a", minutes: 0 }])).toEqual([]);
   });
 });

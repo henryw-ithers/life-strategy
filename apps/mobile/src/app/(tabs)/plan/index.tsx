@@ -438,6 +438,7 @@ export default function PlanScreen() {
         onWindow={editable ? () => openSheet({ kind: "times" }) : undefined}
         onLog={() => openAdd("activity")}
         more={[
+          { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
           { label: "Working hours", icon: "clock", onPress: () => router.push("/hours" as Href) },
           { label: "Copy last week's events", icon: "doc.on.doc", onPress: copyEvents },
           { label: "Time away", icon: "airplane", onPress: () => router.push("/away" as Href) },

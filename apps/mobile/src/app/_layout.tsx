@@ -237,6 +237,16 @@ function MigrationGate() {
             {PUSHED.map(([name, title]) => (
               <Stack.Screen key={name} name={name} options={{ ...pushedOptions(theme), title }} />
             ))}
+            {/* A full-screen sheet over everything (spec §5.3.2): Finish
+                closes it at any step. */}
+            <Stack.Screen
+              name="weekly-pass"
+              options={{
+                ...pushedOptions(theme, { inline: true }),
+                title: "Plan this week",
+                presentation: "fullScreenModal",
+              }}
+            />
           </Stack>
         </ThemeProvider>
       </KeyboardProvider>

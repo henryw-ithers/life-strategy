@@ -70,8 +70,8 @@ export {
   pinnedOn,
   untilForWeeks,
 } from "./schedule";
-export type { UnitEffortInput } from "./effort";
-export { deriveEffort, rawEffort } from "./effort";
+export type { DoneWork, UnitEffortInput } from "./effort";
+export { deriveEffort, rawEffort, workShares } from "./effort";
 export type { Streak, StreakInput } from "./streak";
 export {
   computeStreak,
