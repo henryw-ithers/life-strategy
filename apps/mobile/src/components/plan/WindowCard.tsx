@@ -47,9 +47,11 @@ interface WindowCardProps {
   onUnpin: (taskId: string) => void;
   onPinKind: (ruleId: string, kind: PinKind) => void;
   onAddFromOpen: () => void;
-  onEditTimes: () => void;
+  /** Omitted, the window's menu has no Edit times. */
+  onEditTimes?: () => void;
   onRemove: () => void;
-  onChoice: () => void;
+  /** Omitted, the window's menu has no "Do N of these". */
+  onChoice?: () => void;
 }
 
 export function WindowCard({
@@ -83,8 +85,8 @@ export function WindowCard({
   const inChoice = new Set(choices.flatMap((c) => c.taskIds));
 
   const windowActions: MenuAction[] = [
-    { label: "Edit times", icon: "clock", onPress: onEditTimes },
-    { label: "Do N of these…", icon: "square.stack", onPress: onChoice },
+    ...(onEditTimes ? [{ label: "Edit times", icon: "clock" as const, onPress: onEditTimes }] : []),
+    ...(onChoice ? [{ label: "Do N of these…", icon: "square.stack" as const, onPress: onChoice }] : []),
     { label: "Remove", icon: "trash", destructive: true, onPress: onRemove },
   ];
 
