@@ -53,7 +53,7 @@ describe("achievementSections", () => {
   });
 
   it("names the whole-app rows for what they count", () => {
-    expect(achievementSections(items)[0]!.rows.map((r) => r.name)).toEqual(["Good days"]);
+    expect(achievementSections(items)[0]!.rows.map((r) => r.name)).toEqual(["Days at 80 or above"]);
   });
 
   it("puts a unit's tasks under it, one row per task with each series", () => {

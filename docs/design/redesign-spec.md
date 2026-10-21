@@ -821,7 +821,7 @@ the top takes years (peaks near 1,000).
 | Weeks on target | Weeks a task's weekly target was met, in total and in a row | task |
 | Whole weeks | Weeks every task in a unit met its target, in total and in a row | unit |
 | Attended | Events ticked | commitment |
-| Good days, great days | Days at 80 or above; at 90 or above, in total and in a row | everything |
+| Days at 80 or 90 | Days scoring 80 or above; 90 or above, in total and in a row. Named by the score, never "good" or "great" | everything |
 | Record | Activities logged; days worth remembering | everything |
 
 Thresholds live in the engine (`achievements.ts` in `@glide/scoring`).
@@ -1064,7 +1064,7 @@ the phone.
 | EC-34 | No unit match for a title | Chip reads "Choose a unit". A unit is needed to save | M |
 | EC-35 | "Dinner with mum" | Suggests Family (ADR-0027 §4) | U |
 | EC-36 | An achievement of an archived or deleted task | Its ranks are kept under "From before", with the name it had. It's no longer counted on | D |
-| EC-37 | A run across days off and Away | Skipped: they neither count nor break it, for every-day streaks, plan weeks and great days | U |
+| EC-37 | A run across days off and Away | Skipped: they neither count nor break it, for every-day streaks, plan weeks and days at 90 or above | U |
 | EC-38 | "Took about…" set to 0 or over 12 h | Kept between 1 minute and 12 hours | U |
 | EC-39 | A unit with tasks moves to Not now | Its tasks are paused after you confirm, and their pins removed. Moving it back restores the tasks without the pins. Other weights adjust to 100 | U + D |
 | EC-40 | All 18 units in one tier | Weights still add to 100 | U |

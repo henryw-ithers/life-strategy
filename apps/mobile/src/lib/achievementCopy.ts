@@ -29,9 +29,11 @@ export const SERIES_LABEL: Record<SeriesId, string> = {
   wholeUnitTotal: "Whole weeks",
   wholeUnitRun: "Whole weeks in a row",
   attended: "Attended",
-  goodDays: "Good days",
-  greatDays: "Great days",
-  greatDayRun: "Great days in a row",
+  // The score itself, never a label on it (Henry, 2026-10-21): no day
+  // is called good or great.
+  goodDays: "Days at 80 or above",
+  greatDays: "Days at 90 or above",
+  greatDayRun: "Days in a row at 90 or above",
   activities: "Logged",
   flaggedDays: "Worth remembering",
 };
