@@ -60,7 +60,6 @@ const TABLES_IN_DELETE_ORDER = [
   "task_completion",
   "task_unit",
   // Before `task`, which it references.
-  "planned_occurrence",
   // Before `goal`, which it references.
   "achievement",
   "calibration_suggestion",

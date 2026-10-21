@@ -17,6 +17,12 @@ interface AddFromOpenSheetProps {
   visible: boolean;
   /** "09:00–11:00". */
   windowLabel: string;
+  /** The sheet's title, when it isn't adding to a window. */
+  title?: string;
+  /** What a tap does, for VoiceOver. */
+  pickHint?: string;
+  /** What it says with nothing to offer. */
+  emptyNote?: string;
   tasks: readonly TodayTask[];
   hueFor: (t: TodayTask) => string;
   theme: ThemeTokens;
@@ -28,6 +34,9 @@ interface AddFromOpenSheetProps {
 export function AddFromOpenSheet({
   visible,
   windowLabel,
+  title,
+  pickHint = "Pins it to this window",
+  emptyNote = "Everything open is already here.",
   tasks,
   hueFor,
   theme,
@@ -40,12 +49,12 @@ export function AddFromOpenSheet({
       visible={visible}
       onClose={onClose}
       onDismissed={onDismissed}
-      title={`Add to ${windowLabel}`}
+      title={title ?? `Add to ${windowLabel}`}
       size="large"
       scroll
     >
       {tasks.length === 0 ? (
-        <AppText color={theme.muted}>Everything open is already here.</AppText>
+        <AppText color={theme.muted}>{emptyNote}</AppText>
       ) : (
         tasks.map((t) => (
           <Pressable
@@ -53,7 +62,7 @@ export function AddFromOpenSheet({
             onPress={() => onPick(t)}
             accessibilityRole="button"
             accessibilityLabel={t.title}
-            accessibilityHint="Pins it to this window"
+            accessibilityHint={pickHint}
             style={({ pressed }) => [styles.row, { opacity: pressed ? 0.5 : 1 }]}
           >
             <View style={[styles.dot, { backgroundColor: hueFor(t) }]} />

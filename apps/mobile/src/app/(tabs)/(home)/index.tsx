@@ -1,102 +1,115 @@
 /**
- * Today — the daily checklist, the app's home. A checklist and a
- * number: today's tasks, a grade that only climbs while you watch it,
- * and the day's life-log. Any past day can be opened from the strip;
- * "today" is just the selected day.
+ * Home: what should I do now? (spec §5.1). Today is a vertical scroll
+ * of its windows, with the events, named gaps and timed tasks between
+ * them, the window you're in open, and Other open tasks after. A past
+ * day shows its record: what was done, its notes and photos, and a way
+ * to add something you forgot.
+ *
+ * Suggestions are worked out each time and never saved
+ * (`loadDayPlan`); a swap or "Pull in another" only changes what's
+ * shown. Ticking is the one thing Home does to a task's day. **Nothing
+ * here ranks by points**, and nothing counts what wasn't done.
  *
  * Composition only. Data and the tap-to-tick loop are `useDayData`; the
- * arrangement of rows into sections is `arrangeDay` (daySections.ts);
- * the header, tail sections, activities and the move prompt are their
- * own components. What stays here is which sheet is open, and the
- * writes each one commits.
+ * day's arrangement is `HomeToday`; the words are `homeDay.ts`. What
+ * stays here is which sheet is open and the writes each one commits.
  */
-import { addDays, isEditable, specialDayBonus } from "@glide/scoring";
+import {
+  addDays,
+  dayMinute,
+  planDay,
+  specialDayBonus,
+  weekStart,
+  type OpenSort,
+  type TimeRange,
+} from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   useColorScheme,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
-import {
-  ANYTIME_LABEL,
-  PART_OF_DAY_LABEL,
-  type PartOfDay,
-} from "../../../components/plan/planning";
-import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
+import { addableTo, spanLabel } from "../../../components/plan/dayView";
+import { WindowTimesSheet } from "../../../components/plan/WindowTimesSheet";
+import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
 import { ActivitySheet, type ExistingActivity } from "../../../components/today/ActivitySheet";
+import { askClearToday, undoClear } from "../../../components/today/clearToday";
 import { CompletionTagSheet } from "../../../components/today/CompletionTagSheet";
-import { DayGrid } from "../../../components/today/DayGrid";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
-import {
-  arrangeDay,
-  isDone,
-  minuteOfToday,
-  type SectionKey,
-} from "../../../components/today/daySections";
-import { MoveTaskSheet } from "../../../components/today/MoveTaskSheet";
+import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
+import { HomeToday, windowId } from "../../../components/today/HomeToday";
+import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
 import { NoteSheet } from "../../../components/today/NoteSheet";
 import { PartialSheet } from "../../../components/today/PartialSheet";
 import { RecordActions } from "../../../components/today/RecordActions";
-import { SectionedChecklist } from "../../../components/today/SectionedChecklist";
-import { TailSection } from "../../../components/today/TailSection";
 import { TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { AppText } from "../../../components/ui/AppText";
-import { saveThen } from "../../../components/ui/ScreenLoad";
-import { UndoBar } from "../../../components/ui/UndoBar";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
+import { Group } from "../../../components/ui/Group";
+import { saveThen } from "../../../components/ui/ScreenLoad";
+import { UndoBar } from "../../../components/ui/UndoBar";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
 import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
 import { setDayKind } from "../../../db/dayGrades";
-import { askClearToday, undoClear } from "../../../components/today/clearToday";
-import { addSkip } from "../../../db/skips";
-import { skipProblem, type SkipInput } from "../../../db/windowRules";
+import { addDayEdit } from "../../../db/hours";
 import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
 import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
-import { clearPlacementForDay, placeTaskForDay } from "../../../db/placements";
-import { loadDayLayout, setDayLayout, type DayLayout } from "../../../db/settings";
-import { reorderDayTasks, setTaskPartOfDay } from "../../../db/tasks";
+import { pinForDay } from "../../../db/pins";
+import { getSetting, setSetting } from "../../../db/settings";
+import { addSkip } from "../../../db/skips";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
+import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
+import { skipProblem, type SkipInput } from "../../../db/windowRules";
 import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
+import { useRetained } from "../../../hooks/useRetained";
+import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { spokenDate } from "../../../lib/format";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
-import { useRetained } from "../../../hooks/useRetained";
-import { useUndoDelete } from "../../../hooks/useUndoDelete";
 
-/** Uniform, because `ReorderableList` positions rows from their index.
- *  Fits a title plus its factual caption with the row's own padding. */
-const CHECKLIST_ROW_HEIGHT = 56;
+const SORT_KEY = "open_tasks_sort";
+const SORTS: readonly OpenSort[] = ["suggested", "dueDate", "size", "priority", "points"];
 
-/** The header block above each part of the day, including the air
- *  that separates it from the slot above. Fixed, because the drag
- *  layout walks these to place every row. */
-const CHECKLIST_HEADER_HEIGHT = 48;
+/** The minute of the planning day, now, ticking once a minute. */
+function useNowMinute(): number {
+  const read = () => {
+    const d = new Date();
+    return dayMinute(d.getHours(), d.getMinutes());
+  };
+  const [now, setNow] = useState(read);
+  useEffect(() => {
+    const id = setInterval(() => setNow(read()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
 
 export default function TodayScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();
-  /** Dynamic Type, so the grid's hours grow with its labels. */
-  const { fontScale } = useWindowDimensions();
+  const nowMinute = useNowMinute();
 
   const {
     day: storedDay,
+    plan,
     weekGrade,
     monthGrades,
     viewMonth,
@@ -114,17 +127,48 @@ export default function TodayScreen() {
   const [kindSheet, setKindSheet] = useState(false);
   const [activitySheet, setActivitySheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
-  /** Set while the note sheet is rewriting an existing entry rather
-   *  than writing a new one. */
+  /** Set while the note sheet is rewriting an existing entry. */
   const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(null);
   const [editingActivity, setEditingActivity] = useState<TodayActivity | null>(null);
-  /** On iOS the nav bar is transparent, so Home's own header starts
-   *  below it. The web preview's bar takes its own space. */
+  const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
+  const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
+  const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
+  /** A task to move once the partial sheet has closed (its "Move it"). */
+  const moveNext = useRef<TodayTask | null>(null);
+  const [taggingTaskShown, taggingTaskGone] = useRetained(taggingTask);
+  const [movingTaskShown, movingTaskGone] = useRetained(movingTask);
+  const [partialTaskShown, partialTaskGone] = useRetained(partialTask);
+  /** A window being added to (Add from open) or timed (Edit times, or a
+   *  new window from the + menu), named by its times. */
+  const [windowSheet, setWindowSheet] = useState<
+    { kind: "add"; start: number } | { kind: "times"; range?: TimeRange } | null
+  >(null);
+  const [windowSheetShown, windowSheetGone] = useRetained(windowSheet);
+  const [opened, setOpened] = useState(0);
+  /** "Add something you did that day", on a past day. */
+  const [recording, setRecording] = useState(false);
+
+  // What's shown, not stored: swaps and pulls reset with the day.
+  const [declined, setDeclined] = useState<ReadonlyMap<number, ReadonlySet<string>>>(new Map());
+  const [pulledIn, setPulledIn] = useState<ReadonlyMap<number, number>>(new Map());
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [sort, setSort] = useState<OpenSort>("suggested");
+  const [passHidden, setPassHidden] = useState<string | null>(null);
+  const [shownDate, setShownDate] = useState<string | null>(null);
+  if (day && day.date !== shownDate) {
+    setShownDate(day.date);
+    setDeclined(new Map());
+    setPulledIn(new Map());
+    setExpanded({});
+    setOthersOpen(false);
+  }
+  const ahead = usePlannedAhead(day, othersOpen);
+
   const headerHeight = useHeaderHeight();
   const headerInset = Platform.OS === "ios" ? headerHeight : 0;
 
-  /** Plan's or Life's + menu asked to log something (`openAdd`): open
-   *  the sheet as the request arrives, then clear it. */
+  /** Another tab's + menu asked to log something (`openAdd`). */
   const { add: addParam } = useLocalSearchParams<{ add?: string }>();
   const [seenAddParam, setSeenAddParam] = useState(addParam);
   if (addParam !== seenAddParam) {
@@ -138,100 +182,74 @@ export default function TodayScreen() {
     if (addParam) router.setParams({ add: undefined });
   }, [addParam]);
 
-  /** + and Settings in the nav bar, in every state (ADR-0043 §1). */
-  const homeToolbar = (
-    <TabToolbar
-      onTask={() => openAdd("task")}
-      onEvent={() => openAdd("event")}
-      onLog={() => {
-        setEditingActivity(null);
-        setActivitySheet(true);
-      }}
-      settings
-    />
-  );
-  const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
-  /** The row whose slot is being changed (ADR-0024 phase 3). */
-  const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
-  /** The row whose part-credit sheet is open (ADR-0014 §4). */
-  const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
-  /** Checklist or hours. Presentation only — both hold the same day. */
-  const [dayLayout, setDayLayoutState] = useState<DayLayout>("checklist");
-  /** A task to move once the partial sheet has closed (its "Move it"). */
-  const moveNext = useRef<TodayTask | null>(null);
-  const [taggingTaskShown, taggingTaskGone] = useRetained(taggingTask);
-  const [movingTaskShown, movingTaskGone] = useRetained(movingTask);
-  const [partialTaskShown, partialTaskGone] = useRetained(partialTask);
-  /** A drag owns the finger; the page must hold still under it. */
-  const [draggingTask, setDraggingTask] = useState(false);
-  const [collapsed, setCollapsed] = useState<Partial<Record<SectionKey, boolean>>>({});
-  /** "Planned for other days" opens collapsed and loads its one-offs
-   *  only once opened; every other section opens expanded. */
-  const isCollapsed = (key: SectionKey) => collapsed[key] ?? key === "otherDays";
-  const ahead = usePlannedAhead(day, !isCollapsed("otherDays"));
-  /** null while unknown — the gate must not flash Today before it
-   *  resolves (ADR-0011 decision 1). Reads fail open. */
+  /** null while unknown, so the gate never flashes Today (ADR-0011). */
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
-
   useEffect(() => {
     void isOnboardingComplete().then(setOnboarded);
-    void loadDayLayout().then(setDayLayoutState);
+    void getSetting(SORT_KEY).then((s) => {
+      if (s && (SORTS as readonly string[]).includes(s)) setSort(s as OpenSort);
+    });
+    void passCardHiddenWeek().then(setPassHidden);
   }, []);
 
-  // The onboarding gate (ADR-0011). Hooks above run unconditionally;
-  // only the render is withheld. Splash covers the null case.
+  const isToday = day !== null && day.date === day.today;
+  /** Today's windows, filled live: the clock, swaps and pulls. */
+  const planned = useMemo(
+    () =>
+      plan && isToday
+        ? planDay({ ...plan.input, now: nowMinute, declined, pulledIn })
+        : null,
+    [plan, isToday, nowMinute, declined, pulledIn],
+  );
+
   if (onboarded === null) return null;
   if (!onboarded) return <Redirect href="/onboarding" />;
+
+  const logSomething = () => {
+    setEditingActivity(null);
+    setActivitySheet(true);
+  };
 
   if (day === null) {
     return (
       <View style={styles.root}>
-        {/* The nav bar's buttons show while the day loads, too. */}
-        {homeToolbar}
+        <TabToolbar onTask={() => openAdd("task")} onEvent={() => openAdd("event")} onLog={logSomething} settings />
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       </View>
     );
   }
 
-  const isToday = day.date === day.today;
-
+  const canRecord = day.date <= day.today;
+  const layout = reduceMotion ? undefined : LinearTransition.duration(200);
+  const dayLabel = isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? day.date);
+  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
   const askClear = () => void askClearToday(() => void refresh());
+  const liveWindows = plan?.hours.windows ?? [];
+  const windowEditable = isToday && day.away === null && !day.cleared;
 
-  /** Home's ⋯ until Phase 9 rebuilds it: Clear today on today, and
-   *  Day type. Away days have nothing to clear. */
-  const dayToolbar = (
+  const toolbar = (
     <TabToolbar
       onTask={() => openAdd("task")}
       onEvent={() => openAdd("event")}
-      onLog={() => {
-        setEditingActivity(null);
-        setActivitySheet(true);
-      }}
+      onWindow={
+        windowEditable
+          ? () => {
+              setOpened((n) => n + 1);
+              setWindowSheet({ kind: "times" });
+            }
+          : undefined
+      }
+      onLog={logSomething}
       settings
       more={[
         ...(isToday && day.away === null && !day.cleared
           ? [{ label: "Clear today", icon: "moon", onPress: askClear }]
           : []),
         { label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) },
+        { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
       ]}
     />
   );
-  /** Notes and photos stay addable past the edit window (ADR-0002:
-   *  grades finalize, memories don't) — only the future is off-limits. */
-  const canRecord = day.date <= day.today;
-  const layout = reduceMotion ? undefined : LinearTransition.duration(200);
-  const dayLabel = isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? day.date);
-  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
-
-  const {
-    openTasks,
-    shownPart,
-    byPlan,
-    arrangeable,
-    tailSections,
-    gridTasks,
-    showsGrid,
-  } = arrangeDay(day, ahead, isToday ? minuteOfToday() : null, dayLayout);
 
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
@@ -242,97 +260,10 @@ export default function TodayScreen() {
     }
   };
 
-  /**
-   * A row was dropped. **Reordered inside its slot** — persist the new
-   * order and say nothing; arrangement is a preference, not a plan.
-   * **Dragged into another slot** — a scheduling decision, so it asks
-   * whether this is how the task goes from now on, or just today.
-   */
-  const onDropTask = (rowId: string, toSectionKey: string, toIndex: number) => {
-    const moved = openTasks.find((t) => t.id === rowId);
-    if (!moved) return;
-    const toPart: PartOfDay | null =
-      toSectionKey === "anytime" ? null : (toSectionKey as PartOfDay);
-
-    // The slot's order after the drop, against where rows are *shown*: a
-    // morning task carried into the afternoon and reordered there is a
-    // reorder, not a move that needs its scope asked.
-    const ordered = openTasks
-      .filter((t) => t.id !== rowId && (shownPart(t) ?? "anytime") === toSectionKey)
-      .sort(byPlan)
-      .map((t) => t.id);
-    ordered.splice(Math.min(toIndex, ordered.length), 0, rowId);
-
-    if (shownPart(moved) === toPart) {
-      void reorderDayTasks(ordered).then(() => refresh());
-      return;
-    }
-    askDropScope({ task: moved, part: toPart, ordered });
-  };
-
-  /** The question a drag has nowhere to ask, in a native alert (ADR-0043
-   *  §1): is that where the task goes from now on, or just today? The
-   *  row is already where it was put, and Cancel returns it. */
-  const askDropScope = (d: Drop) => {
-    const where = d.part ? PART_OF_DAY_LABEL[d.part] : ANYTIME_LABEL.toLowerCase();
-    Alert.alert(d.task.title, `Moved to ${where}. Is that where it goes from now on?`, [
-      { text: "Just today", onPress: () => commitDrop(d, "today") },
-      { text: "From now on", onPress: () => commitDrop(d, "always") },
-      { text: "Cancel", style: "cancel", onPress: () => void refresh() },
-    ]);
-  };
-
-  /** Commit the drop's scope: a placement for today, or the task's own
-   *  part of day — clearing any placement that would override it. */
-  const commitDrop = (d: Drop, scope: "today" | "always") => {
-    void (async () => {
-      if (scope === "today") {
-        await placeTaskForDay(d.task.id, day.date, d.part);
-      } else {
-        await setTaskPartOfDay(d.task.id, d.part);
-        await clearPlacementForDay(d.task.id, day.date);
-      }
-      await reorderDayTasks(d.ordered);
-      await refresh();
-    })();
-  };
-
-  const openNoteEditor = (note: { id: string; body: string }) => {
-    setEditingNote(note);
-    setNoteSheet(true);
-  };
-
-  /** The day's record, and the way to add to it. */
-  const record = (
-    <>
-      <DayRecord
-        day={day}
-        theme={theme}
-        onEditNote={openNoteEditor}
-        onDeleteNote={(id) =>
-          undo.remove({ id, message: "Note deleted", run: () => deleteJournalEntry(id) })
-        }
-        onDeletePhoto={(id) =>
-          undo.remove({ id, message: "Photo deleted", run: () => deletePhoto(id) })
-        }
-      />
-      {canRecord ? (
-        <RecordActions
-          onAddNote={() => setNoteSheet(true)}
-          onAddPhoto={() => void pickPhoto()}
-          theme={theme}
-        />
-      ) : null}
-    </>
-  );
-
-  /**
-   * Skip an event (ADR-0040 §2; spec §4.4): this one, or its whole week
-   * if that week hasn't started (EC-25). Nothing counts what's skipped.
-   */
+  /** Skip an event: this one, or its week if that week hasn't started
+   *  (ADR-0040 §2, EC-25). Nothing counts what's skipped. */
   const askSkipEvent = (t: TodayTask) => {
-    const today = day.today;
-    const weekOk = skipProblem({ kind: "taskWeek", taskId: t.id, date: day.date }, today) === null;
+    const weekOk = skipProblem({ kind: "taskWeek", taskId: t.id, date: day.date }, day.today) === null;
     const skip = (input: SkipInput) =>
       void addSkip(input)
         .then(() => refresh())
@@ -348,15 +279,18 @@ export default function TodayScreen() {
     ]);
   };
 
-  /** A checklist row, with the gestures the day allows on it. */
-  const taskRow = (t: TodayTask, tail: boolean) => (
+  /** Today's windows a task could move to: those still to come. */
+  const movableTo = (t: TodayTask): TimeRange[] =>
+    (planned?.windows ?? [])
+      .filter((w) => !w.ended && !w.pinned.some((p) => p.taskId === t.id))
+      .map((w) => w.range);
+
+  /** A row, with the gestures the day allows on it. */
+  const taskRow = (t: TodayTask, extra: { reason?: string; onSwap?: () => void } = {}) => (
     <TaskRow
       task={t}
       hue={hueFor(t)}
-      disabled={
-        !day.editable ||
-        (tail && t.doneAheadOn !== null && !isEditable(t.doneAheadOn, day.today))
-      }
+      disabled={!day.editable}
       onToggle={() => void toggle(t)}
       onTag={
         t.completedToday && day.editable && day.communalUnits.length > 0
@@ -364,25 +298,87 @@ export default function TodayScreen() {
           : undefined
       }
       onPartial={
-        t.allowsPartial && day.editable && t.progress < 1 && (!tail || t.doneAheadOn === null)
+        t.allowsPartial && day.editable && t.progress < 1 && t.doneAheadOn === null
           ? () => setPartialTask(t)
           : undefined
       }
       onMove={
-        day.editable && !(tail ? isDone(t) : t.completedToday)
+        isToday && t.kind === "task" && !t.completedToday && movableTo(t).length > 0
           ? () => setMovingTask(t)
           : undefined
       }
       onSkip={
-        t.kind === "event" && !t.completedToday && !tail && day.date >= day.today
+        t.kind === "event" && !t.completedToday && day.date >= day.today
           ? () => askSkipEvent(t)
           : undefined
       }
+      reason={extra.reason}
+      onSwap={extra.onSwap}
+      trailing={isToday ? "size" : "points"}
       tagHues={theme.areas}
       theme={theme}
       reduceMotion={reduceMotion}
     />
   );
+
+  const removeWindow = (range: TimeRange) =>
+    undo.remove({
+      id: `win-${windowId(range)}`,
+      message: `Removed ${spanLabel(range)}`,
+      run: () => addDayEdit(day.date, { kind: "remove", range }),
+    });
+  const hiddenWindows = new Set(
+    [...undo.hidden].filter((id) => id.startsWith("win-")).map((id) => id.slice(4)),
+  );
+
+  const saveTimes = async (range: TimeRange): Promise<string | null> => {
+    const from = windowSheet?.kind === "times" ? windowSheet.range : undefined;
+    try {
+      await addDayEdit(day.date, from ? { kind: "change", from, to: range } : { kind: "add", range });
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    setWindowSheet(null);
+    void refresh();
+    return null;
+  };
+
+  const record = (
+    <>
+      <DayRecord
+        day={day}
+        theme={theme}
+        onEditNote={(note) => {
+          setEditingNote(note);
+          setNoteSheet(true);
+        }}
+        onDeleteNote={(id) =>
+          undo.remove({ id, message: "Note deleted", run: () => deleteJournalEntry(id) })
+        }
+        onDeletePhoto={(id) =>
+          undo.remove({ id, message: "Photo deleted", run: () => deletePhoto(id) })
+        }
+      />
+      {canRecord ? (
+        <RecordActions onAddNote={() => setNoteSheet(true)} onAddPhoto={() => void pickPhoto()} theme={theme} />
+      ) : null}
+    </>
+  );
+
+  const evening = isToday && nowMinute >= eveningFrom(liveWindows);
+  const showPassCard =
+    isToday &&
+    day.away === null &&
+    passCardDue({
+      today: day.today,
+      now: nowMinute,
+      mondayFirst: liveWindows[0]?.start ?? null,
+      hiddenWeek: passHidden,
+    });
+
+  const allTasks = [...day.due, ...day.week, ...day.doneThisWeek];
+  const doneOnDay = allTasks.filter((t) => t.completedToday);
+  const notDoneOnDay = allTasks.filter((t) => !t.completedToday && t.doneAheadOn === null);
 
   const existingForSheet: ExistingActivity | null = editingActivity
     ? {
@@ -394,12 +390,17 @@ export default function TodayScreen() {
       }
     : null;
 
+  const addIndex =
+    windowSheetShown?.kind === "add" && planned
+      ? planned.windows.findIndex((w) => w.range.start === windowSheetShown.start)
+      : -1;
+
   return (
     <View style={styles.root}>
-      {/* Fixed behind Home's content: its own header sits above its scroll
-          view until Phase 9, so there's no first-child path to keep. */}
+      {/* Fixed behind Home's content: its own header sits above the
+          scroll view. */}
       <Backdrop circles={constellation(theme.areas, { faint: true })} />
-      {dayToolbar}
+      {toolbar}
 
       <TodayHeader
         day={day}
@@ -411,12 +412,6 @@ export default function TodayScreen() {
         onChangeMonth={changeMonth}
         onSelect={select}
         onOpenKind={() => setKindSheet(true)}
-        showsGrid={showsGrid}
-        dayLayout={dayLayout}
-        onChangeLayout={(next) => {
-          setDayLayoutState(next);
-          void setDayLayout(next);
-        }}
         topInset={headerInset}
         layout={layout}
         reduceMotion={reduceMotion}
@@ -425,9 +420,6 @@ export default function TodayScreen() {
 
       <ScrollView
         style={styles.body}
-        scrollEnabled={!draggingTask}
-        // Keeps the last rows, and the guidelines line, clear of the
-        // native tab bar, which floats over content.
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
@@ -460,22 +452,15 @@ export default function TodayScreen() {
             <AppText variant="caption" color={theme.muted}>
               Today&apos;s cleared.
             </AppText>
-            <Button
-              variant="quiet"
-              label="Undo"
-              onPress={() => undoClear(() => void refresh())}
-              theme={theme}
-            />
+            <Button variant="quiet" label="Undo" onPress={() => undoClear(() => void refresh())} theme={theme} />
           </View>
         ) : null}
 
-        {/* A rest day (ADR-0037): automatic on a day that asks nothing,
-            never offered or chosen. Said once, plainly, as what the day
-            is — not as a reward or a warning. */}
+        {/* A rest day (ADR-0037): automatic, never offered or chosen. */}
         {day.restDay ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-            Nothing’s due — a rest day. It starts at 70; activities add up to 30, and anything you
-            do early counts on top.
+            Nothing’s due today — a rest day. It starts at 70; activities add up to 30, and anything
+            you do early counts on top.
           </AppText>
         ) : day.nothingDue && day.kind !== "rest" ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
@@ -484,37 +469,46 @@ export default function TodayScreen() {
           </AppText>
         ) : null}
 
-        {/* The day's record leads on past days, where the log is the
-            point; on today it follows the checklist, where doing is. */}
-        {!isToday ? record : null}
+        {showPassCard ? (
+          <Group theme={theme}>
+            <AppText variant="headline" color={theme.ink}>
+              Plan this week · about 5 min
+            </AppText>
+            <View style={styles.cardActions}>
+              <Button label="Start" onPress={() => router.push("/weekly-pass" as Href)} theme={theme} />
+              <Button
+                variant="quiet"
+                label="Not now"
+                onPress={() => {
+                  const week = weekStart(day.today);
+                  setPassHidden(week);
+                  void hidePassCard(week);
+                }}
+                theme={theme}
+              />
+            </View>
+          </Group>
+        ) : null}
 
         {!day.hasSnapshot ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.centerText}>
-              Your day starts with a plan. Sort what matters into tiers first, and the checklist
-              builds itself.
+              Your day starts with a plan. Sort what matters into tiers first, and the day builds
+              itself.
             </AppText>
-            <Button
-              label="Set your priorities"
-              onPress={() => router.push("/priorities" as Href)}
-              theme={theme}
-            />
+            <Button label="Set your priorities" onPress={() => router.push("/priorities" as Href)} theme={theme} />
           </View>
-        ) : !day.hasTasks ? (
+        ) : !day.hasTasks && isToday ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.centerText}>
               Your daily budget is set. Now give it something to do.
             </AppText>
-            <Button
-              label="Plan your tasks"
-              onPress={() => router.navigate("/goals" as Href)}
-              theme={theme}
-            />
+            <Button label="Plan your tasks" onPress={() => router.navigate("/goals" as Href)} theme={theme} />
           </View>
         ) : (
           <>
-            {/* A special day keeps its checklist (ADR-0023 §3): the rating
-                tops the day up, it doesn't stand in for the work. */}
+            {/* A special day keeps its work (ADR-0023 §3): the rating tops
+                the day up, it doesn't stand in for it. */}
             {day.kind === "special" ? (
               <View style={styles.special}>
                 <AppText variant="title" color={theme.ink}>
@@ -522,9 +516,7 @@ export default function TodayScreen() {
                 </AppText>
                 <AppText variant="caption" color={theme.muted}>
                   {day.satisfactionRating !== null
-                    ? `Rated ${day.satisfactionRating} of 10 · worth ${specialDayBonus(
-                        day.satisfactionRating,
-                      )} points`
+                    ? `Rated ${day.satisfactionRating} of 10 · worth ${specialDayBonus(day.satisfactionRating)} points`
                     : "When it's over, rate how it was."}
                 </AppText>
                 {day.editable ? (
@@ -538,74 +530,62 @@ export default function TodayScreen() {
               </View>
             ) : null}
 
-            {/* The four parts of the day are one drag surface: reorder
-                inside a slot, or drag a task into another slot. Empty
-                periods are drop targets too — "do this in the afternoon"
-                matters most when the afternoon is empty. */}
-            {dayLayout === "grid" ? (
-              <DayGrid
-                tasks={gridTasks}
-                hueFor={hueFor}
-                theme={theme}
-                fontScale={fontScale}
-                // A line for where you are, only on the day you are in.
-                nowMinute={isToday ? minuteOfToday() : null}
-                onPress={(t) => void toggle(t)}
-              />
-            ) : arrangeable.length > 0 ? (
-              <SectionedChecklist
-                sections={arrangeable.map((s) => ({ key: s.key, rowIds: s.tasks.map((t) => t.id) }))}
-                rowHeight={CHECKLIST_ROW_HEIGHT}
-                headerHeights={arrangeable.map(() => CHECKLIST_HEADER_HEIGHT)}
-                onDragStateChange={setDraggingTask}
-                onMove={onDropTask}
-                theme={theme}
-                renderHeader={(key) => {
-                  const s = arrangeable.find((x) => x.key === key);
-                  if (!s) return null;
-                  const empty = s.tasks.length === 0;
-                  return (
-                    <View style={styles.dragHeader}>
-                      <View
-                        style={styles.sectionHeader}
-                        accessible={empty}
-                        accessibilityLabel={empty ? `${s.label}, ${s.emptyNote}` : undefined}
-                      >
-                        <AppText variant="caption" color={theme.muted}>
-                          {s.label}
-                        </AppText>
-                        <AppText variant="caption" color={theme.muted} tabular={!empty}>
-                          {empty ? s.emptyNote : `${s.pts} pts`}
-                        </AppText>
-                      </View>
-                    </View>
-                  );
+            {isToday && plan && planned ? (
+              <HomeToday
+                plan={plan}
+                planned={planned}
+                now={nowMinute}
+                hidden={hiddenWindows}
+                expanded={expanded}
+                onToggleWindow={(id, open) => setExpanded((e) => ({ ...e, [id]: open }))}
+                ahead={ahead}
+                othersOpen={othersOpen}
+                onToggleOthers={() => setOthersOpen((v) => !v)}
+                sort={sort}
+                onSort={(next) => {
+                  setSort(next);
+                  void setSetting(SORT_KEY, next);
                 }}
-                renderRow={(rowId) => {
-                  const t = openTasks.find((x) => x.id === rowId);
-                  return t ? taskRow(t, false) : null;
-                }}
-              />
-            ) : null}
-
-            {tailSections.map((s) => (
-              <TailSection
-                key={s.key}
-                section={s}
-                collapsed={isCollapsed(s.key)}
-                onToggleCollapsed={() =>
-                  setCollapsed((prev) => ({ ...prev, [s.key]: !isCollapsed(s.key) }))
+                renderRow={taskRow}
+                editable={windowEditable}
+                onSwap={(start, taskId) =>
+                  setDeclined((d) => new Map(d).set(start, new Set([...(d.get(start) ?? []), taskId])))
                 }
-                countOnly={ahead === null}
-                renderRow={(t) => taskRow(t, true)}
-                layout={layout}
+                onPullIn={(start) => setPulledIn((p) => new Map(p).set(start, (p.get(start) ?? 0) + 1))}
+                onAddFromOpen={(start) => {
+                  setOpened((n) => n + 1);
+                  setWindowSheet({ kind: "add", start });
+                }}
+                onEditTimes={(range) => {
+                  setOpened((n) => n + 1);
+                  setWindowSheet({ kind: "times", range });
+                }}
+                onRemove={removeWindow}
                 theme={theme}
               />
-            ))}
+            ) : !isToday ? (
+              // A past day's record: only what was done (spec §5.2). It
+              // never lists what wasn't, events included (ADR-0038).
+              <View style={styles.past}>
+                <AppText variant="caption" color={theme.muted}>
+                  Done
+                </AppText>
+                {doneOnDay.length === 0 ? (
+                  <AppText color={theme.muted}>Nothing ticked on this day.</AppText>
+                ) : (
+                  doneOnDay.map((t) => <View key={t.id}>{taskRow(t)}</View>)
+                )}
+                {day.editable && notDoneOnDay.length > 0 ? (
+                  <Pressable onPress={() => setRecording(true)} accessibilityRole="button" style={styles.link}>
+                    <AppText color={theme.accent}>＋ Add something you did that day</AppText>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </>
         )}
 
-        {day.hasSnapshot && day.hasTasks ? (
+        {day.hasSnapshot ? (
           <ActivitiesBand
             activities={day.activities}
             dayKind={day.kind}
@@ -614,22 +594,29 @@ export default function TodayScreen() {
               setEditingActivity(a);
               setActivitySheet(true);
             }}
-            onAdd={() => {
-              setEditingActivity(null);
-              setActivitySheet(true);
-            }}
+            onAdd={logSomething}
             layout={layout}
             theme={theme}
           />
         ) : null}
 
-        {isToday ? record : null}
+        {/* The evening card (spec §5.1): an hour before the last window
+            ends, or at 6 pm. Earlier in the day the record sits plainly
+            at the end. */}
+        {evening ? (
+          <Group theme={theme} title="How was today?">
+            {record}
+            <Pressable onPress={() => setKindSheet(true)} accessibilityRole="button" style={styles.link}>
+              <AppText variant="caption" color={theme.accent}>
+                Day type ›
+              </AppText>
+            </Pressable>
+          </Group>
+        ) : (
+          record
+        )}
 
-        {/* Takes up whatever's left so the footer sits at the bottom on a
-            short day instead of floating mid-screen above blank canvas. */}
         <View style={styles.spacer} />
-
-        {/* The line that has to stay next to the number. */}
         <View style={[styles.footer, { borderTopColor: theme.hairline }]}>
           <AppText variant="footnote" color={theme.muted}>
             Grades are guidelines, not judgments.
@@ -639,7 +626,79 @@ export default function TodayScreen() {
 
       <UndoBar undo={undo} theme={theme} />
 
-      {/* One sheet, both jobs: blank to add, seeded to rewrite. */}
+      {windowSheetShown?.kind === "times" ? (
+        <WindowTimesSheet
+          key={`times-${opened}`}
+          visible={windowSheet?.kind === "times"}
+          onDismissed={windowSheetGone}
+          initial={windowSheetShown.range}
+          dayLabel="today"
+          theme={theme}
+          onClose={() => setWindowSheet(null)}
+          onSave={saveTimes}
+        />
+      ) : null}
+
+      {windowSheetShown?.kind === "add" && planned && addIndex >= 0 && plan ? (
+        <AddFromOpenSheet
+          key={`add-${opened}`}
+          visible={windowSheet?.kind === "add"}
+          onDismissed={windowSheetGone}
+          windowLabel={spanLabel(planned.windows[addIndex]!.range)}
+          tasks={addableTo(addIndex, planned)
+            .map((id) => plan.tasks.get(id))
+            .filter((t): t is TodayTask => t !== undefined)}
+          hueFor={hueFor}
+          theme={theme}
+          onClose={() => setWindowSheet(null)}
+          onPick={(t) => {
+            const start = windowSheetShown.start;
+            setWindowSheet(null);
+            void saveThen(
+              () =>
+                pinForDay(t.id, day.date, start, "window", {
+                  extra: t.band === "doneThisWeek" && !t.commitment,
+                }),
+              () => refresh(),
+            );
+          }}
+        />
+      ) : null}
+
+      {/* A past day: tick what you forgot (spec §5.2). */}
+      <AddFromOpenSheet
+        visible={recording}
+        onDismissed={() => undefined}
+        windowLabel=""
+        title="Add something you did"
+        pickHint="Ticks it on this day"
+        emptyNote="Everything on this day is ticked."
+        tasks={notDoneOnDay}
+        hueFor={hueFor}
+        theme={theme}
+        onClose={() => setRecording(false)}
+        onPick={(t) => {
+          setRecording(false);
+          void toggle(t);
+        }}
+      />
+
+      {movingTaskShown ? (
+        <MoveToWindowSheet
+          visible={movingTask !== null}
+          onDismissed={movingTaskGone}
+          taskTitle={movingTaskShown.title}
+          windows={movableTo(movingTaskShown)}
+          theme={theme}
+          onClose={() => setMovingTask(null)}
+          onPick={(w) => {
+            const t = movingTaskShown;
+            setMovingTask(null);
+            void saveThen(() => pinForDay(t.id, day.date, w.start, "window"), () => refresh());
+          }}
+        />
+      ) : null}
+
       <NoteSheet
         visible={noteSheet}
         dayLabel={dayLabel}
@@ -650,9 +709,7 @@ export default function TodayScreen() {
           setEditingNote(null);
         }}
         onCommit={(body) => {
-          const write = editingNote
-            ? updateJournalEntry(editingNote.id, body)
-            : addJournalEntry(day.date, body);
+          const write = editingNote ? updateJournalEntry(editingNote.id, body) : addJournalEntry(day.date, body);
           void write.then(() => refresh());
         }}
       />
@@ -673,61 +730,22 @@ export default function TodayScreen() {
             const t = partialTaskShown;
             setPartialTask(null);
             void Haptics.selectionAsync();
-            void setCompletionFraction(t.id, day.date, fraction).then((scored) => refresh(scored));
+            void setCompletionFraction(t.id, day.date, fraction).then(() => refresh());
           }}
           onClear={() => {
             const t = partialTaskShown;
             setPartialTask(null);
-            void toggleCompletion(t.id, day.date).then((scored) => refresh(scored));
+            void toggleCompletion(t.id, day.date).then(() => refresh());
           }}
-          // The gesture's older job, kept reachable (ADR-0024 §3).
           onMove={
-            partialTaskShown.completedToday
+            partialTaskShown.completedToday || !isToday || movableTo(partialTaskShown).length === 0
               ? undefined
               : () => {
-                  // Opened once this sheet has finished closing: iOS
-                  // drops a sheet presented while another is closing.
+                  // Opened once this sheet has closed: iOS drops a sheet
+                  // presented while another is closing.
                   moveNext.current = partialTaskShown;
                   setPartialTask(null);
                 }
-          }
-        />
-      ) : null}
-
-      {movingTaskShown ? (
-        <MoveTaskSheet
-          visible={movingTask !== null}
-          onDismissed={movingTaskGone}
-          taskTitle={movingTaskShown.title}
-          current={movingTaskShown.partOfDay}
-          placedToday={movingTaskShown.placedToday}
-          dayLabel={isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? "that day")}
-          accent={hueFor(movingTaskShown)}
-          theme={theme}
-          onClose={() => setMovingTask(null)}
-          onPick={(part, scope) => {
-            const t = movingTaskShown;
-            setMovingTask(null);
-            void (async () => {
-              if (scope === "always") {
-                // Changing the task itself; any placement for this day
-                // would otherwise keep overriding it.
-                await setTaskPartOfDay(t.id, part);
-                await clearPlacementForDay(t.id, day.date);
-              } else {
-                await placeTaskForDay(t.id, day.date, part);
-              }
-              await refresh();
-            })();
-          }}
-          onClearPlacement={
-            movingTaskShown.placedToday
-              ? () => {
-                  const t = movingTaskShown;
-                  setMovingTask(null);
-                  void clearPlacementForDay(t.id, day.date).then(() => refresh());
-                }
-              : undefined
           }
         />
       ) : null}
@@ -784,24 +802,13 @@ export default function TodayScreen() {
             ? () => {
                 const { id } = existingForSheet;
                 const { date } = day;
-                undo.remove({
-                  id,
-                  message: "Activity deleted",
-                  run: () => deleteActivity(id, date),
-                });
+                undo.remove({ id, message: "Activity deleted", run: () => deleteActivity(id, date) });
               }
             : undefined
         }
       />
     </View>
   );
-}
-
-/** A cross-slot drop awaiting its scope answer. */
-interface Drop {
-  task: TodayTask;
-  part: PartOfDay | null;
-  ordered: string[];
 }
 
 /** The day without the notes, photos and activities whose delete is
@@ -820,31 +827,21 @@ const styles = StyleSheet.create({
   clearedRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
   root: { flex: 1, overflow: "hidden" },
   loading: { marginTop: space.xxxl },
-  /** Takes the space between the fixed header and the tab bar. */
   body: { flex: 1 },
   container: {
     paddingHorizontal: space.screen,
     paddingTop: space.sm,
     paddingBottom: space.xl,
     flexGrow: 1,
+    gap: space.md,
   },
   spacer: { flexGrow: 1, minHeight: space.xl },
   stateNote: { marginTop: space.md },
   empty: { gap: space.lg, marginTop: space.xxl },
   centerText: { textAlign: "center" },
-  special: { gap: space.sm, marginTop: space.xl },
-  /** The header sits at the bottom of its block, so the air above it
-   *  separates it from the slot before rather than from its own rows. */
-  dragHeader: { height: CHECKLIST_HEADER_HEIGHT, justifyContent: "flex-end" },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    minHeight: 32,
-  },
-  footer: {
-    paddingTop: space.lg,
-    gap: space.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
+  special: { gap: space.sm, marginTop: space.md },
+  past: { gap: space.xs },
+  link: { minHeight: 44, justifyContent: "center" },
+  cardActions: { flexDirection: "row", gap: space.sm, marginTop: space.sm },
+  footer: { paddingTop: space.lg, gap: space.md, borderTopWidth: StyleSheet.hairlineWidth },
 });

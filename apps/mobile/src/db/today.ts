@@ -3,7 +3,7 @@
  * row is worth today, and its score. A read path — `loadDay` feeds the
  * pure engine in @glide/scoring rows from the database and returns what
  * the day screens render. Writes live beside it: completions.ts,
- * activities.ts, journal.ts, photos.ts, placements.ts, and the stored
+ * activities.ts, journal.ts, photos.ts, pins.ts, and the stored
  * grade in dayGrades.ts.
  */
 import {
@@ -66,7 +66,6 @@ import { pruneEndedPinsToday } from "./pins";
 import { loadSchedule } from "./schedule";
 import { loadAwayRanges } from "./skips";
 import { awayDatesBetween, withSchedule } from "./windowRules";
-import { loadPlacements } from "./placements";
 import {
   activity,
   activityTag,
@@ -100,14 +99,9 @@ export interface TodayTask {
   oneOffSize: "quick" | "normal" | "big" | null;
   /** Its deadline, if it has one. Shown as context, never as a penalty. */
   oneOffDue: string | null;
-  /** Where the row actually sits today: a placement for this date
-   *  if one exists (ADR-0024 phase 3), otherwise the task's own. */
+  /** Its preferred part of the day, which ranks it toward a window in
+   *  that part (windows-and-pins §3.1). */
   partOfDay: "morning" | "afternoon" | "evening" | null;
-  /** True when the slot above came from a placement rather than
-   *  from the task — so the row can say it is only for today. */
-  placedToday: boolean;
-  /** Checklist order within its part of the day; null sorts last. */
-  dayOrder: number | null;
   band: TaskBand;
   completedToday: boolean;
   doneCount: number;
@@ -480,7 +474,6 @@ export async function loadDay(
 
   // Completions across the fortnight containing `date` cover both the
   // weekly and fortnightly counting windows.
-  const placements = await loadPlacements(date);
 
   const windowStart = fortnightStart(date);
   const completions = tasks.length
@@ -897,15 +890,9 @@ export async function loadDay(
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,
       fortnightOffset: t.fortnightOffset,
-      // `has`, not `get() ?? default`: a placement holding null is a
-      // deliberate Anytime for today, not a missing one.
       oneOffSize: t.oneOffSize,
       oneOffDue: t.oneOffDue,
-      partOfDay: placements.has(t.id)
-        ? (placements.get(t.id) ?? null)
-        : t.partOfDay,
-      placedToday: placements.has(t.id),
-      dayOrder: t.dayOrder,
+      partOfDay: t.partOfDay,
       band: sRest.band,
       completedToday: sRest.completedToday,
       doneCount: sRest.doneCount,
