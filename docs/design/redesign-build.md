@@ -84,11 +84,24 @@ helpers, `placements.ts`, `reorderDayTasks`, `setTaskPartOfDay` and
 `planned_occurrence` (migration 0026). `task.day_order` stays, unread.
 
 Left for 9b: swiping between days, a future day on Home, the Today
-button, the score's ring and breakdown and Settings → Home → Show
-score, and the ☆ flag on the evening card (there's no day flag writer
-yet). The web preview can't reach Home (onboarding needs Priorities,
+button, the score's breakdown, and the ☆ flag on the evening card
+(there's no day flag writer yet). The web preview can't reach Home (onboarding needs Priorities,
 which saves on the phone only), so 9a is checked by tests and reviews
 until the phone walk.
+
+Built in 9b: swiping between days on Home and a Today button (spec
+§5.2); a future day, up to four weeks ahead, shown in place as Plan's
+day view (`PlanDayView`, now shared with the Plan tab); the week strip
+and Plan ahead off Home (the date still opens the month); and tapping
+the day's number for how it adds up (`ScoreSheet`).
+
+**The score is just the number** (Henry, 2026-10-21): no ring, and no
+Settings → Home → Show score. Spec §5.1 had both; tapping the number
+for the breakdown stays. The spec should say so.
+
+Still open after 9b: the ☆ flag on the evening card, which needs a
+writer for `day_grade.flagged`; and a phone walk of Phases 8 and 9,
+since Home can't be reached in the web preview.
 
 ## Phase 8: Plan
 
