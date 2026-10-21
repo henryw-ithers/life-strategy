@@ -23,7 +23,7 @@
  * chip into view: it sits fourteen chips along often enough that the
  * default view showed nothing selected and read as unset.
  */
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { wash, type ThemeTokens } from "../../theme/colors";
@@ -78,7 +78,16 @@ export function UnitPicker({
    * tap can't be taken back. The rule it enforced still holds; it's
    * enforced where it belongs, on the button that commits.
    */
-  const toggle = (id: string) => onChange(selectUnit(value, id, units, max));
+  /** The Not now unit last tapped, to say why it can't be picked. */
+  const [notNowTapped, setNotNowTapped] = useState<string | null>(null);
+  const toggle = (id: string) => {
+    if (units.find((u) => u.id === id)?.notNow === true) {
+      setNotNowTapped(id);
+      return;
+    }
+    setNotNowTapped(null);
+    onChange(selectUnit(value, id, units, max));
+  };
 
   const atMax = value.length >= max;
   /** Listed under a commitment: everything else picked is a note. */
@@ -128,7 +137,9 @@ export function UnitPicker({
           const index = value.indexOf(u.id);
           const selected = index >= 0;
           const hue = areaColors[u.areaId] ?? theme.accent;
-          const blocked = !canPick(value, u.id, units, max);
+          const notNow = u.notNow === true;
+          // A Not now chip stays tappable, to say why it can't be picked.
+          const blocked = !notNow && !canPick(value, u.id, units, max);
           return (
             <Pressable
               key={u.id}
@@ -136,10 +147,12 @@ export function UnitPicker({
               onPress={() => toggle(u.id)}
               disabled={blocked}
               hitSlop={{ top: 6, bottom: 6 }}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected, disabled: blocked }}
+              accessibilityRole={notNow ? "button" : "checkbox"}
+              accessibilityState={notNow ? { disabled: true } : { checked: selected, disabled: blocked }}
               accessibilityLabel={
-                selected && index === 0
+                notNow
+                  ? `${u.name}, Not now. Move it up to add tasks`
+                  : selected && index === 0
                   ? `${u.name}, listed under this ${u.commitment ? "commitment" : "unit"}`
                   : selected && homeIsCommitment
                     ? `${u.name}, noted only`
@@ -156,7 +169,7 @@ export function UnitPicker({
                   backgroundColor: selected ? wash(hue, theme) : theme.surface,
                   borderColor: selected ? hue : theme.hairline,
                   borderWidth: selected ? 1 : StyleSheet.hairlineWidth,
-                  opacity: blocked ? 0.35 : pressed ? 0.7 : 1,
+                  opacity: blocked || notNow ? 0.35 : pressed ? 0.7 : 1,
                 },
               ]}
             >
@@ -173,6 +186,11 @@ export function UnitPicker({
           );
         })}
       </ScrollView>
+      {notNowTapped ? (
+        <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
+          {nameOf(units, notNowTapped)} is in Not now. Move it up in Priorities to add tasks.
+        </AppText>
+      ) : null}
       {atMax ? (
         <AppText variant="footnote" color={theme.muted}>
           Up to {max} units — past that, it isn’t really one task.

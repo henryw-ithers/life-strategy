@@ -12,7 +12,7 @@
  * What is stopping a save is said in words under the button rather
  * than left as a greyed button that explains nothing.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { eventProblem, type EventInput } from "../../db/events";
@@ -34,6 +34,8 @@ import { Segmented } from "./Segmented";
 import { UnitPicker } from "./UnitPicker";
 import type { PickableUnit } from "./UnitPicker";
 import { WeekdayPicker } from "./WeekdayPicker";
+import { eventsDefaultOnce } from "../../db/settings";
+import { recordProblem } from "../../lib/problemLog";
 
 export interface EventSheetValue {
   title: string;
@@ -97,7 +99,23 @@ export function EventSheet({
   onDelete,
 }: EventSheetProps) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [repeat, setRepeat] = useState<Repeat>(initial?.oneOffDate ? "once" : "weekly");
+  const [repeat, setRepeatState] = useState<Repeat>(initial?.oneOffDate ? "once" : "weekly");
+  /** Once you've chosen, a stored default arriving late can't undo it. */
+  const repeatChosen = useRef(initial !== undefined);
+  const setRepeat = (next: Repeat) => {
+    repeatChosen.current = true;
+    setRepeatState(next);
+  };
+  // A new event starts one-time for shift work (ADR-0040 §6).
+  useEffect(() => {
+    if (initial !== undefined) return;
+    void eventsDefaultOnce()
+      .then((once) => {
+        if (once && !repeatChosen.current) setRepeatState("once");
+      })
+      // Read failing only means the sheet opens weekly; it's logged.
+      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+  }, [initial]);
   const [days, setDays] = useState<Weekday[]>(parseWeekdays(initial?.plannedWeekdays));
   const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);

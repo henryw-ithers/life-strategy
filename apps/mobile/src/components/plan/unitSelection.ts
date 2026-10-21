@@ -17,6 +17,7 @@
  * `membershipsFor`): it records the task touches that part of your
  * life, and earns nothing there.
  */
+import { suggestTags } from "../../content/tagKeywords";
 import type { PlanData } from "../../db/tasks";
 
 export interface PickableUnit {
@@ -28,6 +29,9 @@ export interface PickableUnit {
   motivationKind?: "instrumental" | "communal";
   /** A commitment or one of its parts (ADR-0035). */
   commitment?: boolean;
+  /** In the Not now tier (ADR-0041): shown greyed, never picked. A Not
+   *  now unit holds no tasks (spec §5.4.1). */
+  notNow?: boolean;
 }
 
 /** The selection after tapping `tapped`. `value[0]` is the home unit. */
@@ -38,6 +42,7 @@ export function selectUnit(
   max: number,
 ): string[] {
   if (value.includes(tapped)) return value.filter((v) => v !== tapped);
+  if (units.find((u) => u.id === tapped)?.notNow === true) return [...value];
   const isCommitment = (id: string) =>
     units.find((u) => u.id === id)?.commitment === true;
 
@@ -59,7 +64,9 @@ export function canPick(
   units: readonly PickableUnit[],
   max: number,
 ): boolean {
-  if (value.includes(id) || value.length < max) return true;
+  if (value.includes(id)) return true;
+  if (units.find((u) => u.id === id)?.notNow === true) return false;
+  if (value.length < max) return true;
   // Full, but a commitment can still swap for the one already there.
   const isCommitment = (x: string) =>
     units.find((u) => u.id === x)?.commitment === true;
@@ -114,7 +121,33 @@ export function pickableUnits(plan: PlanData | null): PickableUnit[] {
         motivationKind: u.motivationKind,
       })),
   );
-  return [...commitments, ...life];
+  // Not now units come last and greyed: seen, so you know where they
+  // went, but they hold no tasks until moved up (spec §5.4.1).
+  const notNow = plan.areas.flatMap((a) =>
+    a.units
+      .filter((u) => u.tier === "notNow")
+      .map((u) => ({ id: u.id, name: u.name, areaId: u.areaId, notNow: true })),
+  );
+  return [...commitments, ...life, ...notNow];
+}
+
+/**
+ * The unit a new task's title points to (spec §5.7), worked out on the
+ * device, or null for "Choose a unit". A commitment or one of its parts
+ * named in the title comes first ("COMP2521 lab"); then the strongest
+ * keyword match among the units you can pick. Never a Not now unit.
+ */
+export function guessUnit(title: string, units: readonly PickableUnit[]): string | null {
+  const t = title.trim().toLowerCase();
+  if (t.length < 3) return null;
+  const named = units
+    .filter((u) => u.commitment === true && u.name.trim().length >= 3)
+    .filter((u) => t.includes(u.name.trim().toLowerCase()))
+    // The longest name is the most specific: "COMP2521" over "School".
+    .sort((a, b) => b.name.length - a.name.length)[0];
+  if (named) return named.id;
+  const pickable = new Set(units.filter((u) => u.notNow !== true).map((u) => u.id));
+  return suggestTags(t).find((id) => pickable.has(id)) ?? null;
 }
 
 /** The hue commitments are drawn in everywhere else in the app. */

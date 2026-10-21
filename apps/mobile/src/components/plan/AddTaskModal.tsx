@@ -78,7 +78,7 @@ import {
 import { SchedulePicker, type OneOffState } from "./SchedulePicker";
 import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
-import { needsDays } from "./unitSelection";
+import { guessUnit, needsDays } from "./unitSelection";
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -136,6 +136,21 @@ export function AddTaskModal({
   const [unitIds, setUnitIds] = useState<string[]>(
     homeUnitId ? [homeUnitId] : [],
   );
+  /** The unit follows the title until you pick one yourself, or the
+   *  sheet opened from a unit (spec §5.7). */
+  const [unitChosen, setUnitChosen] = useState(homeUnitId !== undefined);
+  const guessed = !unitChosen && unitIds.length > 0;
+  const changeTitle = (next: string) => {
+    setTitle(next);
+    if (!unitChosen) {
+      const guess = guessUnit(next, units);
+      setUnitIds(guess ? [guess] : []);
+    }
+  };
+  const chooseUnits = (next: string[]) => {
+    setUnitChosen(true);
+    setUnitIds(next);
+  };
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [partOfDay, setPartOfDay] = useState<PartOfDay | null>(null);
   /** Repeats by default: most of a plan recurs, and a one-off is the
@@ -168,6 +183,7 @@ export function AddTaskModal({
     setTitle("");
     setTimesPerWeek(7);
     setUnitIds(homeUnitId ? [homeUnitId] : []);
+    setUnitChosen(homeUnitId !== undefined);
     setWeekdays([]);
     setPartOfDay(null);
     setOnce(lockedOneOffDate !== undefined);
@@ -228,7 +244,7 @@ export function AddTaskModal({
         <TextField
           theme={theme}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={changeTitle}
           placeholder="e.g. 30 minutes of movement"
           maxLength={TASK_TITLE_MAX}
           // Return dismisses the keyboard (TextField's default); it
@@ -252,10 +268,15 @@ export function AddTaskModal({
       <UnitPicker
         units={units}
         value={unitIds}
-        onChange={setUnitIds}
+        onChange={chooseUnits}
         theme={theme}
         areaColors={areaColors}
       />
+      {guessed ? (
+        <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
+          Suggested from the title. Tap another to change it.
+        </AppText>
+      ) : null}
 
       <SchedulePicker
         once={once}
