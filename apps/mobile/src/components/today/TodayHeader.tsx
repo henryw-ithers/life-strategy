@@ -3,22 +3,19 @@
  * number, and its navigation — the one part of Home you always need in
  * view, so it stays put and the checklist scrolls beneath it.
  */
-import { addDays, weekStart, type PeriodGrade } from "@glide/scoring";
-import { router, type Href } from "expo-router";
+import { weekStart, type PeriodGrade } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { type LinearTransition } from "react-native-reanimated";
 
 import type { MonthDay } from "../../db/dayGrades";
 import type { DayData } from "../../db/today";
-import { editWindowDays } from "../../lib/calendar";
 import { spokenDate } from "../../lib/format";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { Chevron, Disclosure } from "../ui/Chevron";
+import { Disclosure } from "../ui/Chevron";
 import { DayNumber } from "./DayNumber";
 import { MonthGrid } from "./MonthGrid";
-import { WeekStrip } from "./WeekStrip";
 
 export function TodayHeader({
   day,
@@ -30,6 +27,7 @@ export function TodayHeader({
   onChangeMonth,
   onSelect,
   onOpenKind,
+  onOpenScore,
   topInset,
   layout,
   reduceMotion,
@@ -44,6 +42,8 @@ export function TodayHeader({
   onChangeMonth: (month: string) => void;
   onSelect: (date: string) => void;
   onOpenKind: () => void;
+  /** Tapping the number: how the day adds up. */
+  onOpenScore: () => void;
   topInset: number;
   layout: LinearTransition | undefined;
   reduceMotion: boolean;
@@ -83,13 +83,20 @@ export function TodayHeader({
               Day off
             </AppText>
           ) : (
-            <DayNumber
-              key={day.date}
-              base={day.score.base}
-              dormant={dormant && day.kind === "normal"}
-              theme={theme}
-              reduceMotion={reduceMotion}
-            />
+            <Pressable
+              onPress={onOpenScore}
+              disabled={day.score.base === null || (dormant && day.kind === "normal")}
+              accessibilityRole="button"
+              accessibilityHint="Shows how the day adds up"
+            >
+              <DayNumber
+                key={day.date}
+                base={day.score.base}
+                dormant={dormant && day.kind === "normal"}
+                theme={theme}
+                reduceMotion={reduceMotion}
+              />
+            </Pressable>
           )}
           {day.editable ? (
             <Pressable
@@ -135,40 +142,8 @@ export function TodayHeader({
             theme={theme}
           />
         </Animated.View>
-      ) : (
-        <Animated.View layout={layout} style={styles.strip}>
-          <WeekStrip
-            days={editWindowDays(day.today)}
-            grades={monthGrades}
-            selected={day.date}
-            today={day.today}
-            onSelect={onSelect}
-            theme={theme}
-          />
-        </Animated.View>
-      )}
-
-      {/* The planner's discoverable way in (ADR-0024 §4). Tapping a
-          future day in the strip opens the same screen, but that is a
-          gesture you have to already know about. It sits beside the
-          days because it is about *which day*; right-aligned and quiet,
-          so it never competes with the grade. */}
-      {day.hasTasks ? (
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => router.navigate(`/plan?date=${addDays(day.today, 1)}` as Href)}
-            accessibilityRole="button"
-            accessibilityLabel="Plan ahead"
-            hitSlop={8}
-            style={({ pressed }) => [styles.planAhead, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <AppText variant="footnote" color={theme.accent}>
-              Plan ahead
-            </AppText>
-            <Chevron color={theme.accent} theme={theme} size={13} />
-          </Pressable>
-        </View>
       ) : null}
+
     </View>
   );
 }
