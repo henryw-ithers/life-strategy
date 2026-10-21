@@ -11,13 +11,20 @@ const week = [
 ];
 
 describe("shareRowText", () => {
-  it("says the automatic share at its largest this week", () => {
-    expect(automaticText(week)).toBe("about 44% on Wednesdays");
-    expect(shareRowText(week, null)).toBe("auto (about 44% on Wednesdays)");
+  it("says a typical day's automatic share", () => {
+    expect(automaticText(week)).toBe("about 20% on Mondays");
+    const three = [...week, { date: "2026-10-23", automatic: 30 }];
+    expect(automaticText(three)).toBe("about 30% on Fridays");
+    expect(shareRowText(three, null)).toBe("auto (about 30% on Fridays)");
+  });
+
+  it("never says more than the share is held to", () => {
+    // A Saturday game with no working hours is the whole day, held at 70.
+    expect(automaticText([{ date: "2026-10-24", automatic: 100 }], 70)).toBe("about 70% on Saturdays");
   });
 
   it("shows a share you set with the automatic one beside it", () => {
-    expect(shareRowText(week, 60)).toBe("60% · auto about 44% on Wednesdays");
+    expect(shareRowText(week, 60)).toBe("60% · auto about 20% on Mondays");
   });
 
   it("says when the week ahead has no work for it", () => {
