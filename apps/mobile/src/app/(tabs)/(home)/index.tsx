@@ -264,7 +264,9 @@ export default function TodayScreen() {
   const swipe = Gesture.Pan()
     .activeOffsetX([-30, 30])
     .failOffsetY([-15, 15])
-    .onEnd((e) => {
+    .onEnd((e, success) => {
+      // A drag interrupted by an alert or a system gesture moves nothing.
+      if (!success) return;
       if (e.translationX < -60) runOnJS(step)(1);
       else if (e.translationX > 60) runOnJS(step)(-1);
     });
@@ -471,6 +473,7 @@ export default function TodayScreen() {
         onSelect={select}
         onOpenKind={() => setKindSheet(true)}
         onOpenScore={() => setScoreSheet(true)}
+        onStep={step}
         topInset={headerInset}
         layout={layout}
         reduceMotion={reduceMotion}
@@ -635,6 +638,8 @@ export default function TodayScreen() {
               />
             ) : isFuture && plan ? (
               <PlanDayView
+                // Its sheets belong to the day: a new day starts clean.
+                key={plan.day.date}
                 ref={futureView}
                 day={plan}
                 today={day.today}
@@ -851,15 +856,14 @@ export default function TodayScreen() {
         />
       ) : null}
 
-      {day.score.base !== null ? (
-        <ScoreSheet
-          visible={scoreSheet}
-          score={day.score}
-          restDay={day.restDay}
-          theme={theme}
-          onClose={() => setScoreSheet(false)}
-        />
-      ) : null}
+      <ScoreSheet
+        visible={scoreSheet && day.score.base !== null}
+        score={day.score}
+        restDay={day.restDay}
+        dayLabel={dayLabel}
+        theme={theme}
+        onClose={() => setScoreSheet(false)}
+      />
 
       <DayKindSheet
         visible={kindSheet}

@@ -28,6 +28,7 @@ export function TodayHeader({
   onSelect,
   onOpenKind,
   onOpenScore,
+  onStep,
   topInset,
   layout,
   reduceMotion,
@@ -44,6 +45,8 @@ export function TodayHeader({
   onOpenKind: () => void;
   /** Tapping the number: how the day adds up. */
   onOpenScore: () => void;
+  /** The day before or after: VoiceOver's way to swipe. */
+  onStep: (days: number) => void;
   topInset: number;
   layout: LinearTransition | undefined;
   reduceMotion: boolean;
@@ -64,6 +67,14 @@ export function TodayHeader({
           onPress={onToggleMonth}
           accessibilityRole="button"
           accessibilityLabel={`${spokenDate(day.date)}. ${monthOpen ? "Hide" : "Show"} the month`}
+          accessibilityActions={[
+            { name: "decrement", label: "Previous day" },
+            { name: "increment", label: "Next day" },
+          ]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "increment") onStep(1);
+            if (e.nativeEvent.actionName === "decrement") onStep(-1);
+          }}
           style={styles.headerText}
         >
           <AppText variant="display" color={theme.ink}>
@@ -87,7 +98,9 @@ export function TodayHeader({
               onPress={onOpenScore}
               disabled={day.score.base === null || (dormant && day.kind === "normal")}
               accessibilityRole="button"
+              accessibilityLabel={day.score.base !== null ? `Day grade ${day.score.base} percent` : undefined}
               accessibilityHint="Shows how the day adds up"
+              hitSlop={8}
             >
               <DayNumber
                 key={day.date}

@@ -17,16 +17,18 @@ interface ScoreSheetProps {
   score: DayScore;
   /** A rest day starts at 70 (ADR-0037). */
   restDay: boolean;
+  /** "today" or a weekday, for the title. */
+  dayLabel: string;
   theme: ThemeTokens;
   onClose: () => void;
 }
 
-export function ScoreSheet({ visible, score, restDay, theme, onClose }: ScoreSheetProps) {
+export function ScoreSheet({ visible, score, restDay, dayLabel, theme, onClose }: ScoreSheetProps) {
   const plan = Math.max(0, Math.round(score.earned - score.unplanned));
   const logged = Math.round(score.unplanned);
   const forgone = Math.round(score.unplannedForgone);
   return (
-    <NativeSheet visible={visible} onClose={onClose} dismiss="done" title="How today adds up">
+    <NativeSheet visible={visible} onClose={onClose} dismiss="done" title={`How ${dayLabel} adds up`}>
       <View style={styles.rows}>
         <Line label={restDay ? "A rest day, and what you did early" : "Your plan"} value={plan} theme={theme} />
         <Line label="Things you logged" value={logged} theme={theme} />

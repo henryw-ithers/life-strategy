@@ -129,7 +129,8 @@ export function useDayData() {
 
   /** Swipe: the day before or after the one shown. */
   const step = (days: number) => {
-    if (day) select(addDays(day.date, days));
+    // From the day chosen, not the day loaded: two quick swipes move two.
+    select(addDays(selected ?? currentLocalDate(), days));
   };
 
   return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, step, changeMonth, toggle };
