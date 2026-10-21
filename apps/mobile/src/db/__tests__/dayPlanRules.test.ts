@@ -47,8 +47,6 @@ function task(over: Partial<TodayTask> = {}): TodayTask {
     oneOffSize: null,
     oneOffDue: null,
     partOfDay: null,
-    placedToday: false,
-    dayOrder: null,
     band: "week",
     completedToday: false,
     doneCount: 0,

@@ -606,37 +606,6 @@ export const taskCompletionTag = sqliteTable(
   (t) => [primaryKey({ columns: [t.completionId, t.unitId] })],
 );
 
-/**
- * A run of a flexible task placed on a specific date (ADR-0024 §1,
- * phase 3) — typically during the weekly planning pass.
- *
- * Placements are **intentions, not obligations**: completions fulfill
- * them when the dates match, and an unfulfilled placement simply
- * lapses. It is not surfaced, not counted, and never mentioned again.
- * No adherence statistic is computed from this table — ADR-0024 §2
- * makes that an invariant, and this is the table that would tempt
- * someone to break it.
- *
- * **To be retired in Phase 9**, when Home's windows replace the
- * part-of-day sections. A placement can say "Anytime, just today",
- * which has no window to pin to, so rows are copied to
- * `window_placement` and this table retired (not dropped) only when the
- * screens that write it go.
- */
-export const plannedOccurrence = sqliteTable("planned_occurrence", {
-  id: text("id").primaryKey(),
-  taskId: text("task_id")
-    .notNull()
-    .references(() => task.id),
-  localDate: text("local_date").notNull(),
-  partOfDay: text("part_of_day", {
-    enum: ["morning", "afternoon", "evening"],
-  }),
-  /** Archived rather than deleted when its task archives (ADR-0024). */
-  archivedAt: text("archived_at"),
-  ...timestamps,
-});
-
 // ── Days, grades, and the life log (ADR-0004) ──────────────────────
 
 // ── Working hours and windows (ADR-0039) ────────────────────────────

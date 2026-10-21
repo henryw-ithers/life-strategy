@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-20, during Phase 8.
+Last updated 2026-10-21, during Phase 9.
 
 ## Phases
 
@@ -33,8 +33,8 @@ Last updated 2026-10-20, during Phase 8.
 | 5c | Goal kinds stored; old goals erased; goal screens hidden until Phase 10 | Merged, PR #19 |
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | Merged, PR #20 |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | Merged, PR #21 |
-| **8** | **Plan: week strip and day view, hours editor, weekly pass, the New task form** | **In progress** |
-| 9 | Home: windows, swiping between days, the one list, evening card, quiet score | |
+| 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | Merged, PRs #22–#25 |
+| **9** | **Home: windows, swiping between days, the one list, evening card, quiet score** | **In progress** |
 | 10 | Life: commitments, goals (templates), units, the Priorities link | |
 | 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | |
 | 12 | Hardening: test coverage, a device walk of every edge case, a code review | |
@@ -57,6 +57,38 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 9: Home
+
+Two PRs: **9a** Home's today on windows, and **9b** other days (swipe
+between days, a future day as Plan's compact day view, the Today
+button) with the quiet score.
+
+Built in 9a (`HomeToday`, `HomeWindow`, `homeDay.ts`,
+`MoveToWindowSheet`): today's windows in time order with events, named
+gaps and timed tasks between them; the open window with its time left;
+closed windows as done or task counts; tick, swap (shown, not saved),
+Move to… another window; Show all, Add from open, Next up, That's this
+window and Pull in another; Other open tasks in three groups, and the
+one list with a remembered sort once no window is left; the weekly pass
+card (Sunday 6 pm to Monday's first window, Not now for the week); the
+evening card; Window in the + menu; Clear today, Day type and Plan this
+week in the ⋯ menu. On today a row shows its size, not its points. A
+past day shows only what was done, and "Add something you did that
+day".
+
+Removed in 9a: the List/Hours toggle and its setting, DayGrid and
+`dayGridLayout`, `SectionedChecklist` and `checklistLayout`,
+`TailSection`, `MoveTaskSheet`, `arrangeDay`, the part-of-day carry
+helpers, `placements.ts`, `reorderDayTasks`, `setTaskPartOfDay` and
+`planned_occurrence` (migration 0026). `task.day_order` stays, unread.
+
+Left for 9b: swiping between days, a future day on Home, the Today
+button, the score's ring and breakdown and Settings → Home → Show
+score, and the ☆ flag on the evening card (there's no day flag writer
+yet). The web preview can't reach Home (onboarding needs Priorities,
+which saves on the phone only), so 9a is checked by tests and reviews
+until the phone walk.
 
 ## Phase 8: Plan
 

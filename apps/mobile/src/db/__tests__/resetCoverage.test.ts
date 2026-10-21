@@ -99,7 +99,7 @@ describe("children are deleted before their parents", () => {
       child: "task_completion_tag",
       parent: "task_completion",
     });
-    expect(deps).toContainEqual({ child: "planned_occurrence", parent: "task" });
+    expect(deps).toContainEqual({ child: "window_placement", parent: "task" });
   });
 
   it("orders every child ahead of every table it references", () => {

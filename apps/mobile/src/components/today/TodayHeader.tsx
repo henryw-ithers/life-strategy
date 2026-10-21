@@ -9,24 +9,16 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { type LinearTransition } from "react-native-reanimated";
 
 import type { MonthDay } from "../../db/dayGrades";
-import type { DayLayout } from "../../db/settings";
 import type { DayData } from "../../db/today";
 import { editWindowDays } from "../../lib/calendar";
 import { spokenDate } from "../../lib/format";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
-import { Segmented } from "../plan/Segmented";
 import { AppText } from "../ui/AppText";
 import { Chevron, Disclosure } from "../ui/Chevron";
 import { DayNumber } from "./DayNumber";
 import { MonthGrid } from "./MonthGrid";
 import { WeekStrip } from "./WeekStrip";
-
-/** Two words, because the difference is the whole point. */
-const LAYOUTS = [
-  { value: "checklist" as const, label: "List" },
-  { value: "grid" as const, label: "Hours" },
-];
 
 export function TodayHeader({
   day,
@@ -38,9 +30,6 @@ export function TodayHeader({
   onChangeMonth,
   onSelect,
   onOpenKind,
-  showsGrid,
-  dayLayout,
-  onChangeLayout,
   topInset,
   layout,
   reduceMotion,
@@ -55,9 +44,6 @@ export function TodayHeader({
   onChangeMonth: (month: string) => void;
   onSelect: (date: string) => void;
   onOpenKind: () => void;
-  showsGrid: boolean;
-  dayLayout: DayLayout;
-  onChangeLayout: (layout: DayLayout) => void;
   topInset: number;
   layout: LinearTransition | undefined;
   reduceMotion: boolean;
@@ -169,20 +155,6 @@ export function TodayHeader({
           so it never competes with the grade. */}
       {day.hasTasks ? (
         <View style={styles.headerActions}>
-          {/* Only once the day has an hour to show, or once you are
-              already in the grid and need the way back. */}
-          {showsGrid ? (
-            <View style={styles.layoutToggle}>
-              <Segmented
-                segments={LAYOUTS}
-                value={dayLayout}
-                onChange={onChangeLayout}
-                accent={theme.accent}
-                theme={theme}
-                label="How to show the day"
-              />
-            </View>
-          ) : null}
           <Pressable
             onPress={() => router.navigate(`/plan?date=${addDays(day.today, 1)}` as Href)}
             accessibilityRole="button"
@@ -230,7 +202,6 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   /** Bounded so two words do not stretch to half the screen. */
-  layoutToggle: { flex: 1, maxWidth: 180 },
   /** Right-aligned under the strip's last day, so it reads as "and
    *  beyond this". */
   planAhead: {

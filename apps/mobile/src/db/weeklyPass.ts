@@ -234,3 +234,15 @@ export async function tiersCheckDue(today: string): Promise<boolean> {
 export async function markTiersOffered(today: string): Promise<void> {
   await setSetting(TIERS_KEY, monthOf(today));
 }
+
+const PASS_HIDDEN_KEY = "weekly_pass_card_hidden_week";
+
+/** The week Home's pass card was put away in (Not now), by its Sunday. */
+export async function passCardHiddenWeek(): Promise<string | null> {
+  return getSetting(PASS_HIDDEN_KEY);
+}
+
+/** Not now: Home stops offering the pass until next week (P15). */
+export async function hidePassCard(weekSunday: string): Promise<void> {
+  await setSetting(PASS_HIDDEN_KEY, weekSunday);
+}

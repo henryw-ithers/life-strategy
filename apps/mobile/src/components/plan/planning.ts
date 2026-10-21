@@ -1,6 +1,6 @@
 /**
  * Weekday pins and part of day (ADR-0024 §1) — the planner's pure half:
- * labels, display order and day ordering.
+ * labels and display order.
  *
  * Which days a task is *scheduled* on is a scoring rule, not a planner
  * one, so it lives in `@glide/scoring` (`schedule.ts`) and is
@@ -9,14 +9,7 @@
  * handled here.
  */
 
-import {
-  isDueOn,
-  isoWeekday,
-  PART_OF_DAY_BOUNDS,
-  parseWeekdays,
-  ROLLOVER_HOUR,
-  type Weekday,
-} from "@glide/scoring";
+import type { Weekday } from "@glide/scoring";
 
 import { MIN_TIMES_PER_WEEK } from "./frequency";
 
@@ -67,32 +60,6 @@ export const PART_OF_DAY_LABEL: Record<PartOfDay, string> = {
 /** What an unpinned part of day is called. Null is a first-class
  *  value, not a missing one — most of a plan is deliberately flexible. */
 export const ANYTIME_LABEL = "Anytime";
-
-/** A part of the day with nothing planned in it. */
-export const FREE_LABEL = "Free";
-
-/** A part of the day whose tasks have all been ticked off. */
-export const ALL_DONE_LABEL = "All done";
-
-/**
- * What one of the three parts of the day reads when it holds no open
- * tasks (ADR-0024 §3 as amended 2026-08-17).
- *
- * Two states, and the only thing separating them is what happened: a
- * period with nothing planned was never claimed, and reads **Free**; a
- * period you have worked through reads **All done**. Saying "Free" for
- * both would report a morning you spent as a morning you skipped.
- *
- * Both are facts about what is left, and neither conditions on a
- * shortfall — there is deliberately no state for a period you have not
- * got to yet, which simply keeps its rows (ADR-0008).
- *
- * Not used for *Anytime*, which is not a time of day: an empty one is
- * nothing to report rather than free time, so it hides instead.
- */
-export function emptyPeriodNote(anyCompletedHere: boolean): string {
-  return anyCompletedHere ? ALL_DONE_LABEL : FREE_LABEL;
-}
 
 /** `[3, 1, 5]` → `"1,3,5"`. Empty means flexible, which stores as null. */
 export function formatWeekdays(days: readonly Weekday[]): string | null {
@@ -148,87 +115,6 @@ export function formatWeekdaySummary(days: readonly Weekday[]): string | null {
     .join(", ");
 }
 
-/** Is this task planned for the given date? Dates are 'YYYY-MM-DD'. */
-export function isPinnedOn(days: readonly Weekday[], localDate: string): boolean {
-  if (days.length === 0) return false;
-  return days.includes(isoWeekday(localDate));
-}
-
-/** The fields any surface needs to sort a day's rows. */
-export interface DayOrderable {
-  plannedWeekdays: string | null;
-  timesPerWeek: number;
-  fortnightOffset?: number;
-  dayOrder?: number | null;
-  /** A one-off's planned day, when it has one. */
-  oneOffDate?: string | null;
-}
-
-/**
- * A task pinned to days that are not this one (ADR-0024 §1).
- *
- * These must not sit in the day's periods. They used to, sorted last,
- * which padded a Tuesday morning with Monday's plan and stopped the
- * day describing the day — the same reason they get their own section
- * on the checklist and on the planner. They stay visible and worth
- * full points: doing Friday's run on Tuesday is still a perfect week.
- *
- * Flexible tasks are never "elsewhere" — an unpinned task belongs to
- * whichever day you give it.
- *
- * **A one-off planned for a later day is elsewhere too** (2026-09-30).
- * Commitment work can now be done ahead of its day and paid for it
- * (ADR-0032 §4), so a Friday assignment has to be somewhere you can
- * tick it on Tuesday — beside Friday's pinned lecture, not among
- * Tuesday's own work. A one-off dated today or earlier is outstanding
- * and belongs to today.
- */
-export function pinnedElsewhere(
-  task: DayOrderable,
-  localDate: string,
-): boolean {
-  if (task.oneOffDate != null) return task.oneOffDate > localDate;
-  return (
-    parseWeekdays(task.plannedWeekdays).length > 0 && !isDueOn(task, localDate)
-  );
-}
-
-/**
- * Where a task sits against the day's plan: due here, flexible, or
- * pinned elsewhere. Only a tiebreak — `compareForDay` reads it after
- * the user's own arrangement.
- */
-export function planRank(task: DayOrderable, localDate: string): number {
-  if (isDueOn(task, localDate)) return 0;
-  if (parseWeekdays(task.plannedWeekdays).length === 0) return 1;
-  return 2;
-}
-
-/**
- * Your own order first, the plan's second.
- *
- * `dayOrder` is what dragging writes — persistent, so yesterday's
- * arrangement follows you into today (ADR-0024 §3 as amended, on
- * Henry's call: *"if I put sunlight and supplements at the start of my
- * tasks I want it to stay there"*). Rows never dragged have none and
- * sort after the ones that have, falling back to the plan ordering, so
- * a first drag lifts one row to the top without scrambling the rest.
- *
- * Shared by the checklist and the planner because a day arranged one
- * way on Home and another way in the planner is the same day
- * disagreeing with itself.
- */
-export function compareForDay(
-  a: DayOrderable,
-  b: DayOrderable,
-  localDate: string,
-): number {
-  const ao = a.dayOrder ?? Number.MAX_SAFE_INTEGER;
-  const bo = b.dayOrder ?? Number.MAX_SAFE_INTEGER;
-  if (ao !== bo) return ao - bo;
-  return planRank(a, localDate) - planRank(b, localDate);
-}
-
 /**
  * Shown where a task is being **filed** under a communal unit — the add
  * dialog and the edit sheet (ADR-0027 §4). Not a gate: the unit takes
@@ -243,46 +129,3 @@ export function compareForDay(
  */
 export const COMMUNAL_TASK_NOTE =
   "Scores like anywhere else — and you can press and hold any completion to also count it here.";
-
-// ── Carry-forward (ADR-0033 §2) ─────────────────────────────────────
-
-/**
- * Which part of the day it is, from minutes past midnight.
- *
- * Before the 3am rollover it is still the previous day's evening —
- * the day has not turned over, and its last window is the one open.
- */
-export function partNow(minuteOfDay: number): PartOfDay {
-  if (minuteOfDay < ROLLOVER_HOUR * 60) return "evening";
-  if (minuteOfDay < PART_OF_DAY_BOUNDS.afternoon.start) return "morning";
-  if (minuteOfDay < PART_OF_DAY_BOUNDS.evening.start) return "afternoon";
-  return "evening";
-}
-
-/**
- * Where unfinished work in `part` shows, once `now` has passed it.
- *
- * **Unfinished work carries forward to the next window, always**
- * (ADR-0033 §2; Henry, 2026-10-01). A morning task not done by noon is
- * afternoon work now, and sits there rather than in a morning that has
- * gone. A display rule, never a write: the task keeps its own part of
- * day, so tomorrow it is morning work again, and nothing records that
- * the morning was missed.
- *
- * `now` is null on any day but today, where nothing has ended yet or
- * everything has. *Anytime* has no window to leave.
- */
-export function carriedPart(
-  part: PartOfDay | null,
-  now: PartOfDay | null,
-): PartOfDay | null {
-  if (part === null || now === null) return part;
-  return PART_OF_DAY_ORDER.indexOf(part) < PART_OF_DAY_ORDER.indexOf(now)
-    ? now
-    : part;
-}
-
-/** Whether a part of the day is already over, seen from `now`. */
-export function isPast(part: PartOfDay, now: PartOfDay | null): boolean {
-  return now !== null && PART_OF_DAY_ORDER.indexOf(part) < PART_OF_DAY_ORDER.indexOf(now);
-}

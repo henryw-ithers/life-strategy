@@ -8,20 +8,12 @@ import { describe, expect, it } from "vitest";
 import { MIN_TIMES_PER_WEEK } from "../frequency";
 
 import {
-  compareForDay,
-  emptyPeriodNote,
   formatWeekdays,
   formatWeekdaySummary,
   frequencyForWeekdays,
   isoWeekday,
-  isPinnedOn,
   parseWeekdays,
   PART_OF_DAY_ORDER,
-  carriedPart,
-  isPast,
-  partNow,
-  pinnedElsewhere,
-  planRank,
   sortForDisplay,
   WEEKDAY_ORDER,
   type Weekday,
@@ -113,25 +105,6 @@ describe("isoWeekday", () => {
   });
 });
 
-describe("isPinnedOn", () => {
-  const monWedFri: Weekday[] = [1, 3, 5];
-
-  it("matches a pinned weekday", () => {
-    expect(isPinnedOn(monWedFri, "2026-08-17")).toBe(true); // Monday
-    expect(isPinnedOn(monWedFri, "2026-08-19")).toBe(true); // Wednesday
-  });
-
-  it("does not match an unpinned weekday", () => {
-    expect(isPinnedOn(monWedFri, "2026-08-16")).toBe(false); // Sunday
-  });
-
-  it("is never true for a flexible task", () => {
-    // Flexible means "any N days" — it is not pinned to today, and it
-    // is not pinned away from today either.
-    expect(isPinnedOn([], "2026-08-17")).toBe(false);
-  });
-});
-
 describe("display ordering", () => {
   it("orders Sunday-first, matching WeekStrip and weekStart", () => {
     expect(WEEKDAY_ORDER).toEqual([7, 1, 2, 3, 4, 5, 6]);
@@ -154,16 +127,6 @@ describe("the day's shape", () => {
     // The checklist renders all three every day, in this order, so
     // this array is the day's spine rather than a lookup table.
     expect(PART_OF_DAY_ORDER).toEqual(["morning", "afternoon", "evening"]);
-  });
-
-  it("reads a period with nothing planned in it as free", () => {
-    expect(emptyPeriodNote(false)).toBe("Free");
-  });
-
-  it("reads a period you worked through as done, not free", () => {
-    // Saying "Free" for both would report a morning you spent as a
-    // morning you skipped.
-    expect(emptyPeriodNote(true)).toBe("All done");
   });
 });
 
@@ -193,132 +156,3 @@ describe("frequencyForWeekdays and the fortnight", () => {
   });
 });
 
-describe("pinnedElsewhere", () => {
-  // 2026-08-21 is a Friday (ISO 5); 2026-08-24 is a Monday (ISO 1).
-  const FRIDAY = "2026-08-21";
-  const MONDAY = "2026-08-24";
-  const mondayOnly = { plannedWeekdays: "1", timesPerWeek: 1 };
-  const flexible = { plannedWeekdays: null, timesPerWeek: 3 };
-
-  it("keeps a Monday task out of Friday's periods", () => {
-    // The bug this exists to stop: a task pinned to Monday rendered in
-    // Friday's Afternoon slot, indistinguishable from something
-    // actually due Friday, so the day stopped describing the day.
-    expect(pinnedElsewhere(mondayOnly, FRIDAY)).toBe(true);
-  });
-
-  it("lets a Monday task into Monday", () => {
-    expect(pinnedElsewhere(mondayOnly, MONDAY)).toBe(false);
-  });
-
-  it("never treats a flexible task as elsewhere", () => {
-    // Unpinned is not a lesser state: it belongs to whichever day you
-    // give it, so it is never exiled to the other-days section.
-    expect(pinnedElsewhere(flexible, FRIDAY)).toBe(false);
-    expect(pinnedElsewhere(flexible, MONDAY)).toBe(false);
-  });
-});
-
-describe("compareForDay", () => {
-  const FRIDAY = "2026-08-21";
-  const dueHere = { plannedWeekdays: "5", timesPerWeek: 1 };
-  const flexible = { plannedWeekdays: null, timesPerWeek: 3 };
-  const elsewhere = { plannedWeekdays: "1", timesPerWeek: 1 };
-
-  it("ranks due-here before flexible before elsewhere", () => {
-    expect(planRank(dueHere, FRIDAY)).toBe(0);
-    expect(planRank(flexible, FRIDAY)).toBe(1);
-    expect(planRank(elsewhere, FRIDAY)).toBe(2);
-  });
-
-  it("puts the user's own arrangement ahead of the plan's", () => {
-    // An elsewhere task dragged to the top outranks a due-today task
-    // that has never been touched — the whole point of dayOrder.
-    const dragged = { ...elsewhere, dayOrder: 1 };
-    const untouched = { ...dueHere, dayOrder: null };
-    expect(compareForDay(dragged, untouched, FRIDAY)).toBeLessThan(0);
-  });
-
-  it("sorts dragged rows above rows never dragged", () => {
-    const dragged = { ...flexible, dayOrder: 4 };
-    const untouched = { ...flexible, dayOrder: null };
-    expect(compareForDay(dragged, untouched, FRIDAY)).toBeLessThan(0);
-    expect(compareForDay(untouched, dragged, FRIDAY)).toBeGreaterThan(0);
-  });
-
-  it("falls back to the plan when neither row has been dragged", () => {
-    // So a first drag lifts one row without scrambling everything else.
-    expect(compareForDay(flexible, elsewhere, FRIDAY)).toBeLessThan(0);
-    expect(compareForDay(dueHere, flexible, FRIDAY)).toBeLessThan(0);
-  });
-
-  it("is a total order over a mixed day", () => {
-    const rows = [
-      { id: "elsewhere", ...elsewhere },
-      { id: "flexible", ...flexible },
-      { id: "dueHere", ...dueHere },
-      { id: "pinnedTop", ...elsewhere, dayOrder: 1 },
-    ];
-    const sorted = [...rows].sort((a, b) => compareForDay(a, b, FRIDAY));
-    expect(sorted.map((r) => r.id)).toEqual([
-      "pinnedTop",
-      "dueHere",
-      "flexible",
-      "elsewhere",
-    ]);
-  });
-});
-
-describe("pinnedElsewhere — one-offs", () => {
-  const oneOff = (oneOffDate: string | null) => ({
-    plannedWeekdays: null,
-    timesPerWeek: 1,
-    oneOffDate,
-  });
-
-  it("puts a one-off planned for later with the other days' work", () => {
-    expect(pinnedElsewhere(oneOff("2026-10-02"), "2026-09-29")).toBe(true);
-  });
-
-  it("keeps a one-off due today, overdue, or undated on today", () => {
-    expect(pinnedElsewhere(oneOff("2026-09-29"), "2026-09-29")).toBe(false);
-    expect(pinnedElsewhere(oneOff("2026-09-20"), "2026-09-29")).toBe(false);
-    expect(pinnedElsewhere(oneOff(null), "2026-09-29")).toBe(false);
-  });
-});
-
-describe("carry-forward (ADR-0033 §2)", () => {
-  it("knows which part of the day it is", () => {
-    expect(partNow(9 * 60)).toBe("morning");
-    expect(partNow(12 * 60)).toBe("afternoon");
-    expect(partNow(16 * 60 + 59)).toBe("afternoon");
-    expect(partNow(17 * 60)).toBe("evening");
-  });
-
-  it("treats after midnight, before the 3am rollover, as still the evening", () => {
-    expect(partNow(60)).toBe("evening");
-    expect(partNow(3 * 60)).toBe("morning");
-  });
-
-  it("moves unfinished work out of a window that has ended", () => {
-    expect(carriedPart("morning", "afternoon")).toBe("afternoon");
-    expect(carriedPart("morning", "evening")).toBe("evening");
-    expect(carriedPart("afternoon", "evening")).toBe("evening");
-  });
-
-  it("leaves work in the current or a later window where it is", () => {
-    expect(carriedPart("afternoon", "afternoon")).toBe("afternoon");
-    expect(carriedPart("evening", "morning")).toBe("evening");
-  });
-
-  it("never moves Anytime, and never moves anything on another day", () => {
-    expect(carriedPart(null, "evening")).toBeNull();
-    expect(carriedPart("morning", null)).toBe("morning");
-  });
-
-  it("knows which windows are over", () => {
-    expect(isPast("morning", "afternoon")).toBe(true);
-    expect(isPast("afternoon", "afternoon")).toBe(false);
-    expect(isPast("morning", null)).toBe(false);
-  });
-});

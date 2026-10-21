@@ -21,6 +21,7 @@ import {
   type DayEdit,
   type DayHours,
   type HoursVersion,
+  type PlanDayInput,
   type PlannedDay,
   type TimeRange,
 } from "@glide/scoring";
@@ -99,6 +100,9 @@ export interface DayPlan {
   readonly freeMinutes: number;
   /** The minute it is now, on today; null on any other day. */
   readonly now: number | null;
+  /** What `planned` was filled from, so a screen can fill it again with
+   *  a swap or a "Pull in another" without reading the rows again. */
+  readonly input: PlanDayInput;
 }
 
 // ── Reading the rows ────────────────────────────────────────────────
@@ -347,7 +351,8 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
     oneOffs: new Set(all.filter((t) => t.oneOffSize !== null).map((t) => t.id)),
   });
 
-  const planned = planDay({ windows: hours.windows, now, open, pins, done });
+  const input: PlanDayInput = { windows: hours.windows, now, open, pins, done };
+  const planned = planDay(input);
 
   return {
     day,
@@ -368,6 +373,7 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
     choices,
     freeMinutes: totalMinutes(hours.windows),
     now: date === today ? now : null,
+    input,
   };
 }
 

@@ -14,6 +14,7 @@ import { isDone } from "../components/today/daySections";
 import { setCompletionFraction, toggleCompletion } from "../db/completions";
 import { loadCalendarGrades, type MonthDay } from "../db/dayGrades";
 import { loadWeekGrade } from "../db/grades";
+import { loadDayPlan, type DayPlan } from "../db/dayPlan";
 import { loadDay, loadPlannedAhead, type DayData, type TodayTask } from "../db/today";
 import { currentLocalDate, isPlannable } from "../lib/calendar";
 import { syncDailyNudge } from "../notifications/dailyNudge";
@@ -23,6 +24,12 @@ export function useDayData() {
    *  a date = the user navigated to another day. */
   const [selected, setSelected] = useState<string | null>(null);
   const [day, setDay] = useState<DayData | null>(null);
+  /** Today's windows and what fills them (`loadDayPlan`); null on any
+   *  other day, which shows its record instead. */
+  const [plan, setPlan] = useState<DayPlan | null>(null);
+  /** Only the latest load lands: a tick's reload can't be overwritten
+   *  by an older one still in flight. */
+  const loadTurn = useRef(0);
   const [weekGrade, setWeekGrade] = useState<PeriodGrade | null>(null);
   const [monthGrades, setMonthGrades] = useState<Map<string, MonthDay>>(new Map());
   /** Null = the month containing today. Any past month is reachable
@@ -37,15 +44,24 @@ export function useDayData() {
       date: string,
       month?: string | null,
       /** The day as a write just scored it, when it is this date — saves
-       *  loading it a second time (`toggleCompletion`). */
+       *  loading it a second time (`toggleCompletion`). Not on today,
+       *  whose windows have to be filled again anyway. */
       scored?: DayData | null,
     ) => {
-      const [next, grades, week] = await Promise.all([
-        scored?.date === date ? scored : loadDay(date),
+      const turn = ++loadTurn.current;
+      const isToday = date === currentLocalDate();
+      const [loaded, grades, week] = await Promise.all([
+        isToday ? loadDayPlan(date) : scored?.date === date ? scored : loadDay(date),
         loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
         loadWeekGrade(date),
       ]);
+      const nextPlan = "planned" in loaded ? loaded : null;
+      const next = nextPlan ? nextPlan.day : (loaded as DayData);
+      // A superseded load lands nothing and says so: its caller mustn't
+      // announce a score from it.
+      if (turn !== loadTurn.current) return null;
       setDay(next);
+      setPlan(nextPlan);
       setMonthGrades(grades);
       setWeekGrade(week);
       if (next.date === next.today) void syncDailyNudge(next);
@@ -57,6 +73,7 @@ export function useDayData() {
   useFocusEffect(
     useCallback(() => {
       void reload(selected ?? currentLocalDate(), viewMonth).then((d) => {
+        if (d === null) return;
         allDoneBefore.current = d.due.length > 0 && d.due.every((t) => t.completedToday);
       });
     }, [reload, selected, viewMonth]),
@@ -100,6 +117,8 @@ export function useDayData() {
           // undoing it undoes that tick — one session, one completion.
           await toggleCompletion(task.id, task.doneAheadOn ?? day.date);
     const next = await reload(day.date, undefined, scored);
+    // A newer load overtook this one: it says nothing.
+    if (next === null) return;
     // The visual feedback is the climbing number; give screen readers the
     // same loop.
     AccessibilityInfo.announceForAccessibility(
@@ -112,7 +131,7 @@ export function useDayData() {
     allDoneBefore.current = allDone;
   };
 
-  return { day, weekGrade, monthGrades, viewMonth, refresh, select, changeMonth, toggle };
+  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, changeMonth, toggle };
 }
 
 /**
