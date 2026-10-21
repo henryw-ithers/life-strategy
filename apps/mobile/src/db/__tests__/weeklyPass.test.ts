@@ -23,6 +23,7 @@ import {
   setEventOffThisWeek,
   tiersCheckDue,
 } from "../weeklyPass";
+import { setRunsSkipped } from "../skips";
 import { resetTestDb, testDb } from "./harness";
 
 const clock = vi.hoisted(() => ({ today: "2026-10-19" }));
@@ -170,6 +171,18 @@ describe("this week's events", () => {
 
     await setEventOffThisWeek(off!, false);
     expect(testDb().select().from(scheduleSkip).all()).toEqual([]);
+  });
+});
+
+describe("setRunsSkipped", () => {
+  it("writes all of the runs or none of them", async () => {
+    addTask({ id: "lecture", unitId: "comp", kind: "event", plannedWeekdays: "1,3", startMinute: 600, endMinute: 690 });
+    // A past day can't be skipped, so nothing is written.
+    await expect(setRunsSkipped("lecture", ["2026-10-18", MON], true)).rejects.toThrow();
+    expect(testDb().select().from(scheduleSkip).all()).toEqual([]);
+    await setRunsSkipped("lecture", [MON, "2026-10-21"], true);
+    await setRunsSkipped("lecture", [MON], true);
+    expect(testDb().select().from(scheduleSkip).all()).toHaveLength(2);
   });
 });
 

@@ -118,6 +118,28 @@ Decided while building 8b:
   native menus and sheets, and VoiceOver on the strip and the stepper.
   The web preview can't save Priorities, so it shows no tasks.
 
+Built in 8c: the weekly pass (`app/weekly-pass.tsx`, a full-screen
+sheet from Plan's ⋯ menu), `db/weeklyPass.ts`, `db/weeklyPassRules.ts`
+and `workShares` in the engine.
+
+Decided while building 8c, and open for Henry:
+
+- **Shares are measured in time, not points** (open): a tick counts
+  its size times how much was done, an event its length, and a sized
+  activity is split across its tags. Points would only show the tiers
+  back. A commitment is one row beside the units. ADR-0041 §5 names no
+  measure, so this wants a short amendment before Life's bars (Phase
+  10) use it too (invariant review).
+- Turning an event off for the week is a skipped run on each of its
+  days left, the same path as Home's Skip this one, so turning today's
+  off on the day empties it as ADR-0040 §3 says.
+- Offering the tiers step marks the month, so finishing at once still
+  uses it up; Priorities is always on Life.
+
+Left for later: offering the pass on Home from Sunday 6 pm until the
+week's first window (ADR-0039 §11) comes with Home in Phase 9; "goals
+that moved" in Last week comes with goals in Phase 10.
+
 ## Phase 7: events, skips, Clear today and Away
 
 The data and engine came in 4a, 5a and 5b; Phase 7 is the screens and

@@ -19,7 +19,7 @@
  */
 import { weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import { router, Stack, type Href } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +63,7 @@ import { daysLeft } from "../db/weeklyPassRules";
 import { useRetained } from "../hooks/useRetained";
 import { useUndoDelete } from "../hooks/useUndoDelete";
 import { currentLocalDate } from "../lib/calendar";
+import { recordProblem } from "../lib/problemLog";
 import { spokenDate } from "../lib/format";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
@@ -71,7 +72,14 @@ type Step = "tiers" | "lastWeek" | "different" | "windows";
 
 /** A window sheet on one day, named by the window's start. */
 type DaySheet =
-  | { kind: "add"; date: string; start: number }
+  | {
+      kind: "add";
+      date: string;
+      start: number;
+      /** Taken as it opens, so a reload can't change the list under it. */
+      label: string;
+      tasks: readonly TodayTask[];
+    }
   | { kind: "times"; date: string };
 
 export default function WeeklyPassScreen() {
@@ -93,7 +101,11 @@ export default function WeeklyPassScreen() {
   const [sheetShown, sheetGone] = useRetained(sheet);
   const [opened, setOpened] = useState(0);
 
+  /** Only the latest load lands: one started on coming back from
+   *  another screen can't overwrite what a write has just reloaded. */
+  const loadTurn = useRef(0);
   const load = useCallback(async () => {
+    const turn = ++loadTurn.current;
     const dates = daysLeft(today);
     const [due, lastWeek, weekEvents, plans, nextPlan] = await Promise.all([
       tiersCheckDue(today),
@@ -102,22 +114,43 @@ export default function WeeklyPassScreen() {
       Promise.all(dates.map((d) => loadDayPlan(d))),
       loadPlan(),
     ]);
-    // The steps are set once, as the pass opens: offering the tiers
-    // marks this month's as offered, and the step stays for this pass.
+    if (turn !== loadTurn.current) return;
+    // The steps are set once, as the pass opens, and stay for it.
     setSteps((s) => s ?? [...(due ? (["tiers"] as const) : []), "lastWeek", "different", "windows"]);
-    if (due) await markTiersOffered(today);
     setLast(lastWeek);
     setEvents(weekEvents);
     setDays(plans);
     setPlan(nextPlan);
   }, [today]);
   const { error, retry, save } = useScreenLoad(load);
+
+  // Offering the tiers marks this month's as offered. A failed write
+  // only means they're offered again; it never blanks the pass.
+  const offersTiers = steps?.[0] === "tiers";
+  useEffect(() => {
+    if (!offersTiers) return;
+    void markTiersOffered(today).catch((e: unknown) =>
+      recordProblem(e instanceof Error ? e : new Error(String(e)), "save"),
+    );
+  }, [offersTiers, today]);
+
+  /** One write at a time: a second tap waits its turn rather than
+   *  acting on a list the first is about to change. */
+  const writing = useRef(false);
+  const once = (write: () => Promise<unknown>) => {
+    if (writing.current) return;
+    writing.current = true;
+    void save(write).finally(() => {
+      writing.current = false;
+    });
+  };
   const undo = useUndoDelete(save);
   const allUnits = useMemo(() => pickableUnits(plan), [plan]);
 
   const finish = () => router.back();
-  const current = steps?.[step] ?? null;
-  const isLast = steps !== null && step === steps.length - 1;
+  const at = steps === null ? 0 : Math.min(step, steps.length - 1);
+  const current = steps?.[at] ?? null;
+  const isLast = steps !== null && at === steps.length - 1;
 
   // ── Writes ───────────────────────────────────────────────────────
 
@@ -146,7 +179,7 @@ export default function WeeklyPassScreen() {
   const dayOf = (date: string) => days.find((d) => d.day.date === date);
   const pin = (date: string, taskId: string, start: number) => {
     const t = dayOf(date)?.tasks.get(taskId);
-    void save(() =>
+    once(() =>
       pinForDay(taskId, date, start, "window", {
         extra: t !== undefined && t.band === "doneThisWeek" && !t.commitment,
       }),
@@ -155,7 +188,7 @@ export default function WeeklyPassScreen() {
   const acceptAll = (date: string, start: number) => {
     const w = dayOf(date)?.planned.windows.find((x) => x.range.start === start);
     if (!w) return;
-    void save(async () => {
+    once(async () => {
       for (const s of w.suggested) await pinForDay(s.taskId, date, start, "window");
     });
   };
@@ -241,12 +274,16 @@ export default function WeeklyPassScreen() {
           {last.flaggedDays.length > 0 || last.flaggedActivities.length > 0 ? (
             <Group theme={theme} title="Worth remembering">
               {last.flaggedDays.map((d) => (
-                <AppText key={d} color={theme.ink}>
+                <AppText key={d} color={theme.ink} accessibilityLabel={`Flagged day, ${spokenDate(d)}`}>
                   ☆ {spokenDate(d)}
                 </AppText>
               ))}
               {last.flaggedActivities.map((a) => (
-                <AppText key={`${a.date}-${a.title}`} color={theme.ink}>
+                <AppText
+                  key={`${a.date}-${a.title}`}
+                  color={theme.ink}
+                  accessibilityLabel={`Flagged, ${a.title}`}
+                >
                   ☆ {a.title}
                 </AppText>
               ))}
@@ -303,7 +340,14 @@ export default function WeeklyPassScreen() {
           <Group theme={theme} flush>
             <PassLink label="Copy last week's events" onPress={copyEvents} theme={theme} />
             <PassLink label="Change hours this week" onPress={() => router.push("/hours" as Href)} theme={theme} />
-            <PassLink label="Add an event" onPress={() => setEditing("new")} theme={theme} />
+            <PassLink
+              label="Add an event"
+              onPress={() => {
+                setEventUnits([]);
+                setEditing("new");
+              }}
+              theme={theme}
+            />
             <PassLink label="Time away" onPress={() => router.push("/away" as Href)} theme={theme} />
           </Group>
         </View>
@@ -337,7 +381,9 @@ export default function WeeklyPassScreen() {
                       key={`${date}-${w.range.start}-${w.range.end}`}
                       window={w}
                       tasks={d.tasks}
-                      choices={[]}
+                      choices={d.choices.filter(
+                        (c) => c.anchorMinute >= w.range.start && c.anchorMinute < w.range.end,
+                      )}
                       addable={addableTo(item.index, d.planned).length}
                       editable
                       isToday={date === today}
@@ -345,11 +391,19 @@ export default function WeeklyPassScreen() {
                       theme={theme}
                       onPin={(id) => pin(date, id, w.range.start)}
                       onAcceptAll={() => acceptAll(date, w.range.start)}
-                      onUnpin={(id) => void save(() => unpinForDay(id, date))}
-                      onPinKind={(ruleId: string, kind: PinKind) => void save(() => setPinKind(ruleId, kind))}
+                      onUnpin={(id) => once(() => unpinForDay(id, date))}
+                      onPinKind={(ruleId: string, kind: PinKind) => once(() => setPinKind(ruleId, kind))}
                       onAddFromOpen={() => {
                         setOpened((n) => n + 1);
-                        setSheet({ kind: "add", date, start: w.range.start });
+                        setSheet({
+                          kind: "add",
+                          date,
+                          start: w.range.start,
+                          label: spanLabel(w.range),
+                          tasks: addableTo(item.index, d.planned)
+                            .map((id) => d.tasks.get(id))
+                            .filter((t): t is TodayTask => t !== undefined),
+                        });
                       }}
                       onRemove={() => removeWindow(date, w.range)}
                     />
@@ -374,12 +428,6 @@ export default function WeeklyPassScreen() {
     }
     return null;
   })();
-
-  const addDay = sheetShown?.kind === "add" ? dayOf(sheetShown.date) : undefined;
-  const addIndex =
-    sheetShown?.kind === "add" && addDay
-      ? addDay.planned.windows.findIndex((w) => w.range.start === sheetShown.start)
-      : -1;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.canvas }]}>
@@ -421,15 +469,13 @@ export default function WeeklyPassScreen() {
 
       <UndoBar undo={undo} theme={theme} />
 
-      {sheetShown?.kind === "add" && addDay && addIndex >= 0 ? (
+      {sheetShown?.kind === "add" ? (
         <AddFromOpenSheet
           key={`add-${opened}`}
           visible={sheet?.kind === "add"}
           onDismissed={sheetGone}
-          windowLabel={spanLabel(addDay.planned.windows[addIndex]!.range)}
-          tasks={addableTo(addIndex, addDay.planned)
-            .map((id) => addDay.tasks.get(id))
-            .filter((t): t is TodayTask => t !== undefined)}
+          windowLabel={sheetShown.label}
+          tasks={sheetShown.tasks}
           hueFor={hueFor}
           theme={theme}
           onClose={() => setSheet(null)}

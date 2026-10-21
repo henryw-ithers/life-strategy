@@ -81,6 +81,67 @@ export async function addSkip(skip: SkipInput): Promise<string> {
   return id;
 }
 
+/**
+ * Skip a task's runs on several dates, or take those skips back, in one
+ * transaction: the weekly pass turns an event off for the rest of the
+ * week (ADR-0040 §2). Reads what's stored inside the transaction, so a
+ * stale screen can't half-apply it. Runs can be skipped from today on.
+ */
+export async function setRunsSkipped(
+  taskId: string,
+  dates: readonly string[],
+  skipped: boolean,
+): Promise<void> {
+  const today = currentLocalDate();
+  for (const date of dates) {
+    const problem = skipped ? skipProblem({ kind: "occurrence", taskId, date }, today) : null;
+    if (problem !== null) throw new Error(problem);
+  }
+  if (dates.length === 0) return;
+  writeAndMarkStale((tx) => {
+    const held = new Set(
+      tx
+        .select({ localDate: scheduleSkip.localDate })
+        .from(scheduleSkip)
+        .where(
+          and(
+            eq(scheduleSkip.kind, "occurrence"),
+            eq(scheduleSkip.taskId, taskId),
+            inArray(scheduleSkip.localDate, [...dates]),
+          ),
+        )
+        .all()
+        .map((r) => r.localDate),
+    );
+    if (skipped) {
+      const fresh = dates.filter((d) => !held.has(d));
+      if (fresh.length === 0) return;
+      tx.insert(scheduleSkip)
+        .values(
+          fresh.map((localDate) => ({
+            id: Crypto.randomUUID(),
+            kind: "occurrence" as const,
+            taskId,
+            unitId: null,
+            localDate,
+            madeOn: today,
+          })),
+        )
+        .run();
+    } else if (held.size > 0) {
+      tx.delete(scheduleSkip)
+        .where(
+          and(
+            eq(scheduleSkip.kind, "occurrence"),
+            eq(scheduleSkip.taskId, taskId),
+            inArray(scheduleSkip.localDate, [...held]),
+          ),
+        )
+        .run();
+    }
+  });
+}
+
 /** Take a skip back. */
 export async function removeSkip(id: string): Promise<void> {
   writeAndMarkStale((tx) => tx.delete(scheduleSkip).where(eq(scheduleSkip.id, id)).run());

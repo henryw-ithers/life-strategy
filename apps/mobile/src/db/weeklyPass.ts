@@ -22,7 +22,7 @@ import {
   taskCompletion,
 } from "./schema";
 import { getSetting, setSetting } from "./settings";
-import { addSkip, removeSkip } from "./skips";
+import { setRunsSkipped } from "./skips";
 import { commitmentRoots } from "./windowRules";
 import {
   activityMinutes,
@@ -212,17 +212,13 @@ export const isOnThisWeek = (e: WeekEvent): boolean =>
 
 /**
  * Turn an event off for the rest of this week, or back on: a skipped
- * run for each of its days (ADR-0040 §2), or those skips taken back.
- * A run off for another reason is left as it is.
+ * run for each of its days (ADR-0040 §2), or those skips taken back,
+ * all in one transaction. A run off for another reason is left as it
+ * is.
  */
 export async function setEventOffThisWeek(e: WeekEvent, off: boolean): Promise<void> {
-  for (const d of e.days) {
-    if (off && d.skipId === null && !d.offElsewhere) {
-      await addSkip({ kind: "occurrence", taskId: e.event.id, date: d.date });
-    } else if (!off && d.skipId !== null) {
-      await removeSkip(d.skipId);
-    }
-  }
+  const dates = e.days.filter((d) => !d.offElsewhere).map((d) => d.date);
+  await setRunsSkipped(e.event.id, dates, off);
 }
 
 const TIERS_KEY = "weekly_pass_tiers_month";
