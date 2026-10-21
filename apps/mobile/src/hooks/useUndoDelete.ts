@@ -25,7 +25,7 @@
  * a day's score after an activity goes, changes when it runs.
  */
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, AppState } from "react-native";
 
 import { useLatest } from "./useLatest";
@@ -139,7 +139,12 @@ export function useUndoDelete(
     };
   }, [finish]);
 
-  const hidden = new Set(landing);
-  if (pending !== null) hidden.add(pending.id);
+  // The same set until it changes, so what a screen derives from it can
+  // be memoised.
+  const hidden = useMemo(() => {
+    const ids = new Set(landing);
+    if (pending !== null) ids.add(pending.id);
+    return ids;
+  }, [landing, pending]);
   return { pending, hidden, remove, undo, settle: finish };
 }

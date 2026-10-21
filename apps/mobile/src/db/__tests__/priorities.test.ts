@@ -23,7 +23,7 @@ import {
   unitWeight,
   windowPlacement,
 } from "../schema";
-import { addTask, latestWeights } from "../tasks";
+import { addTask, latestWeights, loadPlan } from "../tasks";
 import { resetTestDb, testDb } from "./harness";
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
@@ -108,6 +108,18 @@ describe("savePriorities", () => {
     const board = await loadPriorities();
     expect(board.firstRun).toBe(false);
     expect(board.units[0]).toMatchObject({ unitId: "exercise", tier: "top" });
+  });
+
+  it("gives an overridden unit its recommended weight to show beside it", async () => {
+    await savePriorities(plan({ exercise: "top" }), new Map());
+    const recommended = latestWeights(testDb() as never).get("exercise")!;
+    await savePriorities(plan({ exercise: "top" }), new Map([["exercise", recommended + 5]]));
+    const units = (await loadPlan()).areas.flatMap((a) => a.units);
+    const exercise = units.find((u) => u.id === "exercise")!;
+    expect(exercise.weight).toBe(recommended + 5);
+    expect(exercise.recommendedWeight).toBe(recommended);
+    // No override, nothing beside it.
+    expect(units.find((u) => u.id !== "exercise" && u.weight !== null)?.recommendedWeight).toBeNull();
   });
 
   it("refuses a plan with every unit in Not now", async () => {

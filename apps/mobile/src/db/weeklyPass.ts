@@ -51,7 +51,43 @@ export interface LastWeek {
 
 export async function loadLastWeek(today: string): Promise<LastWeek> {
   const { start, end } = lastWeek(today);
-  const [units, ticks, acts, days] = await Promise.all([
+  const [shares, acts, days] = await Promise.all([
+    loadWorkShares(start, end),
+    db
+      .select()
+      .from(activity)
+      .where(and(gte(activity.localDate, start), lte(activity.localDate, end))),
+    db
+      .select({ localDate: dayGrade.localDate })
+      .from(dayGrade)
+      .where(
+        and(gte(dayGrade.localDate, start), lte(dayGrade.localDate, end), eq(dayGrade.flagged, true)),
+      ),
+  ]);
+  return {
+    start,
+    end,
+    shares,
+    flaggedDays: days.map((d) => d.localDate).sort(),
+    flaggedActivities: acts
+      .filter((a) => a.flagged)
+      .map((a) => ({ title: a.title, date: a.localDate })),
+    activities: acts.length,
+  };
+}
+
+/**
+ * Each unit's share of the time spent on completed work from `start` to
+ * `end` (ADR-0041 §5): ticks by size and fraction, events by length,
+ * sized activities split across their tags. A commitment is one row,
+ * its sub-commitments in it. Largest first; empty when nothing was
+ * done. The weekly pass reads last week; Life reads the last 4 weeks.
+ */
+export async function loadWorkShares(
+  start: string,
+  end: string,
+): Promise<{ unitId: string; name: string; areaId: string; share: number }[]> {
+  const [units, ticks, acts] = await Promise.all([
     db
       .select({
         id: lifeUnit.id,
@@ -76,15 +112,9 @@ export async function loadLastWeek(today: string): Promise<LastWeek> {
       .innerJoin(task, eq(task.id, taskCompletion.taskId))
       .where(and(gte(taskCompletion.localDate, start), lte(taskCompletion.localDate, end))),
     db
-      .select()
+      .select({ id: activity.id, size: activity.size })
       .from(activity)
       .where(and(gte(activity.localDate, start), lte(activity.localDate, end))),
-    db
-      .select({ localDate: dayGrade.localDate })
-      .from(dayGrade)
-      .where(
-        and(gte(dayGrade.localDate, start), lte(dayGrade.localDate, end), eq(dayGrade.flagged, true)),
-      ),
   ]);
   const tags = acts.length
     ? await db
@@ -109,20 +139,11 @@ export async function loadLastWeek(today: string): Promise<LastWeek> {
     ),
   ];
   const byId = new Map(units.map((u) => [u.id, u]));
-  return {
-    start,
-    end,
-    shares: workShares(done).map((s) => ({
-      ...s,
-      name: byId.get(s.unitId)?.name ?? s.unitId,
-      areaId: byId.get(s.unitId)?.areaId ?? "",
-    })),
-    flaggedDays: days.map((d) => d.localDate).sort(),
-    flaggedActivities: acts
-      .filter((a) => a.flagged)
-      .map((a) => ({ title: a.title, date: a.localDate })),
-    activities: acts.length,
-  };
+  return workShares(done).map((s) => ({
+    ...s,
+    name: byId.get(s.unitId)?.name ?? s.unitId,
+    areaId: byId.get(s.unitId)?.areaId ?? "",
+  }));
 }
 
 /** An event as its edit sheet needs it (`saveEventEdit`). */

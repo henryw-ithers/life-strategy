@@ -34,8 +34,8 @@ Last updated 2026-10-21, during Phase 9.
 | 6 | Priorities: the tiers screen; satisfaction out of the diagnostic | Merged, PR #20 |
 | 7 | Events: repeat ends and skipped weeks; Clear today; Away | Merged, PR #21 |
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | Merged, PRs #22–#25 |
-| **9** | **Home: windows, swiping between days, the one list, evening card, quiet score** | **In progress** |
-| 10 | Life: commitments, goals (templates), units, the Priorities link | |
+| 9 | Home: windows, swiping between days, the one list, evening card, quiet score | Merged, PRs #26, #27 |
+| **10** | **Life: commitments, goals (templates), units, the Priorities link** | **In progress** |
 | 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | |
 | 12 | Hardening: test coverage, a device walk of every edge case, a code review | |
 
@@ -57,6 +57,22 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 10: Life
+
+Three PRs: **10a** Life as rows and a unit screen, **10b** the
+commitment screen and its share, **10c** goals from templates.
+
+Built in 10a: Life as a list of rows (spec §5.4): commitments, then
+units by tier in your order, each with its task count and a bar of its
+share of the time spent in the last 4 weeks (`loadWorkShares`, shared
+with the weekly pass), drawn against the largest share and never a
+target. A unit's screen (spec §5.4.2) has its tier and weight, with the
+recommended weight beside one you set (AGENTS.md), its tasks to
+reorder, its events, Need ideas? and what it covers. Removed:
+`FirstRunCard`, `CoverageBar`, and the fold-open unit rows.
+
+Henry, 2026-10-21: he'll stop for a phone walk before Phase 12.
 
 ## Phase 9: Home
 
