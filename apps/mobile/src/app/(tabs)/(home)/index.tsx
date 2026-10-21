@@ -38,10 +38,12 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { LinearTransition, useReducedMotion } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { LinearTransition, runOnJS, useReducedMotion } from "react-native-reanimated";
 
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
+import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
 import { addableTo, spanLabel } from "../../../components/plan/dayView";
 import { WindowTimesSheet } from "../../../components/plan/WindowTimesSheet";
 import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
@@ -56,6 +58,7 @@ import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
 import { NoteSheet } from "../../../components/today/NoteSheet";
 import { PartialSheet } from "../../../components/today/PartialSheet";
 import { RecordActions } from "../../../components/today/RecordActions";
+import { ScoreSheet } from "../../../components/today/ScoreSheet";
 import { TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { AppText } from "../../../components/ui/AppText";
@@ -116,6 +119,7 @@ export default function TodayScreen() {
     viewMonth,
     refresh,
     select,
+    step,
     changeMonth,
     toggle,
   } = useDayData();
@@ -126,6 +130,9 @@ export default function TodayScreen() {
 
   const [monthOpen, setMonthOpen] = useState(false);
   const [kindSheet, setKindSheet] = useState(false);
+  const [scoreSheet, setScoreSheet] = useState(false);
+  /** A future day's view, for the + menu's Window. */
+  const futureView = useRef<PlanDayViewHandle>(null);
   const [activitySheet, setActivitySheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
   /** Set while the note sheet is rewriting an existing entry. */
@@ -220,6 +227,8 @@ export default function TodayScreen() {
       pulledIn,
     });
   }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
+  /** A day ahead, shown as Plan's day view (spec §5.2). */
+  const isFuture = day !== null && day.date > day.today && plan !== null;
   const needsPlan = day !== null && day.date === day.today && plan === null;
   useEffect(() => {
     if (needsPlan) void refresh();
@@ -232,6 +241,9 @@ export default function TodayScreen() {
   if (!onboarded) return <Redirect href="/onboarding" />;
 
   const logSomething = () => {
+    // Only a day that's begun can hold what you did: from a day ahead,
+    // it's logged to today.
+    if (day && day.date > day.today) select(day.today);
     setEditingActivity(null);
     setActivitySheet(true);
   };
@@ -250,6 +262,17 @@ export default function TodayScreen() {
   const dayLabel = isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? day.date);
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
   const askClear = () => void askClearToday(() => void refresh());
+  // Swipe left or right for the next or previous day (spec §5.2);
+  // vertical movement stays the scroll's.
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-15, 15])
+    .onEnd((e, success) => {
+      // A drag interrupted by an alert or a system gesture moves nothing.
+      if (!success) return;
+      if (e.translationX < -60) runOnJS(step)(1);
+      else if (e.translationX > 60) runOnJS(step)(-1);
+    });
   const liveWindows = plan?.hours.windows ?? [];
   const windowEditable = isToday && day.away === null && !day.cleared;
 
@@ -263,15 +286,21 @@ export default function TodayScreen() {
               setOpened((n) => n + 1);
               setWindowSheet({ kind: "times" });
             }
-          : undefined
+          : isFuture && day.away === null
+            ? () => futureView.current?.addWindow()
+            : undefined
       }
       onLog={logSomething}
+      onToday={day.date !== day.today ? () => select(day.today) : undefined}
       settings
       more={[
         ...(isToday && day.away === null && !day.cleared
           ? [{ label: "Clear today", icon: "moon", onPress: askClear }]
           : []),
-        { label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) },
+        // A day's type is set once it's begun (`setDayKind`).
+        ...(day.date <= day.today
+          ? [{ label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) }]
+          : []),
         { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
       ]}
     />
@@ -449,12 +478,15 @@ export default function TodayScreen() {
         onChangeMonth={changeMonth}
         onSelect={select}
         onOpenKind={() => setKindSheet(true)}
+        onOpenScore={() => setScoreSheet(true)}
+        onStep={step}
         topInset={headerInset}
         layout={layout}
         reduceMotion={reduceMotion}
         theme={theme}
       />
 
+      <GestureDetector gesture={swipe}>
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
@@ -610,6 +642,19 @@ export default function TodayScreen() {
                 onRemove={removeWindow}
                 theme={theme}
               />
+            ) : isFuture && plan ? (
+              <PlanDayView
+                // Its sheets belong to the day: a new day starts clean.
+                key={plan.day.date}
+                ref={futureView}
+                day={plan}
+                today={day.today}
+                save={(write) => saveThen(write, refresh)}
+                reload={() => void refresh()}
+                undo={undo}
+                compact
+                theme={theme}
+              />
             ) : !isToday ? (
               // A past day's record: only what was done (spec §5.2). It
               // never lists what wasn't, events included (ADR-0038).
@@ -672,6 +717,7 @@ export default function TodayScreen() {
           </AppText>
         </View>
       </ScrollView>
+      </GestureDetector>
 
       <UndoBar undo={undo} theme={theme} />
 
@@ -815,6 +861,15 @@ export default function TodayScreen() {
           }}
         />
       ) : null}
+
+      <ScoreSheet
+        visible={scoreSheet && day.score.base !== null}
+        score={day.score}
+        restDay={day.restDay}
+        dayLabel={dayLabel}
+        theme={theme}
+        onClose={() => setScoreSheet(false)}
+      />
 
       <DayKindSheet
         visible={kindSheet}

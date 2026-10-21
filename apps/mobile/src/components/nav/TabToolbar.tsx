@@ -34,6 +34,8 @@ interface TabToolbarProps {
   onLog: () => void;
   /** Home and Life show Settings here. */
   settings?: boolean;
+  /** Home on another day: back to today (spec §5.2). */
+  onToday?: () => void;
   /** A ⋯ menu of the tab's own actions: Home's Clear today and Day
    *  type (ADR-0040 §4). Omitted, there's no ⋯. */
   more?: readonly { label: string; icon: string; onPress: () => void }[];
@@ -43,6 +45,9 @@ export function TabToolbar(props: TabToolbarProps) {
   const latest = useLatest(props);
   return (
     <Stack.Toolbar placement="right">
+      {props.onToday ? (
+        <Stack.Toolbar.Button onPress={() => latest.current.onToday?.()}>Today</Stack.Toolbar.Button>
+      ) : null}
       <Stack.Toolbar.Menu icon="plus" accessibilityLabel="Add">
         <Stack.Toolbar.MenuAction icon="checkmark.circle" onPress={() => latest.current.onTask()}>
           Task

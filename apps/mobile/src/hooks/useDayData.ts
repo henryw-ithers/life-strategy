@@ -4,9 +4,9 @@
  * tick a task off. Everything else the screen does is a write followed
  * by `refresh()`.
  */
-import type { PeriodGrade } from "@glide/scoring";
+import { addDays, type PeriodGrade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect, type Href } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 
@@ -49,9 +49,11 @@ export function useDayData() {
       scored?: DayData | null,
     ) => {
       const turn = ++loadTurn.current;
-      const isToday = date === currentLocalDate();
+      // Today and later days are planned (windows); a past day is its
+      // record, so its day alone.
+      const planned = date >= currentLocalDate();
       const [loaded, grades, week] = await Promise.all([
-        isToday ? loadDayPlan(date) : scored?.date === date ? scored : loadDay(date),
+        planned ? loadDayPlan(date) : scored?.date === date ? scored : loadDay(date),
         loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
         loadWeekGrade(date),
       ]);
@@ -84,15 +86,9 @@ export function useDayData() {
     day ? reload(day.date, undefined, scored) : Promise.resolve(null);
 
   const select = (date: string) => {
-    // A future day cannot be recorded, only arranged — so tapping one
-    // opens it on Plan (spec §5.3).
-    // Beyond the planning window there is nothing to arrange yet, so the
-    // tap does nothing rather than opening a screen that would have to
-    // explain itself.
-    if (date > currentLocalDate()) {
-      if (isPlannable(date, currentLocalDate())) router.navigate(`/plan?date=${date}` as Href);
-      return;
-    }
+    // A future day opens in place, as Plan's day view (spec §5.2), as
+    // far ahead as a day can be planned; past that, nothing to arrange.
+    if (date > currentLocalDate() && !isPlannable(date, currentLocalDate())) return;
     setSelected(date === currentLocalDate() ? null : date);
     // Keep the browsed month — picking the 3rd of a month two years back
     // must not snap the calendar home.
@@ -131,7 +127,13 @@ export function useDayData() {
     allDoneBefore.current = allDone;
   };
 
-  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, changeMonth, toggle };
+  /** Swipe: the day before or after the one shown. */
+  const step = (days: number) => {
+    // From the day chosen, not the day loaded: two quick swipes move two.
+    select(addDays(selected ?? currentLocalDate(), days));
+  };
+
+  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, step, changeMonth, toggle };
 }
 
 /**
