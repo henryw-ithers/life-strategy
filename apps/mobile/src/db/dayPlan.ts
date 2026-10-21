@@ -105,7 +105,7 @@ export interface DayPlan {
 
 /** Active events in units still in use, with their schedule around
  *  `date`: skips, Away days and cleared days (`withSchedule`). */
-async function eventRowsAround(date: string) {
+export async function eventRowsAround(date: string) {
   const rows = await db
     .select({
       id: task.id,
@@ -121,6 +121,7 @@ async function eventRowsAround(date: string) {
       oneOffDate: task.oneOffDate,
       repeatFrom: task.repeatFrom,
       repeatUntil: task.repeatUntil,
+      description: task.description,
       areaId: lifeUnit.areaId,
     })
     .from(task)
