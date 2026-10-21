@@ -18,8 +18,7 @@ import {
   GENERAL_SUB_NAME,
   homeOnSplit,
 } from "./commitmentPlan";
-import { forgetGoalLinksOf, forgetGoals, goalIdsOn } from "./goals";
-import { goal, lifeUnit, task, taskUnit } from "./schema";
+import { lifeUnit, task, taskUnit } from "./schema";
 import { forgetPinsOf } from "./pins";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import { forgetSkipsOf } from "./skips";
@@ -385,7 +384,7 @@ function rehomeTask(tx: Tx, taskId: string, from: string, to: string): void {
  * log still shows the semester happened. Sub-commitments go with it,
  * and their tasks are deactivated rather than deleted: **the work
  * outlives the scaffolding**, the same principle ADR-0007's deletion
- * amendment applies to goals.
+ * amendment applied to goals.
  *
  * Reversible by `unarchiveCommitment`.
  */
@@ -456,7 +455,7 @@ export async function unarchiveCommitment(id: string): Promise<void> {
  * - **Completions and grades.** A day that scored 63 still scored 63;
  *   `points_earned` is denormalized at completion (ADR-0002) and
  *   deleting a commitment must not quietly rewrite a month.
- * - **Achievements**, detached, exactly as `deleteGoal` leaves them.
+ * - **Achievements.** An earned rank is never taken back (ADR-0047 §6).
  *
  * Returns what it removed so the caller can say so plainly rather than
  * claiming more or less than happened.
@@ -484,14 +483,11 @@ export async function deleteCommitment(
       // Pins, choices and skips reference these tasks too.
       forgetPinsOf(tx, taskIds);
       forgetSkipsOf(tx, taskIds);
-      forgetGoalLinksOf(tx, taskIds);
       tx.delete(taskUnit).where(inArray(taskUnit.taskId, taskIds)).run();
       tx.delete(task).where(inArray(task.id, taskIds)).run();
     }
-    // A skipped commitment week names the unit itself, and so does a
-    // goal on it.
+    // A skipped commitment week names the unit itself.
     forgetSkipsOf(tx, [], ids);
-    forgetGoals(tx, goalIdsOn(tx, ids));
     // Children before parents, inside the table as well as between.
     tx.delete(lifeUnit)
       .where(
@@ -536,8 +532,6 @@ function removeLastSub(tx: Tx, id: string): { units: number; tasks: number } {
   tx.update(task).set({ movedFromUnitId: null }).where(eq(task.movedFromUnitId, id)).run();
   tx.delete(taskUnit).where(eq(taskUnit.unitId, id)).run();
   forgetSkipsOf(tx, [], [id]);
-  // Its goals were the commitment's work all along.
-  tx.update(goal).set({ unitId: parent }).where(eq(goal.unitId, id)).run();
   tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, parent)).run();
   tx.delete(lifeUnit).where(eq(lifeUnit.id, id)).run();
   recomputeAllUnitPoints(tx);

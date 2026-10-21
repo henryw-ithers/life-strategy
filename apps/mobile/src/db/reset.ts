@@ -51,16 +51,11 @@ const TABLES_IN_DELETE_ORDER = [
   "work_hours",
   "day_clear",
   "away_range",
-  // Before `task_completion` and `goal`, both of which it references.
-  "goal_entry",
-  // Before `task` and `goal`, both of which it references.
-  "goal_task",
   // Before `task_completion`, which it references.
   "task_completion_tag",
   "task_completion",
   "task_unit",
   // Before `task`, which it references.
-  // Before `goal`, which it references.
   "achievement",
   "calibration_suggestion",
   "contentment_checkin",
@@ -68,7 +63,6 @@ const TABLES_IN_DELETE_ORDER = [
   "photo",
   "day_grade",
   "task",
-  "goal",
   "unit_weight",
   "rating",
   "snapshot",
@@ -108,11 +102,6 @@ export async function eraseAllData(): Promise<void> {
   clearLog();
 
   db.transaction((tx) => {
-    // A revised goal points at the goal it replaced, so one bulk delete
-    // could trip that constraint mid-statement with foreign keys on.
-    // Nulling the link first breaks it; the rows are about to go anyway.
-    tx.run(sql.raw(`UPDATE goal SET linked_from_goal_id = NULL`));
-
     for (const table of TABLES_IN_DELETE_ORDER) {
       // `life_unit` references itself (`parent_unit_id`, ADR-0035), so
       // a single bulk delete can trip the constraint mid-statement with

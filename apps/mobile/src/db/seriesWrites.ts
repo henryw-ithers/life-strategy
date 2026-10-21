@@ -15,7 +15,7 @@ import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import type { EventInput } from "./events";
 import { forgetPinsOf } from "./pins";
-import { goalTask, scheduleSkip, task, taskCompletion, taskUnit } from "./schema";
+import { scheduleSkip, task, taskCompletion, taskUnit } from "./schema";
 import {
   archiveDue,
   boundsCutToday,
@@ -47,7 +47,6 @@ function unitsOf(tx: Tx | typeof db, taskId: string): string[] {
 /** Remove an event made moments ago whose companion write failed. */
 function discardNew(taskId: string): void {
   db.transaction((tx) => {
-    tx.delete(goalTask).where(eq(goalTask.taskId, taskId)).run();
     tx.delete(scheduleSkip).where(eq(scheduleSkip.taskId, taskId)).run();
     tx.delete(taskUnit).where(eq(taskUnit.taskId, taskId)).run();
     tx.delete(task).where(eq(task.id, taskId)).run();
@@ -86,8 +85,7 @@ export async function editEventOccurrence(
  * "This and following" (ADR-0040 §2): the series ends the day before
  * `date` and a new one with the new details starts on it, to the same
  * end. Skips from the date on move to it, a skipped week the split
- * falls in is copied (EC-27), and goals counting the old series count
- * the new one too. Ticks stay with the old series.
+ * falls in is copied (EC-27). Ticks stay with the old series.
  *
  * On or before the series' first day this is the whole series, edited
  * in place, and returns null. Otherwise it returns the new series' id.
@@ -130,13 +128,6 @@ export async function editEventFollowing(
       for (const s of skips.filter((s) => copy.includes(s.id))) {
         tx.insert(scheduleSkip)
           .values({ ...s, id: Crypto.randomUUID(), taskId: nextId })
-          .run();
-      }
-      const goals = tx.select({ goalId: goalTask.goalId }).from(goalTask).where(eq(goalTask.taskId, taskId)).all();
-      if (goals.length > 0) {
-        tx.insert(goalTask)
-          .values(goals.map((g) => ({ goalId: g.goalId, taskId: nextId })))
-          .onConflictDoNothing()
           .run();
       }
     });

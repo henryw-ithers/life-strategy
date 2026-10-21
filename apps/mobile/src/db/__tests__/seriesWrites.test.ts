@@ -7,8 +7,8 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createGoal, loadGoals } from "../goals";
-import { awayRange, goalEntry, lifeArea, lifeUnit, scheduleSkip, task, taskCompletion, taskUnit } from "../schema";
+import { loadAchievements } from "../achievements";
+import { awayRange, lifeArea, lifeUnit, scheduleSkip, task, taskCompletion, taskUnit } from "../schema";
 import {
   archiveEndedSeries,
   editEventFollowing,
@@ -186,24 +186,28 @@ describe("a streak over skipped days", () => {
     const db = testDb();
     db.insert(lifeUnit).values({ id: "mind", areaId: "area", name: "Mind", sortOrder: 1 }).run();
     db.insert(task)
-      .values({ id: "med", unitId: "mind", title: "Meditate", timesPerWeek: 7, pointValue: 0, rankInUnit: 1 })
+      .values({
+        id: "med",
+        unitId: "mind",
+        title: "Meditate",
+        timesPerWeek: 7,
+        pointValue: 0,
+        rankInUnit: 1,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      })
       .run();
     db.insert(taskUnit).values({ taskId: "med", unitId: "mind", rankInUnit: 1, pointValue: 0 }).run();
-    const id = await createGoal({ unitId: "mind", title: "Meditate", measure: { kind: "streak", taskId: "med" } });
     for (let d = 13; d <= 20; d++) {
       const date = `2026-10-${d}`;
       if (d === 18) continue;
       db.insert(taskCompletion).values({ id: date, taskId: "med", localDate: date, completedAt: date, pointsEarned: 0 }).run();
-      db.insert(goalEntry)
-        .values({ id: date, goalId: id, completionId: date, taskId: "med", localDate: date, minutes: 30, points: 0 })
-        .run();
     }
     if (skip) {
       db.insert(scheduleSkip)
         .values({ id: "s", kind: "occurrence", taskId: "med", localDate: "2026-10-18", madeOn: "2026-10-17" })
         .run();
     }
-    return (await loadGoals()).find((g) => g.id === id)?.value;
+    return (await loadAchievements()).find((a) => a.series === "everyDayStreak" && a.subjectId === "med")?.streak;
   }
 
   it("is ended by a missed every-day run that wasn't skipped", async () => {

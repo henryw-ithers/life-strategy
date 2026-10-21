@@ -5,6 +5,7 @@
  */
 import {
   addDays,
+  clampTookAbout,
   fortnightStart,
   isDueOn,
   normalizeFraction,
@@ -17,13 +18,6 @@ import { assertEditable, currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import { COVERAGE_LOOKBACK_DAYS, isCommitmentUnit } from "./commitmentPlan";
 import { cacheDayScore } from "./dayGrades";
-import {
-  carriedFrom,
-  carryGoalEntries,
-  forgetGoalEntries,
-  recordGoalEntries,
-  type CarriedTick,
-} from "./goals";
 import { dayGrade, lifeUnit, task, taskCompletion, taskCompletionTag } from "./schema";
 import { loadDay, type DayData } from "./today";
 
@@ -59,8 +53,8 @@ export async function setCompletionFraction(
   fraction: number,
 ): Promise<DayData | null> {
   assertEditable(date);
-  // The rewritten tick keeps the old one's goals and "Took about…": a
-  // new fraction changes how much was done, not what it counted toward.
+  // The rewritten tick keeps the old one's "Took about…": a new
+  // fraction changes how much was done, not how long it took.
   const carried = await clearCompletion(taskId, date);
   await writeCompletion(taskId, date, fraction, carried);
   return afterCompletionEdit(taskId, date);
@@ -137,9 +131,15 @@ async function recacheCoveredSessions(
   }
 }
 
+/** What a rewritten tick keeps from the one it replaces. */
+interface CarriedTick {
+  /** "Took about…", if it was set. */
+  actualMinutes: number | null;
+}
+
 /**
- * Removes the day's completion if there is one. Returns what it counted
- * toward, for a rewrite to carry, or null if there was none.
+ * Removes the day's completion if there is one. Returns what a rewrite
+ * carries, or null if there was none.
  */
 async function clearCompletion(taskId: string, date: string): Promise<CarriedTick | null> {
   return db.transaction((tx) => {
@@ -150,13 +150,11 @@ async function clearCompletion(taskId: string, date: string): Promise<CarriedTic
       .all();
     if (existing.length === 0) return null;
     const ids = existing.map((c) => c.id);
-    const carried = carriedFrom(tx, existing);
-    // Tags and goal entries hang off the completion, so unchecking
-    // takes them with it — otherwise they'd be orphaned against their
-    // foreign key, a re-check would silently inherit yesterday's tags,
-    // and a goal would keep a tick that was taken back.
+    const carried = { actualMinutes: existing[0]?.actualMinutes ?? null };
+    // Tags hang off the completion, so unchecking takes them with it —
+    // otherwise they'd be orphaned against their foreign key, and a
+    // re-check would silently inherit yesterday's tags.
     tx.delete(taskCompletionTag).where(inArray(taskCompletionTag.completionId, ids)).run();
-    forgetGoalEntries(tx, ids);
     tx.delete(taskCompletion).where(inArray(taskCompletion.id, ids)).run();
     return carried;
   });
@@ -170,7 +168,7 @@ async function writeCompletion(
   taskId: string,
   date: string,
   fraction: number,
-  /** A rewritten tick's goals and "Took about…" (`clearCompletion`). */
+  /** A rewritten tick's "Took about…" (`clearCompletion`). */
   carried: CarriedTick | null = null,
 ): Promise<void> {
   const find = (d: DayData) =>
@@ -216,10 +214,6 @@ async function writeCompletion(
       .all();
     if (existing.length > 0) return;
     tx.insert(taskCompletion).values(completion).run();
-    // The goals it counts toward keep it (ADR-0042 §1). The completion
-    // scores; the entries never do (§4).
-    if (carried) carryGoalEntries(tx, completion, carried.goalIds);
-    else recordGoalEntries(tx, completion);
   });
 }
 
@@ -294,4 +288,33 @@ export async function setCompletionTags(
   // absent; leaving it absent after the formula changed would have let
   // the calendar, the week and the month read a stale day.
   await cacheDayScore(date);
+}
+
+/**
+ * Set or clear "Took about…" on a day's tick, kept between 1 minute
+ * and 12 hours. Only hours achievements read it (ADR-0047 §3), and
+ * **no points move**, so no day is re-scored. Cleared, a tick counts
+ * its size or event length again.
+ */
+export async function setTookAbout(
+  taskId: string,
+  date: string,
+  minutes: number | null,
+): Promise<void> {
+  assertEditable(date);
+  if (minutes !== null && !Number.isFinite(minutes)) {
+    throw new Error(`Not a length of time: ${minutes}`);
+  }
+  db.transaction((tx) => {
+    const [completion] = tx
+      .select({ id: taskCompletion.id })
+      .from(taskCompletion)
+      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
+      .all();
+    if (!completion) throw new Error(`No tick of ${taskId} on ${date}`);
+    tx.update(taskCompletion)
+      .set({ actualMinutes: minutes === null ? null : clampTookAbout(minutes) })
+      .where(eq(taskCompletion.id, completion.id))
+      .run();
+  });
 }

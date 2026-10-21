@@ -16,6 +16,7 @@ export default function LifeLayout() {
   return (
     <Stack screenOptions={pushedOptions(theme)}>
       <Stack.Screen name="index" options={tabRootOptions(theme, "Life")} />
+      <Stack.Screen name="achievements" options={{ title: "Achievements" }} />
     </Stack>
   );
 }

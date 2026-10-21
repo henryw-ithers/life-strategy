@@ -41,6 +41,7 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { LinearTransition, runOnJS, useReducedMotion } from "react-native-reanimated";
 
+import { CelebrationCard } from "../../../components/achievements/CelebrationCard";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
@@ -81,6 +82,7 @@ import { addSkip } from "../../../db/skips";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
 import { skipProblem, type SkipInput } from "../../../db/windowRules";
+import { useCelebration } from "../../../hooks/useCelebration";
 import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
@@ -124,6 +126,7 @@ export default function TodayScreen() {
     toggle,
   } = useDayData();
   const undo = useUndoDelete((write) => saveThen(write, refresh));
+  const celebration = useCelebration();
   /** The day as shown: a note, photo or activity waiting on Undo is
    *  already gone from it. */
   const day = withoutRecord(storedDay, undo.hidden);
@@ -346,7 +349,7 @@ export default function TodayScreen() {
       task={t}
       hue={hueFor(t)}
       disabled={!day.editable}
-      onToggle={() => void toggle(t)}
+      onToggle={() => void toggle(t).then(celebration.check)}
       onTag={
         t.completedToday && day.editable && day.communalUnits.length > 0
           ? () => setTaggingTask(t)
@@ -536,6 +539,19 @@ export default function TodayScreen() {
             Nothing’s due today. Do something from later in the week and it becomes a rest day —
             70, plus what you did.
           </AppText>
+        ) : null}
+
+        {/* What was just earned (ADR-0047 §6), once. */}
+        {celebration.waiting.length > 0 ? (
+          <CelebrationCard
+            earned={celebration.waiting}
+            onDone={() => void celebration.dismiss()}
+            onSeeAll={() => {
+              void celebration.dismiss();
+              router.navigate("/goals/achievements" as Href);
+            }}
+            theme={theme}
+          />
         ) : null}
 
         {showPassCard ? (

@@ -8,6 +8,8 @@
  * units, through `palette.ts`. Contrast is checked in
  * `__tests__/palette.test.ts`.
  */
+import type { Rank } from "@glide/scoring";
+
 import { AREA_COLOUR, PALETTE, isPaletteKey, type PaletteKey } from "./palette";
 
 export type ThemeName = "light" | "dark";
@@ -135,4 +137,26 @@ export function gradeColor(grade: number, theme: ThemeTokens): string {
   const band =
     grade < 50 ? 0 : grade < 60 ? 1 : grade < 70 ? 2 : grade < 80 ? 3 : grade < 90 ? 4 : 5;
   return PALETTE[GRADE_RAMP[band]!][theme.name];
+}
+
+/**
+ * An achievement rank's colour (ADR-0047). From the palette, as every
+ * colour is (DESIGN.md): Bronze is Brown, Silver the muted grey, Gold
+ * Yellow, Platinum Mint and Diamond Cyan. Each holds 4.5:1 as a mark on
+ * the background and on cards; the rank is always named beside it too.
+ */
+export function rankColor(rank: Rank, theme: ThemeTokens): string {
+  if (rank === "silver") return theme.muted;
+  const key: Record<Exclude<Rank, "silver">, PaletteKey> = {
+    bronze: "brown",
+    gold: "yellow",
+    platinum: "mint",
+    diamond: "cyan",
+  };
+  return PALETTE[key[rank]][theme.name];
+}
+
+/** A run going now: the streak mark's colour. */
+export function streakColor(theme: ThemeTokens): string {
+  return PALETTE.orange[theme.name];
 }

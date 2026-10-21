@@ -105,8 +105,6 @@ export function reasonLabel(reason: SuggestionReason, today = true): string {
       return today ? "Due today" : "Due that day";
     case "carried":
       return "Still open";
-    case "goal":
-      return "For your goal";
     case "partOfDay":
       return "Fits this time of day";
     case "fits":
