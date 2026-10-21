@@ -235,12 +235,12 @@ a low grade or a low count.
 2. [x] Amend AGENTS.md: the goal vocabulary, "Goals never grade a day"
        (which becomes the same rule for achievements), and the §4
        exception to the plan-completion invariant.
-3. [ ] Engine: `achievements.ts`, pure, holding the catalogue and the
+3. [x] Engine: `achievements.ts`, pure, holding the catalogue and the
        rule for what a set of facts has earned, with tests, including
        the guard rails in §4.
-4. [ ] Data: drop the goal tables; reshape `achievement` (series, rank,
+4. [x] Data: drop the goal tables; reshape `achievement` (series, rank,
        subject, earned on); award on tick, at day end and at week end.
        Generated, forward-only migrations.
-5. [ ] Screens: Life → Achievements, unit badges and streak icons, the
+5. [x] Screens: Life → Achievements, unit badges and streak icons, the
        earning card, the month review list. Remove the goal code.
-6. [ ] Update the spec (§5.4, §5.6) and the build tracker.
+6. [x] Update the spec (§5.4, §5.6) and the build tracker.
