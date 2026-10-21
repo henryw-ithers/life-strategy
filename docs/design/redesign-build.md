@@ -140,6 +140,24 @@ Left for later: offering the pass on Home from Sunday 6 pm until the
 week's first window (ADR-0039 §11) comes with Home in Phase 9; "goals
 that moved" in Last week comes with goals in Phase 10.
 
+Built in 8d: the New task form's unit guess (`guessUnit`: a
+commitment named in the title as a whole word, then the keyword match,
+never a Not now unit), Not now units greyed in the unit picker with
+"Move it up in Priorities to add tasks", and new events starting
+one-time when Settings → Your days says so (`events_default_once`,
+which onboarding's shift-work template sets in Phase 11).
+
+Left as it was in 8d: the form keeps Size and part of day where they
+are. Spec §5.7 puts Size up top and part of day under More; moving them
+changes the edit sheet too, which shares the picker, and ADR-0026 keeps
+an unsized task first-class. Revisit with a phone walk.
+
+Phase 8 is done when 8d merges. Next is Phase 9, Home: windows, swiping
+between days, the one list, the evening card, the quiet score, the
+weekly pass offered from Sunday 6 pm, Window in Home's + menu, "Do N of
+these" back on Home, and dropping `planned_occurrence`, DayGrid,
+`dayGridLayout` and the List/Hours toggle.
+
 ## Phase 7: events, skips, Clear today and Away
 
 The data and engine came in 4a, 5a and 5b; Phase 7 is the screens and
