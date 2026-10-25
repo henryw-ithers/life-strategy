@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-21, during Phase 11.
+Last updated 2026-10-25, after Phase 11. Next: a phone walk, then Phase 12.
 
 ## Phases
 
@@ -36,7 +36,7 @@ Last updated 2026-10-21, during Phase 11.
 | 8 | Plan: week strip and day view, hours editor, weekly pass, the New task form | Merged, PRs #22–#25 |
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | Merged, PRs #26, #27 |
 | 10 | Life: rows, unit and commitment screens, achievements (ADR-0047) | Merged, PRs #28, #29, #31 |
-| **11** | **Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week** | **In progress** |
+| 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | Merged, PR #32 |
 | 12 | Hardening: test coverage, a device walk of every edge case, a code review | |
 
 Each phase ships as one or more PRs off `main`. Every PR passes
