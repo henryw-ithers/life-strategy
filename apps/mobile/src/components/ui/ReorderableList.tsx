@@ -487,7 +487,9 @@ function Row({
       ]}
     >
       {renderItem && !ownsAccessibility ? (
-        <View style={styles.custom}>{renderItem(item, index)}</View>
+        <View style={[styles.custom, fixed ? styles.customHeader : styles.customRow]}>
+          {renderItem(item, index)}
+        </View>
       ) : renderItem ? (
         // The caller draws the row and asked the list to speak for it
         // (a label, actions or a fixed row). Not `disabled` when it
@@ -500,7 +502,11 @@ function Row({
           accessibilityHint={tappable && detailHint ? `Opens ${detailHint}` : undefined}
           accessibilityActions={moveActions}
           onAccessibilityAction={(e) => onAction(e.nativeEvent.actionName)}
-          style={({ pressed }) => [styles.custom, { opacity: pressed && tappable ? 0.6 : 1 }]}
+          style={({ pressed }) => [
+            styles.custom,
+            fixed ? styles.customHeader : styles.customRow,
+            { opacity: pressed && tappable ? 0.6 : 1 },
+          ]}
         >
           {renderItem(item, index)}
         </Pressable>
@@ -576,6 +582,11 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   grip: { width: 18, height: 1.5, borderRadius: 1 },
-  custom: { flex: 1, justifyContent: "center" },
+  custom: { flex: 1, height: "100%", justifyContent: "center" },
+  /** A caller's row sits inside the block's padding, like a list row. */
+  customRow: { paddingLeft: space.lg },
+  /** A section header sits at the bottom of its slot, just above the
+   *  rows it heads, not floating in the middle. */
+  customHeader: { justifyContent: "flex-end", paddingHorizontal: space.xs, paddingBottom: space.xs },
 });
 

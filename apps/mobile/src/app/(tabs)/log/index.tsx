@@ -260,8 +260,7 @@ export default function LogScreen() {
         ) : shown === null ? null : months?.length === 0 ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.emptyText}>
-              Your notes, photos, and the goals you reach collect here, newest
-              first.
+              Your notes, photos and achievements collect here.
             </AppText>
             <AppText variant="caption" color={theme.muted} style={styles.emptyText}>
               Add a note or a photo to a day on Home and it will show up here.

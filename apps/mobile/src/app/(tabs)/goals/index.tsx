@@ -5,9 +5,12 @@
  * - **Commitments**, with what each holds.
  * - **Your units** by tier, in your order, with Priorities beside the
  *   heading. Each has its task count and a bar of its share of the time
- *   you spent in the last 4 weeks: "Where your time went". The bar has
- *   **no target** (ADR-0041 §5); weights live on Priorities, so a bar
- *   can't read as falling short. Not now starts closed.
+ *   you spent in the last 4 weeks. The bar has **no target** (ADR-0041
+ *   §5); weights live on Priorities, so a bar can't read as falling
+ *   short. Not now starts closed.
+ * - **A unit opens in place** (Henry, 2026-10-25): its tasks, each
+ *   opening its edit sheet, and Add task. ⓘ opens the unit's own
+ *   screen for its weight, events and what it covers.
  *
  * Achievements open from the top (ADR-0047 §7), and each unit's row
  * carries its highest rank and a streak mark while a run is going.
@@ -15,7 +18,8 @@
  */
 import { addDays } from "@glide/scoring";
 import { router, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
 import {
@@ -26,16 +30,22 @@ import { CommitmentsList } from "../../../components/commitments/CommitmentsList
 import { Medal, StreakFlame } from "../../../components/achievements/Medal";
 import { tierGroups, type TierGroup } from "../../../components/life/lifeRows";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddTaskModal } from "../../../components/plan/AddTaskModal";
+import { applyTaskEdit, editableFrom } from "../../../components/plan/applyTaskEdit";
+import { taskWhen } from "../../../components/plan/ItemRow";
+import { TaskEditSheet } from "../../../components/plan/TaskEditSheet";
+import { pickableUnits } from "../../../components/plan/unitSelection";
 import { AppText } from "../../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Chevron } from "../../../components/ui/Chevron";
 import { Group, GroupDivider } from "../../../components/ui/Group";
+import { InfoButton } from "../../../components/ui/InfoButton";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { badgesByUnit, highestRank, loadAchievements, type UnitBadge } from "../../../db/achievements";
 import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/commitments";
 import { createCommitment } from "../../../db/commitmentWrites";
-import { loadPlan } from "../../../db/tasks";
+import { addTask, archiveTask, loadPlan, type PlanData, type PlanTask } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
 import { RANK_LABEL } from "../../../lib/achievementCopy";
@@ -58,6 +68,21 @@ export default function LifeScreen() {
   const [earned, setEarned] = useState<{ count: number; top: UnitBadge["rank"] }>({ count: 0, top: null });
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
+  const [plan, setPlan] = useState<PlanData | null>(null);
+  /** Units opened in place. */
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const [editing, setEditing] = useState<PlanTask | null>(null);
+  const [editingShown, editingGone] = useRetained(editing);
+  /** The unit Add task was tapped in. */
+  const [adding, setAdding] = useState<string | null>(null);
+  const [addingShown, addingGone] = useRetained(adding);
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const reload = useCallback(async () => {
     const today = currentLocalDate();
@@ -79,9 +104,27 @@ export default function LifeScreen() {
       top: highestRank(achievements),
     });
     setHasPlan(plan.hasSnapshot);
+    setPlan(plan);
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
   }, []);
-  const { error, retry } = useScreenLoad(reload);
+  const { error, retry, save } = useScreenLoad(reload);
+  const tasksOf = useMemo(() => {
+    const out = new Map<string, PlanTask[]>();
+    for (const a of plan?.areas ?? []) {
+      for (const u of a.units) out.set(u.id, u.tasks.filter((t) => t.kind !== "event"));
+    }
+    return out;
+  }, [plan]);
+  const allUnits = useMemo(() => pickableUnits(plan), [plan]);
+  const rowsProps = {
+    badges,
+    open,
+    tasksOf,
+    onToggle: toggle,
+    onEdit: setEditing,
+    onAdd: setAdding,
+    theme,
+  };
 
   return (
     <View style={styles.root}>
@@ -117,9 +160,16 @@ export default function LifeScreen() {
               </Pressable>
             </Group>
 
-            <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.heading}>
-              Commitments
-            </AppText>
+            <View style={styles.unitsHeading}>
+              <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.grow}>
+                Commitments
+              </AppText>
+              <InfoButton
+                title="Commitments"
+                body="Something with set hours, like School, Work or a club. On a day with commitment work, each commitment takes its time that day out of your working hours, and the rest of your life keeps what's left."
+                theme={theme}
+              />
+            </View>
             <CommitmentsList
               commitments={commitments.commitments}
               archived={commitments.archived}
@@ -146,6 +196,11 @@ export default function LifeScreen() {
               <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.grow}>
                 Your units
               </AppText>
+              <InfoButton
+                title="Your units"
+                body="Each bar is that unit's share of the time you spent in the last 4 weeks. Tap a unit for its tasks; the info button opens the unit itself."
+                theme={theme}
+              />
               <Pressable
                 onPress={() => router.push("/priorities" as Href)}
                 accessibilityRole="button"
@@ -165,9 +220,6 @@ export default function LifeScreen() {
               </View>
             ) : (
               <>
-                <AppText variant="caption" color={theme.muted}>
-                  Where your time went · last 4 weeks
-                </AppText>
                 {groups.map((g) =>
                   g.tier === "notNow" ? (
                     <View key={g.tier}>
@@ -181,14 +233,14 @@ export default function LifeScreen() {
                           {notNowOpen ? "▾" : "▸"} Not now ({g.units.length})
                         </AppText>
                       </Pressable>
-                      {notNowOpen ? <UnitRows units={g.units} badges={badges} theme={theme} /> : null}
+                      {notNowOpen ? <UnitRows units={g.units} {...rowsProps} /> : null}
                     </View>
                   ) : (
                     <View key={g.tier}>
                       <AppText variant="caption" color={theme.muted} style={styles.tier}>
                         {g.label}
                       </AppText>
-                      <UnitRows units={g.units} badges={badges} theme={theme} />
+                      <UnitRows units={g.units} {...rowsProps} />
                     </View>
                   ),
                 )}
@@ -219,6 +271,40 @@ export default function LifeScreen() {
           }}
         />
       ) : null}
+
+      {editingShown ? (
+        <TaskEditSheet
+          visible={editing !== null}
+          onDismissed={editingGone}
+          task={editableFrom(editingShown)}
+          units={allUnits}
+          areaColors={theme.areas}
+          accent={theme.accent}
+          theme={theme}
+          onClose={() => setEditing(null)}
+          onSave={(next) => void save(() => applyTaskEdit(editingShown, next))}
+          onDelete={() => {
+            const t = editingShown;
+            setEditing(null);
+            void save(() => archiveTask(t.id));
+          }}
+        />
+      ) : null}
+
+      {addingShown !== null ? (
+        <AddTaskModal
+          visible={adding !== null}
+          onClose={() => setAdding(null)}
+          onDismissed={addingGone}
+          units={allUnits}
+          homeUnitId={addingShown}
+          areaColors={theme.areas}
+          theme={theme}
+          onCommit={(title, timesPerWeek, unitIds, plannedWeekdays, partOfDay, oneOff, detail) =>
+            void save(() => addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail))
+          }
+        />
+      ) : null}
     </View>
   );
 }
@@ -226,10 +312,20 @@ export default function LifeScreen() {
 function UnitRows({
   units,
   badges,
+  open,
+  tasksOf,
+  onToggle,
+  onEdit,
+  onAdd,
   theme,
 }: {
   units: TierGroup["units"];
   badges: ReadonlyMap<string, UnitBadge>;
+  open: ReadonlySet<string>;
+  tasksOf: ReadonlyMap<string, PlanTask[]>;
+  onToggle: (unitId: string) => void;
+  onEdit: (task: PlanTask) => void;
+  onAdd: (unitId: string) => void;
   theme: ThemeTokens;
 }) {
   return (
@@ -239,47 +335,103 @@ function UnitRows({
         const pct = Math.round(u.share * 100);
         const badge = badges.get(u.id);
         const run = badge?.streak ?? null;
+        const expanded = open.has(u.id);
+        const tasks = tasksOf.get(u.id) ?? [];
         return (
           <View key={u.id}>
             {i > 0 ? <GroupDivider theme={theme} /> : null}
-            <Pressable
-              onPress={() => router.push(`/goals/unit/${u.id}` as Href)}
-              accessibilityRole="button"
-              accessibilityLabel={[
-                u.name,
-                `${u.tasks} ${u.tasks === 1 ? "task" : "tasks"}`,
-                pct > 0 ? `${pct}% of your time` : null,
-                badge?.rank ? `${RANK_LABEL[badge.rank]} earned` : null,
-                run ? `${run.length} ${run.per === "day" ? "days" : "weeks"} in a row` : null,
-              ]
-                .filter(Boolean)
-                .join(", ")}
-              style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              <View style={[styles.dot, { backgroundColor: hue }]} />
-              <View style={styles.grow}>
-                <AppText color={theme.ink} numberOfLines={1}>
-                  {u.name}
-                </AppText>
-                {/* A share of your time, drawn against the largest. */}
-                <View style={[styles.track, { backgroundColor: theme.hairline }]}>
-                  <View style={[styles.fill, { width: `${u.bar * 100}%`, backgroundColor: hue }]} />
-                </View>
-              </View>
-              {run ? (
-                <View style={styles.streak}>
-                  <StreakFlame theme={theme} />
-                  <AppText variant="caption" color={theme.muted} tabular>
-                    {run.length}
+            <View style={styles.row}>
+              <Pressable
+                onPress={() => onToggle(u.id)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded }}
+                accessibilityLabel={[
+                  u.name,
+                  `${u.tasks} ${u.tasks === 1 ? "task" : "tasks"}`,
+                  pct > 0 ? `${pct}% of your time` : null,
+                  badge?.rank ? `${RANK_LABEL[badge.rank]} earned` : null,
+                  run ? `${run.length} ${run.per === "day" ? "days" : "weeks"} in a row` : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+                style={({ pressed }) => [styles.rowMain, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <View style={[styles.dot, { backgroundColor: hue }]} />
+                <View style={styles.grow}>
+                  <AppText color={theme.ink} numberOfLines={1}>
+                    {u.name}
                   </AppText>
+                  {/* A share of your time, drawn against the largest. */}
+                  <View style={[styles.track, { backgroundColor: theme.fill }]}>
+                    <View style={[styles.fill, { width: `${u.bar * 100}%`, backgroundColor: hue }]} />
+                  </View>
                 </View>
-              ) : null}
-              {badge?.rank ? <Medal rank={badge.rank} run={false} theme={theme} size={16} /> : null}
-              <AppText variant="caption" color={theme.muted}>
-                {u.tasks} {u.tasks === 1 ? "task" : "tasks"}
-              </AppText>
-              <Chevron color={theme.muted} theme={theme} size={13} />
-            </Pressable>
+                {run ? (
+                  <View style={styles.streak}>
+                    <StreakFlame theme={theme} />
+                    <AppText variant="caption" color={theme.muted} tabular>
+                      {run.length}
+                    </AppText>
+                  </View>
+                ) : null}
+                {badge?.rank ? <Medal rank={badge.rank} run={false} theme={theme} size={16} /> : null}
+                <AppText variant="caption" color={theme.muted} tabular>
+                  {u.tasks}
+                </AppText>
+                <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={15} color={theme.muted} />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push(`/goals/unit/${u.id}` as Href)}
+                accessibilityRole="button"
+                accessibilityLabel={`${u.name} details`}
+                hitSlop={6}
+                style={({ pressed }) => [styles.info, { opacity: pressed ? 0.5 : 1 }]}
+              >
+                <Ionicons name="information-circle-outline" size={20} color={theme.muted} />
+              </Pressable>
+            </View>
+            {expanded ? (
+              <View style={[styles.tasks, { backgroundColor: theme.fill }]}>
+                {tasks.map((t, j) => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => onEdit(t)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.title}, ${taskWhen(t)}`}
+                    accessibilityHint="Edits the task"
+                    style={({ pressed }) => [
+                      styles.taskRow,
+                      j > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.hairline } : null,
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
+                      {t.title}
+                    </AppText>
+                    <AppText variant="caption" color={theme.muted}>
+                      {taskWhen(t)}
+                    </AppText>
+                  </Pressable>
+                ))}
+                <Pressable
+                  onPress={() => onAdd(u.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add a task to ${u.name}`}
+                  style={({ pressed }) => [
+                    styles.taskRow,
+                    tasks.length > 0
+                      ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.hairline }
+                      : null,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Ionicons name="add" size={18} color={theme.accent} />
+                  <AppText variant="label" color={theme.accent} style={styles.grow}>
+                    Add task
+                  </AppText>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         );
       })}
@@ -297,14 +449,24 @@ const styles = StyleSheet.create({
   grow: { flex: 1, gap: space.xs },
   link: { minHeight: 44, justifyContent: "center" },
   empty: { gap: space.md },
-  row: {
+  row: { flexDirection: "row", alignItems: "center", paddingRight: space.sm },
+  rowMain: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
     minHeight: 56,
-    paddingHorizontal: space.lg,
+    paddingLeft: space.lg,
     paddingVertical: space.sm,
   },
+  info: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
+  tasks: {
+    marginHorizontal: space.md,
+    marginBottom: space.md,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+  },
+  taskRow: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   streak: { flexDirection: "row", alignItems: "center", gap: 2 },
   track: { height: 4, borderRadius: radius.pill, overflow: "hidden" },

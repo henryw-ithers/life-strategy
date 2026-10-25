@@ -173,7 +173,7 @@ export function NumberDial({
       </View>
 
       <View
-        style={[styles.dial, { backgroundColor: theme.surface }]}
+        style={[styles.dial, { backgroundColor: theme.fill }]}
         onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
         importantForAccessibility="no-hide-descendants"
       >

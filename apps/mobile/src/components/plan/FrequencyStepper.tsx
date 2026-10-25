@@ -79,7 +79,7 @@ export function FrequencyStepper({
         if (e.nativeEvent.actionName === "increment") step(1);
         if (e.nativeEvent.actionName === "decrement") step(-1);
       }}
-      style={[styles.track, { backgroundColor: theme.surface }]}
+      style={[styles.track, { backgroundColor: theme.fill }]}
     >
       <StepButton
         icon="remove"

@@ -8,10 +8,9 @@
  * past a header moves a unit into that tier. VoiceOver gets Move up,
  * Move down and Move to tier on every unit.
  *
- * Nothing saves until Done, which writes one snapshot (ADR-0041 §5).
- * Moving units with tasks into Not now asks first, since their tasks
- * are paused. Afterwards, any weight you set whose recommended value
- * moved is offered back to you, to keep or reset.
+ * Nothing saves until Done, which writes one snapshot (ADR-0041 §5)
+ * with no questions: Not now pauses a unit's tasks until it moves back
+ * up, and a weight you set is kept (Henry, 2026-10-25).
  *
  * Also onboarding's Priorities step (ADR-0045), pushed over it. A first
  * run starts with every unit Unsorted, and Done waits until each is in
@@ -50,46 +49,20 @@ import {
 } from "../../components/priorities/board";
 import { TIER_LABEL, UnitSheet } from "../../components/priorities/UnitSheet";
 import { AppText } from "../../components/ui/AppText";
+import { InfoButton } from "../../components/ui/InfoButton";
 import { constellation, ScrollBackdrop } from "../../components/ui/Backdrop";
 import { ReorderableList, type ReorderableItem } from "../../components/ui/ReorderableList";
 import { LoadFailure, useScreenLoad } from "../../components/ui/ScreenLoad";
 import { useRetained } from "../../hooks/useRetained";
 import {
-  clearOverrides,
   loadPriorities,
   savePriorities,
-  type OverrideReview,
   type PriorityBoard,
 } from "../../db/priorities";
 import { boardWeights } from "../../db/tierRules";
 import { getTheme, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 
-
-/** "Exercise", "Exercise and Sleep", "Exercise, Sleep and Money". */
-function listNames(names: readonly string[]): string {
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-/** Ask before pausing tasks (spec §5.4.1). Resolves true to go ahead. */
-function confirmNotNow(units: { name: string; taskCount: number }[]): Promise<boolean> {
-  const tasks = units.reduce((a, u) => a + u.taskCount, 0);
-  const one = units.length === 1;
-  return new Promise((resolve) => {
-    Alert.alert(
-      `Move ${listNames(units.map((u) => u.name))} to Not now?`,
-      `${one ? "Its" : "Their"} ${tasks} ${tasks === 1 ? "task" : "tasks"} will be paused. ${
-        tasks === 1 ? "It comes" : "They come"
-      } back if you move ${one ? "it" : "them"} up again.`,
-      [
-        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-        { text: "Pause tasks and move", onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
-}
 
 /** What a section is called: a tier, or Unsorted on a first run. */
 const SLOT_LABEL: Record<Slot, string> = { ...TIER_LABEL, unsorted: "Unsorted" };
@@ -106,21 +79,6 @@ function pickTier(name: string): Promise<Tier | null> {
         { text: "Cancel", style: "cancel" as const, onPress: () => resolve(null) },
       ],
       { cancelable: true, onDismiss: () => resolve(null) },
-    );
-  });
-}
-
-/** Keep or reset a weight you set whose recommended value moved. */
-function reviewOverride(r: OverrideReview): Promise<"keep" | "reset"> {
-  return new Promise((resolve) => {
-    Alert.alert(
-      `${r.name}'s recommended weight changed`,
-      `You set ${r.override}. The recommended weight is now ${r.recommendedNow}, was ${r.recommendedBefore}.`,
-      [
-        { text: "Keep mine", style: "cancel", onPress: () => resolve("keep") },
-        { text: `Use ${r.recommendedNow}`, onPress: () => resolve("reset") },
-      ],
-      { cancelable: true, onDismiss: () => resolve("keep") },
     );
   });
 }
@@ -179,8 +137,7 @@ export default function PrioritiesScreen() {
     [board],
   );
 
-  // Until it has saved: a swipe back during the review alerts is still
-  // asked about.
+  // Until it has saved, leaving with changes asks first.
   usePreventRemove(dirty && !saved, ({ data }) => {
     Alert.alert("Discard your changes?", "Your tiers won't be saved.", [
       { text: "Keep editing", style: "cancel" },
@@ -237,38 +194,21 @@ export default function PrioritiesScreen() {
       Alert.alert("Priorities can't be saved yet", live.problem);
       return;
     }
-    const pausing = placement
-      .filter((p) => p.tier === "notNow" && unitById.get(p.unitId)?.tier !== "notNow")
-      .map((p) => unitById.get(p.unitId)!)
-      .filter((u) => u.taskCount > 0);
-    if (pausing.length > 0 && !(await confirmNotNow(pausing))) return;
+    // Done just saves (Henry, 2026-10-25): moving a unit to Not now
+    // pauses its tasks, and moving it back up brings them back; a weight
+    // you set is kept even when its recommended value moves.
     setSaving(true);
-    let review: OverrideReview[];
     try {
       const planned = new Map(
         [...overrides].filter(([id]) => placement.find((p) => p.unitId === id)?.tier !== "notNow"),
       );
-      ({ review } = await savePriorities(sorted, planned));
+      await savePriorities(sorted, planned);
     } catch (e) {
       setSaving(false);
       Alert.alert("Priorities weren't saved", e instanceof Error ? e.message : String(e));
       return;
     }
-    // Saved: the review only adjusts it, and a failure there mustn't
-    // read as the save failing or invite a second snapshot.
     edited.current = false;
-    try {
-      const reset: string[] = [];
-      for (const r of review) {
-        if ((await reviewOverride(r)) === "reset") reset.push(r.unitId);
-      }
-      await clearOverrides(reset);
-    } catch (e) {
-      Alert.alert(
-        "Your priorities were saved",
-        `Resetting a weight didn't work: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
     setSaving(false);
     setSaved(true);
   };
@@ -370,16 +310,16 @@ export default function PrioritiesScreen() {
         contentContainerStyle={styles.container}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
-        <AppText color={theme.ink} style={styles.lead}>
-          {board.firstRun
-            ? "Drag every unit into a tier, or tap one to choose. Order inside a tier fine-tunes it."
-            : "Drag your units into tiers. Order inside a tier fine-tunes it."}
-        </AppText>
-        {board.firstRun ? (
-          <AppText variant="caption" color={theme.muted} style={styles.lead}>
-            Rough is fine. You can change it any time.
+        <View style={styles.leadRow}>
+          <AppText color={theme.muted} style={styles.grow}>
+            {board.firstRun ? "Drag each unit into a tier." : "Drag to reorder."}
           </AppText>
-        ) : null}
+          <InfoButton
+            title="Priorities"
+            body="Top, Important and Background set each unit's share of the day, and order inside a tier fine-tunes it. Not now is out of the plan: no weight, no tasks. Tap a unit to set your own weight. Rough is fine; you can change it any time."
+            theme={theme}
+          />
+        </View>
         {/* Not while you're still sorting: an empty plan is where a
             first run starts, not a problem yet. */}
         {(unsorted === 0 && live.problem) || board.problem ? (
@@ -437,11 +377,6 @@ export default function PrioritiesScreen() {
           }}
         />
         </View>
-
-        <AppText variant="footnote" color={theme.muted} style={styles.foot}>
-          Weights are recommended from your tiers. Tap a unit to set your own. Not now is out of
-          the plan: no weight and no tasks.
-        </AppText>
       </Animated.ScrollView>
 
       {editingShown && editingUnit ? (
@@ -507,13 +442,17 @@ function UnitRow({
       <AppText color={theme.ink} style={styles.grow} numberOfLines={1}>
         {name}
       </AppText>
+      {/* Your own weight, with the recommended one beside it as a
+          small muted number (AGENTS.md: an override always shows it). */}
       {weight === null ? null : own !== undefined ? (
-        <AppText variant="caption" color={theme.muted} tabular>
+        <View style={styles.weights} accessible={false}>
           <AppText color={theme.ink} tabular>
             {own}
           </AppText>
-          {`  ·  ${recommended} recommended`}
-        </AppText>
+          <AppText variant="footnote" color={theme.muted} tabular>
+            {recommended}
+          </AppText>
+        </View>
       ) : (
         <AppText color={theme.ink} tabular>
           {weight}
@@ -533,16 +472,15 @@ const styles = StyleSheet.create({
   },
   loading: { marginTop: space.xxl },
   lead: { marginBottom: space.sm },
-  foot: { marginTop: space.md },
+  leadRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: space.sm },
   header: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    paddingBottom: space.xs,
-    flex: 1,
   },
   headerLabel: { letterSpacing: 0.6 },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, flex: 1 },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  weights: { flexDirection: "row", alignItems: "baseline", gap: space.xs },
   grow: { flex: 1 },
 });

@@ -49,7 +49,7 @@ function navigationTheme(theme: ThemeTokens) {
       card: theme.canvas,
       text: theme.ink,
       border: theme.hairline,
-      primary: theme.ink,
+      primary: theme.accent,
     },
   };
 }

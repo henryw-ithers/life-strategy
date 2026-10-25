@@ -11,11 +11,13 @@
  * keep the hours they had, EC-15). Days already begun keep the hours
  * they began with for the commitment share either way (ADR-0044 §5).
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   dayHours,
   totalMinutes,
   type NamedGap,
   type TimeRange,
+  type Weekday,
   type WorkSchedule,
 } from "@glide/scoring";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -40,11 +42,13 @@ import {
   type HoursDraft,
 } from "../components/plan/hoursDraft";
 import { spanLabel } from "../components/plan/dayView";
+import { formatWeekdaySummary } from "../components/plan/planning";
 import { WeekdayPicker } from "../components/plan/WeekdayPicker";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { TimeField } from "../components/ui/DateTimeField";
 import { Group } from "../components/ui/Group";
+import { InfoButton } from "../components/ui/InfoButton";
 import { KeyboardScroll } from "../components/ui/KeyboardScroll";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { TextField } from "../components/ui/TextField";
@@ -56,6 +60,14 @@ import { currentLocalDate } from "../lib/calendar";
 import { templateFor } from "../lib/onboardingTemplates";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
+
+/** "Weekdays", "Weekends", "Every day", else "Mon, Wed, Fri". */
+function groupTitle(days: readonly number[]): string | null {
+  const key = [...days].sort().join("");
+  if (key === "12345") return "Weekdays";
+  if (key === "67") return "Weekends";
+  return formatWeekdaySummary(days as readonly Weekday[]);
+}
 
 export default function HoursScreen() {
   const scheme = useColorScheme();
@@ -146,22 +158,37 @@ export default function HoursScreen() {
           Done
         </Stack.Toolbar.Button>
       </Stack.Toolbar>
+      {/* The scroll view is there from the first frame, loading or not:
+          iOS ties the large title to the first scroll view it finds, and
+          one that mounts later leaves the title floating over the page. */}
+      <KeyboardScroll
+        style={styles.root}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.container}
+      >
       {error ? (
         <LoadFailure error={error} onRetry={retry} theme={theme} />
       ) : !draft ? (
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       ) : (
-        <KeyboardScroll
-          style={styles.root}
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={styles.container}
-        >
-          <AppText variant="caption" color={theme.muted}>
-            When you&apos;re free to work. Events are taken out of these, and what&apos;s left are your windows.
-          </AppText>
+        <>
+          <View style={styles.leadRow}>
+            <AppText variant="caption" color={theme.muted} style={styles.grow}>
+              When you&apos;re free to work.
+            </AppText>
+            <InfoButton
+              title="Working hours"
+              body="Events are taken out of these hours, and what's left becomes each day's windows. Gaps are named breaks between windows, like lunch."
+              theme={theme}
+            />
+          </View>
 
           {draft.schedules.map((s, i) => (
-            <Group key={`s-${s.weekdays.join("")}-${i}`} theme={theme} title={`Group ${i + 1}`}>
+            <Group
+              key={`s-${s.weekdays.join("")}-${i}`}
+              theme={theme}
+              title={groupTitle(s.weekdays) ?? `Group ${i + 1}`}
+            >
               <View style={styles.stack}>
                 <WeekdayPicker
                   value={s.weekdays}
@@ -222,9 +249,6 @@ export default function HoursScreen() {
           <AppText variant="headline" color={theme.ink} style={styles.heading}>
             Gaps
           </AppText>
-          <AppText variant="caption" color={theme.muted}>
-            Time between windows you&apos;d like named, like lunch. It isn&apos;t a window.
-          </AppText>
           {draft.gaps.map((g, i) => (
             <Group key={`g-${i}`} theme={theme}>
               <View style={styles.stack}>
@@ -282,8 +306,9 @@ export default function HoursScreen() {
               {problem}
             </AppText>
           ) : null}
-        </KeyboardScroll>
+        </>
       )}
+      </KeyboardScroll>
     </View>
   );
 }
@@ -328,9 +353,7 @@ function RangeRow({
           hitSlop={8}
           style={styles.remove}
         >
-          <AppText variant="caption" color={theme.accent}>
-            Remove
-          </AppText>
+          <Ionicons name="remove-circle" size={22} color={theme.danger} />
         </Pressable>
       ) : null}
     </View>
@@ -342,6 +365,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl, gap: space.md },
   stack: { gap: space.sm },
+  leadRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
   heading: { paddingTop: space.lg },
   range: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
   grow: { flex: 1 },

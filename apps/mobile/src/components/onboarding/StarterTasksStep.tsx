@@ -76,14 +76,12 @@ export function StarterTasksStep({
         A few tasks
       </AppText>
       <AppText color={theme.ink} style={styles.lead}>
-        Some ideas for what you put at the top. Tap any you want. You can
-        change how often later.
+        Tap any you want.
       </AppText>
 
       {units.length === 0 ? (
         <AppText color={theme.muted} style={styles.lead}>
-          Nothing is in Top yet, so there are no ideas to show. Add your
-          own, or move something up in Priorities later.
+          Nothing in Top yet.
         </AppText>
       ) : null}
 

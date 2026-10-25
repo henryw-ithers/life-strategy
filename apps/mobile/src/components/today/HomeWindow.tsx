@@ -18,7 +18,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import type { TodayTask } from "../../db/today";
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { cardStyle } from "../../theme/surfaces";
+import { space } from "../../theme/tokens";
 import { reasonLabel, spanLabel, spokenSpan } from "../plan/dayView";
 import { ActionMenu } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
@@ -104,11 +105,10 @@ export function HomeWindow({
   return (
     <View
       style={[
+        cardStyle(theme),
         styles.card,
-        {
-          backgroundColor: theme.surface,
-          borderColor: open ? theme.accent : "transparent",
-        },
+        // The current window is outlined in the accent.
+        open ? { borderWidth: 1.5, borderColor: theme.accent } : null,
       ]}
     >
       {live ? (
@@ -180,7 +180,7 @@ export function HomeWindow({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg, paddingHorizontal: space.md, paddingVertical: space.xs, borderWidth: 1.5 },
+  card: { paddingHorizontal: space.lg, paddingVertical: space.sm },
   headerRow: { flexDirection: "row", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
   grow: { flex: 1 },

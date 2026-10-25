@@ -40,6 +40,7 @@ import { WindowTimesSheet } from "../components/plan/WindowTimesSheet";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { Group } from "../components/ui/Group";
+import { InfoButton } from "../components/ui/InfoButton";
 import { KeyboardScroll } from "../components/ui/KeyboardScroll";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { UndoBar } from "../components/ui/UndoBar";
@@ -66,6 +67,7 @@ import { currentLocalDate } from "../lib/calendar";
 import { recordProblem } from "../lib/problemLog";
 import { spokenDate } from "../lib/format";
 import { getTheme } from "../theme/colors";
+import { cardStyle } from "../theme/surfaces";
 import { radius, space } from "../theme/tokens";
 
 type Step = "tiers" | "lastWeek" | "different" | "windows";
@@ -82,6 +84,15 @@ type DaySheet =
     }
   | { kind: "times"; date: string };
 
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** "Mon" and "26" for a `YYYY-MM-DD`, read from its parts (ADR-0002). */
+function shortDay(localDate: string): { weekday: string; dayNum: string } {
+  const [y, m, d] = localDate.split("-").map(Number);
+  const weekday = WEEKDAY_SHORT[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()]!;
+  return { weekday, dayNum: String(d) };
+}
+
 export default function WeeklyPassScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
@@ -89,6 +100,8 @@ export default function WeeklyPassScreen() {
 
   const [steps, setSteps] = useState<Step[] | null>(null);
   const [step, setStep] = useState(0);
+  /** The day step 3 shows; null until you pick one. */
+  const [passDay, setPassDay] = useState<string | null>(null);
   const [last, setLast] = useState<LastWeek | null>(null);
   const [events, setEvents] = useState<WeekEvent[]>([]);
   const [days, setDays] = useState<DayPlan[]>([]);
@@ -354,75 +367,119 @@ export default function WeeklyPassScreen() {
       );
     }
     if (current === "windows") {
+      // One day at a time, picked from a strip of the days left (Henry,
+      // 2026-10-25: the long scroll of every day was "horrific").
+      const live = (d: (typeof days)[number]) =>
+        d.planned.windows.filter(
+          (w) => !w.ended && !undo.hidden.has(`win-${d.day.date}-${w.range.start}-${w.range.end}`),
+        );
+      // Until you pick one, the first day that still has a window.
+      const shown =
+        days.find((d) => d.day.date === passDay) ?? days.find((d) => live(d).length > 0) ?? days[0];
+      const date = shown?.day.date ?? today;
       return (
         <View style={styles.stack}>
-          <AppText variant="title" color={theme.ink} accessibilityRole="header">
-            Your windows
-          </AppText>
-          <AppText color={theme.muted}>
-            Anything you don&apos;t pin is still suggested. This just locks in your picks.
-          </AppText>
-          {days.map((d) => {
-            const date = d.day.date;
-            const windows = d.planned.windows.filter(
-              (w) => !undo.hidden.has(`win-${date}-${w.range.start}-${w.range.end}`),
-            );
-            return (
-              <View key={date} style={styles.stack}>
-                <AppText variant="headline" color={theme.ink} accessibilityRole="header">
-                  {dayHeading(date, windows.length, d.freeMinutes)}
-                </AppText>
-                {timeline(d.hours, d.events).map((item) => {
-                  if (item.kind !== "window") return null;
-                  const w = d.planned.windows[item.index];
-                  if (!w || undo.hidden.has(`win-${date}-${w.range.start}-${w.range.end}`)) return null;
-                  return (
-                    <WindowCard
-                      key={`${date}-${w.range.start}-${w.range.end}`}
-                      window={w}
-                      tasks={d.tasks}
-                      choices={d.choices.filter(
-                        (c) => c.anchorMinute >= w.range.start && c.anchorMinute < w.range.end,
-                      )}
-                      addable={addableTo(item.index, d.planned).length}
-                      editable
-                      isToday={date === today}
-                      hueFor={hueFor}
-                      theme={theme}
-                      onPin={(id) => pin(date, id, w.range.start)}
-                      onAcceptAll={() => acceptAll(date, w.range.start)}
-                      onUnpin={(id) => once(() => unpinForDay(id, date))}
-                      onPinKind={(ruleId: string, kind: PinKind) => once(() => setPinKind(ruleId, kind))}
-                      onAddFromOpen={() => {
-                        setOpened((n) => n + 1);
-                        setSheet({
-                          kind: "add",
-                          date,
-                          start: w.range.start,
-                          label: spanLabel(w.range),
-                          tasks: addableTo(item.index, d.planned)
-                            .map((id) => d.tasks.get(id))
-                            .filter((t): t is TodayTask => t !== undefined),
-                        });
-                      }}
-                      onRemove={() => removeWindow(date, w.range)}
-                    />
-                  );
-                })}
-                {!d.day.away ? (
-                  <Button
-                    variant="quiet"
-                    label="Add a window"
-                    onPress={() => {
-                      setOpened((n) => n + 1);
-                      setSheet({ kind: "times", date });
-                    }}
-                    theme={theme}
+          <View style={styles.leadRow}>
+            <AppText variant="title" color={theme.ink} accessibilityRole="header" style={styles.grow}>
+              Your windows
+            </AppText>
+            <InfoButton
+              title="Your windows"
+              body="Pin what you want to keep in each window: tap a pin once to pin it there, twice to keep it until done. Anything you don't pin is still suggested."
+              theme={theme}
+            />
+          </View>
+          <View style={styles.dayStrip} accessibilityRole="tablist">
+            {days.map((d) => {
+              const on = d.day.date === date;
+              const pins = d.planned.windows.reduce((n, w) => n + w.pinned.length, 0);
+              const { weekday, dayNum } = shortDay(d.day.date);
+              return (
+                <Pressable
+                  key={d.day.date}
+                  onPress={() => setPassDay(d.day.date)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${spokenDate(d.day.date)}, ${pins} pinned`}
+                  style={({ pressed }) => [
+                    styles.dayChip,
+                    on ? { backgroundColor: theme.accent } : cardStyle(theme),
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <AppText variant="footnote" color={on ? theme.onAccent : theme.muted}>
+                    {weekday}
+                  </AppText>
+                  <AppText variant="headline" color={on ? theme.onAccent : theme.ink} tabular>
+                    {dayNum}
+                  </AppText>
+                  <View
+                    style={[
+                      styles.pinDot,
+                      { backgroundColor: pins > 0 ? (on ? theme.onAccent : theme.accent) : "transparent" },
+                    ]}
                   />
-                ) : null}
-              </View>
-            );
-          })}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {shown ? (
+            <>
+              <AppText variant="headline" color={theme.ink} accessibilityRole="header">
+                {dayHeading(date, live(shown).length, shown.freeMinutes)}
+              </AppText>
+              {live(shown).length === 0 ? (
+                <AppText color={theme.muted}>No windows left on this day.</AppText>
+              ) : null}
+              {timeline(shown.hours, shown.events).map((item) => {
+                if (item.kind !== "window") return null;
+                const w = shown.planned.windows[item.index];
+                if (!w || w.ended || undo.hidden.has(`win-${date}-${w.range.start}-${w.range.end}`)) return null;
+                return (
+                  <WindowCard
+                    key={`${date}-${w.range.start}-${w.range.end}`}
+                    window={w}
+                    tasks={shown.tasks}
+                    addable={addableTo(item.index, shown.planned).length}
+                    editable
+                    isToday={date === today}
+                    hueFor={hueFor}
+                    theme={theme}
+                    onPin={(id) => pin(date, id, w.range.start)}
+                    onAcceptAll={() => acceptAll(date, w.range.start)}
+                    onUnpin={(id) => once(() => unpinForDay(id, date))}
+                    onPinKind={(ruleId: string, kind: PinKind) => once(() => setPinKind(ruleId, kind))}
+                    onAddFromOpen={() => {
+                      setOpened((n) => n + 1);
+                      setSheet({
+                        kind: "add",
+                        date,
+                        start: w.range.start,
+                        label: spanLabel(w.range),
+                        tasks: addableTo(item.index, shown.planned)
+                          .map((id) => shown.tasks.get(id))
+                          .filter((t): t is TodayTask => t !== undefined),
+                      });
+                    }}
+                    onRemove={() => removeWindow(date, w.range)}
+                  />
+                );
+              })}
+              {!shown.day.away ? (
+                <Button
+                  variant="tonal"
+                  icon="add"
+                  label="Add a window"
+                  onPress={() => {
+                    setOpened((n) => n + 1);
+                    setSheet({ kind: "times", date });
+                  }}
+                  theme={theme}
+                />
+              ) : null}
+            </>
+          ) : null}
         </View>
       );
     }
@@ -479,10 +536,13 @@ export default function WeeklyPassScreen() {
           hueFor={hueFor}
           theme={theme}
           onClose={() => setSheet(null)}
+          date={sheetShown.date}
+          windowStart={sheetShown.start}
           onPick={(t) => {
             setSheet(null);
             pin(sheetShown.date, t.id, sheetShown.start);
           }}
+          onAdded={retry}
         />
       ) : null}
 
@@ -573,6 +633,18 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl, gap: space.lg },
   stack: { gap: space.md },
   grow: { flex: 1 },
+  leadRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  dayStrip: { flexDirection: "row", gap: space.xs },
+  /** Seven fit across an iPhone 15 (393pt) with the screen gutters. */
+  dayChip: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: space.sm,
+    borderRadius: radius.md,
+    minHeight: 64,
+  },
+  pinDot: { width: 5, height: 5, borderRadius: 3 },
   share: { gap: space.xs },
   shareLine: { flexDirection: "row", alignItems: "center", gap: space.sm },
   track: { height: 6, borderRadius: radius.pill, overflow: "hidden" },

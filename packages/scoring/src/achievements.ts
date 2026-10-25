@@ -46,7 +46,34 @@ export type SeriesId =
   | "greatDays"
   | "greatDayRun"
   | "activities"
-  | "flaggedDays";
+  | "flaggedDays"
+  // The wider catalogue (Henry, 2026-10-25: "a longer list ... video
+  // games or Garmin badges for inspiration"). Counts, runs and bests of
+  // what you did, never of what you didn't.
+  | "totalCompletions"
+  | "activeDays"
+  | "activeDayRun"
+  | "fullWeeks"
+  | "earlyBird"
+  | "nightOwl"
+  | "weekendTicks"
+  | "mostInOneDay"
+  | "mostUnitsWeek"
+  | "varietyWeeks"
+  | "totalHours"
+  | "areaHours"
+  | "eventsAttended"
+  | "quickWins"
+  | "bigTasks"
+  | "oneOffs"
+  | "partialSteps"
+  | "tasksSetUp"
+  | "journalEntries"
+  | "photos"
+  | "specialDays"
+  | "activityDays"
+  | "perfectDays"
+  | "days70";
 
 export interface Series {
   readonly id: SeriesId;
@@ -81,6 +108,30 @@ export const SERIES: readonly Series[] = [
   { id: "greatDayRun", subject: "all", run: true, thresholds: [3, 7, 30, 100, 365], counts: "days in a row at 90 or above" },
   { id: "activities", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "things logged" },
   { id: "flaggedDays", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "days worth remembering" },
+  { id: "totalCompletions", subject: "all", run: false, thresholds: [50, 250, 1000, 2500, 5000], counts: "completions" },
+  { id: "activeDays", subject: "all", run: false, thresholds: [7, 30, 100, 365, 1000], counts: "days with something done" },
+  { id: "activeDayRun", subject: "all", run: true, thresholds: [3, 7, 30, 100, 365], counts: "days in a row with something done" },
+  { id: "fullWeeks", subject: "all", run: false, thresholds: [1, 4, 12, 52, 156], counts: "weeks with something done every day" },
+  { id: "earlyBird", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "done before 8 am" },
+  { id: "nightOwl", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "done after 9 pm" },
+  { id: "weekendTicks", subject: "all", run: false, thresholds: [20, 100, 300, 750, 1500], counts: "done on a weekend" },
+  { id: "mostInOneDay", subject: "all", run: false, thresholds: [5, 8, 12, 16, 20], counts: "done in one day" },
+  { id: "mostUnitsWeek", subject: "all", run: false, thresholds: [3, 5, 8, 12, 15], counts: "units in one week" },
+  { id: "varietyWeeks", subject: "all", run: false, thresholds: [1, 4, 12, 52, 156], counts: "weeks touching every area" },
+  { id: "totalHours", subject: "all", run: false, thresholds: [10, 100, 500, 1000, 2500], counts: "hours" },
+  { id: "areaHours", subject: "area", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "hours" },
+  { id: "eventsAttended", subject: "all", run: false, thresholds: [10, 50, 200, 500, 1000], counts: "events attended" },
+  { id: "quickWins", subject: "all", run: false, thresholds: [10, 50, 200, 500, 1000], counts: "quick tasks done" },
+  { id: "bigTasks", subject: "all", run: false, thresholds: [5, 25, 100, 250, 500], counts: "big tasks done" },
+  { id: "oneOffs", subject: "all", run: false, thresholds: [5, 25, 100, 250, 500], counts: "one-offs done" },
+  { id: "partialSteps", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "steps on bigger tasks" },
+  { id: "tasksSetUp", subject: "all", run: false, thresholds: [5, 15, 30, 60, 100], counts: "tasks set up" },
+  { id: "journalEntries", subject: "all", run: false, thresholds: [5, 25, 100, 365, 1000], counts: "notes written" },
+  { id: "photos", subject: "all", run: false, thresholds: [5, 25, 100, 365, 1000], counts: "photos added" },
+  { id: "specialDays", subject: "all", run: false, thresholds: [1, 5, 20, 50, 100], counts: "special days" },
+  { id: "activityDays", subject: "all", run: false, thresholds: [5, 25, 100, 365, 1000], counts: "days with something logged" },
+  { id: "perfectDays", subject: "all", run: false, thresholds: [1, 5, 25, 100, 365], counts: "days at 100" },
+  { id: "days70", subject: "all", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "days at 70 or above" },
 ];
 
 export const seriesById = (id: SeriesId): Series => SERIES.find((s) => s.id === id)!;

@@ -36,6 +36,32 @@ export const SERIES_LABEL: Record<SeriesId, string> = {
   greatDayRun: "Days in a row at 90 or above",
   activities: "Logged",
   flaggedDays: "Worth remembering",
+  // Badge names, game-style (Henry, 2026-10-25). Still never a verdict
+  // on a day: the score series say the score.
+  totalCompletions: "Getting it done",
+  activeDays: "Showing up",
+  activeDayRun: "On a roll",
+  fullWeeks: "Full week",
+  earlyBird: "Early bird",
+  nightOwl: "Night owl",
+  weekendTicks: "Weekend warrior",
+  mostInOneDay: "Big day",
+  mostUnitsWeek: "Spread wide",
+  varietyWeeks: "Well rounded",
+  totalHours: "Time invested",
+  areaHours: "Hours",
+  eventsAttended: "Turned up",
+  quickWins: "Quick wins",
+  bigTasks: "Heavy lifting",
+  oneOffs: "Ticked off",
+  partialSteps: "Step by step",
+  tasksSetUp: "Architect",
+  journalEntries: "Notekeeper",
+  photos: "Snapshots",
+  specialDays: "Special days",
+  activityDays: "Off script",
+  perfectDays: "Days at 100",
+  days70: "Days at 70 or above",
 };
 
 /** "100 completions", "50 hours". */

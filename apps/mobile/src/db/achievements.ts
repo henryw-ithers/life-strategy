@@ -33,8 +33,10 @@ import {
   activity,
   awayRange,
   dayGrade,
+  journalEntry,
   lifeArea,
   lifeUnit,
+  photo,
   scheduleSkip,
   task,
   taskCompletion,
@@ -81,9 +83,12 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
         localDate: taskCompletion.localDate,
         fraction: taskCompletion.fraction,
         actualMinutes: taskCompletion.actualMinutes,
+        completedAt: taskCompletion.completedAt,
       })
       .from(taskCompletion)
-      .all(),
+      .all()
+      // The hour on this phone's clock, for early bird and night owl.
+      .map(({ completedAt, ...c }) => ({ ...c, hour: new Date(completedAt).getHours() })),
     grades: tx
       .select({
         localDate: dayGrade.localDate,
@@ -95,6 +100,12 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
       .from(dayGrade)
       .all(),
     activities: tx.select({ localDate: activity.localDate, flagged: activity.flagged }).from(activity).all(),
+    journal: tx
+      .select({ localDate: journalEntry.localDate })
+      .from(journalEntry)
+      .all()
+      .map((j) => j.localDate),
+    photos: tx.select({ id: photo.id }).from(photo).all().length,
     away: tx.select({ startDate: awayRange.startDate, endDate: awayRange.endDate }).from(awayRange).all(),
     skipped: skippedDatesFor(skips, new Map(tasks.map((t) => [t.id, roots.get(t.unitId) ?? null]))),
   };

@@ -74,30 +74,18 @@ export function CommitmentSheet({
           }),
       }}
     >
-      {!editing ? (
-        <AppText variant="body" color={theme.muted}>
-          {mode.kind === "commitment"
-            ? "Something with a schedule that takes up part of your week — a course, a job, a club."
-            : "A sub-commitment holds its own events and tasks — a class, a shift pattern, a team."}
-        </AppText>
-      ) : null}
       <TextField
         theme={theme}
         value={name}
         onChangeText={setName}
         placeholder={
-          mode.kind === "commitment" ? "School" : "COMP2521"
+          mode.kind === "commitment" ? "School, Work, a club…" : "COMP2521"
         }
         autoFocus
         style={styles.input}
         accessibilityLabel="Name"
       />
 
-      {mode.kind === "commitment" && !editing ? (
-        <AppText variant="caption" color={theme.muted}>
-          Its share of each day comes from its time that day.
-        </AppText>
-      ) : null}
 
       {mode.kind === "commitment" && !editing && askSplit ? (
         <View style={styles.shareRow}>
@@ -106,8 +94,7 @@ export function CommitmentSheet({
               Sub-commitments
             </AppText>
             <AppText variant="caption" color={theme.muted}>
-              Split it into classes, shifts or teams, each with its own
-              events and tasks. You can change this later.
+              Classes, shifts or teams. You can change this later.
             </AppText>
           </View>
           <Switch

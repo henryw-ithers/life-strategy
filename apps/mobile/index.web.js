@@ -20,6 +20,9 @@ LoadSkiaWeb({ locateFile: (file) => `/${file}` })
     console.warn("Skia (CanvasKit) did not load; the portfolio graph will not draw.", error);
   })
   .finally(() => {
+    // A sample plan for looking at screens past Priorities, whose Done
+    // is native only: run `__lsDev.seed()` in the console, then reload.
+    globalThis.__lsDev = { seed: () => require("./src/dev/webSeed").seed() };
     const { App } = require("expo-router/build/qualified-entry");
     const { renderRootComponent } = require("expo-router/build/renderRootComponent");
     renderRootComponent(App);

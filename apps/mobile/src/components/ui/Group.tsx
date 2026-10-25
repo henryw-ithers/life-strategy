@@ -8,15 +8,15 @@
  * screens used before, where a section's extent was implied by a line
  * above it and you had to infer where it ended.
  *
- * Deliberately **not** a card grid: the fill is flat (DESIGN.md
- * reserves shadow for sheets), groups vary in height with their
- * content, and nothing nests — a `Group` inside a `Group` is always
- * the wrong answer, and rows inside one separate with hairlines.
+ * The box is the app's card (`cardStyle`). Groups vary in height with
+ * their content, and nothing nests — a `Group` inside a `Group` is
+ * always the wrong answer, and rows inside one separate with hairlines.
  */
 import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { cardStyle } from "../../theme/surfaces";
+import { space } from "../../theme/tokens";
 import { AppText } from "./AppText";
 
 interface GroupProps {
@@ -57,7 +57,7 @@ export function Group({
       <View
         style={[
           styles.box,
-          { backgroundColor: theme.surface },
+          cardStyle(theme),
           flush ? styles.flush : styles.padded,
           style,
         ]}
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   /** Tucked closer to its box than the box is to the next group, so it
    *  reads as belonging upward rather than floating between two. */
   footnote: { paddingHorizontal: space.xs, marginTop: -2 },
-  box: { borderRadius: radius.md, overflow: "hidden" },
+  box: {},
   padded: { padding: space.lg, gap: space.sm },
   flush: { paddingHorizontal: space.lg },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: space.lg },

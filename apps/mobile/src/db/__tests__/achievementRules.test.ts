@@ -44,17 +44,24 @@ function facts(over: Partial<AchievementFacts> = {}): AchievementFacts {
     completions: [],
     grades: [],
     activities: [],
+    journal: [],
+    photos: 0,
     away: [],
     skipped: new Map(),
     ...over,
   };
 }
 
-const tick = (taskId: string, localDate: string, over: { fraction?: number; actualMinutes?: number | null } = {}) => ({
+const tick = (
+  taskId: string,
+  localDate: string,
+  over: { fraction?: number; actualMinutes?: number | null; hour?: number } = {},
+) => ({
   taskId,
   localDate,
   fraction: over.fraction ?? 1,
   actualMinutes: over.actualMinutes ?? null,
+  hour: over.hour ?? 12,
 });
 
 const valueOf = (f: AchievementFacts, series: string, subjectId: string) =>
@@ -201,5 +208,78 @@ describe("score days", () => {
     });
     expect(valueOf(f, "flaggedDays", ALL)?.earned).toBe(2);
     expect(valueOf(f, "activities", ALL)?.earned).toBe(3);
+  });
+});
+
+describe("the wider catalogue", () => {
+  it("counts early, late, weekend and part-done ticks", () => {
+    const f = facts({
+      tasks: [task("run")],
+      completions: [
+        tick("run", "2026-10-03", { hour: 6 }), // a Saturday morning
+        tick("run", "2026-10-05", { hour: 22 }),
+        tick("run", "2026-10-06", { fraction: 0.5 }),
+      ],
+    });
+    expect(valueOf(f, "earlyBird", ALL)?.earned).toBe(1);
+    expect(valueOf(f, "nightOwl", ALL)?.earned).toBe(1);
+    expect(valueOf(f, "weekendTicks", ALL)?.earned).toBe(1);
+    expect(valueOf(f, "partialSteps", ALL)?.earned).toBe(1);
+    expect(valueOf(f, "totalCompletions", ALL)?.earned).toBe(3);
+  });
+
+  it("counts days with something done, the best day, and days in a row", () => {
+    const f = facts({
+      tasks: [task("run"), task("lift")],
+      completions: [
+        tick("run", "2026-10-17"),
+        tick("lift", "2026-10-17"),
+        tick("run", "2026-10-18"),
+        tick("run", "2026-10-19"),
+        tick("run", "2026-10-21"),
+      ],
+    });
+    expect(valueOf(f, "activeDays", ALL)?.earned).toBe(4);
+    expect(valueOf(f, "mostInOneDay", ALL)?.earned).toBe(2);
+    // 17–19 is three in a row; the 20th had nothing, so today starts again.
+    expect(valueOf(f, "activeDayRun", ALL)).toMatchObject({ earned: 3, current: 1 });
+  });
+
+  it("lets a day off bridge a run of days", () => {
+    const f = facts({
+      tasks: [task("run")],
+      completions: [tick("run", "2026-10-18"), tick("run", "2026-10-20")],
+      grades: [{ localDate: "2026-10-19", kind: "rest", pointsEarned: 0, pointsPossible: 0, flagged: false }],
+    });
+    expect(valueOf(f, "activeDayRun", ALL)?.earned).toBe(2);
+  });
+
+  it("counts a week touching every area, and the most units in a week", () => {
+    const f = facts({
+      tasks: [task("run")],
+      completions: [tick("run", "2026-10-12")],
+    });
+    expect(valueOf(f, "varietyWeeks", ALL)?.earned).toBe(1);
+    expect(valueOf(f, "mostUnitsWeek", ALL)?.earned).toBe(1);
+  });
+
+  it("counts notes, photos and special days", () => {
+    const f = facts({
+      journal: ["2026-10-01", "2026-10-01"],
+      photos: 3,
+      grades: [{ localDate: "2026-10-02", kind: "special", pointsEarned: 0, pointsPossible: 0, flagged: false }],
+    });
+    expect(valueOf(f, "journalEntries", ALL)?.earned).toBe(2);
+    expect(valueOf(f, "photos", ALL)?.earned).toBe(3);
+    expect(valueOf(f, "specialDays", ALL)?.earned).toBe(1);
+  });
+
+  it("counts hours by area and in all", () => {
+    const f = facts({
+      tasks: [task("run", { size: "big" })],
+      completions: [tick("run", "2026-10-01"), tick("run", "2026-10-02")],
+    });
+    expect(valueOf(f, "areaHours", "health")?.earned).toBe(4);
+    expect(valueOf(f, "totalHours", ALL)?.earned).toBe(4);
   });
 });

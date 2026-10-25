@@ -226,7 +226,7 @@ export default function SettingsScreen() {
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Tuning the plan itself comes first: it is the only thing here
             that changes what the app shows you tomorrow. */}
-        <Group theme={theme} title="Your plan" footnote="Calibration checks whether the daily grade matches how the week actually felt." flush>
+        <Group theme={theme} title="Your plan" flush>
           <SettingsRow
             label="Calibration"
             onPress={() => router.push("/calibration" as Href)}
@@ -242,7 +242,6 @@ export default function SettingsScreen() {
           <Group
             theme={theme}
             title="Reminders"
-            footnote="One nudge, only when today’s list still needs you. It never says what’s on it."
           >
             <View style={styles.row}>
               <AppText color={theme.ink} style={styles.grow}>

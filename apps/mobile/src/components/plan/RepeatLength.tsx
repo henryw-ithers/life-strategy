@@ -82,7 +82,7 @@ export function RepeatLength({
         label="How long it repeats"
       />
       {value.mode === "weeks" ? (
-        <View style={[styles.stepper, { backgroundColor: theme.surface }]}>
+        <View style={[styles.stepper, { backgroundColor: theme.fill }]}>
           <Step
             icon="remove"
             label="One week fewer"

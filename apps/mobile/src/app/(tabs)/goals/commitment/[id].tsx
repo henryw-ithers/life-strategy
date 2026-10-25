@@ -287,9 +287,7 @@ export default function CommitmentScreen() {
 
             {archived ? (
               <AppText variant="caption" color={theme.muted} style={styles.bannerNote}>
-                Its tasks are paused and it takes no share of a day. Its
-                history is untouched. Unarchive it from the ••• menu at the
-                top right.
+                Archived. Unarchive it from the ••• menu.
               </AppText>
             ) : null}
 
@@ -334,7 +332,6 @@ export default function CommitmentScreen() {
               <Group
                 theme={theme}
                 title="Sub-commitments"
-                footnote="Each holds its own events and tasks. The day's share is split across those, not across these."
                 flush
               >
                 {data.subs.map((sub, i) => (
@@ -366,7 +363,6 @@ export default function CommitmentScreen() {
                 <Group
                   theme={theme}
                   title="Events"
-                  footnote="Times you turn up for — a lecture, a shift. Tick one when you have been."
                   flush
                 >
                   {data.events.map((e) => (
@@ -393,7 +389,6 @@ export default function CommitmentScreen() {
                 <Group
                   theme={theme}
                   title="Tasks"
-                  footnote="Work you fit in around them. Paid from this share on the days it is scheduled."
                   flush
                 >
                   {data.tasks.map((t) => (
@@ -433,8 +428,8 @@ export default function CommitmentScreen() {
                     title="Sub-commitments"
                     footnote={
                       data.events.length + data.tasks.length > 0
-                        ? `Split it into parts, like courses. What it holds now moves into “${GENERAL_SUB_NAME}”, which you can rename.`
-                        : "Split it into parts, like courses, each with its own events and tasks."
+                        ? `What it holds now moves into “${GENERAL_SUB_NAME}”.`
+                        : undefined
                     }
                     flush
                   >

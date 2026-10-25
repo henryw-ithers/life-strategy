@@ -15,6 +15,7 @@
  *
  * Every open task shows exactly once (EC-19).
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   formatMinutes,
   sortOpenTasks,
@@ -27,9 +28,10 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { DayPlan } from "../../db/dayPlan";
 import type { TodayTask } from "../../db/today";
 import type { ThemeTokens } from "../../theme/colors";
+import { cardStyle } from "../../theme/surfaces";
 import { space } from "../../theme/tokens";
 import { timeline } from "../plan/dayView";
-import { Segmented } from "../plan/Segmented";
+import { ActionMenu } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
 import { openIndex, situationLine, windowState } from "./homeDay";
 import { HomeWindow } from "./HomeWindow";
@@ -213,9 +215,31 @@ export function HomeToday({
       {otherCount > 0 || oneList ? (
         <View style={styles.others}>
           {oneList ? (
-            <AppText variant="headline" color={theme.ink} accessibilityRole="header">
-              Open tasks
-            </AppText>
+            <View style={styles.listHeader}>
+              <AppText variant="headline" color={theme.ink} accessibilityRole="header" style={styles.grow}>
+                Open tasks
+              </AppText>
+              {later.length + planned.doesntFit.length > 1 ? (
+                <ActionMenu
+                  label={`Sort open tasks, ${SORTS.find((s) => s.value === sort)?.label ?? ""}`}
+                  moreColor={theme.muted}
+                  more={false}
+                  sizing="content"
+                  actions={SORTS.map((s) => ({
+                    label: s.label,
+                    icon: s.value === sort ? "checkmark" : undefined,
+                    onPress: () => onSort(s.value),
+                  }))}
+                >
+                  <View style={[styles.sort, { backgroundColor: theme.fill }]}>
+                    <AppText variant="caption" color={theme.ink}>
+                      {SORTS.find((s) => s.value === sort)?.label}
+                    </AppText>
+                    <Ionicons name="chevron-down" size={13} color={theme.muted} />
+                  </View>
+                </ActionMenu>
+              ) : null}
+            </View>
           ) : (
             <Pressable
               onPress={onToggleOthers}
@@ -228,29 +252,28 @@ export function HomeToday({
               </AppText>
             </Pressable>
           )}
-          {oneList && later.length + planned.doesntFit.length > 1 ? (
-            <Segmented
-              segments={SORTS}
-              value={sort}
-              onChange={onSort}
-              accent={theme.accent}
-              theme={theme}
-              label="Sort open tasks by"
-            />
-          ) : null}
           {showOthers
             ? groups.map((g) =>
                 g.ids.length > 0 ? (
-                  <View key={g.key}>
+                  <View key={g.key} style={styles.group}>
                     {!oneList || g.key === "fit" ? (
-                      <AppText variant="caption" color={theme.muted}>
+                      <AppText variant="caption" color={theme.muted} style={styles.groupLabel}>
                         {g.label}
                       </AppText>
                     ) : null}
-                    {g.ids.map((id) => {
-                      const t = tasks.get(id);
-                      return t ? <View key={id}>{renderRow(t)}</View> : null;
-                    })}
+                    <View style={[cardStyle(theme), styles.list]}>
+                      {g.ids.map((id, i) => {
+                        const t = tasks.get(id);
+                        return t ? (
+                          <View
+                            key={id}
+                            style={i > 0 ? [styles.divided, { borderTopColor: theme.hairline }] : null}
+                          >
+                            {renderRow(t)}
+                          </View>
+                        ) : null;
+                      })}
+                    </View>
                   </View>
                 ) : null,
               )
@@ -285,5 +308,19 @@ const styles = StyleSheet.create({
   root: { gap: space.md },
   gap: { textAlign: "center" },
   others: { gap: space.sm },
+  grow: { flex: 1 },
+  listHeader: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
+  sort: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: space.md,
+    borderRadius: 999,
+  },
+  group: { gap: space.xs },
+  groupLabel: { paddingHorizontal: space.xs },
+  list: { paddingHorizontal: space.lg, paddingVertical: space.xs },
+  divided: { borderTopWidth: StyleSheet.hairlineWidth },
   othersHeader: { minHeight: 44, justifyContent: "center" },
 });

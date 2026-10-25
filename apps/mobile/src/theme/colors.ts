@@ -1,25 +1,25 @@
 /**
  * App colour tokens: the Prism style (ADR-0043 §3, chosen 2026-10-13).
  *
- * The backgrounds, text and separators are iOS's own system colours, so
- * the app sits beside Apple's in light and dark mode. The accent is the
- * label colour (black in light mode, white in dark), so it is never
- * confused with a unit's colour. All the colour in the app comes from
- * units, through `palette.ts`. Contrast is checked in
+ * A soft, cool canvas with white cards (deep slate cards in dark), and
+ * a calm slate-blue accent (Henry, 2026-10-25: black "doesn't match the
+ * vibe"). The accent is muted enough not to be mistaken for a unit's
+ * colour, which all come from `palette.ts`. Contrast is checked in
  * `__tests__/palette.test.ts`.
  */
-import type { Rank } from "@glide/scoring";
-
 import { AREA_COLOUR, PALETTE, isPaletteKey, type PaletteKey } from "./palette";
 
 export type ThemeName = "light" | "dark";
 
 export interface ThemeTokens {
   name: ThemeName;
-  /** systemBackground: #FFFFFF / #000000 */
+  /** The screen behind everything. */
   canvas: string;
-  /** secondarySystemBackground, for cards: #F2F2F7 / #1C1C1E */
+  /** Cards and grouped rows. */
   surface: string;
+  /** Controls: text fields, segmented tracks, steppers, secondary
+   *  buttons. Tinted so they hold their shape on a card or a sheet. */
+  fill: string;
   /** label */
   ink: string;
   /** secondary text, opaque so it holds 4.5:1 on cards as well as the
@@ -27,7 +27,7 @@ export interface ThemeTokens {
   muted: string;
   /** separator */
   hairline: string;
-  /** The label colour: buttons and highlights. */
+  /** Slate blue: buttons, ticks, selection, progress. */
   accent: string;
   /** Text and ticks on `accent` or on a unit-coloured fill. */
   onAccent: string;
@@ -51,25 +51,27 @@ function areaColours(name: ThemeName): Record<string, string> {
 const THEMES: Record<ThemeName, ThemeTokens> = {
   light: {
     name: "light",
-    canvas: "#FFFFFF",
-    surface: "#F2F2F7",
-    ink: "#000000",
-    muted: "#6C6C70",
-    hairline: "#C6C6C8",
-    accent: "#000000",
+    canvas: "#F4F6FA",
+    surface: "#FFFFFF",
+    fill: "#EDF0F5",
+    ink: "#111827",
+    muted: "#5F6672",
+    hairline: "#DCE1E8",
+    accent: "#3F70AD",
     onAccent: "#FFFFFF",
     danger: "#D70015",
     areas: areaColours("light"),
   },
   dark: {
     name: "dark",
-    canvas: "#000000",
-    surface: "#1C1C1E",
-    ink: "#FFFFFF",
-    muted: "#98989F",
-    hairline: "#38383A",
-    accent: "#FFFFFF",
-    onAccent: "#000000",
+    canvas: "#0B0E13",
+    surface: "#161B22",
+    fill: "#232A34",
+    ink: "#F3F5F8",
+    muted: "#9AA3AF",
+    hairline: "#2A313B",
+    accent: "#7FA8DC",
+    onAccent: "#0B0E13",
     danger: "#FF6961",
     areas: areaColours("dark"),
   },
@@ -139,22 +141,6 @@ export function gradeColor(grade: number, theme: ThemeTokens): string {
   return PALETTE[GRADE_RAMP[band]!][theme.name];
 }
 
-/**
- * An achievement rank's colour (ADR-0047). From the palette, as every
- * colour is (DESIGN.md): Bronze is Brown, Silver the muted grey, Gold
- * Yellow, Platinum Mint and Diamond Cyan. Each holds 4.5:1 as a mark on
- * the background and on cards; the rank is always named beside it too.
- */
-export function rankColor(rank: Rank, theme: ThemeTokens): string {
-  if (rank === "silver") return theme.muted;
-  const key: Record<Exclude<Rank, "silver">, PaletteKey> = {
-    bronze: "brown",
-    gold: "yellow",
-    platinum: "mint",
-    diamond: "cyan",
-  };
-  return PALETTE[key[rank]][theme.name];
-}
 
 /** A run going now: the streak mark's colour. */
 export function streakColor(theme: ThemeTokens): string {

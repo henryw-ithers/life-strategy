@@ -59,8 +59,7 @@ export function CommitmentsStep({
         Anything with set hours?
       </AppText>
       <AppText color={theme.ink} style={styles.lead}>
-        School, a job, a club: anything you turn up for. Its hours are kept
-        free of everything else.
+        For example: School, Work, a club.
       </AppText>
 
       <View style={styles.choices} accessibilityRole="radiogroup">
