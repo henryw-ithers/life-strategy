@@ -132,6 +132,7 @@ export default function TodayScreen() {
     refresh,
     select,
     step,
+    canStep,
     changeMonth,
     toggle,
   } = useDayData();
@@ -151,11 +152,28 @@ export default function TodayScreen() {
   /** The side the next day comes in from, set as one leaves. */
   const entering = useSharedValue<0 | 1 | -1>(0);
   const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateX: slide.value }] }));
+  const settle = () => slide.set(withSpring(0, { damping: 22, stiffness: 220 }));
+  /** If the next day never lands (a failed load), the page comes back
+   *  rather than staying off-screen. */
+  const arrivals = useSharedValue(0);
   const arrive = (dir: 1 | -1) => {
     entering.set(dir);
     step(dir);
+    const mine = arrivals.get() + 1;
+    arrivals.set(mine);
+    setTimeout(() => {
+      // Only the latest swipe's, and only if its day hasn't landed.
+      if (arrivals.get() !== mine || entering.get() === 0) return;
+      entering.set(0);
+      settle();
+    }, 1500);
   };
   const leave = (dir: 1 | -1) => {
+    // Past the last day that can be planned: spring back, go nowhere.
+    if (!canStep(dir)) {
+      settle();
+      return;
+    }
     if (reduceMotion) {
       step(dir);
       return;
@@ -325,7 +343,7 @@ export default function TodayScreen() {
       if (success && far && e.translationX !== 0) {
         runOnJS(leave)(e.translationX < 0 ? 1 : -1);
       } else {
-        slide.set(withSpring(0, { damping: 22, stiffness: 220 }));
+        runOnJS(settle)();
       }
     });
   const liveWindows = plan?.hours.windows ?? [];

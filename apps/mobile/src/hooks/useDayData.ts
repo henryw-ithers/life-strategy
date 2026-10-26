@@ -133,7 +133,13 @@ export function useDayData() {
     select(addDays(selected ?? currentLocalDate(), days));
   };
 
-  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, step, changeMonth, toggle };
+  /** Whether a swipe can go there: past the last plannable day it can't. */
+  const canStep = (days: number) => {
+    const date = addDays(selected ?? currentLocalDate(), days);
+    return date <= currentLocalDate() || isPlannable(date, currentLocalDate());
+  };
+
+  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, step, canStep, changeMonth, toggle };
 }
 
 /**

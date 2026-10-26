@@ -67,11 +67,16 @@ export function AddFromOpenSheet({
   onAdded,
 }: AddFromOpenSheetProps) {
   const [plan, setPlan] = useState<PlanData | null>(null);
-  /** New task is open in place of the list. */
-  const [writing, setWriting] = useState(false);
+  /**
+   * The list, then New task in its place. iOS drops a sheet presented
+   * while another is still closing (`NativeSheet`), so the form opens
+   * from the list's `onDismissed` ("leaving" → "writing"), and stays
+   * mounted while it closes itself ("closed").
+   */
+  const [stage, setStage] = useState<"list" | "leaving" | "writing" | "closed">("list");
 
   useEffect(() => {
-    if (!visible || plan !== null) return;
+    if (plan !== null) return;
     let cancelled = false;
     void loadPlan()
       .then((p) => {
@@ -81,7 +86,7 @@ export function AddFromOpenSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, plan]);
+  }, [plan]);
 
   const tierOf = useMemo(() => {
     const out = new Map<string, Tier>();
@@ -104,20 +109,29 @@ export function AddFromOpenSheet({
   return (
     <>
       <NativeSheet
-        visible={visible && !writing}
-        onClose={onClose}
-        onDismissed={writing ? undefined : onDismissed}
+        visible={visible && stage === "list"}
+        // Closing it for New task isn't closing the whole thing.
+        onClose={() => {
+          if (stage === "list") onClose();
+        }}
+        onDismissed={() => {
+          if (stage === "leaving") setStage("writing");
+          else onDismissed?.();
+        }}
         title={`Add to ${windowLabel}`}
         size="large"
         scroll
       >
         <Pressable
-          onPress={() => setWriting(true)}
+          onPress={() => setStage("leaving")}
+          // The form needs the units to file a task under.
+          disabled={plan === null}
           accessibilityRole="button"
+          accessibilityState={{ disabled: plan === null }}
           accessibilityHint="Writes a task and pins it to this window"
           style={({ pressed }) => [
             styles.newTask,
-            { backgroundColor: theme.fill, opacity: pressed ? 0.6 : 1 },
+            { backgroundColor: theme.fill, opacity: plan === null ? 0.4 : pressed ? 0.6 : 1 },
           ]}
         >
           <Ionicons name="add-circle" size={22} color={theme.accent} />
@@ -168,11 +182,11 @@ export function AddFromOpenSheet({
         )}
       </NativeSheet>
 
-      {writing ? (
+      {stage === "writing" || stage === "closed" ? (
         <AddTaskModal
-          visible={visible && writing}
+          visible={visible && stage === "writing"}
           onClose={() => {
-            setWriting(false);
+            setStage("closed");
             onClose();
           }}
           onDismissed={onDismissed}
@@ -180,12 +194,21 @@ export function AddFromOpenSheet({
           areaColors={theme.areas}
           theme={theme}
           onCommit={async (title, timesPerWeek, unitIds, plannedWeekdays, partOfDay, oneOff, detail) => {
+            let id: string | null = null;
             try {
-              const id = await addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail);
-              if (id) await pinForDay(id, date, windowStart, "window");
+              id = await addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail);
             } catch (e) {
               recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
               Alert.alert("That task wasn't added", e instanceof Error ? e.message : String(e));
+            }
+            if (id) {
+              try {
+                await pinForDay(id, date, windowStart, "window");
+              } catch (e) {
+                // Added, just not pinned: it's still open for the day.
+                recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+                Alert.alert("Added, but not pinned here", e instanceof Error ? e.message : String(e));
+              }
             }
             onAdded();
           }}

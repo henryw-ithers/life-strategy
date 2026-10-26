@@ -377,6 +377,8 @@ export default function WeeklyPassScreen() {
       const shown =
         days.find((d) => d.day.date === passDay) ?? days.find((d) => live(d).length > 0) ?? days[0];
       const date = shown?.day.date ?? today;
+      // Held from the first look, so emptying that day doesn't move you.
+      if (passDay === null && shown) setPassDay(shown.day.date);
       return (
         <View style={styles.stack}>
           <View style={styles.leadRow}>
@@ -392,7 +394,7 @@ export default function WeeklyPassScreen() {
           <View style={styles.dayStrip} accessibilityRole="tablist">
             {days.map((d) => {
               const on = d.day.date === date;
-              const pins = d.planned.windows.reduce((n, w) => n + w.pinned.length, 0);
+              const pins = live(d).reduce((n, w) => n + w.pinned.length, 0);
               const { weekday, dayNum } = shortDay(d.day.date);
               return (
                 <Pressable

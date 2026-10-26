@@ -69,6 +69,19 @@ export function WindowCard({
   onRemove,
 }: WindowCardProps) {
   const [showAll, setShowAll] = useState(false);
+  /** Rows whose pin was tapped and is saving: a second tap waits for
+   *  the window to come back, so it can't act on a pin that's moved. */
+  const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
+  const [seen, setSeen] = useState(w);
+  if (seen !== w) {
+    setSeen(w);
+    setSaving(new Set());
+  }
+  const once = (taskId: string, write: () => void) => () => {
+    if (saving.has(taskId)) return;
+    setSaving(new Set([...saving, taskId]));
+    write();
+  };
   const live = editable && !w.ended;
   const sizeOf = (id: string) => {
     const t = tasks.get(id);
@@ -151,8 +164,9 @@ export function WindowCard({
               live
                 ? {
                     state: untilDone ? "untilDone" : "here",
-                    onPress: () =>
+                    onPress: once(p.taskId, () =>
                       untilDone ? onUnpin(p.taskId) : onPinKind(p.ruleId, "untilDone"),
+                    ),
                   }
                 : undefined
             }
@@ -190,7 +204,7 @@ export function WindowCard({
             return (
               <Row
                 key={`s-${s.taskId}`}
-                pin={{ state: "none", onPress: () => onPin(s.taskId) }}
+                pin={{ state: "none", onPress: once(s.taskId, () => onPin(s.taskId)) }}
                 icon="pin"
                 fallback="pin-outline"
                 title={t.title}
