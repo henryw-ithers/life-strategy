@@ -55,6 +55,12 @@ export async function resolvePhotoUri(stored: string): Promise<string> {
   return `${await documentsDir()}${toRelativePhotoPath(stored)}`;
 }
 
+/** The same for many photos, reading the container once. */
+export async function photoUriResolver(): Promise<(stored: string) => string> {
+  const dir = await documentsDir();
+  return (stored) => `${dir}${toRelativePhotoPath(stored)}`;
+}
+
 /** Copies the picked image into app storage (picker URIs are cache)
  *  and records it against the day. Stores the **relative** path — see
  *  `documentsDir`. */

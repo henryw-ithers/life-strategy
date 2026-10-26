@@ -44,12 +44,14 @@ import { ExpandChevron } from "../../../components/ui/ExpandChevron";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { InfoButton } from "../../../components/ui/InfoButton";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
+import { UndoBar } from "../../../components/ui/UndoBar";
 import { badgesByUnit, highestRank, loadAchievements, type UnitBadge } from "../../../db/achievements";
 import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/commitments";
 import { createCommitment } from "../../../db/commitmentWrites";
 import { addTask, archiveTask, loadPlan, type PlanData, type PlanTask } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
 import { useRetained } from "../../../hooks/useRetained";
+import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { RANK_LABEL } from "../../../lib/achievementCopy";
 import { currentLocalDate } from "../../../lib/calendar";
 import { recordProblem } from "../../../lib/problemLog";
@@ -116,13 +118,20 @@ export default function LifeScreen() {
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
   }, []);
   const { error, retry, save } = useScreenLoad(reload);
+  // A deleted task waits on Undo, as on the unit screen.
+  const undo = useUndoDelete(save);
   const tasksOf = useMemo(() => {
     const out = new Map<string, PlanTask[]>();
     for (const a of plan?.areas ?? []) {
-      for (const u of a.units) out.set(u.id, u.tasks.filter((t) => t.kind !== "event"));
+      for (const u of a.units) {
+        out.set(
+          u.id,
+          u.tasks.filter((t) => t.kind !== "event" && !undo.hidden.has(t.id)),
+        );
+      }
     }
     return out;
-  }, [plan]);
+  }, [plan, undo.hidden]);
   const allUnits = useMemo(() => pickableUnits(plan), [plan]);
   const rowsProps = {
     badges,
@@ -265,6 +274,8 @@ export default function LifeScreen() {
         )}
       </ScrollView>
 
+      <UndoBar undo={undo} theme={theme} />
+
       <TabToolbar
         onTask={() => openAdd("task")}
         onEvent={() => openAdd("event")}
@@ -301,7 +312,7 @@ export default function LifeScreen() {
           onDelete={() => {
             const t = editingShown;
             setEditing(null);
-            void save(() => archiveTask(t.id));
+            undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) });
           }}
         />
       ) : null}

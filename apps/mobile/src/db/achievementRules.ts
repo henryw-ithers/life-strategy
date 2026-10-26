@@ -75,8 +75,10 @@ export interface AchievementFacts {
     localDate: string;
     fraction: number;
     actualMinutes: number | null;
-    /** The local hour it was ticked, 0–23: early bird and night owl. */
-    hour: number;
+    /** The local hour it was ticked, 0–23, for early bird and night
+     *  owl; null when it was ticked on another day (backfilled), whose
+     *  hour says nothing about when the work happened. */
+    hour: number | null;
   }[];
   grades: readonly {
     localDate: string;
@@ -338,8 +340,8 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
   // ── The wider catalogue (Henry, 2026-10-25) ───────────────────────
   // What you did, counted: never what you didn't.
   push("totalCompletions", "all", ALL, "", ticks.length);
-  push("earlyBird", "all", ALL, "", ticks.filter((c) => c.hour < EARLY_HOUR).length);
-  push("nightOwl", "all", ALL, "", ticks.filter((c) => c.hour >= LATE_HOUR).length);
+  push("earlyBird", "all", ALL, "", ticks.filter((c) => c.hour !== null && c.hour < EARLY_HOUR).length);
+  push("nightOwl", "all", ALL, "", ticks.filter((c) => c.hour !== null && c.hour >= LATE_HOUR).length);
   push("weekendTicks", "all", ALL, "", ticks.filter((c) => isoWeekday(c.localDate) >= 6).length);
   push("partialSteps", "all", ALL, "", ticks.filter((c) => c.fraction < 1).length);
   const sizeOf = (c: (typeof ticks)[number]) => {
@@ -400,13 +402,21 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
   let varietyWeeks = 0;
   let mostUnits = 0;
   const firstWeek = firstActive === undefined ? undefined : weekStart(firstActive);
+  // Life units ticked, by week, in one pass rather than a scan per week.
+  const unitsByWeek = new Map<string, Set<string>>();
+  for (const c of lifeTicks) {
+    const ws = weekStart(c.localDate);
+    const set = unitsByWeek.get(ws) ?? new Set<string>();
+    set.add(taskById.get(c.taskId)!.unitId);
+    unitsByWeek.set(ws, set);
+  }
   if (firstWeek !== undefined) {
     for (let ws = firstWeek; ws <= lastWeek; ws = addDays(ws, 7)) {
       const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-      const asked = days.filter((d) => !awayAll.has(d));
+      // Away days and days off ask nothing, as they bridge a run of days.
+      const asked = days.filter((d) => !bridge.has(d));
       if (asked.length > 0 && asked.every((d) => ticksByDay.has(d))) fullWeeks += 1;
-      const inWeek = lifeTicks.filter((c) => c.localDate >= ws && c.localDate <= days[6]!);
-      const units = new Set(inWeek.map((c) => taskById.get(c.taskId)!.unitId));
+      const units = unitsByWeek.get(ws) ?? new Set<string>();
       mostUnits = Math.max(mostUnits, units.size);
       const areas = new Set([...units].map((u) => areaOfUnit.get(u)));
       if (liveAreas.size > 0 && [...liveAreas].every((a) => areas.has(a))) varietyWeeks += 1;

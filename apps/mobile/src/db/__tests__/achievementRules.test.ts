@@ -55,13 +55,13 @@ function facts(over: Partial<AchievementFacts> = {}): AchievementFacts {
 const tick = (
   taskId: string,
   localDate: string,
-  over: { fraction?: number; actualMinutes?: number | null; hour?: number } = {},
+  over: { fraction?: number; actualMinutes?: number | null; hour?: number | null } = {},
 ) => ({
   taskId,
   localDate,
   fraction: over.fraction ?? 1,
   actualMinutes: over.actualMinutes ?? null,
-  hour: over.hour ?? 12,
+  hour: over.hour === undefined ? 12 : over.hour,
 });
 
 const valueOf = (f: AchievementFacts, series: string, subjectId: string) =>
@@ -296,5 +296,24 @@ describe("days at 70 or above", () => {
     });
     const f = facts({ grades: [g("2026-10-19", false), g("2026-10-20", true)] });
     expect(valueOf(f, "days70", ALL)?.earned).toBe(1);
+  });
+});
+
+describe("review fixes (Phase 12)", () => {
+  it("lets a day off count as done in a full week", () => {
+    // Sun 11 to Sat 17 October: ticks every day but Wednesday, a day off.
+    const days = ["11", "12", "13", "15", "16", "17"].map((d) => `2026-10-${d}`);
+    const f = facts({
+      tasks: [task("run")],
+      completions: days.map((d) => tick("run", d)),
+      grades: [{ localDate: "2026-10-14", kind: "rest", pointsEarned: 0, pointsPossible: 0, flagged: false }],
+    });
+    expect(valueOf(f, "fullWeeks", ALL)?.earned).toBe(1);
+  });
+
+  it("leaves a backfilled tick, with no hour of its own, out of early and late", () => {
+    const f = facts({ tasks: [task("run")], completions: [tick("run", "2026-10-05", { hour: null })] });
+    expect(valueOf(f, "earlyBird", ALL)?.earned).toBe(0);
+    expect(valueOf(f, "nightOwl", ALL)?.earned).toBe(0);
   });
 });
