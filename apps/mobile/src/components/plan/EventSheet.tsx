@@ -114,7 +114,7 @@ export function EventSheet({
         if (once && !repeatChosen.current) setRepeatState("once");
       })
       // Read failing only means the sheet opens weekly; it's logged.
-      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+      .catch((e: unknown) => recordProblem(e, "load"));
   }, [initial]);
   const [days, setDays] = useState<Weekday[]>(parseWeekdays(initial?.plannedWeekdays));
   const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);

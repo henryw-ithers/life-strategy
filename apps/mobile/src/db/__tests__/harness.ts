@@ -61,3 +61,8 @@ export function mockClient() {
     openDatabase: () => Promise.resolve(),
   };
 }
+
+/** The test database as the type the app's helpers take (`syncTaxonomy`
+ *  and the like): the same Drizzle API over better-sqlite3 rather than
+ *  expo-sqlite. */
+export const appDb = () => testDb() as unknown as typeof import("../client").db;

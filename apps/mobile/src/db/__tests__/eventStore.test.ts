@@ -13,7 +13,7 @@ import { scheduleSkip, task } from "../schema";
 import { loadLiveEvents, replaceEvents } from "../seriesWrites";
 import { syncTaxonomy } from "../seed";
 import { addEvent } from "../tasks";
-import { resetTestDb, testDb } from "./harness";
+import { appDb, resetTestDb, testDb } from "./harness";
 
 const clock = vi.hoisted(() => ({ today: "2026-10-26" }));
 
@@ -25,7 +25,6 @@ vi.mock("../../lib/calendar", async (original) => ({
   currentLocalDate: () => clock.today,
 }));
 
-const appDb = () => testDb() as unknown as Parameters<typeof syncTaxonomy>[0];
 
 const shift = {
   title: "Shift",

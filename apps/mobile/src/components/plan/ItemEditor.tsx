@@ -65,7 +65,7 @@ export function ItemEditor({
       .then((p) => {
         if (!cancelled) setLoaded({ id: itemId, plan: p });
       })
-      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+      .catch((e: unknown) => recordProblem(e, "load"));
     return () => {
       cancelled = true;
     };
@@ -134,7 +134,7 @@ export function ItemEditor({
         void applyTaskEdit(t, next)
           .then(onSaved)
           .catch((e: unknown) => {
-            recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+            recordProblem(e, "save");
             Alert.alert("That wasn't saved", e instanceof Error ? e.message : String(e));
             onSaved();
           });

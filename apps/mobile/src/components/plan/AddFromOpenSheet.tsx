@@ -85,7 +85,7 @@ export function AddFromOpenSheet({
         if (!cancelled) setPlan(p);
       })
       .catch((e: unknown) => {
-        recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
+        recordProblem(e, "load");
         // Once more after a moment: New task waits on it.
         if (!cancelled) setTimeout(() => setAttempt((n) => n + 1), 1000);
       });
@@ -204,7 +204,7 @@ export function AddFromOpenSheet({
             try {
               id = await addTask(unitIds, title, timesPerWeek, plannedWeekdays, partOfDay, oneOff, detail);
             } catch (e) {
-              recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+              recordProblem(e, "save");
               Alert.alert("That task wasn't added", e instanceof Error ? e.message : String(e));
             }
             if (id) {
@@ -212,7 +212,7 @@ export function AddFromOpenSheet({
                 await pinForDay(id, date, windowStart, "window");
               } catch (e) {
                 // Added, just not pinned: it's still open for the day.
-                recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+                recordProblem(e, "save");
                 Alert.alert("Added, but not pinned here", e instanceof Error ? e.message : String(e));
               }
             }
