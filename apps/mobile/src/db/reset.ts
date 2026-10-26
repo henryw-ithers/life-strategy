@@ -93,14 +93,8 @@ async function deletePhotoFiles(): Promise<void> {
  * for sending the user back to onboarding.
  */
 export async function eraseAllData(): Promise<void> {
-  await deletePhotoFiles();
-
-  // The problem log lives outside the database (ADR-0013 decision 2),
-  // so nothing below reaches it. Erase all data means all data, and a
-  // diagnostics file that outlived the one destructive action in the
-  // app would be a lie in the place that can least afford one.
-  clearLog();
-
+  // The database first: if it fails, the photos and the log are still
+  // there for the rows that are still there.
   db.transaction((tx) => {
     for (const table of TABLES_IN_DELETE_ORDER) {
       // `life_unit` references itself (`parent_unit_id`, ADR-0035), so
@@ -116,6 +110,14 @@ export async function eraseAllData(): Promise<void> {
       tx.run(sql.raw(`DELETE FROM ${table}`));
     }
   });
+
+  await deletePhotoFiles();
+
+  // The problem log lives outside the database (ADR-0013 decision 2),
+  // so nothing above reaches it. Erase all data means all data, and a
+  // diagnostics file that outlived the one destructive action in the
+  // app would be a lie in the place that can least afford one.
+  clearLog();
 
   // Reclaim the pages the delete freed; without this the file keeps
   // its old size and a "wiped" app still reports the same footprint.

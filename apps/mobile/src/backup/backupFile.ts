@@ -22,6 +22,7 @@ import * as Sharing from "expo-sharing";
 import migrations from "../../drizzle/migrations";
 import { sqlite } from "../db/client";
 import { pruneEndedPins } from "../db/pins";
+import { currentLocalDate } from "../lib/calendar";
 import { recordProblem } from "../lib/problemLog";
 
 /** `drizzle/migrations.js` ships `{ journal, migrations }`; the
@@ -36,9 +37,6 @@ function appVersion(): string {
   return Constants.expoConfig?.version ?? "unknown";
 }
 
-function stamp(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export interface ExportResult {
   fileName: string;
@@ -71,7 +69,8 @@ export async function exportBackup(): Promise<ExportResult> {
   // and it is safe to move: a reader identifies a backup by its magic
   // bytes, never by its filename, so files written under the old prefix
   // still open.
-  const fileName = `life-strategy-${stamp(new Date())}.lsbk`;
+  // Named for the day on this phone, not the UTC date.
+  const fileName = `life-strategy-${currentLocalDate()}.lsbk`;
   const target = new File(Paths.cache, fileName);
   if (target.exists) target.delete();
   target.create();
@@ -166,11 +165,29 @@ export async function restoreBackup(preview: BackupPreview): Promise<RestoreOutc
   rescue.create();
   rescue.write(current);
 
+  // Written beside the database first: a full disk fails here, before
+  // the live file is touched.
+  const incoming = new File(`${dbPath}.restoring`);
+  if (incoming.exists) incoming.delete();
+  incoming.create();
+  incoming.write(opened.payload);
+
   await sqlite.closeAsync();
 
-  if (live.exists) live.delete();
-  live.create();
-  live.write(opened.payload);
+  try {
+    if (live.exists) live.delete();
+    live.create();
+    live.write(opened.payload);
+  } catch (e) {
+    // Put the database back as it was, from the rescue copy, rather than
+    // leave an empty or half-written one.
+    if (live.exists) live.delete();
+    live.create();
+    live.write(current);
+    throw e;
+  } finally {
+    if (incoming.exists) incoming.delete();
+  }
 
   for (const sidecar of [`${dbPath}-wal`, `${dbPath}-shm`]) {
     const f = new File(sidecar);
