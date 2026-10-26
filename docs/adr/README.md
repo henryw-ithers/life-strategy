@@ -54,7 +54,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0040](0040-schedules-can-end-skip-and-clear.md) | Repeats can end and skip weeks; Clear today and Away; event location removed | Accepted |
 | [0041](0041-priorities-are-tiers.md) | Priorities are four tiers; satisfaction and the portfolio graph go | Accepted |
 | [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; existing goals erased; templates replace the goal library | Superseded by 0047 |
-| [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Accepted |
+| [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Accepted; §3 accent and backgrounds amended 2026-10-25 |
 | [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Accepted |
 | [0046](0046-backups-are-plain-files.md) | Backups are plain files: no passphrase, no encryption, a CRC-32 check | Accepted |
@@ -106,17 +106,18 @@ when its trigger happens.
 
 | # | Title | Write it when… | Decides |
 |---|-------|----------------|---------|
-| 0012 | Backup service and identity | cloud backup is enabled in a real build | Where encrypted backups are stored, how restore works without an account, passphrase recovery, cost |
+| 0012 | Backup service and identity | cloud backup is enabled in a real build | Where backups are stored, how restore works without an account, cost; any encryption needs its own decision (0046) |
 | 0016 | Multi-device sync | a second device becomes a real need | Sync approach, conflict handling, sharing keys between devices. 0020 made the app iOS-only and 0046 kept it; a second platform needs its own ADR |
 | 0017 | Opt-in AI personalisation | the curated library starts to feel generic | Provider, disclosure, what is redacted, cost; must keep contentment data excluded (0008) |
 | 0018 | Templates and sharing | the core loop is stable | Package format, import and export, attribution |
 
 **The windows redesign (October 2026)** is 0039–0045, written from
 [design/redesign-spec.md](../design/redesign-spec.md). Read 0039 first;
-0041 and 0044 together make formula v11.
+0041 and 0044 together make formula v11. 0046 (plain backups) and 0047
+(achievements replace goals) followed during the build.
 
 **Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
-0045 were written as other decisions came up first; renumbering to fill
+0047 were written as other decisions came up first; renumbering to fill
 the gaps would break every existing link to them.
 
 **Not ADRs:** release operations ([release.md](../release.md)), testing

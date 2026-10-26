@@ -185,7 +185,7 @@ export default function SettingsScreen() {
   const confirmErase = () => {
     Alert.alert(
       "Reset everything?",
-      "Your diagnostics, goals, tasks, grades, journal entries, photos and check-ins are all deleted from this device, and the app starts again from the introduction. This can’t be undone.",
+      "Your priorities, tasks, grades, journal entries, photos and check-ins are all deleted from this device, and the app starts again from the introduction. This can’t be undone.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Export a backup first", onPress: () => router.push("/backup" as Href) },

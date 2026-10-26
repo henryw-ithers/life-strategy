@@ -1,9 +1,8 @@
 /**
  * The four tabs, in the native iOS 26 tab bar (ADR-0043 §1, spec §2.1):
  * Home, Plan, Life and Log, each with an SF Symbol and a label. The bar
- * shrinks as you scroll down, except on Home for now: its own header
- * sits above its scroll view, so iOS can't find what to follow. Phase 9
- * rebuilds Home.
+ * shrinks as you scroll down, except on Home: its own header sits
+ * above its scroll view, so iOS can't find what to follow.
  *
  * **Every tab's page is opaque and draws its own backdrop.** The
  * backdrop used to live here, once, behind see-through pages. But iOS

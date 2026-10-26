@@ -2,29 +2,28 @@
 
 [![CI](https://github.com/henryw-ithers/life-strategy/actions/workflows/ci.yml/badge.svg)](https://github.com/henryw-ithers/life-strategy/actions/workflows/ci.yml)
 
-An iOS app that turns a monthly self-assessment of what matters to you
-into a daily checklist and a score out of 100.
+An iOS app that turns what matters to you into a daily checklist and
+a score out of 100.
 
 It is based on Rainer Strack's *Harvard Business Review* article on
-strategic life planning. The planning happens once a month; the daily
+strategic life planning. The planning happens now and then; the daily
 part is a checklist and a number.
 
 ## How it works
 
-1. **Diagnose.** Rank 18 Strategic Life Units (Friendship, Sleep &
-   recovery, Learning & growth, …), grouped into 6 life areas, by
-   priority, and rate your satisfaction with each from 1 to 10
-   ([ADR-0022](docs/adr/0022-satisfaction-is-rated-not-ranked.md)).
-   Each diagnostic is saved, and the history is drawn as a portfolio
-   bubble chart.
-2. **Derive.** The priority ranking becomes each unit's share of 100
-   daily points. Satisfaction is recorded and plotted but does not
-   change the points; it is how you see whether the plan is working
-   ([ADR-0028](docs/adr/0028-priority-is-the-only-input.md)).
-3. **Plan.** Goals and tasks sit inside units. A task happens a set
-   number of times a week and can optionally be pinned to weekdays, a
-   part of the day, or a clock time. A built-in library suggests goals
-   and tasks.
+1. **Prioritise.** Sort 18 Strategic Life Units (Friendship, Sleep &
+   recovery, Learning & growth, …), grouped into 6 life areas, into
+   four tiers (Top, Important, Background, Not now) and order them
+   within each. Each time you finish, a snapshot is saved
+   ([ADR-0041](docs/adr/0041-priorities-are-tiers.md)).
+2. **Derive.** Tier and order become each unit's share of 100 daily
+   points. Not now is out of the plan. Life shows each unit's share of
+   the work you actually did over the last four weeks, with no target.
+3. **Plan.** Tasks sit inside units. A task happens a set number of
+   times a week and can optionally be pinned to weekdays, a part of the
+   day, or a clock time. A built-in library suggests tasks, and
+   onboarding builds a first week from your Top units
+   ([ADR-0045](docs/adr/0045-onboarding-builds-a-first-week.md)).
 4. **Do.** Each day is scored on the fraction of that day's due work
    you finished: 90 points for planned work and up to 10 for unplanned
    activities. Only extra runs of your own tasks can take a day past
@@ -35,20 +34,26 @@ part is a checklist and a number.
 
 Also built:
 
+- **Working hours and windows:** you set when you're free to work;
+  events and named gaps are taken out, and what's left is shown as
+  windows that suggestions fill and you can pin tasks into. Windows
+  never change a score
+  ([ADR-0039](docs/adr/0039-work-windows-come-from-your-hours.md)).
 - **Commitments** such as school, work or a club. They get their own
-  share of the day, can be split into sub-commitments, and can hold
-  events with start and end times
-  ([ADR-0032](docs/adr/0032-the-commitment-band.md),
-  [ADR-0035](docs/adr/0035-commitments-are-custom-units.md),
-  [ADR-0038](docs/adr/0038-events.md)).
-- **Windows and pools:** the free gaps between commitments, each
-  holding a few interchangeable tasks
-  ([ADR-0033](docs/adr/0033-windows-and-pools.md)).
+  share of the day, sized from their hours, can be split into
+  sub-commitments, and can hold events with start and end times
+  ([ADR-0035](docs/adr/0035-commitments-are-custom-units.md),
+  [ADR-0038](docs/adr/0038-events.md),
+  [ADR-0044](docs/adr/0044-a-commitment-share-comes-from-your-day.md)).
 - **Rest days:** a day with nothing due scores 70 automatically, and
   work done early is paid what its planned day would have paid
-  ([ADR-0037](docs/adr/0037-rest-days.md)).
-- Partial credit, tasks that serve several units, goals that track a
-  number, and a daily journal with photos.
+  ([ADR-0037](docs/adr/0037-rest-days.md)). Clear today and Away set
+  days aside ([ADR-0040](docs/adr/0040-schedules-can-end-skip-and-clear.md)).
+- **Achievements:** forty series of counts and runs, each with five
+  ranks, defined by the app and never taken back. They never grade a
+  day ([ADR-0047](docs/adr/0047-achievements-replace-goals.md)).
+- Partial credit, tasks that serve several units, and a daily journal
+  with photos.
 - **Backup** to one plain file, with no passphrase, that you keep
   wherever you like ([ADR-0046](docs/adr/0046-backups-are-plain-files.md)).
 
@@ -61,14 +66,14 @@ and [PRODUCT.md](PRODUCT.md).
 ```
 apps/mobile              Expo app (React Native, TypeScript, Expo Router)
   src/app                screens, as file-based routes
-  src/components         UI, grouped by feature (today, plan, goals, …)
+  src/components         UI, grouped by feature (today, plan, life, …)
   src/hooks              screen-level state
   src/db                 SQLite via Drizzle, one module per concern
   src/lib                pure helpers (calendar, formatting, redaction)
   drizzle/               forward-only schema migrations
 packages/scoring         the scoring engine: pure functions, no React Native
 packages/backup          the backup file format: pure, plain, with a checksum
-docs/adr                 34 architecture decision records
+docs/adr                 43 architecture decision records
 ```
 
 **All scoring arithmetic lives in `packages/scoring`** as pure, tested
@@ -79,19 +84,18 @@ screens display what comes back. This keeps the rules that matter most
 testable without a phone.
 
 The backup package works the same way. The file format is plain
-TypeScript and receives its cipher as a parameter, so the format is
-tested in Node while the app supplies Apple's implementation on the
-device.
+TypeScript, so it is tested in Node; the app supplies the database
+bytes and the share sheet on the device.
 
 Every significant decision, including ones later withdrawn, is
 recorded in the [ADR index](docs/adr/README.md).
 
 ## Tech stack
 
-TypeScript · React Native 0.81 · Expo SDK 54 (pinned; see ADR-0001) ·
-Expo Router · SQLite (`expo-sqlite`) with Drizzle ORM · Reanimated and
-Skia for the portfolio graph · Swift for the native crypto module ·
-Vitest · ESLint · GitHub Actions
+TypeScript · React Native 0.86 · React 19.2 · Expo SDK 57 (an EAS
+development build; see ADR-0043) · Expo Router · SQLite
+(`expo-sqlite`) with Drizzle ORM · Reanimated · Vitest · ESLint ·
+GitHub Actions
 
 ## Getting started
 
@@ -105,9 +109,8 @@ npm run lint         # ESLint over the app
 npm run mobile       # Expo dev server
 ```
 
-The app runs in Expo Go, except for backup and restore, which need the
-native crypto module and therefore a development or TestFlight build.
-It also runs in a browser as a development preview only; see
+The app runs on the iPhone as an EAS development build, not Expo Go;
+see [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md). It also runs in a browser as a development preview only; see
 [docs/web-preview.md](docs/web-preview.md).
 
 ## Documentation

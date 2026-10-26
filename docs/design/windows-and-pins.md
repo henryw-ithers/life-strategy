@@ -118,9 +118,8 @@ until done → not pinned. One tap is enough for the usual case.
   "Every week" saves the choice as a repeating pin on those weekdays
   instead of pins for those dates. One step, however many days. Built
   with the weekly pass (Phase 8).
-- **The task itself:** "Plan it…" on any task (its sheet, its menu, a
-  goal, a commitment) opens a picker of days and that day's windows.
-  This is the direct way to put one task in one future window.
+- **The task itself:** "Plan it…" on any task (its sheet, its menu,
+  a commitment) opens a picker of days and that day's windows. This is the direct way to put one task in one future window.
 - **Home, today:**
   - Moving a task, by drag or Move to…, pins it where you put it.
   - Each window has a "Pin a task" button: a sheet of every open task,
@@ -236,6 +235,9 @@ for example, pinned to one window a day, every day of the week (Henry,
 
 ### 2.13 "Do N of these"
 
+**Removed from the UI** (Henry, 2026-10-25): nothing creates one now,
+but a choice saved before still scores. As designed:
+
 From a window's ••• menu, "Any N of these" turns its pins into a
 choice: at most 3 tasks, all from one commitment, all worth the same,
 the planned count setting the ceiling (ADR-0033 §3). Only you can make
@@ -260,8 +262,8 @@ Each time Home or Plan opens, never saved:
 
 1. Pins go into their windows (§2.6).
 2. A timed task goes in the window holding its time (§2.10).
-3. Everything else is ranked: due today; carried forward; linked to an
-   active goal; its part of day matches the window; unit tier; your
+3. Everything else is ranked: due today; carried forward; its part of
+   day matches the window; unit tier; your
    order within the unit; oldest first. Points never rank anything.
 4. In that order, each task goes into the earliest window with room:
    the window's length times the fill setting (80%), less what's there.
@@ -284,7 +286,7 @@ until its runs are done.
   in all, or as many as fit a short window. More are under "Show all"
   (EC-18), in the same order each time.
 - Each suggestion has a one-line reason: "Due today", "Still open ·
-  School", "For your goal: Run 30 times", "Fits this hour · Exercise".
+  School", "Fits this hour · Exercise".
 - **Swap** (swipe left) brings in the next that fits.
 - **Accept all** makes every current suggestion a window pin.
 - **Refill:** when the window's shown tasks are done and there's room,

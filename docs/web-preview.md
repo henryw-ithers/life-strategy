@@ -21,6 +21,12 @@ runs on port **8090** so a web preview and the development-build
 server (8081) can
 be up at the same time.
 
+Priorities' Done is a native toolbar button the browser can't press,
+so onboarding can't be finished by hand here. To look at the screens
+past it, run `__lsDev.seed()` in the console on an empty database,
+then reload: it saves tiers, working hours, a commitment, some events
+and tasks (`src/dev/webSeed.ts`, loaded only by `index.web.js`).
+
 ## Why it needs three pieces of setup
 
 On web, `expo-sqlite` is not SQLite in-process — it is SQLite compiled
@@ -107,7 +113,14 @@ value.
 
 ## Skia needs its own entry
 
-The portfolio graph draws with Skia, which in a browser is CanvasKit —
+No screen draws with Skia any more: the portfolio graph went with
+ADR-0041, and the achievement badges are SF Symbols, since 40 Skia
+canvases ran the browser out of WebGL contexts. `@shopify/react-native-skia`
+is still installed and the web entry still loads it, so the section
+below stays true until both are removed (which needs a new development
+build).
+
+Skia in a browser is CanvasKit —
 a WebAssembly build that has to be fetched and initialised before any
 Skia module is evaluated. Skia's web module reads the `CanvasKit`
 global at import time, so loading it later (from a component, or the
@@ -120,13 +133,13 @@ Two pieces make it work, and both are web-only:
   in the app's `package.json`; Metro picks the `.web.js` file for web,
   and native gets `index.js`, which is Expo Router's standard entry).
   It loads CanvasKit, then requires the router. A failed load is
-  logged and the app starts anyway — every screen but the graph works.
+  logged and the app starts anyway.
 - **`apps/mobile/public/canvaskit.wasm`** is copied from
   `node_modules/canvaskit-wasm` on install by
   `scripts/setup-skia-web.mjs` (the root `postinstall`), and served
   from the site root. It is ~8 MB and reproducible, so it is
-  gitignored rather than committed. If the graph is blank with a 404
-  for it in the network tab, run `node scripts/setup-skia-web.mjs`.
+  gitignored rather than committed. If the network tab shows a 404
+  for it, run `node scripts/setup-skia-web.mjs`.
 
 ## Known gaps on web
 
@@ -135,7 +148,7 @@ preview surface:
 
 - **Notifications are skipped.** Scheduling a local notification has no
   web equivalent and `expo-notifications` throws rather than no-opping,
-  which took out the Today tab. `src/notifications/dailyNudge.ts`
+  which took out the Home tab. `src/notifications/dailyNudge.ts`
   guards on `Platform.OS`.
 - **`expo-file-system` is unsupported**, so anything touching photo
   files or backup files warns and does nothing. Photos and `.lsbk`
@@ -149,8 +162,8 @@ preview surface:
   gated on `containerW > 0`, and the `onLayout` that sets it doesn't
   produce a width here — so the label, the "—" readout and the detent
   indicator all render, and the 1–10 carousel inside them does not.
-  Affects every screen that rates something: the diagnostic's
-  satisfaction steps, the weekly contentment check-in, and the
+  Affects every screen that rates something: the weekly contentment
+  check-in and the
   special-day rating in `DayKindSheet`. **Layout and gating can still be
   checked in the browser; the value can only be set on device.**
   Verified as a web-only quirk (the same component behaves identically

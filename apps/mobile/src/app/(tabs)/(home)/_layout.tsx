@@ -1,7 +1,6 @@
 /**
  * Home's stack. Its nav bar carries only the + menu and Settings, with
- * no title: Home draws its own header (the week strip and the grade)
- * until Phase 9 rebuilds it (Henry, 2026-10-16).
+ * no title: Home draws its own header (the week strip and the grade).
  */
 import { Stack } from "expo-router";
 import { useColorScheme } from "react-native";

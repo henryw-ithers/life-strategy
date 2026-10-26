@@ -5,9 +5,8 @@
  * **nothing in the app imported it.** It was dead code you could only
  * read in the repo, which is the same as not having written it.
  *
- * **Tasks only until Phase 10.** The library's goals were written for
- * the old goals, which went in Phase 5c (ADR-0042 §6); Phase 10
- * replaces them with templates for the four kinds (§7).
+ * **Tasks only.** Goals went with ADR-0047; achievements are defined
+ * by the app, so the library has nothing to suggest for them.
  *
  * **Pull, not push** (ADR-0006 §3). This opens from a unit you already
  * chose to look at, and it never interrupts: no badge, no prompt, no

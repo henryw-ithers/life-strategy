@@ -12,6 +12,9 @@ current scoring model).
 | [vision.md](../vision.md) | What the app does and why, with links to the decision behind each mechanism |
 | [PRODUCT.md](../PRODUCT.md) | Who it is for, positioning, tone, and design principles |
 | [DESIGN.md](../DESIGN.md) | The visual system: colour, type, components, and the contrast measurements behind them |
+| [design/redesign-spec.md](design/redesign-spec.md) | How every screen behaves in the windows redesign (ADRs 0039–0045) |
+| [design/windows-and-pins.md](design/windows-and-pins.md) | The rules for windows, pins and suggestions, with the edge-case catalogue |
+| [design/redesign-build.md](design/redesign-build.md) | What each build phase did and how it was checked |
 | [design/copy-guide.md](design/copy-guide.md) | Rules for anything the app says, chiefly that copy must read the same on a good week and a bad one |
 | [backburner.md](backburner.md) | Ideas deliberately parked, and why |
 
@@ -40,7 +43,7 @@ the Markdown, never the generated files.
 |---|---|
 | [content/inventory.md](content/inventory.md) | Every string in the app and where to edit it |
 | [content/units.md](content/units.md) · [content/areas.md](content/areas.md) | Descriptions and guidelines for each unit and area |
-| [content/library.md](content/library.md) · [content/library-outline.md](content/library-outline.md) | The suggested goals and tasks, and the brief for writing them |
+| [content/library.md](content/library.md) · [content/library-outline.md](content/library-outline.md) | The suggested tasks, and the brief for writing them (its goal lines are no longer shown) |
 | [content/keywords.md](content/keywords.md) | Words that suggest unit tags when logging an activity |
 | [content/notifications.md](content/notifications.md) | The daily reminder's copy |
 
@@ -52,11 +55,12 @@ since changed. Where a note and an ADR disagree, the ADR is correct.
 
 | Document | What it records |
 |---|---|
-| [design/diagnostic-flow-brief.md](design/diagnostic-flow-brief.md) | Design brief for the diagnostic (July 2026, revised August) |
-| [design/portfolio-graph-brief.md](design/portfolio-graph-brief.md) | Design brief for the portfolio graph (July 2026) |
-| [design/task-setup-brief.md](design/task-setup-brief.md) | Design brief for the first Plan screen (July 2026) |
+| [design/diagnostic-flow-brief.md](design/diagnostic-flow-brief.md) | Design brief for the diagnostic (July 2026, revised August; replaced by Priorities, ADR-0041) |
+| [design/portfolio-graph-brief.md](design/portfolio-graph-brief.md) | Design brief for the portfolio graph (July 2026; removed, ADR-0041) |
+| [design/task-setup-brief.md](design/task-setup-brief.md) | Design brief for the first Plan screen (July 2026; since redesigned) |
 | [design/calendar-and-day-planning.md](design/calendar-and-day-planning.md) | Phase plan for calendar and day planning (July 2026) |
 | [design/scheduling-and-motivation.md](design/scheduling-and-motivation.md) | Research notes on scheduling and motivation, with citations (August 2026) |
 | [design/commitments-and-the-day.md](design/commitments-and-the-day.md) | Working notes for commitments, windows and the commitment band (September 2026) |
-| [design/hour-grid-day-view.md](design/hour-grid-day-view.md) | Plan for an hour-by-hour day view (September 2026, not built) |
+| [design/hour-grid-day-view.md](design/hour-grid-day-view.md) | Plan for an hour-by-hour day view (September 2026; built, then replaced by windows) |
+| [design/research-brief.md](design/research-brief.md) | The evidence behind the windows redesign: other planning apps, iOS 26 and Expo (October 2026) |
 | [design/critiques/](design/critiques/) | Two heuristic design reviews of every screen, and the fixes between them (July 2026) |

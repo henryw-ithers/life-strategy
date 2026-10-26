@@ -26,11 +26,11 @@ kept by [ADR-0046](docs/adr/0046-backups-are-plain-files.md)).
 
 ## Product Purpose
 
-A personal planning and reflection app. A monthly diagnostic (a
-priority ranking and a satisfaction rating for each of 18 life units)
-becomes a daily checklist and a grade out of 100. The daily part is a
-checklist and a number; the monthly part is a review (diagnostic,
-portfolio graph, goals); and over time the record reads as a log of a
+A personal planning and reflection app. Priorities (18 life units
+sorted into four tiers) become a daily checklist and a grade out of
+100. The daily part is a checklist and a number; the periodic part is
+a review (priorities, the weekly pass, effort shares, achievements);
+and over time the record reads as a log of a
 life, with journals, photos and flagged memories beside the grades.
 
 Long-term success: the daily grade comes to match how content the user
@@ -47,7 +47,7 @@ matters most.
 
 Clear, confident, encouraging. A coach with a clipboard: crisp
 hierarchy, decisive colour, satisfying check-offs. Warmth comes from
-celebration (completed goals, special days, memories resurfacing), not
+celebration (achievements earned, special days, memories resurfacing), not
 from softness or decoration. Copy is direct and kind. It never nags or
 guilt-trips, and it presents every score as a guideline.
 
@@ -65,7 +65,7 @@ guilt-trips, and it presents every score as a guideline.
 
 ## Design Principles
 
-1. **Strategy before execution.** The diagnostic comes first, and every
+1. **Strategy before execution.** Priorities come first, and every
    task exists because the user said its unit matters.
 2. **Daily simplicity.** By default the daily screen is a checklist and
    a number that can be opened, used and closed in under a minute.
@@ -87,6 +87,6 @@ guilt-trips, and it presents every score as a guideline.
 ## Accessibility & Inclusion
 
 WCAG AA contrast throughout; full Dynamic Type support; reduced-motion
-alternatives for the portfolio graph animations and celebrations; and
-screen-reader labels on every interactive element, including the Skia
-charts, whose data is also available as text.
+alternatives for animations and celebrations; and screen-reader
+labels on every interactive element, including the effort bars and
+achievement badges, whose data is also available as text.

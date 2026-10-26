@@ -75,7 +75,8 @@ show up, not what they're worth. There are three exceptions, all of
 them things you choose:
 
 - "Do N of these" choices on a window (§4.4), which keep ADR-0033 §3's
-  ceiling rule.
+  ceiling rule. Removed from the UI on 2026-10-25; a choice saved
+  before still scores.
 - Day-level changes: skipping an event, Clear today, Away.
 - Your working hours on a given day, which set the size of the
   commitment share (§5.5).
@@ -354,9 +355,10 @@ In the planning views you can:
 - **Move** a task to another window or day by dragging it, or with
   Move to…, which also works with VoiceOver.
 - **Remove** a task from a window. It goes back to open, with Undo.
-- **Do N of these**: in the window's ••• menu, "Any N of these" turns
-  its pinned tasks into a choice. This is the old pool and keeps its
-  rules: at most 3 tasks, all from one commitment, all worth the same,
+- **Do N of these** (removed from the UI on 2026-10-25, Henry; a
+  choice saved before still scores). As designed: in the window's •••
+  menu, "Any N of these" turns its pinned tasks into a choice. This is
+  the old pool and keeps its rules: at most 3 tasks, all from one commitment, all worth the same,
   with the planned count setting the ceiling (ADR-0033 §3). Only you
   can create one. The option only appears when the pinned tasks
   qualify.

@@ -1,5 +1,5 @@
 /**
- * Streaks, for habit goals and daily tasks (decided 2026-08-16; the
+ * Streaks, for daily tasks (decided 2026-08-16; the
  * reasoning is in docs/backburner.md's Streaks entry).
  *
  * **A streak is shown, never enforced** (ADR-0004 §5). Nothing here

@@ -3,11 +3,9 @@
  * that opens a native pull-down menu, and Settings on Home and Life.
  *
  * The menu is the same on every tab: Task, Event and Log something,
- * and Window where the tab can add one (Plan since Phase 8; Home with
- * Phase 9). Goal on Life comes with Phase 10. Each tab opens what
- * it owns in place; anything another tab owns switches to that tab and
- * opens it there (`openAdd`), until Phases 8 to 10 let every tab open
- * every sheet (Henry, 2026-10-16).
+ * and Window where the tab can add one (Home and Plan). Each tab opens
+ * what it owns in place; anything another tab owns switches to that
+ * tab and opens it there (`openAdd`).
  *
  * A header toolbar draws no view of its own; it only sets the nav bar,
  * so it can sit anywhere in a screen. Its buttons call the handlers

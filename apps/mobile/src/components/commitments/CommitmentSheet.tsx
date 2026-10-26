@@ -6,8 +6,8 @@
  *
  * **No share is asked for** (formula v11). A commitment's share of a
  * day comes from that day: its events and scheduled tasks over your
- * working hours (ADR-0044). Setting a share by hand returns with the
- * commitment screens in Phase 10.
+ * working hours (ADR-0044). A share set by hand lives on the
+ * commitment's own screen (`ShareSheet`).
  */
 import { useState } from "react";
 import { StyleSheet, Switch, View } from "react-native";

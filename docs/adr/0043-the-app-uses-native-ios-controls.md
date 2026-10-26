@@ -96,6 +96,15 @@ Transparency is on.
 Text must reach 4.5:1 contrast in light mode, dark mode and Increase
 Contrast, and scale to 200% with Dynamic Type.
 
+> **Amended 2026-10-25 (Henry, the feedback pass):** the black and
+> white accent "doesn't match the vibe". The accent is now a calm
+> slate blue (`#3F70AD` light, `#7FA8DC` dark), muted enough that it
+> is still never confused with a unit's colour, and the system
+> backgrounds give way to a soft, cool canvas with white cards (deep
+> slate in dark). The values are in `theme/colors.ts` and
+> [DESIGN.md](../../DESIGN.md); contrast is still checked by
+> `theme/__tests__/palette.test.ts`.
+
 ### 4. Users can choose colours
 
 There is a palette of 12, each with light, dark and fill versions
