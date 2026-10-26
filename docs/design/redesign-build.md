@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-26, during Phase 12.
+Last updated 2026-10-26: every phase merged; TestFlight next.
 
 ## Phases
 
@@ -37,8 +37,11 @@ Last updated 2026-10-26, during Phase 12.
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | Merged, PRs #26, #27 |
 | 10 | Life: rows, unit and commitment screens, achievements (ADR-0047) | Merged, PRs #28, #29, #31 |
 | 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | Merged, PR #32 |
-| FP | Feedback pass: calmer look, less text, pin cycle, achievements as shields | PR #34 |
-| **12** | **Hardening: test coverage, dead code, a code review, photos in the Log** | **In progress** |
+| FP | Feedback pass: calmer look, less text, pin cycle, achievements as shields | Merged, PR #34 |
+| 12 | Hardening: test coverage, dead code, a code review, photos in the Log | Merged, PR #35 |
+| EW | Events and windows: saving fixed, replace or keep, every week, edit anything | Merged, PR #36 |
+| R | Release: App Store listing draft, privacy policy, support page | PR #37 |
+| C | Cleanup before TestFlight: unused code, shared helpers, data safety | PR #38 |
 
 Each phase ships as one or more PRs off `main`. Every PR passes
 `npm test`, `npm run typecheck` and `npm run lint` (lint at 0
@@ -59,7 +62,28 @@ split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
 
-## Phase 12: Hardening
+## Before TestFlight (PRs #36–#38)
+
+- **Events and windows** (PR #36, Henry, 2026-10-26). Adding an event
+  saved nothing (a new weekly event was refused bounds; it is now
+  written with them in one transaction). An event or window can repeat
+  "every <day>" at that time. A new event over one already there asks
+  before replacing it, and replacing never rewrites the past: a series
+  ends from today, a one-time event is archived, or one date is
+  skipped (`db/eventClash.ts`). **A window never replaces an event**;
+  it is trimmed around it. Tapping an event or a task edits it, the
+  window ••• works, and holding a pin shows what it does.
+- **Release docs** (PR #37): `docs/store/listing.md` (description,
+  privacy label, review notes) and `docs/support.md`; the build and
+  submit steps are in [release.md](../release.md).
+- **Cleanup** (PR #38): unused exports and files gone, shared helpers
+  for cards and action sheets, and data-safety fixes. Activities save
+  in one transaction; Erase clears the database before the files; a
+  restore is written beside the database first and the old one is put
+  back if the swap fails; a photo whose row can't be written leaves no
+  file; the backup's file name uses the phone's date.
+
+## Phase 12: Hardening (PR #35)
 
 Built on the feedback pass (PR #34), so it lands after it.
 

@@ -2,20 +2,22 @@
 name: Life Strategy
 description: A personal planning app that turns your priorities into a daily checklist and a grade out of 100.
 colors:
-  canvas-light: "#FFFFFF"
-  canvas-dark: "#000000"
-  surface-light: "#F2F2F7"
-  surface-dark: "#1C1C1E"
-  ink-light: "#000000"
-  ink-dark: "#FFFFFF"
-  muted-light: "#6C6C70"
-  muted-dark: "#98989F"
-  hairline-light: "#C6C6C8"
-  hairline-dark: "#38383A"
-  accent-light: "#000000"
-  accent-dark: "#FFFFFF"
+  canvas-light: "#F4F6FA"
+  canvas-dark: "#0B0E13"
+  surface-light: "#FFFFFF"
+  surface-dark: "#161B22"
+  fill-light: "#EDF0F5"
+  fill-dark: "#232A34"
+  ink-light: "#111827"
+  ink-dark: "#F3F5F8"
+  muted-light: "#5F6672"
+  muted-dark: "#9AA3AF"
+  hairline-light: "#DCE1E8"
+  hairline-dark: "#2A313B"
+  accent-light: "#3F70AD"
+  accent-dark: "#7FA8DC"
   on-accent-light: "#FFFFFF"
-  on-accent-dark: "#000000"
+  on-accent-dark: "#0B0E13"
   danger-light: "#D70015"
   danger-dark: "#FF6961"
   scrim: "rgba(0, 0, 0, 0.45)"
@@ -67,15 +69,17 @@ The app follows the **Prism** style, chosen on 2026-10-13
 the 12 unit colours and `tokens.ts` for type and spacing. Contrast is
 checked by `theme/__tests__/palette.test.ts`.
 
-Phase 3 of the redesign is nearly done. Native tabs, sheets, menus,
-alerts, Liquid Glass and the app icon are in; plain backups are its
-last step.
+The redesign is built (see
+[redesign-build.md](docs/design/redesign-build.md)): native tabs,
+sheets, menus, alerts, Liquid Glass, the app icon and the soft blue
+accent of the feedback pass are all in.
 
 ## 1. Overview
 
-Prism looks like an iOS app first. The backgrounds, text and dividers
-are Apple's system colours, the type is SF, and buttons use the label
-colour: black in light mode, white in dark. All the colour in the app
+Prism looks like an iOS app first: the type is SF and the controls are
+native. A soft, cool canvas sits behind white cards (deep slate in
+dark), and buttons use a calm slate-blue accent (Henry, 2026-10-25:
+black "doesn't match the vibe"). Every other colour in the app
 comes from your units and commitments, so a checkbox or an event bar is
 the colour of the part of life it belongs to.
 
@@ -89,7 +93,7 @@ The app rejects:
 - dashboard clichés such as hero metrics and gradient accents
 - leaderboards or any comparison of scores
 
-Warmth comes from celebration (finished goals, special days, memories),
+Warmth comes from celebration (achievements, special days, memories),
 never from decoration or softened numbers.
 
 ## 2. Colours
@@ -98,28 +102,30 @@ never from decoration or softened numbers.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| canvas | `#FFFFFF` | `#000000` | Screen background (systemBackground) |
-| surface | `#F2F2F7` | `#1C1C1E` | Cards and groups (secondarySystemBackground) |
-| ink | `#000000` | `#FFFFFF` | Text (label) |
-| muted | `#6C6C70` | `#98989F` | Secondary text, captions |
-| hairline | `#C6C6C8` | `#38383A` | Dividers (separator) |
-| accent | `#000000` | `#FFFFFF` | Buttons and highlights (label colour) |
-| onAccent | `#FFFFFF` | `#000000` | Text and ticks on the accent or a unit colour |
+| canvas | `#F4F6FA` | `#0B0E13` | Screen background |
+| surface | `#FFFFFF` | `#161B22` | Cards and groups |
+| fill | `#EDF0F5` | `#232A34` | Controls: text fields, segmented tracks, steppers, secondary buttons |
+| ink | `#111827` | `#F3F5F8` | Text |
+| muted | `#5F6672` | `#9AA3AF` | Secondary text, captions |
+| hairline | `#DCE1E8` | `#2A313B` | Dividers |
+| accent | `#3F70AD` | `#7FA8DC` | Buttons and highlights |
+| onAccent | `#FFFFFF` | `#0B0E13` | Text and ticks on the accent or a unit colour |
 | danger | `#D70015` | `#FF6961` | Destructive actions only |
 
 Muted is opaque so it holds 4.5:1 on cards as well as the background.
 iOS's own secondaryLabel is translucent and drops below that on a card.
 
-The accent is the label colour on purpose: it can never be mistaken for
-a unit's colour.
+The accent is muted on purpose, so it is never mistaken for a unit's
+colour.
 
 ### The 12 unit colours
 
 Units and commitments take their colour from 12, which are iOS's
 system colours in the higher-contrast versions Apple publishes. Each
 works as a checkbox ring, an event bar or tinted text at 4.5:1 or
-better, on the background and on cards, in both modes. A filled checkbox uses the same colour with a
-white tick in light mode and a black tick in dark mode.
+better, on the background and on cards, in both modes. A filled
+checkbox uses the same colour with a white tick in light mode and a
+dark tick in dark mode.
 
 | Colour | Light | Dark | Area |
 |---|---|---|---|
@@ -179,7 +185,7 @@ the font changed, so no screen reflowed.
 |---|---|---|---|
 | numeral | 700 | 44 / 48 | The day's grade, and only that |
 | display | 700 | 28 / 34 | Screen titles |
-| title | 700 | 22 / 28 | Section headers, a goal's title |
+| title | 700 | 22 / 28 | Section headers, a unit's title |
 | headline | 600 | 17 / 22 | Primary button labels, list emphasis |
 | body | 400 | 16 / 24 | Running text, notes |
 | label | 600 | 15 / 20 | Secondary buttons, form labels |
@@ -234,7 +240,7 @@ press opens is also reachable from a tap or a ••• button, and an
 action that can't apply is left out, not greyed.
 
 An everyday delete (a note, a photo, an activity, a task, an event, a
-goal reading, a condition, a sub-commitment from its parent's list)
+window, a sub-commitment from its parent's list)
 asks nothing. The thing goes at once and the Undo bar shows above the
 tab bar for about five seconds (`useUndoDelete`, `UndoBar`). The delete
 itself runs only when the bar goes, or when you leave the screen or the
@@ -242,8 +248,8 @@ app, so Undo never has to rebuild anything. With VoiceOver on the bar
 waits until you leave.
 
 A native alert asks only where the loss can't be taken back: deleting
-a goal, deleting a commitment from its own page, and resetting
-everything, which asks twice.
+a commitment from its own page, and resetting everything, which asks
+twice.
 
 ### Date and time pickers
 
@@ -271,7 +277,7 @@ navigation bar has little to blur at rest (spec §2.2). Two modes:
 - **Constellation:** all six area colours. The `faint` version is the
   default on content screens.
 - **Hue wash:** one unit's colour, on that unit's own screen (a
-  commitment, a goal).
+  commitment).
 
 The backdrop never sits behind dense data such as a graph.
 
@@ -291,9 +297,9 @@ favicon match it.
 Native iOS tabs (`app/(tabs)/_layout.tsx`): Home (`sun.max`), Plan
 (`calendar`), Life (`square.grid.2x2`) and Log (`book.closed`), a label
 on each, shrinking as you scroll down. Each tab is a native stack whose
-root has a large title (Home has none until Phase 9 rebuilds its own
-header). The nav bar carries a `+` pull-down menu (Task, Event, Log
-something, and Goal on Life) and, on Home and Life, Settings. A menu
+root has a large title (Home has none: it draws its own header). The
+nav bar carries a `+` pull-down menu (Task, Event, Log something, and
+Window on Home and Plan) and, on Home and Life, Settings. A menu
 item another tab owns switches to that tab and opens it there.
 
 Every screen is opaque and draws its own backdrop. iOS changes tabs
@@ -304,7 +310,7 @@ shrinking tab bar by following each screen's first child, so a
 screen's scroll view must come first, with
 `contentInsetAdjustmentBehavior="automatic"`, and the backdrop goes
 first inside it (`ScrollBackdrop`). Home keeps its own header above its
-scroll view until Phase 9, so its backdrop sits fixed behind it.
+scroll view, so its backdrop sits fixed behind it.
 
 A screen's nav bar must be right on its first frame. Any change to a
 toolbar or title makes iOS rebuild every bar button, which shows as
@@ -313,11 +319,11 @@ pushed screen reads its title synchronously (`useFirstRead`), and
 toolbar buttons call their handlers through `useLatest`.
 
 Focused screens (Settings, Backup, Priorities, a day) are pushed by
-the root stack and cover the tabs; a goal or a commitment pushes within
-Life. Every pushed screen has the same native nav bar as a tab root,
-with the system back button, so a push is one native transition. Its
-own actions go in a ••• menu in that bar. Onboarding and the
-diagnostic are full-screen flows with no bar.
+the root stack and cover the tabs; a unit, a commitment or
+Achievements pushes within Life. Every pushed screen has the same
+native nav bar as a tab root, with the system back button, so a push
+is one native transition. Its own actions go in a ••• menu in that
+bar. Onboarding is a full-screen flow with no bar.
 
 ## 6. Do and don't
 

@@ -6,7 +6,7 @@
  * **Never changes a score** (ADR-0039 §12, §5 of the doc). This module
  * reads no point, weight or grade, so the same day with different pins
  * is the same day to the score (EC-20). **Points never rank a
- * suggestion**: the order is due, carried, goal, part of day, tier, your
+ * suggestion**: the order is due, carried, part of day, tier, your
  * order, oldest.
  *
  * **Every open task, once** (EC-19): each task in `open` that owes a

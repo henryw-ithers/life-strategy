@@ -317,6 +317,6 @@ downgrade.
   build even when nothing has changed, or testers get locked out.
 - Updating preserves data; **deleting the app does not.** Point testers
   at Settings → Your data to export a `.lsbk` before anything drastic.
-- `src/app/dev/graph.tsx` is gated behind `__DEV__` and redirects home
-  in a release build. Any future dev-only route needs the same gate —
-  Expo Router bundles every file under `src/app/`, linked or not.
+- There are no dev-only routes now. If one is added, gate it behind
+  `__DEV__` so it redirects home in a release build: Expo Router
+  bundles every file under `src/app/`, linked or not.

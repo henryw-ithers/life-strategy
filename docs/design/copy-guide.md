@@ -7,7 +7,7 @@ Referenced by ADR-0008 action item 4 and ADR-0010 action item 4. Standing rules 
 > "Kindness is ambient, never targeted." People can tell when software noticed their bad week; being reacted to is often more painful than being left alone.
 
 - Encouragement is ambient and untargeted: warm copy reads the same on a good week and a bad one. Nothing consoling is ever conditioned on low grades or low contentment — conditioned comfort reads as surveillance.
-- Celebration may condition on positive events (a goal completed, a special day logged) — being noticed at your best is welcome; being noticed at your worst is not.
+- Celebration may condition on positive events (an achievement earned, a special day logged) — being noticed at your best is welcome; being noticed at your worst is not.
 - The app never shames. Scores are framed as guidelines in all copy; low grades get neutral, kind presentation; no alarm colors, streak guilt, or loss-aversion mechanics (AGENTS.md).
 
 Any copy added to this app — notification text, empty states, error messages, celebratory moments — should read identically well regardless of how the user's day or week is going. If a line would land differently on a bad day than a good one, rewrite it.
@@ -51,18 +51,14 @@ A streak is **shown, never enforced**. It never touches the grade. The rule that
 - **Don't announce small numbers.** On a task row nothing appears below seven days. A row that said "1 day" every time you restarted would be reporting resets.
 - **A declared day off is never a break** (ADR-0004 §3) and is never described as one.
 - **The research agrees with the tone.** Lally et al. (2010) found that **missing one occasion does not materially affect habit formation** (ADR-0024's context). So "never remark on a break" is not only kindness — remarking on it would overstate what a break costs.
-- Habit goals are **never offered completion**. They have no target and are meant to be permanent, so "finish it" is not a state they have.
 
-## Goal conditions (ADR-0030, copy pass 2026-10-02)
+## Goal conditions (retired)
 
-A **condition** is something that has to be true for a goal to happen. The word is reserved for that meaning in user-facing copy — the Environment area's description used to say "the conditions you live in" and was rewritten so the two never meet.
-
-- **Name groups for what they are.** Tasks on a goal that sit under no condition are **"Other tasks"**, not "Not under a condition".
-- **An empty condition is waiting, not missing:** "Nothing under this yet."
-- **One prompt for one job.** Adding and renaming a condition both ask "What has to be true?"
-- **Say what is safe on the button that does it.** Removing a condition never removes its tasks, so the button says **"Remove condition (keeps its tasks)"**.
-- **Name the condition a task leaves**, the same way "Move to “…”" names the one it joins: **"Move out of “Control”"**.
-- A task borrowed from another unit shows that unit's name and hue on its row ("3×/wk · Sleep") — left as it is by decision; "from Sleep" was proposed and declined.
+Goals, and the conditions under them (ADR-0030), were replaced by
+achievements the app defines (ADR-0047, 2026-10-21). Nothing in the app
+says "condition" now. The rule that came with them still holds: a task
+borrowed from another unit shows that unit's name and hue on its row
+("3×/wk · Sleep").
 
 ## Calibration copy (ADR-0008)
 

@@ -27,7 +27,7 @@ months and years.
    Background and Not now.
 2. **Derive.** The tiers become each unit's share of 100 daily points.
 3. **Plan.** Add tasks to the units, set your working hours, and let
-   the app fill your free time with them. Goals are optional.
+   the app fill your free time with them.
 4. **Do.** Work through the window you're in and tick tasks off. Each
    day gets a score out of 100.
 5. **Review.** Days roll up into weekly and monthly grades. A weekly
@@ -189,28 +189,21 @@ shown, the recommended value is shown next to it
 weights are overridden on the Priorities screen, and a commitment's
 share on its own screen.
 
-## Goals
+## Achievements
 
-    Area → Unit → Goal → Task
+The app defines and awards achievements itself; there is nothing to
+set up ([ADR-0047](docs/adr/0047-achievements-replace-goals.md), which
+replaced goals). Each is a **series** counting one thing: a task's
+completions, a unit's hours, an every-day run, weeks a plan was met,
+days scoring 80 or above. Every series has five ranks, Bronze to
+Diamond, peaking near 1,000, so the top rank is something to be proud
+of.
 
-Goals are optional. Each goal is built on something the app can count
-([ADR-0042](docs/adr/0042-goals-are-measured-by-the-app.md)):
-
-- **Times done:** "Run 30 times by December", counting ticks on the
-  tasks you choose.
-- **Time spent:** "40 hours of study this term", counting each tick's
-  size, or the time you entered when ticking.
-- **Points earned:** "Earn 300 Exercise points", a running total in the
-  unit.
-- **Streak:** "Meditate every day", counting days in a row.
-
-Goals start from templates, one per type for each unit. Progress is a
-running total with no pace line. An active goal moves its tasks up a
-little when the app suggests what to do, and never changes points.
-Reaching a target is an achievement: it appears in monthly summaries
-and never in a daily grade, which measures consistency. Goals can be
-paused, revised or set aside
-([ADR-0007](docs/adr/0007-goal-lifecycle.md)).
+Progress is a running total. Locked achievements show it, runs
+included, and a run that ends simply starts counting again, with
+nothing said. Earned ranks are never taken back. Achievements appear
+on the Achievements screen, as unit badges and in monthly summaries,
+and never in a daily grade, which measures consistency.
 
 ## Tasks
 
@@ -223,7 +216,7 @@ the day, or a clock time; none of these is required
   are dragged into order and their share of the unit's weight follows
   from that order. Nobody enters a point value.
 - **Suggestions.** Each unit has a "Need ideas?" link to a built-in
-  library of tasks and goal templates, chosen to fit the unit's tier
+  library of tasks, chosen to fit the unit's tier
   ([ADR-0006](docs/adr/0006-task-and-goal-recommendations.md)).
   Tasks are sized quick, normal or big, which is how the app knows
   what fits in a window.
@@ -312,8 +305,8 @@ anything if you confirm them
 
 Kept out until the core loop has proved itself:
 
-- **Templates:** shareable sets of goals and tasks for a unit.
-- **Light community:** accountability partners and shared goals, never
+- **Templates:** shareable sets of tasks for a unit.
+- **Light community:** accountability partners, never
   comparison.
 
 Parked ideas, and the reasons they were parked, are in
