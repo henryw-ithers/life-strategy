@@ -266,20 +266,6 @@ export async function setPinKind(id: string, kind: PinKind): Promise<void> {
   if (result.changes === 0) throw new Error(`No such pin: ${id}`);
 }
 
-/** Set pins' order inside their window, lower first. */
-export async function setPinOrder(orderedIds: readonly string[]): Promise<void> {
-  db.transaction((tx) => {
-    orderedIds.forEach((id, i) => {
-      tx.update(windowPlacement).set({ sortOrder: i }).where(eq(windowPlacement.id, id)).run();
-    });
-  });
-}
-
-/** Remove a pin entirely, every day it applies. */
-export async function removePin(id: string): Promise<void> {
-  db.transaction((tx) => deletePins(tx, [id]));
-}
-
 /** End a repeating pin before `date` ("This and following"); one that
  *  hasn't started by then is removed. */
 export async function endPinFrom(id: string, date: string): Promise<void> {

@@ -92,24 +92,3 @@ export function earnedDate(date: string): string {
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/**
- * What's next and how far along: "Gold: 100 completions · 62 / 100".
- * For a run, its run now against the next rank. Null once Diamond is
- * earned, or for a subject that's gone.
- */
-export function nextLine(a: {
-  series: SeriesId;
-  next: { rank: Rank; threshold: number } | null;
-  progress: number | null;
-}): string | null {
-  if (a.next === null || a.progress === null) return null;
-  const done = Math.min(a.progress, a.next.threshold);
-  return `${rankLine(a.series, a.next.rank, a.next.threshold)} · ${done.toLocaleString("en")} / ${a.next.threshold.toLocaleString("en")}`;
-}
-
-/** The ranks earned, each with its day: "Bronze 3 Sep 2026 · Silver
- *  12 Oct 2026". */
-export function earnedLine(earned: readonly { rank: Rank; earnedOn: string }[]): string | null {
-  if (earned.length === 0) return null;
-  return earned.map((e) => `${RANK_LABEL[e.rank]} ${earnedDate(e.earnedOn)}`).join(" · ");
-}

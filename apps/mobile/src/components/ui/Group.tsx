@@ -54,15 +54,20 @@ export function Group({
           {title}
         </AppText>
       ) : null}
-      <View
-        style={[
-          styles.box,
-          cardStyle(theme),
-          flush ? styles.flush : styles.padded,
-          style,
-        ]}
-      >
-        {children}
+      {/* The shadow on the card, the clip on what's inside it: iOS drops
+          a shadow from a view that clips, and rows must stay inside the
+          rounded corners. */}
+      <View style={cardStyle(theme)}>
+        <View
+          style={[
+            styles.box,
+            { borderRadius: cardStyle(theme).borderRadius },
+            flush ? styles.flush : styles.padded,
+            style,
+          ]}
+        >
+          {children}
+        </View>
       </View>
       {footnote ? (
         <AppText variant="footnote" color={theme.muted} style={styles.footnote}>
@@ -84,7 +89,7 @@ const styles = StyleSheet.create({
   /** Tucked closer to its box than the box is to the next group, so it
    *  reads as belonging upward rather than floating between two. */
   footnote: { paddingHorizontal: space.xs, marginTop: -2 },
-  box: {},
+  box: { overflow: "hidden" },
   padded: { padding: space.lg, gap: space.sm },
   flush: { paddingHorizontal: space.lg },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: space.lg },

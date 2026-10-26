@@ -26,12 +26,13 @@
  * wall of nothing as failure is exactly the presentation ADR-0004
  * avoided for the calendar tint.
  */
-import { monthStart, type PeriodGrade, type SeriesId } from "@glide/scoring";
+import { type PeriodGrade, type SeriesId } from "@glide/scoring";
 import { desc, inArray } from "drizzle-orm";
 
 import { achievementTitle } from "../lib/achievementCopy";
 import { db } from "./client";
 import { loadMonthGrade } from "./grades";
+import { photoUriResolver } from "./photos";
 import { achievement, dayGrade, journalEntry, photo } from "./schema";
 
 /** What a day contributed to the record. A day can carry several. */
@@ -115,10 +116,17 @@ export async function loadLog(): Promise<LogMonth[]> {
   };
 
   for (const n of notes) entryFor(n.localDate).notes.push(n.body);
+  // The row holds a path inside app storage, never a full URI: iOS
+  // moves the container, so it's resolved against this launch's
+  // (`photoUriResolver`). Handed over raw, every photo here failed to
+  // load and read as "not in this backup" (Henry, 2026-10-26).
+  // Only when there's a photo: the file system is native, and a Log with
+  // none needn't reach for it.
+  const uriOf = photos.length > 0 ? await photoUriResolver() : (stored: string) => stored;
   for (const p of photos) {
     entryFor(p.localDate).photos.push({
       id: p.id,
-      uri: p.fileUri,
+      uri: uriOf(p.fileUri),
       caption: p.caption,
     });
   }
@@ -203,19 +211,3 @@ export async function loadLog(): Promise<LogMonth[]> {
  */
 export type MonthCheckpoint = LogMonth;
 
-/**
- * The month you are standing in, for the review on Portfolio.
- *
- * One line now: `loadLog` computes every month's grade and totals in a
- * single pass (2026-08-26), so this picks the current one out rather
- * than running the same queries again. A month with nothing recorded
- * still comes back — it has a grade, which is the whole point of the
- * review.
- */
-export async function loadMonthCheckpoint(
-  date: string,
-): Promise<MonthCheckpoint | null> {
-  const month = monthStart(date).slice(0, 7);
-  const months = await loadLog();
-  return months.find((m) => m.month === month) ?? null;
-}

@@ -15,7 +15,7 @@ import {
   MAX_COMMITMENTS,
   type CommitmentDay,
 } from "@glide/scoring";
-import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "./client";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
@@ -39,27 +39,6 @@ export interface CommitmentRow {
   name: string;
   share: number;
   subUnitIds: string[];
-}
-
-/**
- * Every active commitment, with its sub-commitments resolved.
- *
- * A commitment is custom, unparented, and carries a share. A custom
- * unit with a parent is a *sub-commitment* and is never one of these.
- */
-export async function loadCommitments(): Promise<CommitmentRow[]> {
-  const units = await db
-    .select()
-    .from(lifeUnit)
-    .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)));
-
-  const nameById = new Map(units.map((u) => [u.id, u.name]));
-  return groupCommitments(units).map((g) => ({
-    id: g.commitmentId,
-    name: nameById.get(g.commitmentId) ?? "",
-    share: g.share,
-    subUnitIds: g.unitIds.filter((id) => id !== g.commitmentId),
-  }));
 }
 
 /**
@@ -270,23 +249,6 @@ async function choicesOn(
       plannedCount: c.plannedCount,
     }))
     .filter((c) => c.taskIds.length > 0);
-}
-
-/** Whether any commitment exists at all — for deciding what to show. */
-export async function hasCommitments(): Promise<boolean> {
-  const [row] = await db
-    .select({ id: lifeUnit.id })
-    .from(lifeUnit)
-    .where(
-      and(
-        eq(lifeUnit.isCustom, true),
-        isNull(lifeUnit.archivedAt),
-        isNull(lifeUnit.parentUnitId),
-        isNotNull(lifeUnit.commitmentShare),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
 }
 
 export interface CommitmentDetail {

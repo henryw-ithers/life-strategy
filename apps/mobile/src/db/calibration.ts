@@ -60,21 +60,26 @@ export async function loadCheckinStatus(today: string): Promise<CheckinStatus> {
   return { weekStart: thisWeek, existingScore: thisScore, label: "this" };
 }
 
+/** One check-in per week: a second answer replaces the first. Read and
+ *  written in one transaction, so two quick taps can't both insert. */
 export async function submitCheckin(week: string, score: number): Promise<void> {
-  const [existing] = await db
-    .select()
-    .from(contentmentCheckin)
-    .where(eq(contentmentCheckin.weekStartDate, week));
-  if (existing) {
-    await db
-      .update(contentmentCheckin)
-      .set({ score })
-      .where(eq(contentmentCheckin.weekStartDate, week));
-  } else {
-    await db
-      .insert(contentmentCheckin)
-      .values({ id: Crypto.randomUUID(), weekStartDate: week, score });
-  }
+  db.transaction((tx) => {
+    const [existing] = tx
+      .select()
+      .from(contentmentCheckin)
+      .where(eq(contentmentCheckin.weekStartDate, week))
+      .all();
+    if (existing) {
+      tx.update(contentmentCheckin)
+        .set({ score })
+        .where(eq(contentmentCheckin.weekStartDate, week))
+        .run();
+    } else {
+      tx.insert(contentmentCheckin)
+        .values({ id: Crypto.randomUUID(), weekStartDate: week, score })
+        .run();
+    }
+  });
 }
 
 /** One averaged sample per week: that week's check-in plus any

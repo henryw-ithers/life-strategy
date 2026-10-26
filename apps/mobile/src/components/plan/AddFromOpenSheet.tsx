@@ -75,6 +75,8 @@ export function AddFromOpenSheet({
    */
   const [stage, setStage] = useState<"list" | "leaving" | "writing" | "closed">("list");
 
+  /** Bumped to try the units' load again after it failed. */
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (plan !== null) return;
     let cancelled = false;
@@ -82,11 +84,15 @@ export function AddFromOpenSheet({
       .then((p) => {
         if (!cancelled) setPlan(p);
       })
-      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+      .catch((e: unknown) => {
+        recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
+        // Once more after a moment: New task waits on it.
+        if (!cancelled) setTimeout(() => setAttempt((n) => n + 1), 1000);
+      });
     return () => {
       cancelled = true;
     };
-  }, [plan]);
+  }, [plan, attempt]);
 
   const tierOf = useMemo(() => {
     const out = new Map<string, Tier>();

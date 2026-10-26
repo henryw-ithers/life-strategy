@@ -391,19 +391,15 @@ function reportGaps(units, library) {
   for (const id of Object.keys(units)) {
     const entry = library[id] ?? { goals: [], tasks: [] };
     const missingProfiles = [...PROFILES].filter(
-      (p) => ![...entry.goals, ...entry.tasks].some((x) => x.profiles.includes(p)),
+      (p) => !entry.tasks.some((x) => x.profiles.includes(p)),
     );
     const problems = [];
-    if (entry.goals.length === 0) problems.push("no goals");
     if (!COMMUNAL.has(id) && entry.tasks.length === 0) problems.push("no tasks");
-    if (entry.goals.length > 0 && missingProfiles.length) {
+    if (entry.tasks.length > 0 && missingProfiles.length) {
       problems.push(`no ${missingProfiles.join("/")} option`);
     }
     if (problems.length) {
-      gaps.push(
-        `  ${id.padEnd(24)} ${String(entry.goals.length).padStart(2)} goals, ` +
-          `${String(entry.tasks.length).padStart(2)} tasks — ${problems.join("; ")}`,
-      );
+      gaps.push(`  ${id.padEnd(24)} ${String(entry.tasks.length).padStart(2)} tasks — ${problems.join("; ")}`);
     }
   }
   return gaps;
@@ -423,20 +419,6 @@ const BANNER = (src) => `/**
 `;
 
 const j = (v) => JSON.stringify(v, null, 2);
-
-function emitAreas(areas) {
-  return `${BANNER("areas.md")}
-export interface AreaInfo {
-  /** The area's display name, so a caller with only an id can title it. */
-  name: string;
-  description: string;
-  /** What sits inside it, in plain language — one line per unit. */
-  covers: string[];
-}
-
-export const AREA_INFO: Record<string, AreaInfo> = ${j(areas)};
-`;
-}
 
 function emitUnits(units) {
   return `${BANNER("units.md")}
@@ -499,30 +481,20 @@ export function suggestTags(title: string): string[] {
 `;
 }
 
+/** What the app gets: each unit's tasks, without the goal links. */
+function shipped(lib) {
+  return Object.fromEntries(
+    Object.entries(lib).map(([id, { tasks }]) => [
+      id,
+      { tasks: tasks.map(({ goalId: _goalId, ...t }) => t) },
+    ]),
+  );
+}
+
 function emitLibrary(lib) {
   return `${BANNER("library.md")}
 /** Which situation a suggestion suits (ADR-0006 §1). */
 export type Profile = "gap-closing" | "maintenance" | "light";
-
-export interface GoalTemplate {
-  id: string;
-  title: string;
-  description: string | null;
-  profiles: Profile[];
-  /**
-   * ADR-0015 §1, plus \`habit\`. Null when the goal is not countable.
-   *
-   * A \`habit\` goal has **no target**: it is meant to be permanent, so
-   * it never completes. Its rungs are \`HABIT_LADDER\` — 7 · 30 · 66,
-   * where 66 is Lally's median to automaticity — computed against the
-   * streak rather than stored (ADR-0030 §5).
-   */
-  metric: {
-    kind: "cumulative" | "target" | "habit";
-    unit: string;
-    suggestedTarget: number | null;
-  } | null;
-}
 
 export interface TaskTemplate {
   id: string;
@@ -535,24 +507,23 @@ export interface TaskTemplate {
   /** Order within the unit; proposed tasks arrive pre-ranked so
    *  onboarding needs no pairwise comparisons (ADR-0006 §2). */
   defaultRank: number;
-  /** A goal in the same unit, or null for a habit on the unit itself. */
-  goalId: string | null;
 }
 
 export interface UnitLibrary {
-  goals: GoalTemplate[];
   tasks: TaskTemplate[];
 }
 
-/** Keyed by unit id. Communal units carry goals but never tasks
- *  (ADR-0025 §5); the build refuses to generate them. */
-export const LIBRARY: Record<string, UnitLibrary> = ${j(lib)};
+/** Keyed by unit id. Communal units carry no tasks (ADR-0025 §5); the
+ *  build refuses to generate them. Goals went with ADR-0047. */
+export const LIBRARY: Record<string, UnitLibrary> = ${j(shipped(lib))};
 `;
 }
 
 // ── Run ─────────────────────────────────────────────────────────────
 
-const areas = parseAreas();
+// areas.md is still checked, but nothing in the app reads it since the
+// old onboarding went (Phase 12), so it no longer generates a file.
+parseAreas();
 const units = parseUnits();
 const keywords = parseKeywords();
 const notifications = parseNotifications();
@@ -560,7 +531,6 @@ const library = parseLibrary();
 crossCheck({ units, keywords, library });
 
 const outputs = [
-  ["areas.ts", emitAreas(areas)],
   ["units.ts", emitUnits(units)],
   ["notificationCopy.ts", emitNotifications(notifications)],
   ["tagKeywords.ts", emitKeywords(keywords)],

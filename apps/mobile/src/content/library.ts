@@ -11,26 +11,6 @@
 /** Which situation a suggestion suits (ADR-0006 §1). */
 export type Profile = "gap-closing" | "maintenance" | "light";
 
-export interface GoalTemplate {
-  id: string;
-  title: string;
-  description: string | null;
-  profiles: Profile[];
-  /**
-   * ADR-0015 §1, plus `habit`. Null when the goal is not countable.
-   *
-   * A `habit` goal has **no target**: it is meant to be permanent, so
-   * it never completes. Its rungs are `HABIT_LADDER` — 7 · 30 · 66,
-   * where 66 is Lally's median to automaticity — computed against the
-   * streak rather than stored (ADR-0030 §5).
-   */
-  metric: {
-    kind: "cumulative" | "target" | "habit";
-    unit: string;
-    suggestedTarget: number | null;
-  } | null;
-}
-
 export interface TaskTemplate {
   id: string;
   title: string;
@@ -42,89 +22,16 @@ export interface TaskTemplate {
   /** Order within the unit; proposed tasks arrive pre-ranked so
    *  onboarding needs no pairwise comparisons (ADR-0006 §2). */
   defaultRank: number;
-  /** A goal in the same unit, or null for a habit on the unit itself. */
-  goalId: string | null;
 }
 
 export interface UnitLibrary {
-  goals: GoalTemplate[];
   tasks: TaskTemplate[];
 }
 
-/** Keyed by unit id. Communal units carry goals but never tasks
- *  (ADR-0025 §5); the build refuses to generate them. */
+/** Keyed by unit id. Communal units carry no tasks (ADR-0025 §5); the
+ *  build refuses to generate them. Goals went with ADR-0047. */
 export const LIBRARY: Record<string, UnitLibrary> = {
   "exercise-fitness": {
-    "goals": [
-      {
-        "id": "run-5k",
-        "title": "Run 5k without stopping",
-        "description": "A single continuous 5k, at any pace.",
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "km",
-          "suggestedTarget": 5
-        }
-      },
-      {
-        "id": "pull-up",
-        "title": "Do a pull-up",
-        "description": "From a dead hang, chin over the bar.",
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "reps",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "gym-twice-weekly",
-        "title": "Two gym sessions a week for three months",
-        "description": "Two a week is the strength recommendation, and three months is long enough to feel it.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "sessions",
-          "suggestedTarget": 24
-        }
-      },
-      {
-        "id": "active-minutes",
-        "title": "150 active minutes a week for a month",
-        "description": "The weekly floor for a healthy adult. Walking counts.",
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "minutes",
-          "suggestedTarget": 600
-        }
-      },
-      {
-        "id": "walk-daily",
-        "title": "Walk every day",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "gym",
@@ -135,7 +42,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 3,
-        "goalId": "gym-twice-weekly",
         "defaultRank": 1
       },
       {
@@ -146,7 +52,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 2,
-        "goalId": "run-5k",
         "defaultRank": 2
       },
       {
@@ -158,7 +63,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "walk-daily",
         "defaultRank": 3
       },
       {
@@ -169,7 +73,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -181,7 +84,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -193,7 +95,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -204,7 +105,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -216,69 +116,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 8
       }
     ]
   },
   "nutrition": {
-    "goals": [
-      {
-        "id": "five-a-day",
-        "title": "Five a day, every day",
-        "description": "400g of fruit and veg. Frozen and tinned count.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "fibre-30",
-        "title": "30g of fibre a day",
-        "description": "The recommended amount. Most people manage about 17.",
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "cook-20",
-        "title": "Cook 20 dinners this month",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "meals",
-          "suggestedTarget": 20
-        }
-      },
-      {
-        "id": "no-weeknight-takeaway",
-        "title": "No takeaway on weeknights",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "cook",
@@ -289,7 +131,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 5,
-        "goalId": "cook-20",
         "defaultRank": 1
       },
       {
@@ -301,7 +142,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 2
       },
       {
@@ -312,7 +152,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -324,7 +163,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -336,7 +174,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -348,7 +185,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -360,7 +196,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -372,69 +207,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 8
       }
     ]
   },
   "sleep-recovery": {
-    "goals": [
-      {
-        "id": "phone-out-bedroom",
-        "title": "Phone out of the bedroom",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "same-wake-time",
-        "title": "Up at the same time every day",
-        "description": "Weekends included. That's the part that does the work.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "caffeine-cutoff",
-        "title": "No caffeine after midday",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "seven-hours",
-        "title": "Seven hours a night for a fortnight",
-        "description": "Seven to nine is the range for an adult.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "nights",
-          "suggestedTarget": 14
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "lights-out",
@@ -445,7 +222,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 1
       },
       {
@@ -456,7 +232,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": "phone-out-bedroom",
         "defaultRank": 2
       },
       {
@@ -468,7 +243,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -480,7 +254,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "same-wake-time",
         "defaultRank": 4
       },
       {
@@ -492,7 +265,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "caffeine-cutoff",
         "defaultRank": 5
       },
       {
@@ -503,7 +275,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -515,69 +286,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "mental-health": {
-    "goals": [
-      {
-        "id": "write-daily",
-        "title": "Write something down every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "name-feelings",
-        "title": "Name how you're actually feeling, daily",
-        "description": "Putting words to it is most of the work.",
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "ten-minutes-quiet",
-        "title": "Ten minutes of quiet every day",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "proper-conversation",
-        "title": "A proper conversation every week for two months",
-        "description": "Not logistics. The other kind.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "conversations",
-          "suggestedTarget": 8
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "journal",
@@ -588,7 +301,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "write-daily",
         "defaultRank": 1
       },
       {
@@ -600,7 +312,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "ten-minutes-quiet",
         "defaultRank": 2
       },
       {
@@ -611,7 +322,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -623,7 +333,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": "proper-conversation",
         "defaultRank": 4
       },
       {
@@ -635,7 +344,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -646,7 +354,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -657,7 +364,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -669,42 +375,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 8
       }
     ]
   },
   "spirituality": {
-    "goals": [
-      {
-        "id": "quiet-practice",
-        "title": "A quiet practice every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "gratitude-written",
-        "title": "Three things, written down, every day",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "stillness",
@@ -715,7 +390,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "quiet-practice",
         "defaultRank": 1
       },
       {
@@ -727,7 +401,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "gratitude-written",
         "defaultRank": 2
       },
       {
@@ -739,7 +412,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -751,7 +423,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -762,7 +433,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -774,56 +444,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 6
       }
     ]
   },
   "giving-service": {
-    "goals": [
-      {
-        "id": "volunteer-six",
-        "title": "Volunteer twice a month for three months",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "sessions",
-          "suggestedTarget": 6
-        }
-      },
-      {
-        "id": "regular-donation",
-        "title": "Set up a regular donation",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "set up",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "small-thing-daily",
-        "title": "One small thing for someone, every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "volunteer",
@@ -833,7 +458,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 1
       },
       {
@@ -845,7 +469,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": "small-thing-daily",
         "defaultRank": 2
       },
       {
@@ -857,7 +480,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -869,7 +491,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -880,7 +501,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -892,7 +512,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -904,82 +523,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "job-career": {
-    "goals": [
-      {
-        "id": "deep-work-month",
-        "title": "Two hours of deep work a day for a month",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "hours",
-          "suggestedTarget": 40
-        }
-      },
-      {
-        "id": "leave-on-time",
-        "title": "Leave on time every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "ask-for-raise",
-        "title": "Ask for a raise",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "asked",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "finish-certification",
-        "title": "Finish a certification",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "career-conversation",
-        "title": "Have a career conversation with your manager",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "deep-work",
@@ -990,7 +538,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 5,
-        "goalId": "deep-work-month",
         "defaultRank": 1
       },
       {
@@ -1002,7 +549,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 5,
-        "goalId": null,
         "defaultRank": 2
       },
       {
@@ -1014,7 +560,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -1025,7 +570,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1037,7 +581,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 2,
-        "goalId": "finish-certification",
         "defaultRank": 5
       },
       {
@@ -1049,7 +592,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 5,
-        "goalId": "leave-on-time",
         "defaultRank": 6
       },
       {
@@ -1060,7 +602,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -1071,69 +612,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 8
       }
     ]
   },
   "education-learning": {
-    "goals": [
-      {
-        "id": "read-12",
-        "title": "Read 12 books this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "books",
-          "suggestedTarget": 12
-        }
-      },
-      {
-        "id": "fifty-hours",
-        "title": "50 hours on one skill",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "hours",
-          "suggestedTarget": 50
-        }
-      },
-      {
-        "id": "practice-daily",
-        "title": "Practice something every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "finish-course",
-        "title": "Finish a course",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "read",
@@ -1144,7 +627,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "read-12",
         "defaultRank": 1
       },
       {
@@ -1155,7 +637,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 5,
-        "goalId": "fifty-hours",
         "defaultRank": 2
       },
       {
@@ -1167,7 +648,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 3,
-        "goalId": "finish-course",
         "defaultRank": 3
       },
       {
@@ -1178,7 +658,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1190,7 +669,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -1202,7 +680,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1213,68 +690,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "finances": {
-    "goals": [
-      {
-        "id": "three-months-saved",
-        "title": "Three months of expenses saved",
-        "description": "The standard buffer. It buys calm well beyond its size.",
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "months",
-          "suggestedTarget": 3
-        }
-      },
-      {
-        "id": "weekly-check",
-        "title": "Check the accounts every week for three months",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "checks",
-          "suggestedTarget": 12
-        }
-      },
-      {
-        "id": "clear-a-debt",
-        "title": "Clear one debt",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "cleared",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "track-a-month",
-        "title": "Track every expense for a month",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "check-accounts",
@@ -1285,7 +705,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": "weekly-check",
         "defaultRank": 1
       },
       {
@@ -1296,7 +715,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": "track-a-month",
         "defaultRank": 2
       },
       {
@@ -1308,7 +726,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -1320,7 +737,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1332,7 +748,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -1344,7 +759,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1355,69 +769,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "living-space": {
-    "goals": [
-      {
-        "id": "make-bed",
-        "title": "Make the bed every day",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "tidy-ten",
-        "title": "Ten minutes of tidying every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "clear-a-room",
-        "title": "Clear one room properly",
-        "description": null,
-        "profiles": [
-          "gap-closing"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "deep-clean",
-        "title": "Deep clean the whole place",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "tidy",
@@ -1428,7 +784,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "tidy-ten",
         "defaultRank": 1
       },
       {
@@ -1440,7 +795,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "make-bed",
         "defaultRank": 2
       },
       {
@@ -1452,7 +806,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -1463,7 +816,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1475,7 +827,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -1487,7 +838,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1498,7 +848,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -1509,7 +858,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 8
       },
       {
@@ -1521,69 +869,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 9
       }
     ]
   },
   "nature-surroundings": {
-    "goals": [
-      {
-        "id": "two-hours-outside",
-        "title": "120 minutes outside a week for a month",
-        "description": "Any combination, one long walk or ten short ones. Below two hours a week the benefit doesn't show.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "minutes",
-          "suggestedTarget": 480
-        }
-      },
-      {
-        "id": "outside-daily",
-        "title": "Outside every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "morning-daylight",
-        "title": "Daylight before 10am every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "somewhere-new",
-        "title": "Somewhere new every week for two months",
-        "description": null,
-        "profiles": [
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "places",
-          "suggestedTarget": 8
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "get-outside",
@@ -1594,7 +884,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "outside-daily",
         "defaultRank": 1
       },
       {
@@ -1606,7 +895,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 7,
-        "goalId": "morning-daylight",
         "defaultRank": 2
       },
       {
@@ -1618,7 +906,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 3,
-        "goalId": "two-hours-outside",
         "defaultRank": 3
       },
       {
@@ -1630,7 +917,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 3,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1641,7 +927,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": "somewhere-new",
         "defaultRank": 5
       },
       {
@@ -1653,7 +938,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1665,70 +949,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "hygiene": {
-    "goals": [
-      {
-        "id": "floss-daily",
-        "title": "Floss every day",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "brush-twice",
-        "title": "Brush twice a day, every day",
-        "description": "Two minutes each time.",
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      },
-      {
-        "id": "book-dentist",
-        "title": "Book the dentist",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "booked",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "skincare-daily",
-        "title": "Skincare every day",
-        "description": null,
-        "profiles": [
-          "light",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "habit",
-          "unit": "days",
-          "suggestedTarget": null
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "brush",
@@ -1739,7 +964,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": "brush-twice",
         "defaultRank": 1
       },
       {
@@ -1751,7 +975,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "floss-daily",
         "defaultRank": 2
       },
       {
@@ -1762,7 +985,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -1774,7 +996,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 7,
-        "goalId": "skincare-daily",
         "defaultRank": 4
       },
       {
@@ -1785,7 +1006,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -1797,7 +1017,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1808,7 +1027,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 7
       },
       {
@@ -1820,69 +1038,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 8
       }
     ]
   },
   "hobbies-interests": {
-    "goals": [
-      {
-        "id": "finish-project",
-        "title": "Finish a project",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "learn-new-skill",
-        "title": "Learn a new skill",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "hours-this-quarter",
-        "title": "24 hours on a hobby this quarter",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "hours",
-          "suggestedTarget": 24
-        }
-      },
-      {
-        "id": "make-for-someone",
-        "title": "Make something for someone",
-        "description": null,
-        "profiles": [
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "project-time",
@@ -1893,7 +1053,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 3,
-        "goalId": "hours-this-quarter",
         "defaultRank": 1
       },
       {
@@ -1904,7 +1063,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 3,
-        "goalId": "learn-new-skill",
         "defaultRank": 2
       },
       {
@@ -1916,7 +1074,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -1928,7 +1085,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 4
       },
       {
@@ -1939,7 +1095,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -1951,7 +1106,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -1962,70 +1116,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "art-media": {
-    "goals": [
-      {
-        "id": "watch-12-films",
-        "title": "Watch 12 films this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "films",
-          "suggestedTarget": 12
-        }
-      },
-      {
-        "id": "read-6-novels",
-        "title": "Read 6 novels this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "books",
-          "suggestedTarget": 6
-        }
-      },
-      {
-        "id": "six-live-events",
-        "title": "Go to 6 live events this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "events",
-          "suggestedTarget": 6
-        }
-      },
-      {
-        "id": "four-galleries",
-        "title": "Visit 4 galleries or museums this year",
-        "description": null,
-        "profiles": [
-          "light",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "visits",
-          "suggestedTarget": 4
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "film",
@@ -2036,7 +1131,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": "watch-12-films",
         "defaultRank": 1
       },
       {
@@ -2048,7 +1142,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 7,
-        "goalId": "read-6-novels",
         "defaultRank": 2
       },
       {
@@ -2059,7 +1152,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -2071,7 +1163,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "gap-closing"
         ],
         "timesPerWeek": 0,
-        "goalId": "four-galleries",
         "defaultRank": 4
       },
       {
@@ -2083,7 +1174,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": "six-live-events",
         "defaultRank": 5
       },
       {
@@ -2095,7 +1185,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 6
       },
       {
@@ -2107,70 +1196,11 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 7
       }
     ]
   },
   "adventure-experiences": {
-    "goals": [
-      {
-        "id": "four-new-places",
-        "title": "Visit 4 new places this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "places",
-          "suggestedTarget": 4
-        }
-      },
-      {
-        "id": "four-weekends-away",
-        "title": "4 weekends away this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "trips",
-          "suggestedTarget": 4
-        }
-      },
-      {
-        "id": "trip-abroad",
-        "title": "Take a trip abroad",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "ten-new-things",
-        "title": "Try 10 new things this year",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "things",
-          "suggestedTarget": 10
-        }
-      }
-    ],
     "tasks": [
       {
         "id": "plan-something",
@@ -2181,7 +1211,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 1,
-        "goalId": null,
         "defaultRank": 1
       },
       {
@@ -2193,7 +1222,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 1,
-        "goalId": "four-new-places",
         "defaultRank": 2
       },
       {
@@ -2205,7 +1233,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 3
       },
       {
@@ -2217,7 +1244,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "light"
         ],
         "timesPerWeek": 0,
-        "goalId": "ten-new-things",
         "defaultRank": 4
       },
       {
@@ -2229,7 +1255,6 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 0,
-        "goalId": null,
         "defaultRank": 5
       },
       {
@@ -2241,192 +1266,17 @@ export const LIBRARY: Record<string, UnitLibrary> = {
           "maintenance"
         ],
         "timesPerWeek": 2,
-        "goalId": null,
         "defaultRank": 6
       }
     ]
   },
   "significant-other": {
-    "goals": [
-      {
-        "id": "twelve-dates",
-        "title": "Go on 12 dates this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "dates",
-          "suggestedTarget": 12
-        }
-      },
-      {
-        "id": "trip-together",
-        "title": "Take a trip together",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "six-new-things",
-        "title": "Do 6 new things together this year",
-        "description": "Novelty keeps satisfaction alive where routine wears it down.",
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "things",
-          "suggestedTarget": 6
-        }
-      },
-      {
-        "id": "weekend-away",
-        "title": "Plan a weekend away",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": []
   },
   "family": {
-    "goals": [
-      {
-        "id": "visit-six",
-        "title": "Visit 6 times this year",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "visits",
-          "suggestedTarget": 6
-        }
-      },
-      {
-        "id": "standing-call",
-        "title": "Set up a standing call",
-        "description": "A set time each week that neither of you has to arrange.",
-        "profiles": [
-          "gap-closing",
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "family-trip",
-        "title": "Plan a family trip",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "family-story",
-        "title": "Record a family story",
-        "description": null,
-        "profiles": [
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      }
-    ],
     "tasks": []
   },
   "friendship": {
-    "goals": [
-      {
-        "id": "host-something",
-        "title": "Host something",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "trip-with-friends",
-        "title": "Plan a trip with friends",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "light"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "old-friend",
-        "title": "Get back in touch with an old friend",
-        "description": null,
-        "profiles": [
-          "gap-closing",
-          "maintenance"
-        ],
-        "metric": {
-          "kind": "target",
-          "unit": "done",
-          "suggestedTarget": 1
-        }
-      },
-      {
-        "id": "twelve-things",
-        "title": "Do 12 things with friends this year",
-        "description": null,
-        "profiles": [
-          "maintenance",
-          "light"
-        ],
-        "metric": {
-          "kind": "cumulative",
-          "unit": "times",
-          "suggestedTarget": 12
-        }
-      }
-    ],
     "tasks": []
   }
 };

@@ -8,6 +8,7 @@
  * nothing here touches a score, a weight or the plan.
  */
 import {
+  localDateOf,
   ranksReached,
   RANKS,
   seriesById,
@@ -87,8 +88,12 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
       })
       .from(taskCompletion)
       .all()
-      // The hour on this phone's clock, for early bird and night owl.
-      .map(({ completedAt, ...c }) => ({ ...c, hour: new Date(completedAt).getHours() })),
+      // The hour on this phone's clock, for early bird and night owl,
+      // only when it was ticked on the day it's for.
+      .map(({ completedAt, ...c }) => {
+        const at = new Date(completedAt);
+        return { ...c, hour: localDateOf(at) === c.localDate ? at.getHours() : null };
+      }),
     grades: tx
       .select({
         localDate: dayGrade.localDate,
