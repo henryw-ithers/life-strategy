@@ -152,6 +152,7 @@ export async function cacheDayScore(date: string): Promise<DayData> {
     pointsEarned: Math.round(day.score.earned),
     pointsPossible: Math.round(day.score.possible),
     formulaVersion: FORMULA_VERSION,
+    restDay: day.restDay,
     // Re-written on every touch, so the last edit before a day settles
     // is the plan that sticks with it.
     planSnapshot: JSON.stringify(plan),

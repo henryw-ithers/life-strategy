@@ -204,6 +204,13 @@
       "when": 1792606372060,
       "tag": "0028_outgoing_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792987258344,
+      "tag": "0029_normal_shadow_king",
+      "breakpoints": true
     }
   ]
 }

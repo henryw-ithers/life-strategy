@@ -96,6 +96,7 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
         pointsEarned: dayGrade.pointsEarned,
         pointsPossible: dayGrade.pointsPossible,
         flagged: dayGrade.flagged,
+        restDay: dayGrade.restDay,
       })
       .from(dayGrade)
       .all(),

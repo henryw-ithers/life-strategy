@@ -84,6 +84,9 @@ export interface AchievementFacts {
     pointsEarned: number;
     pointsPossible: number;
     flagged: boolean;
+    /** An automatic rest day (ADR-0037), which scores 70 for asking
+     *  nothing. Optional: false when left out. */
+    restDay?: boolean;
   }[];
   activities: readonly { localDate: string; flagged: boolean }[];
   /** The days notes were written on, one per note. */
@@ -302,7 +305,19 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
     }
   }
   push("goodDays", "all", ALL, "", gradeRuns(graded, GOOD_DAY).total);
-  push("days70", "all", ALL, "", gradeRuns(graded, STEADY_DAY).total);
+  // An automatic rest day scores 70 for asking nothing, so it doesn't
+  // count toward 70 (Henry, 2026-10-26).
+  const autoRest = new Set(f.grades.filter((g) => g.restDay === true).map((g) => g.localDate));
+  push(
+    "days70",
+    "all",
+    ALL,
+    "",
+    gradeRuns(
+      graded.map((d) => (autoRest.has(d.date) ? { ...d, grade: null } : d)),
+      STEADY_DAY,
+    ).total,
+  );
   push("perfectDays", "all", ALL, "", gradeRuns(graded, FULL_DAY).total);
   const great = gradeRuns(graded, GREAT_DAY);
   push("greatDays", "all", ALL, "", great.total);

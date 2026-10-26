@@ -283,3 +283,18 @@ describe("the wider catalogue", () => {
     expect(valueOf(f, "totalHours", ALL)?.earned).toBe(4);
   });
 });
+
+describe("days at 70 or above", () => {
+  it("leaves out an automatic rest day, which scores 70 for asking nothing", () => {
+    const g = (localDate: string, restDay: boolean) => ({
+      localDate,
+      kind: "normal" as const,
+      pointsEarned: 70,
+      pointsPossible: 100,
+      flagged: false,
+      restDay,
+    });
+    const f = facts({ grades: [g("2026-10-19", false), g("2026-10-20", true)] });
+    expect(valueOf(f, "days70", ALL)?.earned).toBe(1);
+  });
+});

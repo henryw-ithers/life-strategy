@@ -715,6 +715,13 @@ export const dayGrade = sqliteTable("day_grade", {
    */
   formulaVersion: integer("formula_version"),
   /**
+   * The day was an automatic rest day when it was last scored (ADR-0037):
+   * nothing due, so it scored 70 for that. Kept so the score
+   * achievements can leave it out of "Days at 70 or above" (Henry,
+   * 2026-10-26). False on rows written before the column.
+   */
+  restDay: integer("rest_day", { mode: "boolean" }).notNull().default(false),
+  /**
    * The plan as it stood on this day, JSON:
    * `[{ taskId, unitId, pointValue, timesPerWeek }]`.
    *
