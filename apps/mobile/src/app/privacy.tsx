@@ -33,7 +33,7 @@ const STATEMENT: readonly { heading: string; body: string }[] = [
   {
     heading: "It stays on this phone",
     body:
-      "Everything you enter is stored only on this device: rankings, tasks, grades, journal entries, photos, and contentment check-ins. Life Strategy has no account and no server, and sends nothing anywhere.",
+      "Everything you enter is stored only on this device: your priorities, events, tasks, grades, journal entries, photos, and contentment check-ins. Life Strategy has no account and no server, and sends nothing anywhere.",
   },
   {
     heading: "When something breaks",

@@ -1,6 +1,6 @@
 # Life Strategy — Privacy Policy
 
-_Last updated: 13 August 2026_
+_Last updated: 26 October 2026_
 
 Life Strategy is a personal planning and reflection app. It has no account and
 no server. This policy describes what it does with what you put into
@@ -14,8 +14,9 @@ does not know who you are and has no way to find out.
 
 ## What Life Strategy stores, and where
 
-Everything you enter is stored only on your device: rankings, goals,
-tasks, grades, journal entries, photos, and contentment check-ins. It
+Everything you enter is stored only on your device: your priorities,
+commitments, events, working hours, tasks, grades, achievements,
+journal entries, photos, and contentment check-ins. It
 lives in a database inside the app's own storage, which no other app
 can read.
 
