@@ -165,14 +165,6 @@ export async function setDayOverride(
   );
 }
 
-/** Return a date to the template's hours. */
-export async function clearDayOverride(localDate: string): Promise<void> {
-  await freezeStartingHours(localDate);
-  writeAndMarkStale((tx) =>
-    tx.delete(workDayOverride).where(eq(workDayOverride.localDate, localDate)).run(),
-  );
-}
-
 /** One date's window edits, in the order they were made. */
 export async function loadDayEdits(localDate: string): Promise<DayEdit[]> {
   const rows = await db

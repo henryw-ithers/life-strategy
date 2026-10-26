@@ -14,12 +14,10 @@ const template = (id: string, title: string, defaultRank: number): TaskTemplate 
   profiles: ["maintenance"],
   timesPerWeek: 3,
   defaultRank,
-  goalId: null,
 });
 
 const library: Record<string, UnitLibrary> = {
   exercise: {
-    goals: [],
     tasks: [
       template("walk", "Walk", 3),
       template("gym", "Gym", 1),
@@ -27,7 +25,7 @@ const library: Record<string, UnitLibrary> = {
       template("swim", "Swim", 4),
     ],
   },
-  sleep: { goals: [], tasks: [template("lights", "Lights out", 1)] },
+  sleep: { tasks: [template("lights", "Lights out", 1)] },
 };
 
 const unit = (over: Partial<StarterUnitInput> & { id: string }): StarterUnitInput => ({

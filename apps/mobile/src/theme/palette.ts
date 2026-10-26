@@ -18,7 +18,6 @@
  * Stored as the key (`life_unit.colour`), never as hex, so a palette
  * revision recolours every unit without a migration.
  */
-import type { ThemeName } from "./colors";
 
 export const PALETTE_KEYS = [
   "red",
@@ -75,6 +74,3 @@ export function isPaletteKey(value: unknown): value is PaletteKey {
   return typeof value === "string" && (PALETTE_KEYS as readonly string[]).includes(value);
 }
 
-export function paletteHue(key: PaletteKey, theme: ThemeName): string {
-  return PALETTE[key][theme];
-}
