@@ -80,8 +80,10 @@ tests — every `__tests__` folder under `apps/mobile/src`; ADR-0013 put
 a vitest runner in the app workspace, and anything those tests import
 must stay free of React Native), `npm run typecheck` (packages and
 app), `npm run lint` (ESLint over the app), `npm run mobile` (Expo dev
-server). CI runs test, typecheck and lint on every push and pull
-request (`.github/workflows/ci.yml`).
+server), `npm run content:build` (regenerates `apps/mobile/src/content`
+from `docs/content`; `npm test` runs `content:check` first). CI runs
+test, typecheck and lint on every push and pull request
+(`.github/workflows/ci.yml`).
 
 ## Domain vocabulary
 
@@ -104,11 +106,11 @@ Use these terms consistently in code, docs, and UI copy:
 | **Window** | A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039) |
 | **Gap** | Time between two windows. Implicit, and may be given a name ("Lunch"). Not the same as a rest day |
 | **Suggestion / pin** | Suggestions fill windows live and are never stored. A pin is a task the user placed in a window; the app never moves it while that window is current or upcoming (ADR-0039 §§5–6) |
-| **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3) |
+| **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3). **Removed from the UI** (Henry, 2026-10-25): nothing creates one now, but a choice saved before still scores |
 | **Clear today / Away** | Clear today sets aside today's windows and unticked events; the day is still graded, or ungraded if nothing is left due. Away is a date range of days off (ADR-0040) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |
 | **Grade** | Points earned out of 100 (daily), aggregated weekly/monthly |
-| **Achievement** | Defined and awarded by the app, never set up by the user (ADR-0047, which replaced goals). A **series** counts one thing (a task's completions, a unit's hours, an every-day streak, weeks a plan was met, days scoring 80 or above) with five **ranks**, Bronze to Diamond, peaking near 1,000. Earned ranks are never taken back. Feeds the Achievements screen, unit badges and monthly summaries, never daily grades |
+| **Achievement** | Defined and awarded by the app, never set up by the user (ADR-0047, which replaced goals). A **series** counts one thing (a task's completions, a unit's hours, an every-day streak, weeks a plan was met, days scoring 80 or above) with five **ranks**, Bronze to Diamond, peaking near 1,000. Forty series, each drawn as a shield (an outline before Bronze). Earned ranks are never taken back. Feeds the Achievements screen, unit badges and monthly summaries, never daily grades |
 | **Contentment check-in** | Weekly 1–10 "how content did you feel?" question used to calibrate grading |
 | **Memory flag** | User mark on a day or activity meaning "worth remembering"; feeds look-back views. Journal entries, photos, and flags stay addable after a grade settles, and since 2026-08-13 notes are editable and deletable and photos removable (ADR-0002 amendment; press and hold in the day record) |
 

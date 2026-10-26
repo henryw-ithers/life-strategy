@@ -6,7 +6,7 @@ phase has to do. The decisions are in ADRs 0039–0046, the
 [windows-and-pins.md](windows-and-pins.md); this file only tracks the
 build. Kept current at the end of each phase.
 
-Last updated 2026-10-25, after Phase 11. Next: a phone walk, then Phase 12.
+Last updated 2026-10-26, during Phase 12.
 
 ## Phases
 
@@ -37,7 +37,8 @@ Last updated 2026-10-25, after Phase 11. Next: a phone walk, then Phase 12.
 | 9 | Home: windows, swiping between days, the one list, evening card, quiet score | Merged, PRs #26, #27 |
 | 10 | Life: rows, unit and commitment screens, achievements (ADR-0047) | Merged, PRs #28, #29, #31 |
 | 11 | Onboarding: welcome, tiers, commitments and events, hours, first tasks, the first week | Merged, PR #32 |
-| 12 | Hardening: test coverage, a device walk of every edge case, a code review | |
+| FP | Feedback pass: calmer look, less text, pin cycle, achievements as shields | PR #34 |
+| **12** | **Hardening: test coverage, dead code, a code review, photos in the Log** | **In progress** |
 
 Each phase ships as one or more PRs off `main`. Every PR passes
 `npm test`, `npm run typecheck` and `npm run lint` (lint at 0
@@ -57,6 +58,50 @@ prototype flow on the phone. What gets removed along the way: DayGrid,
 split switch. Phase 12 runs the `pr-test-analyzer` agent,
 `/ecc:test-coverage`, a device walk of the whole edge-case catalogue,
 `/code-review high` and `/ecc:update-docs`.
+
+## Phase 12: Hardening
+
+Built on the feedback pass (PR #34), so it lands after it.
+
+- **Photos in the Log.** The Log handed each photo its stored path
+  (`photos/<id>.jpg`) instead of resolving it against this launch's
+  documents folder, so every photo there failed to load and read as
+  "Photo not in this backup". It resolves them now
+  (`photoUriResolver`), and `logPhotos.test.ts` pins it.
+- **Life's dropdowns animate** (Henry, 2026-10-26): a unit and Not now
+  open with a fade, the rows below slide, and the chevron turns
+  (`ExpandChevron`). Reanimated follows Reduce Motion.
+- **Tests for the riskiest gaps** (`pr-test-analyzer`): the taxonomy
+  sync, onboarding's stored state, a settled day never restated, one
+  check-in per week (now one transaction), and a backup round trip
+  through a real migrated database.
+- **Dead code** (`/ecc:refactor-clean`): the content build no longer
+  emits `areas.ts` or the goal templates (`library.md`'s goal lines are
+  still checked), and nine exports nobody called are gone.
+- **Code review** (`/code-review high`), fixed: a day off counts as done
+  in a full week; early bird and night owl count only ticks made on
+  their own day; Life's inline delete has Undo; Add from open retries
+  its units; Group clips its rows again; the Log reads the documents
+  folder once; the weekly achievement scan is linear.
+- **Smoke check** of every screen in the web preview (393 × 852, dark):
+  no load failures and no console errors.
+
+Left for the phone walk: the whole edge-case catalogue (spec §7) on the
+device, the day slide's feel, the Working hours title, the native time
+pickers in a new gap, and the SF shield symbols.
+
+## Feedback pass (PR #34)
+
+Henry's walk of Phase 11 (2026-10-25), point by point: a soft blue
+accent and white cards on a cool canvas; exposition cut or put behind
+ⓘ; Priorities rows padded, no recommended text, Done just saves; a pin
+that cycles in one tap at a time (pin, until done, unpin); **Do N of
+these removed from the UI** (its scoring path stays, unused); Add from
+open grouped by tier with New task; the weekly pass's windows one day
+at a time; Working hours' title fixed; Life's units open in place; Home
+slides between days; and 40 achievement series as shields, each opening
+over the screen. Automatic rest days are stored (`day_grade.rest_day`,
+migration 0029) and left out of "Days at 70 or above".
 
 ## Phase 11: Onboarding
 
