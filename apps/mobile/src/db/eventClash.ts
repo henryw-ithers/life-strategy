@@ -1,7 +1,8 @@
 /**
- * A new event, or a window, landing on an event already there (Henry,
- * 2026-10-26: "ask if I want to overwrite the existing event"). Pure:
- * which events clash, and what replacing each one means.
+ * A new event landing on an event already there (Henry, 2026-10-26:
+ * "ask if I want to overwrite the existing event"). Pure: which events
+ * clash, and what replacing each one means. A window never replaces an
+ * event; it's trimmed around it (ADR-0039 §12).
  *
  * Replacing never rewrites the past:
  *
@@ -48,8 +49,8 @@ function onDate(e: ExistingEvent, date: string): Replacement | null {
   return { id: e.id, title: e.title, action: "skip", date };
 }
 
-/** What a time on one date clashes with: an added window, or a
- *  one-time event. Nothing before today: the past keeps its plan. */
+/** What a time on one date clashes with: a one-time event's. Nothing
+ *  before today: the past keeps its plan. */
 export function clashesOn(
   date: string,
   time: TimeRange,

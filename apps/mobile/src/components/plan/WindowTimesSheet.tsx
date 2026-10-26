@@ -3,8 +3,8 @@
  * windows-and-pins.md §1.4). A day edit by default; **Every <day>**
  * writes it into the weekly hours from that day on instead (Henry,
  * 2026-10-26). An added window can sit outside your working hours
- * ("I'm free tonight after all"); one over an event asks first
- * (`saveDayWindow`).
+ * ("I'm free tonight after all"); one over an event is trimmed around
+ * it.
  *
  * Windows have no names: a window is shown by its times.
  */
@@ -29,8 +29,7 @@ interface WindowTimesSheetProps {
   theme: ThemeTokens;
   onClose: () => void;
   onDismissed?: () => void;
-  /** Resolves to a problem to show, "" to stay quietly, or null once
-   *  saved. */
+  /** Resolves to a problem to show, or null once saved. */
   onSave: (range: TimeRange, weekly: boolean) => Promise<string | null>;
 }
 
