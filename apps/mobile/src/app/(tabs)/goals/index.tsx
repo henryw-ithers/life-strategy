@@ -20,6 +20,7 @@ import { addDays } from "@glide/scoring";
 import { router, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useMemo, useState } from "react";
+import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
 import {
@@ -39,6 +40,7 @@ import { AppText } from "../../../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Chevron } from "../../../components/ui/Chevron";
+import { ExpandChevron } from "../../../components/ui/ExpandChevron";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { InfoButton } from "../../../components/ui/InfoButton";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
@@ -53,6 +55,12 @@ import { currentLocalDate } from "../../../lib/calendar";
 import { recordProblem } from "../../../lib/problemLog";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
 import { radius, space } from "../../../theme/tokens";
+
+/** Opening and closing in place (Henry, 2026-10-26): a quick fade as
+ *  the rows below slide. Reanimated follows Reduce Motion for these. */
+const OPEN = FadeIn.duration(180);
+const CLOSE = FadeOut.duration(120);
+const MOVE = LinearTransition.duration(200);
 
 /** "The last 4 weeks", to today. */
 const SHARE_DAYS = 28;
@@ -229,11 +237,18 @@ export default function LifeScreen() {
                         accessibilityState={{ expanded: notNowOpen }}
                         style={styles.link}
                       >
-                        <AppText variant="caption" color={theme.muted}>
-                          {notNowOpen ? "▾" : "▸"} Not now ({g.units.length})
-                        </AppText>
+                        <View style={styles.toggleRow}>
+                          <AppText variant="caption" color={theme.muted}>
+                            Not now ({g.units.length})
+                          </AppText>
+                          <ExpandChevron open={notNowOpen} color={theme.muted} size={13} />
+                        </View>
                       </Pressable>
-                      {notNowOpen ? <UnitRows units={g.units} {...rowsProps} /> : null}
+                      {notNowOpen ? (
+                        <Animated.View entering={OPEN} exiting={CLOSE}>
+                          <UnitRows units={g.units} {...rowsProps} />
+                        </Animated.View>
+                      ) : null}
                     </View>
                   ) : (
                     <View key={g.tier}>
@@ -338,7 +353,8 @@ function UnitRows({
         const expanded = open.has(u.id);
         const tasks = tasksOf.get(u.id) ?? [];
         return (
-          <View key={u.id}>
+          // Rows below an opening unit slide down rather than jump.
+          <Animated.View key={u.id} layout={MOVE}>
             {i > 0 ? <GroupDivider theme={theme} /> : null}
             <View style={styles.row}>
               <Pressable
@@ -378,7 +394,7 @@ function UnitRows({
                 <AppText variant="caption" color={theme.muted} tabular>
                   {u.tasks}
                 </AppText>
-                <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={15} color={theme.muted} />
+                <ExpandChevron open={expanded} color={theme.muted} />
               </Pressable>
               <Pressable
                 onPress={() => router.push(`/goals/unit/${u.id}` as Href)}
@@ -391,7 +407,12 @@ function UnitRows({
               </Pressable>
             </View>
             {expanded ? (
-              <View style={[styles.tasks, { backgroundColor: theme.fill }]}>
+              <Animated.View
+                entering={OPEN}
+                exiting={CLOSE}
+                layout={MOVE}
+                style={[styles.tasks, { backgroundColor: theme.fill }]}
+              >
                 {tasks.map((t, j) => (
                   <Pressable
                     key={t.id}
@@ -430,9 +451,9 @@ function UnitRows({
                     Add task
                   </AppText>
                 </Pressable>
-              </View>
+              </Animated.View>
             ) : null}
-          </View>
+          </Animated.View>
         );
       })}
     </Group>
@@ -459,6 +480,7 @@ const styles = StyleSheet.create({
     paddingLeft: space.lg,
     paddingVertical: space.sm,
   },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
   info: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
   tasks: {
     marginHorizontal: space.md,
