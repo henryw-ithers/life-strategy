@@ -86,6 +86,7 @@ export function WindowTimesSheet({
         disabled: saving || invalid !== null,
       }}
     >
+      {initial ? null : (
       <View style={styles.row}>
         <View style={styles.grow}>
           <AppText variant="body" color={theme.ink}>
@@ -97,6 +98,7 @@ export function WindowTimesSheet({
         </View>
         <Switch value={weekly} onValueChange={setWeekly} accessibilityLabel={`Every ${weekdayName}`} />
       </View>
+      )}
       <View style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Starts

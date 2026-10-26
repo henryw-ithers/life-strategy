@@ -15,6 +15,7 @@ import { clashesOn } from "../../db/eventClash";
 import { addDayEdit, loadHoursVersions, saveHoursFrom } from "../../db/hours";
 import { loadLiveEvents, replaceEvents } from "../../db/seriesWrites";
 import { draftFrom, withWindowOnWeekday } from "./hoursDraft";
+import { currentLocalDate } from "../../lib/calendar";
 import { askReplace } from "./saveEvent";
 
 /**
@@ -27,13 +28,14 @@ export async function saveDayWindow(input: {
   /** The window being changed; absent when adding one. */
   from?: TimeRange;
   range: TimeRange;
-  /** Every week on this weekday, from this day on. */
+  /** Every week on this weekday, from this day on. Adding only: a
+   *  change keeps to its day. */
   weekly: boolean;
   /** The day's events, for trimming when kept. */
   events: readonly TimeRange[];
 }): Promise<string | null> {
   const { date, from, range, weekly, events } = input;
-  const clashes = clashesOn(date, range, await loadLiveEvents());
+  const clashes = clashesOn(date, range, await loadLiveEvents(), currentLocalDate());
   const choice = await askReplace(clashes, "window");
   if (choice === null) return "";
   const replacing = choice === "replace";
@@ -43,14 +45,15 @@ export async function saveDayWindow(input: {
     return "That time is taken up by an event, so there's no window left.";
   }
   try {
-    if (replacing) await replaceEvents(clashes);
-    if (weekly) {
+    // The window first: if it can't be saved, nothing is replaced.
+    if (weekly && !from) {
       const version = draftFrom(await loadHoursVersions(), date);
-      const schedules = withWindowOnWeekday(version.schedules, isoWeekday(date), from ?? null, range);
+      const schedules = withWindowOnWeekday(version.schedules, isoWeekday(date), null, range);
       await saveHoursFrom(date, schedules, version.gaps);
     } else {
       await addDayEdit(date, from ? { kind: "change", from, to: range } : { kind: "add", range });
     }
+    if (replacing) await replaceEvents(clashes);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

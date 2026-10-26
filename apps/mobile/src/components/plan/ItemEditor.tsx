@@ -53,15 +53,17 @@ export function ItemEditor({
   theme: ThemeTokens;
 }) {
   const [shownId, gone] = useRetained(itemId);
-  const [plan, setPlan] = useState<PlanData | null>(null);
+  /** The plan as loaded for this open, and which item it was for: a
+   *  sheet seeds itself once, so it must never mount from an older
+   *  load (it would show, and save back, what was there before). */
+  const [loaded, setLoaded] = useState<{ id: string; plan: PlanData } | null>(null);
 
-  // Fresh each time one opens, so it edits what's stored now.
   useEffect(() => {
     if (itemId === null) return;
     let cancelled = false;
     void loadPlan()
       .then((p) => {
-        if (!cancelled) setPlan(p);
+        if (!cancelled) setLoaded({ id: itemId, plan: p });
       })
       .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
     return () => {
@@ -69,6 +71,9 @@ export function ItemEditor({
     };
   }, [itemId]);
 
+  // A load that finished before the last close doesn't count: only one
+  // made for this open, which `itemId` names while it's open.
+  const plan = loaded && loaded.id === shownId ? loaded.plan : null;
   const found = useMemo(() => (plan && shownId ? findTask(plan, shownId) : null), [plan, shownId]);
   const units = useMemo(() => pickableUnits(plan), [plan]);
   if (!found || shownId === null) return null;

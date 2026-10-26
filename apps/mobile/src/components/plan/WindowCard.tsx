@@ -383,6 +383,10 @@ function Row({
           onPress={pin.onPress}
           onLongPress={onGuide}
           delayLongPress={350}
+          accessibilityActions={onGuide ? [{ name: "guide", label: "Explain pins" }] : undefined}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "guide") onGuide?.();
+          }}
           accessibilityRole="button"
           accessibilityLabel={said}
           accessibilityHint={PIN_NEXT[pin.state]}
@@ -398,14 +402,13 @@ function Row({
       ) : (
         <View style={styles.pin}>{glyph}</View>
       )}
-      <Pressable
-        onPress={onEdit}
-        disabled={!onEdit}
-        accessible={!pin || onEdit !== undefined}
-        accessibilityRole={onEdit ? "button" : undefined}
-        accessibilityLabel={onEdit ? `Edit ${title}` : pin ? undefined : said}
-        style={({ pressed }) => [styles.grow, { opacity: pressed && onEdit ? 0.6 : 1 }]}
-      >
+      {onEdit ? (
+        <Pressable
+          onPress={onEdit}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${title}`}
+          style={({ pressed }) => [styles.grow, { opacity: pressed ? 0.6 : 1 }]}
+        >
         <View style={styles.titleRow}>
           {pin ? <View style={[styles.dot, { backgroundColor: hue }]} /> : null}
           <AppText
@@ -422,7 +425,27 @@ function Row({
             {caption}
           </AppText>
         ) : null}
-      </Pressable>
+        </Pressable>
+      ) : (
+        <View style={styles.grow} accessible={!pin} accessibilityLabel={pin ? undefined : said}>
+        <View style={styles.titleRow}>
+          {pin ? <View style={[styles.dot, { backgroundColor: hue }]} /> : null}
+          <AppText
+            variant="body"
+            color={muted ? theme.muted : theme.ink}
+            numberOfLines={2}
+            style={[styles.grow, muted ? styles.struck : null]}
+          >
+            {title}
+          </AppText>
+        </View>
+        {caption ? (
+          <AppText variant="footnote" color={theme.muted}>
+            {caption}
+          </AppText>
+        ) : null}
+        </View>
+      )}
     </View>
   );
 }

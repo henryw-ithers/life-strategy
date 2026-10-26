@@ -69,12 +69,20 @@ describe("eventClashes", () => {
 
 describe("clashesOn", () => {
   it("finds the event a new window lands on, as a skip for that day", () => {
-    expect(clashesOn("2026-10-26", { start: 16 * 60, end: 18 * 60 }, [shift()])).toEqual([
+    expect(clashesOn("2026-10-26", { start: 16 * 60, end: 18 * 60 }, [shift()], TODAY)).toEqual([
       { id: "shift", title: "Shift", action: "skip", date: "2026-10-26" },
     ]);
   });
 
   it("finds nothing on a day the series doesn't run", () => {
-    expect(clashesOn("2026-10-27", { start: 16 * 60, end: 18 * 60 }, [shift()])).toEqual([]);
+    expect(clashesOn("2026-10-27", { start: 16 * 60, end: 18 * 60 }, [shift()], TODAY)).toEqual([]);
+  });
+});
+
+describe("the past", () => {
+  it("never replaces anything before today", () => {
+    const old = shift({ id: "o", plannedWeekdays: null, oneOffDate: "2026-10-20" });
+    expect(clashesOn("2026-10-20", { start: 9 * 60, end: 10 * 60 }, [old], TODAY)).toEqual([]);
+    expect(eventClashes(input({ weekdays: [], date: "2026-10-20" }), null, [old], TODAY)).toEqual([]);
   });
 });

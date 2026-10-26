@@ -49,12 +49,14 @@ function onDate(e: ExistingEvent, date: string): Replacement | null {
 }
 
 /** What a time on one date clashes with: an added window, or a
- *  one-time event. */
+ *  one-time event. Nothing before today: the past keeps its plan. */
 export function clashesOn(
   date: string,
   time: TimeRange,
   existing: readonly ExistingEvent[],
+  today: string,
 ): Replacement[] {
+  if (date < today) return [];
   return existing.flatMap((e) => {
     const t = timeOf(e);
     if (t === null || !overlaps(t, time)) return [];
@@ -73,7 +75,7 @@ export function eventClashes(
   if (input.startMinute === null || input.endMinute === null) return [];
   const time = { start: input.startMinute, end: input.endMinute };
   if (input.weekdays.length === 0) {
-    return input.date ? clashesOn(input.date, time, existing) : [];
+    return input.date ? clashesOn(input.date, time, existing, today) : [];
   }
   const from = bounds?.repeatFrom && bounds.repeatFrom > today ? bounds.repeatFrom : today;
   const until = bounds?.repeatUntil ?? null;

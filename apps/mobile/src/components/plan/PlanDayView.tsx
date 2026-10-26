@@ -204,7 +204,8 @@ export function PlanDayView({
           return (
             <Pressable
               key={`e-${e.id}`}
-              onPress={() => setEditingItem(e.id)}
+              onPress={editable ? () => setEditingItem(e.id) : undefined}
+              disabled={!editable}
               accessibilityRole="button"
               accessibilityLabel={`${e.title}, ${spanLabel({ start: e.start, end: e.end })}${e.done ? ", attended" : ""}`}
               accessibilityHint="Edits or deletes the event"
@@ -263,7 +264,7 @@ export function PlanDayView({
             onAddFromOpen={() => openSheet({ kind: "add", start: w.range.start })}
             onEditTimes={() => openSheet({ kind: "times", range: w.range })}
             onRemove={() => removeWindow(w.range)}
-            onEditTask={setEditingItem}
+            onEditTask={editable ? setEditingItem : undefined}
           />
         );
       })}
@@ -279,7 +280,8 @@ export function PlanDayView({
               return t ? (
                 <Pressable
                   key={id}
-                  onPress={() => setEditingItem(id)}
+                  onPress={editable ? () => setEditingItem(id) : undefined}
+                  disabled={!editable}
                   accessibilityRole="button"
                   accessibilityLabel={`Edit ${t.title}`}
                   style={({ pressed }) => [
