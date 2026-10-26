@@ -73,5 +73,11 @@ export async function addPhoto(date: string, sourceUri: string): Promise<void> {
   const raw = sourceUri.split(".").pop()?.toLowerCase() ?? "jpg";
   const name = `${id}.${raw.length <= 4 ? raw : "jpg"}`;
   await FileSystem.copyAsync({ from: sourceUri, to: `${dir}/${name}` });
-  await db.insert(photo).values({ id, localDate: date, fileUri: `photos/${name}` });
+  try {
+    await db.insert(photo).values({ id, localDate: date, fileUri: `photos/${name}` });
+  } catch (e) {
+    // No row, no file: a copy nothing points at would never be cleaned up.
+    await FileSystem.deleteAsync(`${dir}/${name}`, { idempotent: true }).catch(() => {});
+    throw e;
+  }
 }

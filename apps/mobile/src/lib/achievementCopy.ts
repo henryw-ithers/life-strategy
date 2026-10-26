@@ -69,11 +69,6 @@ export function thresholdLabel(series: SeriesId, threshold: number): string {
   return `${threshold.toLocaleString("en")} ${seriesById(series).counts}`;
 }
 
-/** "Gold: 100 completions". */
-export function rankLine(series: SeriesId, rank: Rank, threshold: number): string {
-  return `${RANK_LABEL[rank]}: ${thresholdLabel(series, threshold)}`;
-}
-
 /** One earned rank as the log and the celebration name it: "Gold ·
  *  Morning run · 100 completions", or without a subject for the
  *  whole-app series. */

@@ -4,7 +4,6 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { computeDayLoad, type LoadTask } from "../dayLoad";
 import {
   planDay,
   sortOpenTasks,

@@ -17,7 +17,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, V
 import { LinearTransition, useReducedMotion } from "react-native-reanimated";
 
 import { Medal, StreakFlame } from "../../../../components/achievements/Medal";
-import { UnitInfoSheet } from "../../../../components/diagnostic/UnitInfoSheet";
+import { UnitInfoSheet } from "../../../../components/life/UnitInfoSheet";
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";

@@ -153,7 +153,7 @@ export default function WeeklyPassScreen() {
   useEffect(() => {
     if (!offersTiers) return;
     void markTiersOffered(today).catch((e: unknown) =>
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save"),
+      recordProblem(e, "save"),
     );
   }, [offersTiers, today]);
 

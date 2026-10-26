@@ -50,7 +50,7 @@ export function ScoreSheet({ visible, score, restDay, dayLabel, theme, onClose }
         setExplain(true);
         await markScoreExplained();
       })
-      .catch((e: unknown) => recordProblem(e instanceof Error ? e : new Error(String(e)), "load"));
+      .catch((e: unknown) => recordProblem(e, "load"));
     return () => {
       cancelled = true;
     };

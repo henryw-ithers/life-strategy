@@ -9,13 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { lifeArea, lifeUnit } from "../schema";
 import { syncTaxonomy } from "../seed";
-import { resetTestDb, testDb } from "./harness";
+import { appDb, resetTestDb, testDb } from "./harness";
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
 
-/** The test database, as the type the app's helpers take: the same
- *  Drizzle API over better-sqlite3 rather than expo-sqlite. */
-const appDb = () => testDb() as unknown as Parameters<typeof syncTaxonomy>[0];
 
 describe("syncTaxonomy", () => {
   beforeEach(() => resetTestDb());

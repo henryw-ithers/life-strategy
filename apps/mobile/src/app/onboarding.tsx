@@ -84,7 +84,7 @@ export default function OnboardingScreen() {
   const go = useCallback((next: OnboardingStep) => {
     setStep(next);
     void saveOnboardingStep(next).catch((e: unknown) =>
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save"),
+      recordProblem(e, "save"),
     );
   }, []);
 
@@ -119,7 +119,7 @@ export default function OnboardingScreen() {
         })
         .catch((e: unknown) => {
           // The step stays put, and Skip or a second try still work.
-          recordProblem(e instanceof Error ? e : new Error(String(e)), "load");
+          recordProblem(e, "load");
         });
       return () => {
         cancelled = true;
@@ -138,7 +138,7 @@ export default function OnboardingScreen() {
     try {
       await action();
     } catch (e) {
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      recordProblem(e, "save");
       // About the app, never the person (as `saveThen` says it).
       Alert.alert(
         "That didn’t work",
@@ -196,7 +196,7 @@ export default function OnboardingScreen() {
         if (yes) await askForNudge();
         else await declineNudge();
       } catch (e) {
-        recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+        recordProblem(e, "save");
       }
       await complete();
     });

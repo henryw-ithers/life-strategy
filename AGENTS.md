@@ -4,10 +4,10 @@ Orientation for AI coding agents working in this repository.
 
 ## What this project is
 
-**Life Strategy** — a personal planning app where users rate the
-importance and satisfaction of 18 Strategic Life Units, and the app
-derives a 100-point daily scoring system of tasks from those
-ratings. Read [vision.md](vision.md) before making any product-shaped
+**Life Strategy** — a personal planning app where users sort 18
+Strategic Life Units into priority tiers, and the app derives a
+100-point daily scoring system of tasks from those tiers, planned into
+windows of the time they actually have. Read [vision.md](vision.md) before making any product-shaped
 decision; it is the source of truth for what the app is and is not.
 
 ## Current phase

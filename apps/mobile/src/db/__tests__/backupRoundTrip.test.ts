@@ -12,11 +12,10 @@ import { readBackup, writeBackup } from "@glide/backup";
 import journal from "../../../drizzle/meta/_journal.json";
 import { dayGrade } from "../schema";
 import { syncTaxonomy } from "../seed";
-import { resetTestDb, testDb } from "./harness";
+import { appDb, resetTestDb, testDb } from "./harness";
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
 
-const appDb = () => testDb() as unknown as Parameters<typeof syncTaxonomy>[0];
 
 describe("a backup round trip", () => {
   it("brings back every row of a migrated, filled database", async () => {

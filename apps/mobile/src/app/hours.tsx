@@ -127,7 +127,7 @@ export default function HoursScreen() {
       else for (const d of restOfWeek(today)) await setDayOverride(d, rangesOn(draft, d));
       router.back();
     } catch (e) {
-      recordProblem(e instanceof Error ? e : new Error(String(e)), "save");
+      recordProblem(e, "save");
       Alert.alert("Your hours weren't saved", e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
