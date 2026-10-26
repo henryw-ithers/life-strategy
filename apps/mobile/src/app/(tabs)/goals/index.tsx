@@ -190,7 +190,6 @@ export default function LifeScreen() {
             <CommitmentsList
               commitments={commitments.commitments}
               archived={commitments.archived}
-              hue={theme.areas["work-money"] ?? theme.accent}
               theme={theme}
               onOpen={(id) => router.push(`/goals/commitment/${id}` as Href)}
             />
@@ -475,7 +474,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   loading: { marginTop: space.xxl },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl, gap: space.sm },
-  heading: { paddingTop: space.lg },
   unitsHeading: { flexDirection: "row", alignItems: "center", paddingTop: space.lg },
   tier: { paddingTop: space.md, paddingBottom: space.xs },
   grow: { flex: 1, gap: space.xs },

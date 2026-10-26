@@ -260,7 +260,6 @@ export function computeDayLoad(
         c.localDate <= date,
     );
     const today = inWindow.find((c) => c.localDate === date);
-    const doneToday = today !== undefined;
     const doneBefore = runsBefore(
       task,
       inWindow.filter((c) => c.localDate !== date),

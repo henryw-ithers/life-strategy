@@ -22,7 +22,6 @@ import { Group } from "../ui/Group";
 interface CommitmentsListProps {
   commitments: CommitmentDetail[];
   archived: CommitmentDetail[];
-  hue: string;
   theme: ThemeTokens;
   onOpen: (id: string) => void;
 }
@@ -30,7 +29,6 @@ interface CommitmentsListProps {
 export function CommitmentsList({
   commitments,
   archived,
-  hue,
   theme,
   onOpen,
 }: CommitmentsListProps) {
