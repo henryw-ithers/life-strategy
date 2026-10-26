@@ -17,6 +17,7 @@
 import {
   addDays,
   dayMinute,
+  isoWeekday,
   planDay,
   specialDayBonus,
   weekStart,
@@ -57,6 +58,8 @@ import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
 import { addableTo, spanLabel } from "../../../components/plan/dayView";
 import { WindowTimesSheet } from "../../../components/plan/WindowTimesSheet";
+import { WEEKDAY_NAME } from "../../../components/plan/planning";
+import { saveDayWindow } from "../../../components/plan/saveWindow";
 import { ActivitiesBand } from "../../../components/today/ActivitiesBand";
 import { ActivitySheet, type ExistingActivity } from "../../../components/today/ActivitySheet";
 import { askClearToday, undoClear } from "../../../components/today/clearToday";
@@ -475,13 +478,16 @@ export default function TodayScreen() {
     [...undo.hidden].filter((id) => id.startsWith("win-")).map((id) => id.slice(4)),
   );
 
-  const saveTimes = async (range: TimeRange): Promise<string | null> => {
+  const saveTimes = async (range: TimeRange, weekly: boolean): Promise<string | null> => {
     const from = windowSheet?.kind === "times" ? windowSheet.range : undefined;
-    try {
-      await addDayEdit(day.date, from ? { kind: "change", from, to: range } : { kind: "add", range });
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    }
+    const said = await saveDayWindow({
+      date: day.date,
+      from,
+      range,
+      weekly,
+      events: (plan?.events ?? []).map((e) => ({ start: e.start, end: e.end })),
+    });
+    if (said !== null) return said;
     if (from) forgetWindow(from.start);
     setWindowSheet(null);
     void refresh();
@@ -812,6 +818,7 @@ export default function TodayScreen() {
           onDismissed={windowSheetGone}
           initial={windowSheetShown.range}
           dayLabel="today"
+          weekdayName={WEEKDAY_NAME[isoWeekday(day.date)]}
           theme={theme}
           onClose={() => setWindowSheet(null)}
           onSave={saveTimes}

@@ -95,3 +95,28 @@ export function restOfWeek(today: string): string[] {
 /** Whether saving needs to ask "Just this week" or "This week and
  *  after": only once the week has begun (spec §5.3.1). */
 export const weekHasBegun = (today: string): boolean => today !== weekStart(today);
+
+/**
+ * A window on one weekday, from now on (Henry, 2026-10-26: "repeat at
+ * this time every week"): that weekday's ranges with `from` taken out,
+ * if it's a change, and `to` put in, merged where they touch. The
+ * weekday leaves its group for one of its own, so the other days in the
+ * group keep their hours.
+ */
+export function withWindowOnWeekday(
+  schedules: readonly WorkSchedule[],
+  weekday: Weekday,
+  from: TimeRange | null,
+  to: TimeRange,
+): WorkSchedule[] {
+  const group = schedules.find((s) => s.weekdays.includes(weekday));
+  const before = group ? [...group.ranges] : [];
+  const kept = from ? subtract(before, from) : before;
+  const ranges = normalizeWindows([...kept, to]);
+  const rest = schedules.flatMap((s) => {
+    if (s !== group) return [s];
+    const others = s.weekdays.filter((d) => d !== weekday);
+    return others.length > 0 ? [{ ...s, weekdays: others }] : [];
+  });
+  return [...rest, { weekdays: [weekday], ranges }];
+}

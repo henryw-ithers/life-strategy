@@ -22,7 +22,7 @@ import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
 import { PlanUnitSection } from "../../../../components/plan/PlanUnitSection";
-import { savedOrSaid, saveEventEdit, saveNewEvent } from "../../../../components/plan/saveEvent";
+import { savedOrSaid, saveEventEdit, CANCELLED, saveNewEvent } from "../../../../components/plan/saveEvent";
 import { SuggestionsSheet } from "../../../../components/plan/SuggestionsSheet";
 import { TaskEditSheet } from "../../../../components/plan/TaskEditSheet";
 import { pickableUnits } from "../../../../components/plan/unitSelection";
@@ -232,7 +232,9 @@ export default function UnitScreen() {
         onSave={async (input, bounds) => {
           let taskId: string | null = null;
           const saved = await savedOrSaid(async () => {
-            taskId = await saveNewEvent([unit.id], input, bounds);
+            const id = await saveNewEvent([unit.id], input, bounds);
+            if (id === CANCELLED) return false;
+            taskId = id;
             return true;
           });
           if (!saved) return;

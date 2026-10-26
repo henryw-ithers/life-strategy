@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   draftFrom,
+  withWindowOnWeekday,
   nextRange,
   nextSchedule,
   rangesOn,
@@ -78,5 +79,32 @@ describe("Just this week", () => {
     expect(restOfWeek(WED)).toEqual(["2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"]);
     expect(weekHasBegun(WED)).toBe(true);
     expect(weekHasBegun("2026-10-18")).toBe(false);
+  });
+});
+
+describe("withWindowOnWeekday", () => {
+  const weekdays = [{ weekdays: [1, 2, 3, 4, 5] as const, ranges: [{ start: h(9), end: h(17) }] }];
+
+  it("gives the weekday its own group with the new window, leaving the rest", () => {
+    const out = withWindowOnWeekday(weekdays, 3, null, { start: h(18), end: h(20) });
+    expect(out).toEqual([
+      { weekdays: [1, 2, 4, 5], ranges: [{ start: h(9), end: h(17) }] },
+      { weekdays: [3], ranges: [{ start: h(9), end: h(17) }, { start: h(18), end: h(20) }] },
+    ]);
+  });
+
+  it("moves a changed window rather than adding a second", () => {
+    const out = withWindowOnWeekday(weekdays, 3, { start: h(9), end: h(17) }, { start: h(10), end: h(16) });
+    expect(out.find((s) => s.weekdays.includes(3))?.ranges).toEqual([{ start: h(10), end: h(16) }]);
+  });
+
+  it("starts a group for a day that had no hours", () => {
+    const out = withWindowOnWeekday(weekdays, 6, null, { start: h(10), end: h(12) });
+    expect(out.at(-1)).toEqual({ weekdays: [6], ranges: [{ start: h(10), end: h(12) }] });
+  });
+
+  it("merges a window that touches one already there", () => {
+    const out = withWindowOnWeekday(weekdays, 1, null, { start: h(16), end: h(19) });
+    expect(out.find((s) => s.weekdays.includes(1))?.ranges).toEqual([{ start: h(9), end: h(19) }]);
   });
 });

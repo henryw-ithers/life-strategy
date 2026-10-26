@@ -12,7 +12,7 @@
  * **Nothing here changes a score** but the hours (ADR-0039 §12), and
  * nothing warns about load (P3, ADR-0026 §3).
  */
-import { addedWindowPieces, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
+import { isoWeekday, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import { router, type Href } from "expo-router";
 import { useImperativeHandle, useState, type Ref } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
@@ -38,6 +38,8 @@ import { AddFromOpenSheet } from "./AddFromOpenSheet";
 import { addableTo, dayHeading, spanLabel, timeline } from "./dayView";
 import { WindowCard } from "./WindowCard";
 import { WindowTimesSheet } from "./WindowTimesSheet";
+import { saveDayWindow } from "./saveWindow";
+import { WEEKDAY_NAME } from "./planning";
 
 const DAY_KIND_LABEL = { normal: "Normal", special: "Special day", rest: "Day off" } as const;
 
@@ -133,19 +135,15 @@ export function PlanDayView({
     });
 
   /** A problem to show in the sheet, or null once saved. */
-  const saveTimes = async (range: TimeRange): Promise<string | null> => {
-    const from = sheet?.kind === "times" ? sheet.range : undefined;
-    // A window over an event is trimmed around it, and can come to
-    // nothing (EC-53): say so and save nothing.
-    const events = day.events.map((e) => ({ start: e.start, end: e.end }));
-    if (addedWindowPieces(range, events).length === 0) {
-      return "That time is taken up by an event, so there's no window left.";
-    }
-    try {
-      await addDayEdit(date, from ? { kind: "change", from, to: range } : { kind: "add", range });
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    }
+  const saveTimes = async (range: TimeRange, weekly: boolean): Promise<string | null> => {
+    const said = await saveDayWindow({
+      date,
+      from: sheet?.kind === "times" ? sheet.range : undefined,
+      range,
+      weekly,
+      events: day.events.map((e) => ({ start: e.start, end: e.end })),
+    });
+    if (said !== null) return said;
     setSheet(null);
     reload();
     return null;
@@ -307,6 +305,7 @@ export function PlanDayView({
           onDismissed={sheetGone}
           initial={sheetShown.range}
           dayLabel={dayLabel}
+          weekdayName={WEEKDAY_NAME[isoWeekday(date)]}
           theme={theme}
           onClose={() => setSheet(null)}
           onSave={saveTimes}

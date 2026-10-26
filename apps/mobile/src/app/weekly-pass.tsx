@@ -17,7 +17,7 @@
  *
  * **Skipping the pass is never mentioned** and nothing records it.
  */
-import { weekStart, type PinKind, type TimeRange } from "@glide/scoring";
+import { isoWeekday, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import { router, Stack, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -33,10 +33,12 @@ import {
 import { AddFromOpenSheet } from "../components/plan/AddFromOpenSheet";
 import { addableTo, dayHeading, spanLabel, timeline } from "../components/plan/dayView";
 import { EventSheet } from "../components/plan/EventSheet";
-import { savedOrSaid, saveEventEdit, saveNewEvent } from "../components/plan/saveEvent";
+import { savedOrSaid, saveEventEdit, CANCELLED, saveNewEvent } from "../components/plan/saveEvent";
 import { pickableUnits } from "../components/plan/unitSelection";
 import { WindowCard } from "../components/plan/WindowCard";
 import { WindowTimesSheet } from "../components/plan/WindowTimesSheet";
+import { WEEKDAY_NAME } from "../components/plan/planning";
+import { saveDayWindow } from "../components/plan/saveWindow";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { Group } from "../components/ui/Group";
@@ -211,12 +213,15 @@ export default function WeeklyPassScreen() {
       message: `Removed ${spanLabel(range)}`,
       run: () => addDayEdit(date, { kind: "remove", range }),
     });
-  const addWindow = async (date: string, range: TimeRange): Promise<string | null> => {
-    try {
-      await addDayEdit(date, { kind: "add", range });
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    }
+  const addWindow = async (date: string, range: TimeRange, weekly: boolean): Promise<string | null> => {
+    const events = days.find((d) => d.day.date === date)?.events ?? [];
+    const said = await saveDayWindow({
+      date,
+      range,
+      weekly,
+      events: events.map((e) => ({ start: e.start, end: e.end })),
+    });
+    if (said !== null) return said;
     setSheet(null);
     retry();
     return null;
@@ -556,7 +561,8 @@ export default function WeeklyPassScreen() {
           dayLabel={sheetShown.date === today ? "today" : (spokenDate(sheetShown.date).split(",")[0] ?? sheetShown.date)}
           theme={theme}
           onClose={() => setSheet(null)}
-          onSave={(range) => addWindow(sheetShown.date, range)}
+          weekdayName={WEEKDAY_NAME[isoWeekday(sheetShown.date)]}
+          onSave={(range, weekly) => addWindow(sheetShown.date, range, weekly)}
         />
       ) : null}
 
@@ -593,8 +599,7 @@ export default function WeeklyPassScreen() {
             const target = editingShown;
             const saved = await savedOrSaid(async () => {
               if (target === "new") {
-                await saveNewEvent(eventUnits, input, bounds);
-                return true;
+                return (await saveNewEvent(eventUnits, input, bounds)) !== CANCELLED;
               }
               return saveEventEdit(target, input, bounds);
             });

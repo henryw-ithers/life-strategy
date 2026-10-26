@@ -26,7 +26,7 @@ import { weekLabel } from "../../../components/plan/dayView";
 import { EventSheet } from "../../../components/plan/EventSheet";
 import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
 import { PlanWeekStrip } from "../../../components/plan/PlanWeekStrip";
-import { savedOrSaid, saveNewEvent } from "../../../components/plan/saveEvent";
+import { savedOrSaid, CANCELLED, saveNewEvent } from "../../../components/plan/saveEvent";
 import { pickableUnits } from "../../../components/plan/unitSelection";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
@@ -228,8 +228,7 @@ export default function PlanScreen() {
           onClose={() => setAdding(null)}
           onSave={async (input, bounds) => {
             const saved = await savedOrSaid(async () => {
-              await saveNewEvent(eventUnits, input, bounds);
-              return true;
+              return (await saveNewEvent(eventUnits, input, bounds)) !== CANCELLED;
             });
             if (!saved) return;
             setAdding(null);
