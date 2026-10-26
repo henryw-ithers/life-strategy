@@ -56,9 +56,7 @@ export async function saveNewEvent(
   input: EventInput,
   bounds: Bounds | null,
 ): Promise<string | null> {
-  const id = await addEvent(unitIds, input);
-  if (id && bounds) await setEventRepeat(id, bounds);
-  return id;
+  return addEvent(unitIds, input, bounds);
 }
 
 /** The days a series' own skips take off it, and the days from today

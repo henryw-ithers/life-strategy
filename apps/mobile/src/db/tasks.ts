@@ -10,6 +10,7 @@
 import {
   addDays,
   applyWeightOverrides,
+  boundsError,
   deriveTierWeights,
   hasPlannedUnit,
   isTier,
@@ -44,6 +45,7 @@ import {
   unitWeight,
 } from "./schema";
 import { forgetPinsOf } from "./pins";
+import type { Bounds } from "./seriesRules";
 import { tieredUnits } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
 import { currentLocalDate } from "../lib/calendar";
@@ -1041,31 +1043,49 @@ export async function setTaskAllowsPartial(
 export async function addEvent(
   unitIds: string[],
   input: EventInput,
+  /** When a repeating event runs (ADR-0040 §1), written with it. */
+  bounds: Bounds | null = null,
 ): Promise<string | null> {
   const problem = eventProblem(input);
   if (problem) throw new Error(problem);
-  const repeating = input.weekdays.length > 0;
-  const id = await addTask(
-    unitIds,
-    input.title.trim(),
-    repeating ? eventTimesPerWeek(input.weekdays) : 1,
-    repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
-    null,
-    repeating ? null : { size: "normal", date: input.date, due: null },
-    {
-      startMinute: input.startMinute,
-      endMinute: input.endMinute,
-      size: null,
-      allowsPartial: false,
-      kind: "event",
-    },
-  );
-  if (id) {
-    await db
-      .update(task)
-      .set({ description: optionalText(input.notes) })
-      .where(eq(task.id, id));
+  if (bounds) {
+    const wrong = boundsError(bounds);
+    if (wrong) throw new Error(wrong);
   }
+  if (!unitIds[0]) return null;
+  const repeating = input.weekdays.length > 0;
+  const id = Crypto.randomUUID();
+  // One transaction: the event and its run land together. Written in
+  // two steps, the second read a brand-new event as one that had always
+  // run, refused to "change its past", and left the event saved without
+  // its run while saying it wasn't saved (Henry, 2026-10-26).
+  db.transaction((tx) => {
+    addTaskIn(
+      tx,
+      id,
+      unitIds,
+      input.title.trim(),
+      repeating ? eventTimesPerWeek(input.weekdays) : 1,
+      repeating ? [...new Set(input.weekdays)].sort().join(",") : null,
+      null,
+      repeating ? null : { size: "normal", date: input.date, due: null },
+      {
+        startMinute: input.startMinute,
+        endMinute: input.endMinute,
+        size: null,
+        allowsPartial: false,
+        kind: "event",
+      },
+    );
+    tx.update(task)
+      .set({
+        description: optionalText(input.notes),
+        ...(repeating && bounds ? { repeatFrom: bounds.repeatFrom, repeatUntil: bounds.repeatUntil } : {}),
+      })
+      .where(eq(task.id, id))
+      .run();
+    markGradesStaleIn(tx);
+  });
   return id;
 }
 
