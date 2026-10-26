@@ -73,7 +73,7 @@ interface EventSheetProps {
   /** After it has finished closing (`NativeSheet`). */
   onDismissed?: () => void;
   /** `bounds` is null for a one-time event. */
-  onSave: (input: EventInput, bounds: Bounds | null) => void;
+  onSave: (input: EventInput, bounds: Bounds | null) => void | Promise<void>;
   /** Offered when editing. */
   onDelete?: () => void;
 }
@@ -136,6 +136,9 @@ export function EventSheet({
         : { mode: "none" },
   );
   const [showSkips, setShowSkips] = useState(false);
+  /** A save in flight: a second tap waits (the replace question reads
+   *  the events first, so there's a gap to tap into). */
+  const [saving, setSaving] = useState(false);
   /** Past days keep their plan, so the earliest end is yesterday. */
   const earliestEnd = (() => {
     const yesterday = addDays(currentLocalDate(), -1);
@@ -177,8 +180,12 @@ export function EventSheet({
       title={initial ? "Edit event" : "New event"}
       confirm={{
         label: initial ? "Save" : "Add",
-        onPress: () => onSave(input, bounds),
-        disabled: problem !== null,
+        onPress: () => {
+          if (saving) return;
+          setSaving(true);
+          void Promise.resolve(onSave(input, bounds)).finally(() => setSaving(false));
+        },
+        disabled: problem !== null || saving,
       }}
     >
       <KeyboardScroll style={styles.scroller} contentContainerStyle={styles.body}>

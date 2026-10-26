@@ -7,15 +7,21 @@
  * there's no particular day, so "this event" is the series' next run
  * from today. Changing only how long it repeats doesn't ask: that's the
  * series' own setting.
+ *
+ * A new event that lands on one already there asks first: replace it,
+ * keep both, or cancel (Henry, 2026-10-26; `eventClash.ts`).
  */
 import { addDays } from "@glide/scoring";
 import { Alert } from "react-native";
 
+import { eventClashes, type Replacement } from "../../db/eventClash";
 import type { EventInput } from "../../db/events";
 import { nextRun, type Bounds } from "../../db/seriesRules";
 import {
   editEventFollowing,
   editEventOccurrence,
+  loadLiveEvents,
+  replaceEvents,
   setEventRepeat,
   tickedFrom,
 } from "../../db/seriesWrites";
@@ -50,15 +56,44 @@ function askScope(): Promise<Scope | null> {
   });
 }
 
-/** A new event, with how long it repeats. Returns its id. */
+/** Returned when the person chose Cancel at the replace question: the
+ *  sheet stays open and nothing was saved. */
+export const CANCELLED = "cancelled" as const;
+
+/**
+ * Ask before landing on what's already there. Resolves "replace",
+ * "keep" or null for Cancel; with nothing in the way, "keep" at once.
+ */
+export function askReplace(clashes: readonly Replacement[], what: string): Promise<"replace" | "keep" | null> {
+  if (clashes.length === 0) return Promise.resolve("keep");
+  const names = [...new Set(clashes.map((c) => `“${c.title}”`))];
+  const listed = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return new Promise((resolve) => {
+    Alert.alert(
+      `Replace ${listed}?`,
+      `This ${what} is at the same time.`,
+      [
+        { text: "Replace", style: "destructive", onPress: () => resolve("replace") },
+        { text: "Keep both", onPress: () => resolve("keep") },
+        { text: "Cancel", style: "cancel", onPress: () => resolve(null) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) },
+    );
+  });
+}
+
+/** A new event, with how long it repeats. Returns its id, or CANCELLED
+ *  if the replace question was cancelled. */
 export async function saveNewEvent(
   unitIds: string[],
   input: EventInput,
   bounds: Bounds | null,
-): Promise<string | null> {
-  const id = await addEvent(unitIds, input);
-  if (id && bounds) await setEventRepeat(id, bounds);
-  return id;
+): Promise<string | null | typeof CANCELLED> {
+  const clashes = eventClashes(input, bounds, await loadLiveEvents(), currentLocalDate());
+  const choice = await askReplace(clashes, "event");
+  if (choice === null) return CANCELLED;
+  if (choice === "replace") await replaceEvents(clashes);
+  return addEvent(unitIds, input, bounds);
 }
 
 /** The days a series' own skips take off it, and the days from today

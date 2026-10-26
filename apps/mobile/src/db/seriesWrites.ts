@@ -7,12 +7,13 @@
  * Every write here changes what's due, so it marks grades stale in its
  * own transaction (`writeAndMarkStale`).
  */
-import { boundsError } from "@glide/scoring";
-import { and, eq, gte, inArray, isNotNull } from "drizzle-orm";
+import { addDays, boundsError } from "@glide/scoring";
+import { and, eq, gte, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
+import type { ExistingEvent, Replacement } from "./eventClash";
 import type { EventInput } from "./events";
 import { forgetPinsOf } from "./pins";
 import { scheduleSkip, task, taskCompletion, taskUnit } from "./schema";
@@ -26,7 +27,7 @@ import {
 } from "./seriesRules";
 import { writeAndMarkStale } from "./settings";
 import { addSkip, removeSkip } from "./skips";
-import { addEvent, recomputeAllUnitPoints, updateEvent, type Tx } from "./tasks";
+import { addEvent, archiveTask, recomputeAllUnitPoints, updateEvent, type Tx } from "./tasks";
 import { skipProblem } from "./windowRules";
 
 /** The units a task is filed under, home first: what a copy of it
@@ -224,4 +225,43 @@ export async function tickedFrom(taskId: string, from: string): Promise<Set<stri
     .from(taskCompletion)
     .where(and(eq(taskCompletion.taskId, taskId), gte(taskCompletion.localDate, from)));
   return new Set(rows.map((r) => r.localDate));
+}
+
+// ── Replacing an event (Henry, 2026-10-26) ──────────────────────────
+
+/** Every live event, for what a new event or window lands on. */
+export async function loadLiveEvents(): Promise<ExistingEvent[]> {
+  return db
+    .select({
+      id: task.id,
+      title: task.title,
+      plannedWeekdays: task.plannedWeekdays,
+      oneOffDate: task.oneOffDate,
+      startMinute: task.startMinute,
+      endMinute: task.endMinute,
+      repeatFrom: task.repeatFrom,
+      repeatUntil: task.repeatUntil,
+    })
+    .from(task)
+    .where(and(eq(task.kind, "event"), eq(task.active, true), isNull(task.archivedAt)));
+}
+
+/**
+ * Replace what a new event or window lands on (`eventClashes`): end a
+ * series from today, archive a one-time event, or skip one day of a
+ * series. Nothing before today changes.
+ */
+export async function replaceEvents(replacements: readonly Replacement[]): Promise<void> {
+  const yesterday = addDays(currentLocalDate(), -1);
+  for (const r of replacements) {
+    if (r.action === "archive") await archiveTask(r.id);
+    else if (r.action === "skip") await addSkip({ kind: "occurrence", taskId: r.id, date: r.date });
+    else {
+      const [row] = await db
+        .select({ repeatFrom: task.repeatFrom })
+        .from(task)
+        .where(eq(task.id, r.id));
+      await setEventRepeat(r.id, { repeatFrom: row?.repeatFrom ?? null, repeatUntil: yesterday });
+    }
+  }
 }

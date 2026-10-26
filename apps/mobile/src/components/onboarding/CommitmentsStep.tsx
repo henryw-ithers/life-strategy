@@ -22,7 +22,7 @@ import { radius, space } from "../../theme/tokens";
 import { CommitmentSheet } from "../commitments/CommitmentSheet";
 import { EventSheet } from "../plan/EventSheet";
 import { eventWhen, ItemRow } from "../plan/ItemRow";
-import { savedOrSaid, saveNewEvent } from "../plan/saveEvent";
+import { savedOrSaid, CANCELLED, saveNewEvent } from "../plan/saveEvent";
 import { AppText } from "../ui/AppText";
 import { Group } from "../ui/Group";
 import { OutlineAction } from "../ui/OutlineAction";
@@ -163,8 +163,7 @@ export function CommitmentsStep({
             const home = c.split ? c.parts[0]?.id : c.id;
             if (!home) return;
             const saved = await savedOrSaid(async () => {
-              await saveNewEvent([home], input, bounds);
-              return true;
+              return (await saveNewEvent([home], input, bounds)) !== CANCELLED;
             });
             if (!saved) return;
             setSheet(null);

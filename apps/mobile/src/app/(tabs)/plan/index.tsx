@@ -26,7 +26,7 @@ import { weekLabel } from "../../../components/plan/dayView";
 import { EventSheet } from "../../../components/plan/EventSheet";
 import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
 import { PlanWeekStrip } from "../../../components/plan/PlanWeekStrip";
-import { savedOrSaid, saveNewEvent } from "../../../components/plan/saveEvent";
+import { savedOrSaid, CANCELLED, saveNewEvent } from "../../../components/plan/saveEvent";
 import { pickableUnits } from "../../../components/plan/unitSelection";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
@@ -34,6 +34,7 @@ import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { setDayKind } from "../../../db/dayGrades";
 import { loadDayPlan, loadWeek, type DayPlan, type WeekDay } from "../../../db/dayPlan";
+import { eventsDefaultOnce } from "../../../db/settings";
 import { addTask, loadPlan, type PlanData } from "../../../db/tasks";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
@@ -61,6 +62,8 @@ export default function PlanScreen() {
   const [loaded, setLoaded] = useState<DayPlan | null>(null);
   const [week, setWeek] = useState<WeekDay[] | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** New events start one-time (shift work): Copy last week's events. */
+  const [shifts, setShifts] = useState(false);
   const [kindSheet, setKindSheet] = useState(false);
   const [adding, setAdding] = useState<"task" | "event" | null>(null);
   const [addingShown, addingGone] = useRetained(adding);
@@ -71,12 +74,14 @@ export default function PlanScreen() {
   const loadTurn = useRef(0);
   const load = useCallback(async () => {
     const turn = ++loadTurn.current;
-    const [nextDay, nextWeek, nextPlan] = await Promise.all([
+    const [nextDay, nextWeek, nextPlan, once] = await Promise.all([
       loadDayPlan(selected),
       loadWeek(selected),
       loadPlan(),
+      eventsDefaultOnce(),
     ]);
     if (turn !== loadTurn.current) return;
+    setShifts(once);
     setLoaded(nextDay);
     setWeek(nextWeek);
     setPlan(nextPlan);
@@ -172,7 +177,11 @@ export default function PlanScreen() {
         more={[
           { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
           { label: "Working hours", icon: "clock", onPress: () => router.push("/hours" as Href) },
-          { label: "Copy last week's events", icon: "doc.on.doc", onPress: () => dayView.current?.copyEvents() },
+          // For shifts that change week to week (events start one-time):
+          // weekly events already repeat by themselves.
+          ...(shifts
+            ? [{ label: "Copy last week's events", icon: "doc.on.doc" as const, onPress: () => dayView.current?.copyEvents() }]
+            : []),
           { label: "Time away", icon: "airplane", onPress: () => router.push("/away" as Href) },
         ]}
       />
@@ -228,8 +237,7 @@ export default function PlanScreen() {
           onClose={() => setAdding(null)}
           onSave={async (input, bounds) => {
             const saved = await savedOrSaid(async () => {
-              await saveNewEvent(eventUnits, input, bounds);
-              return true;
+              return (await saveNewEvent(eventUnits, input, bounds)) !== CANCELLED;
             });
             if (!saved) return;
             setAdding(null);

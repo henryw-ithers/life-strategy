@@ -1,15 +1,16 @@
 /**
  * Add a window to one day, or change one's times (spec §3.5,
- * windows-and-pins.md §1.4). A day edit, never the weekly template:
- * that's the hours editor. An added window can sit outside your working
- * hours ("I'm free tonight after all"); one over an event is trimmed
- * around it.
+ * windows-and-pins.md §1.4). A day edit by default; **Every <day>**
+ * writes it into the weekly hours from that day on instead (Henry,
+ * 2026-10-26). An added window can sit outside your working hours
+ * ("I'm free tonight after all"); one over an event is trimmed around
+ * it.
  *
  * Windows have no names: a window is shown by its times.
  */
 import { rangeError, type TimeRange } from "@glide/scoring";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Switch, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
@@ -23,11 +24,13 @@ interface WindowTimesSheetProps {
   initial?: TimeRange;
   /** "Wednesday" or "today", for the title. */
   dayLabel: string;
+  /** The weekday's name, "Wednesday", for Every Wednesday. */
+  weekdayName: string;
   theme: ThemeTokens;
   onClose: () => void;
   onDismissed?: () => void;
   /** Resolves to a problem to show, or null once saved. */
-  onSave: (range: TimeRange) => Promise<string | null>;
+  onSave: (range: TimeRange, weekly: boolean) => Promise<string | null>;
 }
 
 /** An hour from 6 pm, a plain default for "add a window". */
@@ -37,6 +40,7 @@ export function WindowTimesSheet({
   visible,
   initial,
   dayLabel,
+  weekdayName,
   theme,
   onClose,
   onDismissed,
@@ -44,6 +48,7 @@ export function WindowTimesSheet({
 }: WindowTimesSheetProps) {
   const [range, setRange] = useState<TimeRange>(initial ?? DEFAULT_ADD);
   const [problem, setProblem] = useState<string | null>(null);
+  const [weekly, setWeekly] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Re-seed each time it opens.
@@ -54,6 +59,7 @@ export function WindowTimesSheet({
       setRange(initial ?? DEFAULT_ADD);
       setProblem(null);
       setSaving(false);
+      setWeekly(false);
     }
   }
 
@@ -61,7 +67,7 @@ export function WindowTimesSheet({
   const save = async () => {
     if (saving || invalid !== null) return;
     setSaving(true);
-    const said = await onSave(range);
+    const said = await onSave(range, weekly);
     setSaving(false);
     setProblem(said);
   };
@@ -79,9 +85,19 @@ export function WindowTimesSheet({
         disabled: saving || invalid !== null,
       }}
     >
-      <AppText variant="caption" color={theme.muted}>
-        For {dayLabel} only. Your weekly hours don&apos;t change.
-      </AppText>
+      {initial ? null : (
+      <View style={styles.row}>
+        <View style={styles.grow}>
+          <AppText variant="body" color={theme.ink}>
+            Every {weekdayName}
+          </AppText>
+          <AppText variant="caption" color={theme.muted}>
+            {weekly ? "Added to your weekly hours from this day on." : `Only ${dayLabel}.`}
+          </AppText>
+        </View>
+        <Switch value={weekly} onValueChange={setWeekly} accessibilityLabel={`Every ${weekdayName}`} />
+      </View>
+      )}
       <View style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Starts

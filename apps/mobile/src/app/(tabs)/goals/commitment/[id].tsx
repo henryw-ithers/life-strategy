@@ -57,7 +57,7 @@ import { CommitmentToolbar } from "../../../../components/commitments/Commitment
 import { AddTaskModal } from "../../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../../components/plan/applyTaskEdit";
 import { EventSheet } from "../../../../components/plan/EventSheet";
-import { savedOrSaid, saveEventEdit, saveNewEvent } from "../../../../components/plan/saveEvent";
+import { savedOrSaid, saveEventEdit, CANCELLED, saveNewEvent } from "../../../../components/plan/saveEvent";
 import { TaskEditSheet } from "../../../../components/plan/TaskEditSheet";
 import { eventWhen, ItemRow, taskWhen } from "../../../../components/plan/ItemRow";
 import {
@@ -532,7 +532,7 @@ export default function CommitmentScreen() {
                 onSave={async (input, bounds) => {
                   const saved = await savedOrSaid(async () =>
                     eventSheetShown === "new"
-                      ? (await saveNewEvent([data.id], input, bounds), true)
+                      ? (await saveNewEvent([data.id], input, bounds)) !== CANCELLED
                       : saveEventEdit(eventSheetShown, input, bounds),
                   );
                   if (saved) setEventSheet(null);

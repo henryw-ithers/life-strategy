@@ -10,6 +10,7 @@ import type { TodayTask } from "../../db/today";
 import { rowCaption } from "./rowCaption";
 import { solidFill, type ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
+import { showActions, type SheetAction } from "../ui/actionSheet";
 import { AppText } from "../ui/AppText";
 
 interface TaskRowProps {
@@ -36,6 +37,8 @@ interface TaskRowProps {
    * opens carries the move along so nothing is lost.
    */
   onPartial?: () => void;
+  /** Press-and-hold: edit the task or event (with Delete). */
+  onEdit?: () => void;
   /** Area hue per tagged unit, for the pips. */
   tagHues?: Record<string, string>;
   /** Why it's suggested here ("Due today", "Still open"), shown in place
@@ -60,6 +63,7 @@ export function TaskRow({
   onMove,
   onSkip,
   onPartial,
+  onEdit,
   tagHues,
   reason,
   onSwap,
@@ -85,16 +89,23 @@ export function TaskRow({
   const partial = task.progress > 0 && task.progress < 1;
   // What earns the row's one line is decided in `rowCaption`.
   const caption = reason ?? rowCaption(task);
-  const longPress = onTag ?? onSkip ?? onPartial ?? onMove;
-  const longPressLabel = onTag
-    ? "Where else it counts"
-    : onSkip
-      ? "Skip this event"
-      : onPartial
-        ? "How much of it you did"
-        : onMove
-          ? "Move it"
-          : null;
+  // Everything a hold can do here, as one menu when there's more than
+  // one (Henry, 2026-10-26: every object editable).
+  const holdActions: SheetAction[] = [
+    ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
+    ...(onSkip ? [{ label: "Skip this event", onPress: onSkip }] : []),
+    ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
+    ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
+    ...(onEdit ? [{ label: task.kind === "event" ? "Edit event" : "Edit task", onPress: onEdit }] : []),
+  ];
+  const longPress =
+    holdActions.length === 0
+      ? undefined
+      : holdActions.length === 1
+        ? holdActions[0]!.onPress
+        : () => showActions(task.title, holdActions);
+  const longPressLabel =
+    holdActions.length === 0 ? null : holdActions.length === 1 ? holdActions[0]!.label : "More";
 
   return (
     <Pressable
