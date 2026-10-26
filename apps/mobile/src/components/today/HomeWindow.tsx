@@ -12,6 +12,7 @@
  *   another". No celebration for doing planned work.
  * - Its ••• has Edit times and Remove (spec §3.5).
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { PlannedWindow } from "@glide/scoring";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -21,7 +22,7 @@ import type { ThemeTokens } from "../../theme/colors";
 import { cardStyle } from "../../theme/surfaces";
 import { space } from "../../theme/tokens";
 import { reasonLabel, spanLabel, spokenSpan } from "../plan/dayView";
-import { ActionMenu } from "../ui/ActionMenu";
+import { showActions } from "../ui/actionSheet";
 import { AppText } from "../ui/AppText";
 import { closedLabel, timeLeft, type WindowState } from "./homeDay";
 
@@ -114,17 +115,20 @@ export function HomeWindow({
       {live ? (
         <View style={styles.headerRow}>
           <View style={styles.grow}>{header}</View>
-          <ActionMenu
-            label={`Window ${spokenSpan(w.range)}`}
-            moreColor={theme.muted}
-            sizing="content"
-            actions={[
-              { label: "Edit times", icon: "clock", onPress: onEditTimes },
-              { label: "Remove", icon: "trash", destructive: true, onPress: onRemove },
-            ]}
+          <Pressable
+            onPress={() =>
+              showActions(`Window ${spanLabel(w.range)}`, [
+                { label: "Edit times", onPress: onEditTimes },
+                { label: "Remove", destructive: true, onPress: onRemove },
+              ])
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`More for window ${spokenSpan(w.range)}`}
+            hitSlop={6}
+            style={({ pressed }) => [styles.more, { opacity: pressed ? 0.5 : 1 }]}
           >
-            <View />
-          </ActionMenu>
+            <Ionicons name="ellipsis-horizontal" size={18} color={theme.muted} />
+          </Pressable>
         </View>
       ) : (
         header
@@ -181,6 +185,7 @@ export function HomeWindow({
 
 const styles = StyleSheet.create({
   card: { paddingHorizontal: space.lg, paddingVertical: space.sm },
+  more: { width: 36, height: 44, alignItems: "center", justifyContent: "center" },
   headerRow: { flexDirection: "row", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
   grow: { flex: 1 },

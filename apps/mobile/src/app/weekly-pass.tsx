@@ -33,6 +33,7 @@ import {
 import { AddFromOpenSheet } from "../components/plan/AddFromOpenSheet";
 import { addableTo, dayHeading, spanLabel, timeline } from "../components/plan/dayView";
 import { EventSheet } from "../components/plan/EventSheet";
+import { ItemEditor } from "../components/plan/ItemEditor";
 import { savedOrSaid, saveEventEdit, CANCELLED, saveNewEvent } from "../components/plan/saveEvent";
 import { pickableUnits } from "../components/plan/unitSelection";
 import { WindowCard } from "../components/plan/WindowCard";
@@ -49,7 +50,7 @@ import { UndoBar } from "../components/ui/UndoBar";
 import { loadDayPlan, type DayPlan } from "../db/dayPlan";
 import { addDayEdit } from "../db/hours";
 import { pinForDay, setPinKind, unpinForDay } from "../db/pins";
-import { copyLastWeeksEvents, loadPlan, type PlanData } from "../db/tasks";
+import { archiveTask, copyLastWeeksEvents, loadPlan, type PlanData } from "../db/tasks";
 import type { TodayTask } from "../db/today";
 import {
   isOnThisWeek,
@@ -62,6 +63,7 @@ import {
   type PassEvent,
   type WeekEvent,
 } from "../db/weeklyPass";
+import { eventsDefaultOnce } from "../db/settings";
 import { daysLeft } from "../db/weeklyPassRules";
 import { useRetained } from "../hooks/useRetained";
 import { useUndoDelete } from "../hooks/useUndoDelete";
@@ -108,6 +110,8 @@ export default function WeeklyPassScreen() {
   const [events, setEvents] = useState<WeekEvent[]>([]);
   const [days, setDays] = useState<DayPlan[]>([]);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  /** New events start one-time (shift work): Copy last week's events. */
+  const [shifts, setShifts] = useState(false);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<PassEvent | "new" | null>(null);
   const [editingShown, editingGone] = useRetained(editing);
@@ -115,6 +119,8 @@ export default function WeeklyPassScreen() {
   const [sheet, setSheet] = useState<DaySheet | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
   const [opened, setOpened] = useState(0);
+  /** A task being edited from a window (`ItemEditor`). */
+  const [editingItem, setEditingItem] = useState<string | null>(null);
 
   /** Only the latest load lands: one started on coming back from
    *  another screen can't overwrite what a write has just reloaded. */
@@ -122,14 +128,16 @@ export default function WeeklyPassScreen() {
   const load = useCallback(async () => {
     const turn = ++loadTurn.current;
     const dates = daysLeft(today);
-    const [due, lastWeek, weekEvents, plans, nextPlan] = await Promise.all([
+    const [due, lastWeek, weekEvents, plans, nextPlan, once] = await Promise.all([
       tiersCheckDue(today),
       loadLastWeek(today),
       loadWeekEvents(today),
       Promise.all(dates.map((d) => loadDayPlan(d))),
       loadPlan(),
+      eventsDefaultOnce(),
     ]);
     if (turn !== loadTurn.current) return;
+    setShifts(once);
     // The steps are set once, as the pass opens, and stay for it.
     setSteps((s) => s ?? [...(due ? (["tiers"] as const) : []), "lastWeek", "different", "windows"]);
     setLast(lastWeek);
@@ -356,7 +364,7 @@ export default function WeeklyPassScreen() {
             </Group>
           )}
           <Group theme={theme} flush>
-            <PassLink label="Copy last week's events" onPress={copyEvents} theme={theme} />
+            {shifts ? <PassLink label="Copy last week's events" onPress={copyEvents} theme={theme} /> : null}
             <PassLink label="Change hours this week" onPress={() => router.push("/hours" as Href)} theme={theme} />
             <PassLink
               label="Add an event"
@@ -470,6 +478,7 @@ export default function WeeklyPassScreen() {
                       });
                     }}
                     onRemove={() => removeWindow(date, w.range)}
+                    onEditTask={setEditingItem}
                   />
                 );
               })}
@@ -532,6 +541,16 @@ export default function WeeklyPassScreen() {
       )}
 
       <UndoBar undo={undo} theme={theme} />
+
+      <ItemEditor
+        itemId={editingItem}
+        onClose={() => setEditingItem(null)}
+        onSaved={retry}
+        onDelete={(t) =>
+          undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) })
+        }
+        theme={theme}
+      />
 
       {sheetShown?.kind === "add" ? (
         <AddFromOpenSheet

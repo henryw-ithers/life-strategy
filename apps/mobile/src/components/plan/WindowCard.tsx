@@ -8,10 +8,13 @@
  *   (Henry, 2026-10-25): an outline pin is a suggestion; one tap pins
  *   it here (accent); a second keeps it pinned until done (amber); a
  *   third unpins it, back to a suggestion wherever it fits.
+ *   Hold a pin for a short guide to what they mean.
+ * - Tap a task's name to edit it (`onEditTask`).
  * - **Accept all** pins every suggestion shown (§3.3).
  * - **Add from open** pins any open task here, moving it from wherever
  *   it was today (one window per task per day, §2.7).
- * - The window's ••• has Edit times and Remove.
+ * - Tap the window's times to change them; its ••• has Edit times and
+ *   Remove, as a system action sheet (the hosted menu didn't open).
  *
  * **No load warning** (P3, ADR-0026 §3): the bar is an amount, the same
  * colour at any level, and nothing says a window is too full.
@@ -27,7 +30,7 @@ import { wash, type ThemeTokens } from "../../theme/colors";
 import { PALETTE } from "../../theme/palette";
 import { cardStyle } from "../../theme/surfaces";
 import { space } from "../../theme/tokens";
-import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
+import { showActions, type SheetAction } from "../ui/actionSheet";
 import { AppText } from "../ui/AppText";
 import { fillLabel, plannedMinutes, reasonLabel, spanLabel, spokenSpan } from "./dayView";
 
@@ -50,6 +53,8 @@ interface WindowCardProps {
   /** Omitted, the window's menu has no Edit times. */
   onEditTimes?: () => void;
   onRemove: () => void;
+  /** Tap a task's name: its edit sheet. */
+  onEditTask?: (taskId: string) => void;
 }
 
 export function WindowCard({
@@ -67,8 +72,11 @@ export function WindowCard({
   onAddFromOpen,
   onEditTimes,
   onRemove,
+  onEditTask,
 }: WindowCardProps) {
   const [showAll, setShowAll] = useState(false);
+  /** The pins' guide, shown while a pin is held. */
+  const [guide, setGuide] = useState(false);
   /** Rows whose pin was tapped and is saving: a second tap waits for
    *  the window to come back, so it can't act on a pin that's moved. */
   const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
@@ -92,19 +100,39 @@ export function WindowCard({
   const share = Math.min(1, length > 0 ? planned / length : 0);
   const suggestions = showAll ? [...w.suggested, ...w.showAll] : w.suggested;
 
-  const windowActions: MenuAction[] = [
-    ...(onEditTimes ? [{ label: "Edit times", icon: "clock" as const, onPress: onEditTimes }] : []),
-    { label: "Remove", icon: "trash", destructive: true, onPress: onRemove },
+  const windowActions: SheetAction[] = [
+    ...(onEditTimes ? [{ label: "Edit times", onPress: onEditTimes }] : []),
+    { label: "Remove", destructive: true, onPress: onRemove },
   ];
 
   const header = (
     <View style={styles.header}>
-      <AppText variant="label" color={theme.ink} tabular style={styles.grow}>
-        {spanLabel(w.range)}
-      </AppText>
-      <AppText variant="caption" color={theme.muted} tabular>
-        {w.ended ? "Over" : fillLabel(planned, w.range)}
-      </AppText>
+      <Pressable
+        onPress={live ? onEditTimes : undefined}
+        disabled={!live || !onEditTimes}
+        accessibilityRole={live && onEditTimes ? "button" : undefined}
+        accessibilityLabel={`Window ${spokenSpan(w.range)}, ${w.ended ? "over" : `${fillLabel(planned, w.range)} planned`}`}
+        accessibilityHint={live && onEditTimes ? "Changes its times" : undefined}
+        style={({ pressed }) => [styles.headerMain, { opacity: pressed ? 0.6 : 1 }]}
+      >
+        <AppText variant="label" color={theme.ink} tabular style={styles.grow}>
+          {spanLabel(w.range)}
+        </AppText>
+        <AppText variant="caption" color={theme.muted} tabular>
+          {w.ended ? "Over" : fillLabel(planned, w.range)}
+        </AppText>
+      </Pressable>
+      {live ? (
+        <Pressable
+          onPress={() => showActions(`Window ${spanLabel(w.range)}`, windowActions)}
+          accessibilityRole="button"
+          accessibilityLabel={`More for window ${spokenSpan(w.range)}`}
+          hitSlop={6}
+          style={({ pressed }) => [styles.more, { opacity: pressed ? 0.5 : 1 }]}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color={theme.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -114,19 +142,23 @@ export function WindowCard({
       // faded card would take its text below 4.5:1 (WCAG 1.4.3).
       style={[cardStyle(theme), styles.card]}
     >
-      {live ? (
-        <ActionMenu
-          label={`Window ${spokenSpan(w.range)}, ${fillLabel(planned, w.range)} planned`}
-          moreColor={theme.muted}
-          actions={windowActions}
+      {header}
+
+      {guide ? (
+        <Pressable
+          onPress={() => setGuide(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Pins: outline, suggested. Blue, pinned to this window. Amber, pinned until done. Tap a pin to move along. Closes the guide."
+          style={[styles.guide, { backgroundColor: theme.fill }]}
         >
-          {header}
-        </ActionMenu>
-      ) : (
-        <View accessible accessibilityLabel={`Window ${spokenSpan(w.range)}${w.ended ? ", over" : ""}`}>
-          {header}
-        </View>
-      )}
+          <GuideLine icon="pin-outline" color={theme.muted} text="Suggested. Tap to pin it here." theme={theme} />
+          <GuideLine icon="pin" color={theme.accent} text="Pinned to this window." theme={theme} />
+          <GuideLine icon="pin" color={PALETTE.orange[theme.name]} text="Pinned until done: it follows you until it's ticked." theme={theme} />
+          <AppText variant="footnote" color={theme.muted}>
+            Each tap moves it along; a third unpins it. Tap here to close.
+          </AppText>
+        </Pressable>
+      ) : null}
 
       {/* A plain amount, never a warning. */}
       <View
@@ -160,6 +192,8 @@ export function WindowCard({
         return (
           <Row
             key={`pin-${p.taskId}`}
+            onEdit={onEditTask ? () => onEditTask(t.id) : undefined}
+            onGuide={() => setGuide(true)}
             pin={
               live
                 ? {
@@ -204,6 +238,8 @@ export function WindowCard({
             return (
               <Row
                 key={`s-${s.taskId}`}
+                onEdit={onEditTask ? () => onEditTask(t.id) : undefined}
+                onGuide={() => setGuide(true)}
                 pin={{ state: "none", onPress: once(s.taskId, () => onPin(s.taskId)) }}
                 icon="pin"
                 fallback="pin-outline"
@@ -271,8 +307,32 @@ const PIN_NEXT: Record<PinState, string> = {
   untilDone: "Unpins it",
 };
 
+/** One line of the pins' guide. */
+function GuideLine({
+  icon,
+  color,
+  text,
+  theme,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  text: string;
+  theme: ThemeTokens;
+}) {
+  return (
+    <View style={styles.guideLine}>
+      <Ionicons name={icon} size={16} color={color} />
+      <AppText variant="caption" color={theme.ink} style={styles.grow}>
+        {text}
+      </AppText>
+    </View>
+  );
+}
+
 function Row({
   pin,
+  onEdit,
+  onGuide,
   icon,
   fallback,
   title,
@@ -284,6 +344,10 @@ function Row({
 }: {
   /** The pin button, where the row has one. */
   pin?: { state: PinState; onPress: () => void };
+  /** Tap the name: edit the task. */
+  onEdit?: () => void;
+  /** Hold the pin: the pins' guide. */
+  onGuide?: () => void;
   icon: SFSymbol;
   fallback: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
@@ -317,6 +381,8 @@ function Row({
       {pin ? (
         <Pressable
           onPress={pin.onPress}
+          onLongPress={onGuide}
+          delayLongPress={350}
           accessibilityRole="button"
           accessibilityLabel={said}
           accessibilityHint={PIN_NEXT[pin.state]}
@@ -332,7 +398,14 @@ function Row({
       ) : (
         <View style={styles.pin}>{glyph}</View>
       )}
-      <View style={styles.grow} accessible={!pin} accessibilityLabel={pin ? undefined : said}>
+      <Pressable
+        onPress={onEdit}
+        disabled={!onEdit}
+        accessible={!pin || onEdit !== undefined}
+        accessibilityRole={onEdit ? "button" : undefined}
+        accessibilityLabel={onEdit ? `Edit ${title}` : pin ? undefined : said}
+        style={({ pressed }) => [styles.grow, { opacity: pressed && onEdit ? 0.6 : 1 }]}
+      >
         <View style={styles.titleRow}>
           {pin ? <View style={[styles.dot, { backgroundColor: hue }]} /> : null}
           <AppText
@@ -349,14 +422,18 @@ function Row({
             {caption}
           </AppText>
         ) : null}
-      </View>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: { paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.xs },
-  header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 32 },
+  header: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: 44 },
+  headerMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
+  more: { width: 36, height: 44, alignItems: "center", justifyContent: "center" },
+  guide: { borderRadius: 12, padding: space.md, gap: space.xs },
+  guideLine: { flexDirection: "row", alignItems: "center", gap: space.sm },
   grow: { flex: 1 },
   track: { height: 4, borderRadius: 2, overflow: "hidden" },
   fill: { height: 4, borderRadius: 2 },

@@ -24,7 +24,7 @@ import {
   setPinKind,
   unpinForDay,
 } from "../../db/pins";
-import { copyLastWeeksEvents } from "../../db/tasks";
+import { archiveTask, copyLastWeeksEvents } from "../../db/tasks";
 import type { TodayTask } from "../../db/today";
 import type { UndoDelete } from "../../hooks/useUndoDelete";
 import { useRetained } from "../../hooks/useRetained";
@@ -38,6 +38,7 @@ import { AddFromOpenSheet } from "./AddFromOpenSheet";
 import { addableTo, dayHeading, spanLabel, timeline } from "./dayView";
 import { WindowCard } from "./WindowCard";
 import { WindowTimesSheet } from "./WindowTimesSheet";
+import { ItemEditor } from "./ItemEditor";
 import { saveDayWindow } from "./saveWindow";
 import { WEEKDAY_NAME } from "./planning";
 
@@ -94,6 +95,8 @@ export function PlanDayView({
   const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
 
   const [sheet, setSheet] = useState<WindowSheet | null>(null);
+  /** A task or event being edited (`ItemEditor`). */
+  const [editingItem, setEditingItem] = useState<string | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
   /** A sheet opened afresh each time, so its draft is seeded anew. */
   const [opened, setOpened] = useState(0);
@@ -199,11 +202,16 @@ export function PlanDayView({
         if (item.kind === "event") {
           const e = item.event;
           return (
-            <View
+            <Pressable
               key={`e-${e.id}`}
-              style={[styles.event, { borderLeftColor: theme.areas[e.areaId] ?? theme.accent }]}
-              accessible
+              onPress={() => setEditingItem(e.id)}
+              accessibilityRole="button"
               accessibilityLabel={`${e.title}, ${spanLabel({ start: e.start, end: e.end })}${e.done ? ", attended" : ""}`}
+              accessibilityHint="Edits or deletes the event"
+              style={({ pressed }) => [
+                styles.event,
+                { borderLeftColor: theme.areas[e.areaId] ?? theme.accent, opacity: pressed ? 0.6 : 1 },
+              ]}
             >
               <AppText variant="label" color={theme.ink} tabular>
                 {spanLabel({ start: e.start, end: e.end })}
@@ -211,12 +219,26 @@ export function PlanDayView({
               <AppText variant="body" color={theme.ink} style={styles.grow} numberOfLines={2}>
                 {e.title}
               </AppText>
-            </View>
+            </Pressable>
           );
         }
         if (item.kind === "gap" || item.kind === "buffer") {
           const label = item.kind === "gap" ? item.name.toLowerCase() : `${item.range.end - item.range.start} min`;
-          return (
+          // A named gap lives in your working hours: tap it to change it.
+          return item.kind === "gap" ? (
+            <Pressable
+              key={`gap-${item.range.start}`}
+              onPress={() => router.push("/hours" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}, ${spanLabel(item.range)}`}
+              accessibilityHint="Opens your working hours"
+              style={({ pressed }) => [styles.gapRow, { opacity: pressed ? 0.5 : 1 }]}
+            >
+              <AppText variant="footnote" color={theme.muted} style={styles.gap}>
+                · {label} ·
+              </AppText>
+            </Pressable>
+          ) : (
             <AppText key={`${item.kind}-${item.range.start}`} variant="footnote" color={theme.muted} style={styles.gap}>
               · {label} ·
             </AppText>
@@ -241,6 +263,7 @@ export function PlanDayView({
             onAddFromOpen={() => openSheet({ kind: "add", start: w.range.start })}
             onEditTimes={() => openSheet({ kind: "times", range: w.range })}
             onRemove={() => removeWindow(w.range)}
+            onEditTask={setEditingItem}
           />
         );
       })}
@@ -254,18 +277,22 @@ export function PlanDayView({
             {openList.map((id, i) => {
               const t = day.tasks.get(id);
               return t ? (
-                <View
+                <Pressable
                   key={id}
-                  style={[
+                  onPress={() => setEditingItem(id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${t.title}`}
+                  style={({ pressed }) => [
                     styles.openRow,
                     i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.hairline } : null,
+                    { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
                   <View style={[styles.dot, { backgroundColor: hueFor(t) }]} />
                   <AppText variant="body" color={theme.ink} style={styles.grow} numberOfLines={1}>
                     {t.title}
                   </AppText>
-                </View>
+                </Pressable>
               ) : null;
             })}
           </View>
@@ -289,14 +316,17 @@ export function PlanDayView({
             </AppText>
           </Pressable>
         ) : null}
-        {editable ? (
-          <Pressable onPress={copyEvents} accessibilityRole="button" style={styles.link}>
-            <AppText variant="caption" color={theme.accent}>
-              Copy last week&apos;s events ›
-            </AppText>
-          </Pressable>
-        ) : null}
       </View>
+
+      <ItemEditor
+        itemId={editingItem}
+        onClose={() => setEditingItem(null)}
+        onSaved={reload}
+        onDelete={(t) =>
+          undo.remove({ id: t.id, message: `Deleted “${t.title}”`, run: () => archiveTask(t.id) })
+        }
+        theme={theme}
+      />
 
       {sheetShown?.kind === "times" ? (
         <WindowTimesSheet
@@ -352,6 +382,7 @@ const styles = StyleSheet.create({
   },
   grow: { flex: 1 },
   gap: { textAlign: "center" },
+  gapRow: { minHeight: 32, justifyContent: "center" },
   section: { gap: space.xs },
   sectionLabel: { paddingHorizontal: space.xs },
   list: { paddingHorizontal: space.lg },
