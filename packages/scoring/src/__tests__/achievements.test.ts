@@ -46,6 +46,11 @@ describe("the catalogue", () => {
     expect(peak("everyDayStreak")).toBe(1000);
   });
 
+  it("holds about forty series, each once", () => {
+    expect(SERIES).toHaveLength(40);
+    expect(new Set(SERIES.map((s) => s.id)).size).toBe(SERIES.length);
+  });
+
   it("counts nothing that's a rate or a miss", () => {
     for (const s of SERIES) expect(s.counts).not.toMatch(/%|percent|missed|rate/i);
   });

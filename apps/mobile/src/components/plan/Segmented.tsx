@@ -44,7 +44,7 @@ export function Segmented<T extends string | null>({
 }: SegmentedProps<T>) {
   return (
     <View
-      style={[styles.track, { backgroundColor: theme.surface }]}
+      style={[styles.track, { backgroundColor: theme.fill }]}
       accessibilityRole="tablist"
       accessibilityLabel={label}
     >

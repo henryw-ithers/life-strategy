@@ -154,8 +154,7 @@ export function UnitSheet({
           </>
         ) : (
           <AppText variant="footnote" color={theme.muted}>
-            Not now is out of your plan: no weight and no tasks. Its tasks are paused when you
-            save, and come back if you move it up again.
+            Not now holds no tasks. They come back if you move it up.
           </AppText>
         )}
       </View>

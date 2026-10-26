@@ -33,7 +33,7 @@ export function tabRootOptions(theme: ThemeTokens, title: string) {
     headerTransparent: Platform.OS === "ios",
     headerShadowVisible: false,
     headerLargeTitleShadowVisible: false,
-    headerTintColor: theme.ink,
+    headerTintColor: theme.accent,
     headerTitleStyle: { color: theme.ink },
     headerLargeTitleStyle: { color: theme.ink },
     contentStyle: { backgroundColor: theme.canvas },

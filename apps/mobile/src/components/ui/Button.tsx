@@ -108,7 +108,7 @@ export function Button({
         style={({ pressed }) => [
           styles.secondary,
           {
-            backgroundColor: theme.surface,
+            backgroundColor: theme.fill,
             opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
           },
         ]}

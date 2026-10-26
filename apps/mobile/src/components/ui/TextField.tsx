@@ -77,8 +77,8 @@ export function TextField({
         }
         style={[
           styles.field,
-          multiline ? styles.multiline : null,
-          { backgroundColor: theme.surface, color: theme.ink },
+          multiline ? styles.multiline : styles.singleLine,
+          { backgroundColor: theme.fill, color: theme.ink },
           style,
         ]}
         {...rest}
@@ -127,6 +127,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   multiline: { minHeight: 88, textAlignVertical: "top" },
+  /** No line height on one line: iOS draws a single-line field's text
+   *  and placeholder off-centre with one set. */
+  singleLine: { lineHeight: undefined },
   /** Out of the layout: the accessory renders on the keyboard, not here. */
   accessoryHolder: { position: "absolute", width: 0, height: 0 },
   /** A round glass button floating at the right, over the top of the

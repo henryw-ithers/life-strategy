@@ -234,12 +234,10 @@ export default function OnboardingScreen() {
           What matters most right now?
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          Sort each of the 18 parts of your life into a tier: Top,
-          Important, Background or Not now. What you put at the top is what
-          your days suggest first.
+          Sort the 18 parts of your life into tiers.
         </AppText>
         <AppText color={theme.muted} style={styles.lead}>
-          Rough is fine. You can change it any time. About 30 seconds.
+          Rough is fine. About 30 seconds.
         </AppText>
       </OnboardingPage>
     );
@@ -274,8 +272,7 @@ export default function OnboardingScreen() {
           When are you free?
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          Your working hours are when you can get things done. Events are
-          taken out of them, and what’s left becomes the day’s windows.
+          When you’re free to get things done.
         </AppText>
         <AppText color={theme.muted} style={styles.lead}>
           {template
@@ -316,10 +313,6 @@ export default function OnboardingScreen() {
           {askedNudge
             ? "The daily reminder is in Settings, whenever you want to change it."
             : "One nudge a day, at a time you choose, and only when today still needs you. It never says what’s on your list. Your phone will ask next."}
-        </AppText>
-        <AppText color={theme.muted} style={styles.lead}>
-          Your daily score is a guideline. It shows where your attention
-          went, nothing more.
         </AppText>
         {/* ADR-0008: exactly one neutral mention, framed as
             availability. Reads the same for every user, always. */}

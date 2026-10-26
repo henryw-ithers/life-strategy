@@ -4,13 +4,14 @@
  * then tasks with a clock time in it, then suggestions; done ones where
  * they were done.
  *
- * - Tap a suggestion to pin it here. **Accept all** pins every one
- *   shown (§3.3).
- * - A pin's menu switches it between "this window" and "until done", or
- *   unpins it. Unpinned, it's a suggestion again wherever it fits.
+ * - **The pin** at the start of each row cycles in one tap at a time
+ *   (Henry, 2026-10-25): an outline pin is a suggestion; one tap pins
+ *   it here (accent); a second keeps it pinned until done (amber); a
+ *   third unpins it, back to a suggestion wherever it fits.
+ * - **Accept all** pins every suggestion shown (§3.3).
  * - **Add from open** pins any open task here, moving it from wherever
  *   it was today (one window per task per day, §2.7).
- * - The window's ••• has Edit times, Remove and "Do N of these".
+ * - The window's ••• has Edit times and Remove.
  *
  * **No load warning** (P3, ADR-0026 §3): the bar is an amount, the same
  * colour at any level, and nothing says a window is too full.
@@ -21,10 +22,11 @@ import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import type { WindowChoice } from "../../db/pins";
 import type { TodayTask } from "../../db/today";
-import type { ThemeTokens } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { wash, type ThemeTokens } from "../../theme/colors";
+import { PALETTE } from "../../theme/palette";
+import { cardStyle } from "../../theme/surfaces";
+import { space } from "../../theme/tokens";
 import { ActionMenu, type MenuAction } from "../ui/ActionMenu";
 import { AppText } from "../ui/AppText";
 import { fillLabel, plannedMinutes, reasonLabel, spanLabel, spokenSpan } from "./dayView";
@@ -32,8 +34,6 @@ import { fillLabel, plannedMinutes, reasonLabel, spanLabel, spokenSpan } from ".
 interface WindowCardProps {
   window: PlannedWindow;
   tasks: ReadonlyMap<string, TodayTask>;
-  /** "Do N of these" in this window. */
-  choices: readonly WindowChoice[];
   /** How many open tasks "Add from open" offers. */
   addable: number;
   /** The day can still be planned: today or later. */
@@ -50,14 +50,11 @@ interface WindowCardProps {
   /** Omitted, the window's menu has no Edit times. */
   onEditTimes?: () => void;
   onRemove: () => void;
-  /** Omitted, the window's menu has no "Do N of these". */
-  onChoice?: () => void;
 }
 
 export function WindowCard({
   window: w,
   tasks,
-  choices,
   addable,
   editable,
   isToday,
@@ -70,9 +67,21 @@ export function WindowCard({
   onAddFromOpen,
   onEditTimes,
   onRemove,
-  onChoice,
 }: WindowCardProps) {
   const [showAll, setShowAll] = useState(false);
+  /** Rows whose pin was tapped and is saving: a second tap waits for
+   *  the window to come back, so it can't act on a pin that's moved. */
+  const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
+  const [seen, setSeen] = useState(w);
+  if (seen !== w) {
+    setSeen(w);
+    setSaving(new Set());
+  }
+  const once = (taskId: string, write: () => void) => () => {
+    if (saving.has(taskId)) return;
+    setSaving(new Set([...saving, taskId]));
+    write();
+  };
   const live = editable && !w.ended;
   const sizeOf = (id: string) => {
     const t = tasks.get(id);
@@ -82,11 +91,9 @@ export function WindowCard({
   const length = w.range.end - w.range.start;
   const share = Math.min(1, length > 0 ? planned / length : 0);
   const suggestions = showAll ? [...w.suggested, ...w.showAll] : w.suggested;
-  const inChoice = new Set(choices.flatMap((c) => c.taskIds));
 
   const windowActions: MenuAction[] = [
     ...(onEditTimes ? [{ label: "Edit times", icon: "clock" as const, onPress: onEditTimes }] : []),
-    ...(onChoice ? [{ label: "Do N of these…", icon: "square.stack" as const, onPress: onChoice }] : []),
     { label: "Remove", icon: "trash", destructive: true, onPress: onRemove },
   ];
 
@@ -105,7 +112,7 @@ export function WindowCard({
     <View
       // An ended window keeps full contrast and says so in words: a
       // faded card would take its text below 4.5:1 (WCAG 1.4.3).
-      style={[styles.card, { backgroundColor: theme.surface }]}
+      style={[cardStyle(theme), styles.card]}
     >
       {live ? (
         <ActionMenu
@@ -149,37 +156,28 @@ export function WindowCard({
       {w.pinned.map((p) => {
         const t = tasks.get(p.taskId);
         if (!t) return null;
-        const kindLabel = p.kind === "untilDone" ? "Pinned until done" : "Pinned here";
-        const row = (
+        const untilDone = p.kind === "untilDone";
+        return (
           <Row
+            key={`pin-${p.taskId}`}
+            pin={
+              live
+                ? {
+                    state: untilDone ? "untilDone" : "here",
+                    onPress: once(p.taskId, () =>
+                      untilDone ? onUnpin(p.taskId) : onPinKind(p.ruleId, "untilDone"),
+                    ),
+                  }
+                : undefined
+            }
             icon="pin.fill"
             fallback="pin"
             title={t.title}
-            caption={[inChoice.has(t.id) ? "One of a choice" : null, p.carried ? "Still open" : null]
-              .filter(Boolean)
-              .join(" · ") || undefined}
+            caption={p.carried ? "Still open" : undefined}
             hue={hueFor(t)}
-            // Inside a live menu, the menu is the one VoiceOver stop.
-            said={live ? undefined : `${t.title}, ${kindLabel}`}
+            said={`${t.title}, ${untilDone ? "pinned until done" : "pinned here"}`}
             theme={theme}
           />
-        );
-        return live ? (
-          <ActionMenu
-            key={`pin-${p.taskId}`}
-            label={`${t.title}, ${kindLabel}`}
-            moreColor={theme.muted}
-            actions={[
-              p.kind === "untilDone"
-                ? { label: "Pin to this window only", icon: "pin", onPress: () => onPinKind(p.ruleId, "window") }
-                : { label: "Pin until done", icon: "pin.circle", onPress: () => onPinKind(p.ruleId, "untilDone") },
-              { label: "Unpin", icon: "pin.slash", onPress: () => onUnpin(p.taskId) },
-            ]}
-          >
-            {row}
-          </ActionMenu>
-        ) : (
-          <View key={`pin-${p.taskId}`}>{row}</View>
         );
       })}
 
@@ -204,23 +202,16 @@ export function WindowCard({
             const t = tasks.get(s.taskId);
             if (!t) return null;
             return (
-              <Pressable
+              <Row
                 key={`s-${s.taskId}`}
-                onPress={() => onPin(s.taskId)}
-                accessibilityRole="button"
-                accessibilityLabel={`${t.title}, suggested, ${reasonLabel(s.reason, isToday)}`}
-                accessibilityHint="Pins it to this window"
-                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-              >
-                <Row
-                  icon="circle"
-                  fallback="ellipse-outline"
-                  title={t.title}
-                  caption={`Suggested · ${reasonLabel(s.reason, isToday)}`}
-                  hue={hueFor(t)}
-                  theme={theme}
-                />
-              </Pressable>
+                pin={{ state: "none", onPress: once(s.taskId, () => onPin(s.taskId)) }}
+                icon="pin"
+                fallback="pin-outline"
+                title={t.title}
+                hue={hueFor(t)}
+                said={`${t.title}, suggested, ${reasonLabel(s.reason, isToday)}`}
+                theme={theme}
+              />
             );
           })
         : null}
@@ -271,7 +262,17 @@ export function WindowCard({
   );
 }
 
+/** Where a row's pin is in its cycle. */
+type PinState = "none" | "here" | "untilDone";
+
+const PIN_NEXT: Record<PinState, string> = {
+  none: "Pins it to this window",
+  here: "Keeps it pinned until done",
+  untilDone: "Unpins it",
+};
+
 function Row({
+  pin,
   icon,
   fallback,
   title,
@@ -281,37 +282,68 @@ function Row({
   said,
   theme,
 }: {
+  /** The pin button, where the row has one. */
+  pin?: { state: PinState; onPress: () => void };
   icon: SFSymbol;
   fallback: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
   caption?: string;
   hue: string;
   muted?: boolean;
-  /** Set where the row is its own VoiceOver stop. */
+  /** What VoiceOver reads for the row. */
   said?: string;
   theme: ThemeTokens;
 }) {
+  // Accent for pinned here, amber for until done; a suggestion's pin is
+  // a grey outline, waiting to be filled.
+  const pinColour =
+    pin?.state === "untilDone" ? PALETTE.orange[theme.name] : pin?.state === "here" ? theme.accent : theme.muted;
+  const glyph = (
+    <SymbolView
+      name={pin ? (pin.state === "none" ? "pin" : "pin.fill") : icon}
+      size={18}
+      tintColor={pin ? pinColour : hue}
+      fallback={
+        <Ionicons
+          name={pin ? (pin.state === "none" ? "pin-outline" : "pin") : fallback}
+          size={18}
+          color={pin ? pinColour : hue}
+        />
+      }
+    />
+  );
   return (
-    <View
-      style={styles.row}
-      accessible={said !== undefined}
-      accessibilityLabel={said}
-    >
-      <SymbolView
-        name={icon}
-        size={16}
-        tintColor={hue}
-        fallback={<Ionicons name={fallback} size={16} color={hue} />}
-      />
-      <View style={styles.grow}>
-        <AppText
-          variant="body"
-          color={muted ? theme.muted : theme.ink}
-          numberOfLines={2}
-          style={muted ? styles.struck : null}
+    <View style={styles.row}>
+      {pin ? (
+        <Pressable
+          onPress={pin.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={said}
+          accessibilityHint={PIN_NEXT[pin.state]}
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.pin,
+            pin.state !== "none" ? { backgroundColor: wash(pinColour, theme) } : null,
+            { opacity: pressed ? 0.5 : 1 },
+          ]}
         >
-          {title}
-        </AppText>
+          {glyph}
+        </Pressable>
+      ) : (
+        <View style={styles.pin}>{glyph}</View>
+      )}
+      <View style={styles.grow} accessible={!pin} accessibilityLabel={pin ? undefined : said}>
+        <View style={styles.titleRow}>
+          {pin ? <View style={[styles.dot, { backgroundColor: hue }]} /> : null}
+          <AppText
+            variant="body"
+            color={muted ? theme.muted : theme.ink}
+            numberOfLines={2}
+            style={[styles.grow, muted ? styles.struck : null]}
+          >
+            {title}
+          </AppText>
+        </View>
         {caption ? (
           <AppText variant="footnote" color={theme.muted}>
             {caption}
@@ -323,12 +355,16 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg, padding: space.md, gap: space.sm },
+  card: { paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.xs },
   header: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 32 },
   grow: { flex: 1 },
   track: { height: 4, borderRadius: 2, overflow: "hidden" },
   fill: { height: 4, borderRadius: 2 },
-  row: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44 },
+  row: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 48 },
+  /** 36pt visible, 44pt with its slop: the pin is the row's control. */
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  pin: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   struck: { textDecorationLine: "line-through" },
   footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   link: { minHeight: 44, justifyContent: "center" },

@@ -211,7 +211,8 @@ export function TaskRow({
   );
 }
 
-const SIZE_LABEL = { quick: "Quick", normal: "Normal", big: "Big" } as const;
+/** Normal is the default, so it says nothing; only the exceptions show. */
+const SIZE_LABEL = { quick: "Quick", normal: "", big: "Big" } as const;
 
 /** The check circle's diameter; the partial level is a share of it. */
 const CIRCLE = 26;

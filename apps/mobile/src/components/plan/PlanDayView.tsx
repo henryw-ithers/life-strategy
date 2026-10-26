@@ -9,8 +9,8 @@
  * the week strip and the + menu, whose Window item calls `addWindow`
  * through the ref.
  *
- * **Nothing here changes a score** but a choice and the hours
- * (ADR-0039 §12), and nothing warns about load (P3, ADR-0026 §3).
+ * **Nothing here changes a score** but the hours (ADR-0039 §12), and
+ * nothing warns about load (P3, ADR-0026 §3).
  */
 import { addedWindowPieces, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import { router, type Href } from "expo-router";
@@ -20,12 +20,9 @@ import { Alert, Pressable, StyleSheet, View } from "react-native";
 import type { DayPlan } from "../../db/dayPlan";
 import { addDayEdit } from "../../db/hours";
 import {
-  createChoice,
-  deleteChoice,
   pinForDay,
   setPinKind,
   unpinForDay,
-  updateChoice,
 } from "../../db/pins";
 import { copyLastWeeksEvents } from "../../db/tasks";
 import type { TodayTask } from "../../db/today";
@@ -33,11 +30,11 @@ import type { UndoDelete } from "../../hooks/useUndoDelete";
 import { useRetained } from "../../hooks/useRetained";
 import { spokenDate } from "../../lib/format";
 import type { ThemeTokens } from "../../theme/colors";
+import { cardStyle } from "../../theme/surfaces";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { AddFromOpenSheet } from "./AddFromOpenSheet";
-import { ChoiceSheet } from "./ChoiceSheet";
 import { addableTo, dayHeading, spanLabel, timeline } from "./dayView";
 import { WindowCard } from "./WindowCard";
 import { WindowTimesSheet } from "./WindowTimesSheet";
@@ -49,8 +46,7 @@ const DAY_KIND_LABEL = { normal: "Normal", special: "Special day", rest: "Day of
  *  different window. */
 type WindowSheet =
   | { kind: "times"; range?: TimeRange }
-  | { kind: "add"; start: number }
-  | { kind: "choice"; start: number };
+  | { kind: "add"; start: number };
 
 export interface PlanDayViewHandle {
   /** The + menu's Window: open "Add a window" for this day. */
@@ -155,32 +151,6 @@ export function PlanDayView({
     return null;
   };
 
-  const choiceIn = (index: number) => {
-    const w = windowAt(index);
-    if (!w) return undefined;
-    return day.choices.find((c) => c.anchorMinute >= w.range.start && c.anchorMinute < w.range.end);
-  };
-  const saveChoice = async (start: number, taskIds: string[], plannedCount: number) => {
-    const index = indexAt(start);
-    const w = windowAt(index);
-    if (!w) return "That window has gone.";
-    const existing = choiceIn(index);
-    try {
-      if (existing) await updateChoice(existing.id, { taskIds, plannedCount });
-      else {
-        // A choice is tasks pinned in one window (ADR-0039 §6).
-        for (const id of taskIds) await pinForDay(id, date, w.range.start, "window");
-        await createChoice({ localDate: date, anchorMinute: w.range.start, taskIds, plannedCount });
-      }
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    } finally {
-      // Pins written before a failure show too.
-      reload();
-    }
-    setSheet(null);
-    return null;
-  };
 
   const copyEvents = () => {
     void save(async () => {
@@ -256,13 +226,11 @@ export function PlanDayView({
         }
         const w = day.planned.windows[item.index];
         if (!w || undo.hidden.has(windowKey(date, w.range))) return null;
-        const choice = choiceIn(item.index);
         return (
           <WindowCard
             key={windowKey(date, w.range)}
             window={w}
             tasks={day.tasks}
-            choices={choice ? [choice] : []}
             addable={addableTo(item.index, day.planned).length}
             editable={editable}
             isToday={date === today}
@@ -275,24 +243,34 @@ export function PlanDayView({
             onAddFromOpen={() => openSheet({ kind: "add", start: w.range.start })}
             onEditTimes={() => openSheet({ kind: "times", range: w.range })}
             onRemove={() => removeWindow(w.range)}
-            onChoice={() => openSheet({ kind: "choice", start: w.range.start })}
           />
         );
       })}
 
       {openList.length > 0 ? (
         <View style={styles.section}>
-          <AppText variant="caption" color={theme.muted}>
-            Other open tasks
+          <AppText variant="caption" color={theme.muted} style={styles.sectionLabel}>
+            Not in a window
           </AppText>
-          {openList.map((id) => {
-            const t = day.tasks.get(id);
-            return t ? (
-              <AppText key={id} variant="body" color={theme.ink}>
-                {t.title}
-              </AppText>
-            ) : null;
-          })}
+          <View style={[cardStyle(theme), styles.list]}>
+            {openList.map((id, i) => {
+              const t = day.tasks.get(id);
+              return t ? (
+                <View
+                  key={id}
+                  style={[
+                    styles.openRow,
+                    i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.hairline } : null,
+                  ]}
+                >
+                  <View style={[styles.dot, { backgroundColor: hueFor(t) }]} />
+                  <AppText variant="body" color={theme.ink} style={styles.grow} numberOfLines={1}>
+                    {t.title}
+                  </AppText>
+                </View>
+              ) : null;
+            })}
+          </View>
         </View>
       ) : null}
 
@@ -347,58 +325,20 @@ export function PlanDayView({
           hueFor={hueFor}
           theme={theme}
           onClose={() => setSheet(null)}
+          date={date}
+          windowStart={sheetShown.start}
           onPick={(t) => {
             setSheet(null);
             pin(t.id, indexAt(sheetShown.start));
           }}
+          onAdded={reload}
         />
       ) : null}
 
-      {sheetShown?.kind === "choice" && indexAt(sheetShown.start) >= 0 ? (
-        <ChoiceSheet
-          key={`choice-${opened}`}
-          visible={sheet?.kind === "choice"}
-          onDismissed={sheetGone}
-          windowLabel={spanLabel(day.planned.windows[indexAt(sheetShown.start)]!.range)}
-          candidates={choiceCandidates(day, indexAt(sheetShown.start))}
-          initial={choiceIn(indexAt(sheetShown.start))}
-          hueFor={hueFor}
-          theme={theme}
-          onClose={() => setSheet(null)}
-          onSave={(ids, n) => saveChoice(sheetShown.start, ids, n)}
-          onRemove={
-            choiceIn(indexAt(sheetShown.start))
-              ? () => {
-                  const c = choiceIn(indexAt(sheetShown.start));
-                  setSheet(null);
-                  if (c) void save(() => deleteChoice(c.id));
-                }
-              : undefined
-          }
-        />
-      ) : null}
     </View>
   );
 }
 
-/** Commitment work due on the day, in this window or offered to it:
- *  what a "Do N of these" may hold (ADR-0039 §6). */
-function choiceCandidates(day: DayPlan, index: number): TodayTask[] {
-  const w = day.planned.windows[index];
-  if (!w) return [];
-  const ids = [
-    ...w.pinned.map((p) => p.taskId),
-    ...w.timed,
-    ...w.suggested.map((s) => s.taskId),
-    ...w.showAll.map((s) => s.taskId),
-  ];
-  return ids
-    .map((id) => day.tasks.get(id))
-    .filter(
-      (t): t is TodayTask =>
-        t !== undefined && t.commitment && !t.offSchedule && t.band === "due" && t.kind === "task",
-    );
-}
 
 const styles = StyleSheet.create({
   day: { gap: space.md },
@@ -414,6 +354,10 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   gap: { textAlign: "center" },
   section: { gap: space.xs },
+  sectionLabel: { paddingHorizontal: space.xs },
+  list: { paddingHorizontal: space.lg },
+  openRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: space.md },
   link: { minHeight: 44, justifyContent: "center" },
 });

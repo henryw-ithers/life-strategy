@@ -39,7 +39,7 @@ export function PartOfDayPicker({
   theme,
 }: PartOfDayPickerProps) {
   return (
-    <View style={[styles.track, { backgroundColor: theme.surface }]}>
+    <View style={[styles.track, { backgroundColor: theme.fill }]}>
       {SEGMENTS.map((part) => {
         const on = part === value;
         const label = part ? PART_OF_DAY_LABEL[part] : ANYTIME_LABEL;

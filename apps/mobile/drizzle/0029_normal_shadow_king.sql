@@ -1,0 +1,1 @@
+ALTER TABLE `day_grade` ADD `rest_day` integer DEFAULT false NOT NULL;

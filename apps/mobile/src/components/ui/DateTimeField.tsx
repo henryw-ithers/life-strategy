@@ -19,6 +19,7 @@
  */
 import { DatePicker, Host } from "@expo/ui/swift-ui";
 import { accessibilityLabel, datePickerStyle, labelsHidden } from "@expo/ui/swift-ui/modifiers";
+import { StyleSheet } from "react-native";
 
 import {
   dateToLocalDate,
@@ -51,7 +52,7 @@ export function TimeField({
   onChange: (minutes: number) => void;
 }) {
   return (
-    <Host matchContents colorScheme={theme.name} seedColor={accent}>
+    <Host matchContents colorScheme={theme.name} seedColor={accent} style={styles.host}>
       <DatePicker
         title={label}
         selection={minutesToDate(minutes)}
@@ -72,7 +73,7 @@ export function DayField({
   theme,
 }: Common & { date: string; onChange: (date: string) => void }) {
   return (
-    <Host matchContents colorScheme={theme.name} seedColor={accent}>
+    <Host matchContents colorScheme={theme.name} seedColor={accent} style={styles.host}>
       <DatePicker
         title={label}
         selection={localDateToDate(date)}
@@ -83,3 +84,11 @@ export function DayField({
     </Host>
   );
 }
+
+const styles = StyleSheet.create({
+  /** The compact picker's own size, held before SwiftUI measures it. A
+   *  picker mounted after the screen (a new gap, a new range) measured
+   *  zero at first and overlapped its row until something re-rendered
+   *  it (Henry, 2026-10-25). */
+  host: { minWidth: 88, minHeight: 36 },
+});

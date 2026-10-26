@@ -22,6 +22,7 @@ import {
   RANKS,
   gradeRuns,
   inScheduleOn,
+  isoWeekday,
   localDateOf,
   parseWeekdays,
   storedDayScore,
@@ -74,6 +75,8 @@ export interface AchievementFacts {
     localDate: string;
     fraction: number;
     actualMinutes: number | null;
+    /** The local hour it was ticked, 0–23: early bird and night owl. */
+    hour: number;
   }[];
   grades: readonly {
     localDate: string;
@@ -81,8 +84,14 @@ export interface AchievementFacts {
     pointsEarned: number;
     pointsPossible: number;
     flagged: boolean;
+    /** An automatic rest day (ADR-0037), which scores 70 for asking
+     *  nothing. Optional: false when left out. */
+    restDay?: boolean;
   }[];
   activities: readonly { localDate: string; flagged: boolean }[];
+  /** The days notes were written on, one per note. */
+  journal: readonly string[];
+  photos: number;
   away: readonly { startDate: string; endDate: string }[];
   /** Each task's skipped dates (`skippedDatesFor`). */
   skipped: ReadonlyMap<string, ReadonlySet<string>>;
@@ -109,6 +118,11 @@ export const ALL = "all";
 
 const GOOD_DAY = 80;
 const GREAT_DAY = 90;
+const STEADY_DAY = 70;
+const FULL_DAY = 100;
+/** Before 8 am, from 9 pm. */
+const EARLY_HOUR = 8;
+const LATE_HOUR = 21;
 
 const countBy = <T>(rows: readonly T[], key: (row: T) => string | null): Map<string, number> => {
   const out = new Map<string, number>();
@@ -291,6 +305,20 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
     }
   }
   push("goodDays", "all", ALL, "", gradeRuns(graded, GOOD_DAY).total);
+  // An automatic rest day scores 70 for asking nothing, so it doesn't
+  // count toward 70 (Henry, 2026-10-26).
+  const autoRest = new Set(f.grades.filter((g) => g.restDay === true).map((g) => g.localDate));
+  push(
+    "days70",
+    "all",
+    ALL,
+    "",
+    gradeRuns(
+      graded.map((d) => (autoRest.has(d.date) ? { ...d, grade: null } : d)),
+      STEADY_DAY,
+    ).total,
+  );
+  push("perfectDays", "all", ALL, "", gradeRuns(graded, FULL_DAY).total);
   const great = gradeRuns(graded, GREAT_DAY);
   push("greatDays", "all", ALL, "", great.total);
   push("greatDayRun", "all", ALL, "", great.longest, great.current);
@@ -302,6 +330,91 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
     ...f.activities.filter((a) => a.flagged).map((a) => a.localDate),
   ]);
   push("flaggedDays", "all", ALL, "", flagged.size);
+  push("activityDays", "all", ALL, "", new Set(f.activities.map((a) => a.localDate)).size);
+  push("journalEntries", "all", ALL, "", f.journal.length);
+  push("photos", "all", ALL, "", f.photos);
+  push("specialDays", "all", ALL, "", f.grades.filter((g) => g.kind === "special").length);
+
+  // ── The wider catalogue (Henry, 2026-10-25) ───────────────────────
+  // What you did, counted: never what you didn't.
+  push("totalCompletions", "all", ALL, "", ticks.length);
+  push("earlyBird", "all", ALL, "", ticks.filter((c) => c.hour < EARLY_HOUR).length);
+  push("nightOwl", "all", ALL, "", ticks.filter((c) => c.hour >= LATE_HOUR).length);
+  push("weekendTicks", "all", ALL, "", ticks.filter((c) => isoWeekday(c.localDate) >= 6).length);
+  push("partialSteps", "all", ALL, "", ticks.filter((c) => c.fraction < 1).length);
+  const sizeOf = (c: (typeof ticks)[number]) => {
+    const t = taskById.get(c.taskId)!;
+    return t.oneOffSize ?? t.size;
+  };
+  push("quickWins", "all", ALL, "", ticks.filter((c) => sizeOf(c) === "quick").length);
+  push("bigTasks", "all", ALL, "", ticks.filter((c) => sizeOf(c) === "big").length);
+  push("oneOffs", "all", ALL, "", ticks.filter((c) => taskById.get(c.taskId)!.oneOffSize !== null).length);
+  push("eventsAttended", "all", ALL, "", ticks.filter((c) => taskById.get(c.taskId)!.kind === "event").length);
+  push("tasksSetUp", "all", ALL, "", f.tasks.filter((t) => t.kind === "task").length);
+
+  let allMinutes = 0;
+  for (const m of minutesByUnit.values()) allMinutes += m;
+  for (const m of minutesByRoot.values()) allMinutes += m;
+  push("totalHours", "all", ALL, "", hours(allMinutes));
+  const minutesByArea = new Map<string, number>();
+  for (const [unitId, m] of minutesByUnit) {
+    const area = areaOfUnit.get(unitId);
+    if (area) minutesByArea.set(area, (minutesByArea.get(area) ?? 0) + m);
+  }
+  for (const a of f.areas) {
+    if (liveAreas.has(a.id)) push("areaHours", "area", a.id, a.name, hours(minutesByArea.get(a.id)));
+  }
+
+  // Days with something done: in total, the best day, and in a row.
+  // Days off and Away days bridge a run; nothing else does.
+  const ticksByDay = countBy(ticks, (c) => c.localDate);
+  push("activeDays", "all", ALL, "", ticksByDay.size);
+  push("mostInOneDay", "all", ALL, "", Math.max(0, ...ticksByDay.values()));
+  const bridge = new Set([...awayAll, ...restDays]);
+  const firstActive = [...ticksByDay.keys()].sort()[0];
+  const activeRun = (until: string) => {
+    const days: PlanWeek[] = [];
+    if (firstActive !== undefined) {
+      for (let d = firstActive; d <= until; d = addDays(d, 1)) {
+        const did = ticksByDay.has(d);
+        days.push({ weekStart: d, met: did, skipped: !did && bridge.has(d) });
+      }
+    }
+    return weekRuns(days);
+  };
+  // Ranks from days that have ended; progress counts today once it has
+  // something, and a today with nothing yet isn't a break.
+  const ended = activeRun(addDays(f.today, -1));
+  push(
+    "activeDayRun",
+    "all",
+    ALL,
+    "",
+    ended.longest,
+    ticksByDay.has(f.today) ? activeRun(f.today).current : ended.current,
+  );
+
+  // Weeks that have ended: something done every day, the most units
+  // touched, and every area touched.
+  let fullWeeks = 0;
+  let varietyWeeks = 0;
+  let mostUnits = 0;
+  const firstWeek = firstActive === undefined ? undefined : weekStart(firstActive);
+  if (firstWeek !== undefined) {
+    for (let ws = firstWeek; ws <= lastWeek; ws = addDays(ws, 7)) {
+      const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+      const asked = days.filter((d) => !awayAll.has(d));
+      if (asked.length > 0 && asked.every((d) => ticksByDay.has(d))) fullWeeks += 1;
+      const inWeek = lifeTicks.filter((c) => c.localDate >= ws && c.localDate <= days[6]!);
+      const units = new Set(inWeek.map((c) => taskById.get(c.taskId)!.unitId));
+      mostUnits = Math.max(mostUnits, units.size);
+      const areas = new Set([...units].map((u) => areaOfUnit.get(u)));
+      if (liveAreas.size > 0 && [...liveAreas].every((a) => areas.has(a))) varietyWeeks += 1;
+    }
+  }
+  push("fullWeeks", "all", ALL, "", fullWeeks);
+  push("mostUnitsWeek", "all", ALL, "", mostUnits);
+  push("varietyWeeks", "all", ALL, "", varietyWeeks);
 
   return out;
 }

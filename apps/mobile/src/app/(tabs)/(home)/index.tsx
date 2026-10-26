@@ -36,10 +36,20 @@ import {
   ScrollView,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { LinearTransition, runOnJS, useReducedMotion } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  LinearTransition,
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 import { CelebrationCard } from "../../../components/achievements/CelebrationCard";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
@@ -122,6 +132,7 @@ export default function TodayScreen() {
     refresh,
     select,
     step,
+    canStep,
     changeMonth,
     toggle,
   } = useDayData();
@@ -130,6 +141,58 @@ export default function TodayScreen() {
   /** The day as shown: a note, photo or activity waiting on Undo is
    *  already gone from it. */
   const day = withoutRecord(storedDay, undo.hidden);
+
+  // ── Sliding between days (Henry, 2026-10-25) ─────────────────────
+  // The page follows your finger; let go past the threshold and it
+  // slides off, the next day loads, and it slides in from the other
+  // side. The header's arrows use the same motion. Reduce Motion skips
+  // the slide and just changes the day.
+  const { width } = useWindowDimensions();
+  const slide = useSharedValue(0);
+  /** The side the next day comes in from, set as one leaves. */
+  const entering = useSharedValue<0 | 1 | -1>(0);
+  const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateX: slide.value }] }));
+  const settle = () => slide.set(withSpring(0, { damping: 22, stiffness: 220 }));
+  /** If the next day never lands (a failed load), the page comes back
+   *  rather than staying off-screen. */
+  const arrivals = useSharedValue(0);
+  const arrive = (dir: 1 | -1) => {
+    entering.set(dir);
+    step(dir);
+    const mine = arrivals.get() + 1;
+    arrivals.set(mine);
+    setTimeout(() => {
+      // Only the latest swipe's, and only if its day hasn't landed.
+      if (arrivals.get() !== mine || entering.get() === 0) return;
+      entering.set(0);
+      settle();
+    }, 1500);
+  };
+  const leave = (dir: 1 | -1) => {
+    // Past the last day that can be planned: spring back, go nowhere.
+    if (!canStep(dir)) {
+      settle();
+      return;
+    }
+    if (reduceMotion) {
+      step(dir);
+      return;
+    }
+    slide.set(
+      withTiming(-dir * width, { duration: 180, easing: Easing.in(Easing.cubic) }, (done) => {
+        if (done) runOnJS(arrive)(dir);
+      }),
+    );
+  };
+  useEffect(() => {
+    const dir = entering.get();
+    if (dir === 0) return;
+    entering.set(0);
+    slide.set(dir * width);
+    slide.set(withTiming(0, { duration: 240, easing: Easing.out(Easing.cubic) }));
+    // Keyed to the day: it runs once each time a new one lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day?.date]);
 
   const [monthOpen, setMonthOpen] = useState(false);
   const [kindSheet, setKindSheet] = useState(false);
@@ -268,13 +331,20 @@ export default function TodayScreen() {
   // Swipe left or right for the next or previous day (spec §5.2);
   // vertical movement stays the scroll's.
   const swipe = Gesture.Pan()
-    .activeOffsetX([-30, 30])
+    .activeOffsetX([-20, 20])
     .failOffsetY([-15, 15])
+    .onUpdate((e) => {
+      if (!reduceMotion) slide.set(e.translationX);
+    })
     .onEnd((e, success) => {
-      // A drag interrupted by an alert or a system gesture moves nothing.
-      if (!success) return;
-      if (e.translationX < -60) runOnJS(step)(1);
-      else if (e.translationX > 60) runOnJS(step)(-1);
+      // Far enough, or flicked: go. Otherwise it springs back. A drag
+      // interrupted by an alert or a system gesture moves nothing.
+      const far = Math.abs(e.translationX) > width * 0.25 || Math.abs(e.velocityX) > 600;
+      if (success && far && e.translationX !== 0) {
+        runOnJS(leave)(e.translationX < 0 ? 1 : -1);
+      } else {
+        runOnJS(settle)();
+      }
     });
   const liveWindows = plan?.hours.windows ?? [];
   const windowEditable = isToday && day.away === null && !day.cleared;
@@ -482,7 +552,7 @@ export default function TodayScreen() {
         onSelect={select}
         onOpenKind={() => setKindSheet(true)}
         onOpenScore={() => setScoreSheet(true)}
-        onStep={step}
+        onStep={(d: number) => leave(d < 0 ? -1 : 1)}
         topInset={headerInset}
         layout={layout}
         reduceMotion={reduceMotion}
@@ -495,10 +565,10 @@ export default function TodayScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
+        <Animated.View style={[styles.slide, slideStyle]}>
         {day.finalized ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-            This day has settled. You can still change it — editing it now will move the week and
-            month it belongs to.
+            Settled. You can still edit it.
           </AppText>
         ) : null}
 
@@ -531,13 +601,11 @@ export default function TodayScreen() {
         {/* A rest day (ADR-0037): automatic, never offered or chosen. */}
         {day.restDay ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-            Nothing’s due today — a rest day. It starts at 70; activities add up to 30, and anything
-            you do early counts on top.
+            Rest day. It starts at 70.
           </AppText>
         ) : day.nothingDue && day.kind !== "rest" ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
-            Nothing’s due today. Do something from later in the week and it becomes a rest day —
-            70, plus what you did.
+            Nothing’s due today.
           </AppText>
         ) : null}
 
@@ -578,8 +646,7 @@ export default function TodayScreen() {
         {!day.hasSnapshot ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.centerText}>
-              Your day starts with a plan. Sort what matters into tiers first, and the day builds
-              itself.
+              Sort your priorities to start your plan.
             </AppText>
             <Button label="Set your priorities" onPress={() => router.push("/priorities" as Href)} theme={theme} />
           </View>
@@ -732,6 +799,7 @@ export default function TodayScreen() {
             Grades are guidelines, not judgments.
           </AppText>
         </View>
+        </Animated.View>
       </ScrollView>
       </GestureDetector>
 
@@ -771,6 +839,9 @@ export default function TodayScreen() {
               () => refresh(),
             );
           }}
+          date={day.date}
+          windowStart={windowSheetShown.start}
+          onAdded={() => void refresh()}
         />
       ) : null}
 
@@ -959,8 +1030,9 @@ const styles = StyleSheet.create({
     paddingTop: space.sm,
     paddingBottom: space.xl,
     flexGrow: 1,
-    gap: space.md,
   },
+  /** The day itself, which slides as you change days. */
+  slide: { flexGrow: 1, gap: space.md },
   spacer: { flexGrow: 1, minHeight: space.xl },
   stateNote: { marginTop: space.md },
   empty: { gap: space.lg, marginTop: space.xxl },

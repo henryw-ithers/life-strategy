@@ -35,7 +35,7 @@ export default function TabsLayout() {
   const opaque = { backgroundColor: theme.canvas };
   return (
     <View style={[styles.root, opaque]}>
-      <NativeTabs minimizeBehavior="onScrollDown" tintColor={theme.ink}>
+      <NativeTabs minimizeBehavior="onScrollDown" tintColor={theme.accent}>
         <NativeTabs.Trigger name="(home)" contentStyle={opaque}>
           <NativeTabs.Trigger.Icon sf="sun.max" />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>

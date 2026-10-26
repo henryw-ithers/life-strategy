@@ -199,7 +199,7 @@ export function EventSheet({
         />
 
         {/* When comes first: an event is defined by it. */}
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <View style={[styles.card, { backgroundColor: theme.fill }]}>
           <Segmented
             segments={REPEATS}
             value={repeat}

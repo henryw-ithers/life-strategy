@@ -14,8 +14,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { CommitmentDetail } from "../../db/commitments";
-import { type ThemeTokens, unitHue, wash } from "../../theme/colors";
-import { radius, space } from "../../theme/tokens";
+import { type ThemeTokens, unitHue } from "../../theme/colors";
+import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Group } from "../ui/Group";
 
@@ -36,35 +36,10 @@ export function CommitmentsList({
 }: CommitmentsListProps) {
   return (
     <>
-      {commitments.length > 0 ? (
-        <View style={[styles.band, { backgroundColor: wash(hue, theme) }]}>
-          <AppText variant="headline" color={theme.ink}>
-            Shares come from your day
-          </AppText>
-          <AppText variant="caption" color={theme.muted}>
-            On a day with commitment work, each commitment takes its time
-            that day: its events and scheduled tasks, out of your working
-            hours. The rest of your life keeps what is left.
-          </AppText>
-        </View>
-      ) : null}
-
       {commitments.length === 0 ? (
-        <View style={styles.empty}>
-          <AppText color={theme.ink} style={styles.centred}>
-            A commitment is something with a schedule that takes a real part
-            of your week.
-          </AppText>
-          <AppText
-            variant="caption"
-            color={theme.muted}
-            style={styles.centred}
-          >
-            School, a job, a team. Its classes or shifts live inside it, and
-            its work is scored from its own share of the day rather than
-            competing with the rest of your life.
-          </AppText>
-        </View>
+        <AppText variant="caption" color={theme.muted}>
+          None yet. For example: School, Work, Basketball club.
+        </AppText>
       ) : (
         <Group theme={theme} flush>
           {commitments.map((c, i) => (
@@ -165,14 +140,6 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  band: {
-    gap: space.xs,
-    borderRadius: radius.lg,
-    padding: space.lg,
-    // Nothing below it: a Group carries its own top margin, and the
-    // empty state its own padding.
-    marginTop: space.sm,
-  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -183,6 +150,4 @@ const styles = StyleSheet.create({
   },
   pip: { width: 10, height: 10, borderRadius: 5 },
   grow: { flex: 1 },
-  empty: { gap: space.sm, paddingVertical: space.xxl },
-  centred: { textAlign: "center" },
 });
