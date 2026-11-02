@@ -62,16 +62,18 @@ interface HomeSectionCardProps {
   theme: ThemeTokens;
 }
 
-/** What a folded section says: how many tasks it holds, or for a window
- *  that's over with nothing left, how many were done there. Never what
- *  wasn't done. */
+/** What a folded section says. One still to come, how many tasks it
+ *  holds; one that's over, only how many were done there, and nothing
+ *  while it still holds open rows, so it never counts what wasn't done
+ *  (P7, P8). */
 export function foldedLabel(section: HomeSection, state: WindowState): string {
   const n = section.rows.length + (section.kind === "window" ? section.overflow.length : 0);
-  if (n > 0) return `${n} ${n === 1 ? "task" : "tasks"}`;
-  if (section.kind === "window" && state === "past" && section.window.done.length > 0) {
-    return `✓ ${section.window.done.length} done`;
+  if (state === "past") {
+    return n === 0 && section.kind === "window" && section.window.done.length > 0
+      ? `✓ ${section.window.done.length} done`
+      : "";
   }
-  return "";
+  return n > 0 ? `${n} ${n === 1 ? "task" : "tasks"}` : "";
 }
 
 export function HomeSectionCard({

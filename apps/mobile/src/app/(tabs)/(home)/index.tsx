@@ -458,6 +458,15 @@ export default function TodayScreen() {
   const dropTask = (taskId: string, fromKey: string, to: DropTarget) => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (to.sectionKey === OTHERS_KEY) {
+      // A pin is taken off for today; a suggestion is swapped out of its
+      // window, as ⇄ does.
+      const from = sections.find((s) => s.key === fromKey);
+      const pinned = from?.kind === "window" && from.window.pinned.some((p) => p.taskId === taskId);
+      if (from?.kind === "window" && !pinned) {
+        const start = from.window.range.start;
+        setDeclined((d) => new Map(d).set(start, new Set([...(d.get(start) ?? []), taskId])));
+        return;
+      }
       void saveThen(() => unpinForDay(taskId, day.date), () => refresh());
       return;
     }

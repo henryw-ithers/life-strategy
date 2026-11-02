@@ -198,6 +198,21 @@ describe("pins: one live pin per task per day (§2.7)", () => {
 });
 
 describe("old pins aren't kept (§7)", () => {
+  it("forgets which window a past tick was filed under, so kept pins can't be counted (ADR-0048)", async () => {
+    testDb()
+      .insert(taskCompletion)
+      .values([
+        { id: "old", taskId: "gym", localDate: MON, completedAt: MON, pointsEarned: 1, windowStart: 540 },
+        { id: "now", taskId: "errand", localDate: "2026-10-21", completedAt: "2026-10-21", pointsEarned: 1, windowStart: 540 },
+      ])
+      .run();
+    clock.today = "2026-10-21";
+    await pruneEndedPins();
+    const rows = testDb().select().from(taskCompletion).all();
+    expect(rows.find((r) => r.id === "old")?.windowStart).toBeNull();
+    expect(rows.find((r) => r.id === "now")?.windowStart).toBe(540);
+  });
+
   it("deletes ended pins, keeping a pin until done that still carries an open task", async () => {
     await pinForDay("gym", MON, 540, "window");
     await pinForDay("errand", MON, 540, "untilDone");

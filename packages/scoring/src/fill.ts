@@ -252,19 +252,21 @@ function windowHolding(windows: readonly TimeRange[], m: number): number | null 
 /**
  * The day's windows, filled (windows-and-pins.md §§2–3).
  *
- * 1. **Pins** go to the window holding their time (`resolvePin`). Today,
- *    a window pin in a window that has ended is finished: its task
- *    carries forward like any other. A pin until done moves, still
- *    pinned, to the first window still to come (§2.9). A pin with no
- *    window left that day is listed under Other open tasks.
+ * The clock moves nothing (ADR-0048): a window that has ended keeps
+ * what it holds, so the day reads the same at 8am and at 10pm.
+ *
+ * 1. **Pins** go to the window holding their time (`resolvePin`), ended
+ *    or not. One carried from an earlier day goes to the first window
+ *    still to come (§2.9). A pin with no window that day is listed
+ *    under Other open tasks.
  * 2. **Timed tasks** go in the window holding their time; with none,
- *    they show at their time. One whose window has ended carries
- *    forward like any other.
- * 3. **Suggestions**: in each window still to come, in order, the
- *    ranked tasks that fit the room left (its length × `fill`, less what
- *    is done, pinned and timed there). A task too big for every window
- *    still to come doesn't fit today (EC-12); the rest are "More for
- *    today".
+ *    they show at their time.
+ * 3. **Suggestions**: in each window, in order, the ranked tasks that
+ *    fit the room left (its length × `fill`, less what is done, pinned
+ *    and timed there). A task with a part of the day goes only in a
+ *    window touching it, or in that part's own section when none does.
+ *    A task too big for every window doesn't fit today (EC-12); the
+ *    rest are "More for today".
  */
 export function planDay(input: PlanDayInput): PlannedDay {
   const windows = normalizeWindows(input.windows);
