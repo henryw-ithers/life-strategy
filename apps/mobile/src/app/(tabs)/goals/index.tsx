@@ -160,7 +160,8 @@ export default function LifeScreen() {
   const unitMenu = (u: LifeUnitRow) => () => {
     const here = priority.placement.find((p) => p.unitId === u.id)?.tier;
     showActions(u.name, [
-      ...(here && here !== "unsorted" && here !== "notNow"
+      // A weight's recommendation settles once every unit has a tier.
+      ...(here && here !== "unsorted" && here !== "notNow" && priority.unsorted === 0
         ? [{ label: "Your weight", onPress: () => setWeighing(u.id) }]
         : []),
       ...TIERS.filter((t) => t !== here).map((t) => ({
