@@ -76,7 +76,7 @@ import {
   type Weekday,
 } from "./planning";
 import { SchedulePicker, SizePicker, type OneOffState } from "./SchedulePicker";
-import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
+import { NO_DETAIL, type TaskDetail } from "./taskDetail";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 import { guessUnit, needsDays } from "./unitSelection";
 

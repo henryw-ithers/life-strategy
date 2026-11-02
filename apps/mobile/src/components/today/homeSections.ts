@@ -17,6 +17,8 @@ import {
   type TimeRange,
 } from "@glide/scoring";
 
+import type { WindowState } from "./homeDay";
+
 export type Part = PartOfDay | "anytime";
 
 export const PART_LABEL: Record<Part, string> = {
@@ -185,4 +187,18 @@ export function doneGroups(input: {
     else groups[i]!.taskIds.push(id);
   }
   return [...groups, { range: null, taskIds: rest }].filter((g) => g.taskIds.length > 0);
+}
+
+/** What a folded section says. One still to come, how many tasks it
+ *  holds; one that's over, only how many were done there, and nothing
+ *  while it still holds open rows, so it never counts what wasn't done
+ *  (P7, P8). */
+export function foldedLabel(section: HomeSection, state: WindowState): string {
+  const n = section.rows.length + (section.kind === "window" ? section.overflow.length : 0);
+  if (state === "past") {
+    return n === 0 && section.kind === "window" && section.window.done.length > 0
+      ? `✓ ${section.window.done.length} done`
+      : "";
+  }
+  return n > 0 ? `${n} ${n === 1 ? "task" : "tasks"}` : "";
 }

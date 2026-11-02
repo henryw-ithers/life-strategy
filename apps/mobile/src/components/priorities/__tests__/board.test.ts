@@ -1,129 +1,10 @@
 /**
- * The Priorities board as one list (ADR-0041 §1): the four tier headers
- * are fixed rows, and a unit's tier is the header above it.
+ * Your priorities as a board (ADR-0041 §1, on Life since ADR-0048):
+ * dropping a unit into a tier, and a first run sorted before it saves.
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  boardRows,
-  headerTier,
-  inTiers,
-  moveTo,
-  moveToTier,
-  moveWithinTier,
-  placementFromRows,
-  sortedPlacement,
-  type BoardUnit,
-} from "../board";
-
-const placement = [
-  { unitId: "a", tier: "top" as const },
-  { unitId: "b", tier: "important" as const },
-  { unitId: "c", tier: "important" as const },
-  { unitId: "d", tier: "notNow" as const },
-];
-
-describe("boardRows", () => {
-  it("lists every tier's header, even an empty one, then its units", () => {
-    expect(boardRows(placement)).toEqual([
-      "tier:top",
-      "a",
-      "tier:important",
-      "b",
-      "c",
-      "tier:background",
-      "tier:notNow",
-      "d",
-    ]);
-  });
-
-  it("round-trips through placementFromRows", () => {
-    expect(placementFromRows(boardRows(placement))).toEqual(placement);
-  });
-});
-
-describe("placementFromRows", () => {
-  it("gives a unit dropped past a header that header's tier", () => {
-    // `c` dragged up above Important's header joins Top, last.
-    const rows = ["tier:top", "a", "c", "tier:important", "b", "tier:background", "tier:notNow", "d"];
-    expect(placementFromRows(rows)).toEqual([
-      { unitId: "a", tier: "top" },
-      { unitId: "c", tier: "top" },
-      { unitId: "b", tier: "important" },
-      { unitId: "d", tier: "notNow" },
-    ]);
-  });
-
-  it("puts a unit dragged above every header in Top", () => {
-    expect(placementFromRows(["a", "tier:top", "tier:important", "b"])[0]).toEqual({
-      unitId: "a",
-      tier: "top",
-    });
-  });
-});
-
-describe("headerTier", () => {
-  it("reads a header row's tier, and nothing else as one", () => {
-    expect(headerTier("tier:background")).toBe("background");
-    expect(headerTier("tier:nope")).toBeNull();
-    expect(headerTier("a")).toBeNull();
-  });
-});
-
-describe("moveToTier", () => {
-  it("moves a unit to the end of another tier, for VoiceOver's Move to tier", () => {
-    expect(moveToTier(placement, "a", "important")).toEqual([
-      { unitId: "b", tier: "important" },
-      { unitId: "c", tier: "important" },
-      { unitId: "a", tier: "important" },
-      { unitId: "d", tier: "notNow" },
-    ]);
-  });
-
-  it("leaves the board alone for a unit already in that tier", () => {
-    expect(moveToTier(placement, "b", "important")).toEqual(placement);
-  });
-});
-
-describe("moveWithinTier", () => {
-  it("swaps a unit with its neighbour inside its own tier", () => {
-    expect(moveWithinTier(placement, "c", -1).map((p) => p.unitId)).toEqual(["a", "c", "b", "d"]);
-    expect(moveWithinTier(placement, "b", 1).map((p) => p.unitId)).toEqual(["a", "c", "b", "d"]);
-  });
-
-  it("doesn't cross into another tier", () => {
-    expect(moveWithinTier(placement, "b", -1)).toEqual(placement);
-    expect(moveWithinTier(placement, "a", 1)).toEqual(placement);
-  });
-});
-
-describe("Unsorted, on a first run", () => {
-  const fresh = [
-    { unitId: "a", tier: "unsorted" as const },
-    { unitId: "b", tier: "unsorted" as const },
-  ];
-
-  it("shows above Top while it holds a unit, and goes once it's empty", () => {
-    expect(boardRows(fresh).slice(0, 4)).toEqual(["tier:unsorted", "a", "b", "tier:top"]);
-    const sorted = moveToTier(moveToTier(fresh, "a", "top"), "b", "notNow");
-    expect(boardRows(sorted)[0]).toBe("tier:top");
-    expect(boardRows(sorted)).not.toContain("tier:unsorted");
-  });
-
-  it("keeps a unit below Unsorted's header unsorted", () => {
-    expect(placementFromRows(boardRows(fresh))).toEqual(fresh);
-  });
-
-  it("can't be saved until every unit is in a tier", () => {
-    const half = moveToTier(fresh, "a", "important");
-    expect(sortedPlacement(half)).toBeNull();
-    expect(inTiers(half)).toEqual([{ unitId: "a", tier: "important" }]);
-    expect(sortedPlacement(moveToTier(half, "b", "top"))).toEqual([
-      { unitId: "b", tier: "top" },
-      { unitId: "a", tier: "important" },
-    ]);
-  });
-});
+import { inTiers, moveTo, sortedPlacement, type BoardUnit } from "../board";
 
 describe("moveTo", () => {
   const start: BoardUnit[] = [
@@ -144,5 +25,22 @@ describe("moveTo", () => {
   it("reorders within a tier, and fills an empty one", () => {
     expect(moveTo(start, "b", "top", 0).map((p) => p.unitId)).toEqual(["b", "a", "c"]);
     expect(moveTo(start, "c", "notNow", 0)).toEqual([...start.slice(0, 2), { unitId: "c", tier: "notNow" }]);
+  });
+});
+
+describe("a first run", () => {
+  const fresh: BoardUnit[] = [
+    { unitId: "a", tier: "unsorted" },
+    { unitId: "b", tier: "unsorted" },
+  ];
+
+  it("can't be saved until every unit is in a tier", () => {
+    const half = moveTo(fresh, "a", "important", 0);
+    expect(sortedPlacement(half)).toBeNull();
+    expect(inTiers(half)).toEqual([{ unitId: "a", tier: "important" }]);
+    expect(sortedPlacement(moveTo(half, "b", "top", 0))).toEqual([
+      { unitId: "b", tier: "top" },
+      { unitId: "a", tier: "important" },
+    ]);
   });
 });

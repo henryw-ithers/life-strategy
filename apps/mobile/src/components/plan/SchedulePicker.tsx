@@ -38,7 +38,7 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
-import type { TaskDetail } from "./TaskDetailPicker";
+import type { TaskDetail } from "./taskDetail";
 import { WeekdayPicker } from "./WeekdayPicker";
 
 export interface OneOffState {

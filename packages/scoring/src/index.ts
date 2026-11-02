@@ -158,7 +158,6 @@ export type {
 } from "./fill";
 export {
   overlapsPart,
-  partOfDayOf,
   planDay,
   sizeMinutes,
   sortOpenTasks,

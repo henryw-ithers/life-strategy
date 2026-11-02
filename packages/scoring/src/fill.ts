@@ -197,15 +197,6 @@ export function overlapsPart(w: TimeRange, part: PartOfDay): boolean {
   return [0, 24 * 60].some((shift) => w.start < b.end + shift && w.end > b.start + shift);
 }
 
-/** Which part of the day a window mostly sits in, by its midpoint. A
- *  late window past midnight is evening. */
-export function partOfDayOf(w: TimeRange): PartOfDay {
-  const mid = (w.start + w.end) / 2;
-  if (mid < PART_OF_DAY_BOUNDS.afternoon.start) return "morning";
-  if (mid < PART_OF_DAY_BOUNDS.evening.start) return "afternoon";
-  return "evening";
-}
-
 /** Minutes of a window suggestions may fill: its length × `fill`,
  *  rounded down to whole minutes so a boundary fit is exact. */
 function capacity(w: TimeRange, fill: number): number {

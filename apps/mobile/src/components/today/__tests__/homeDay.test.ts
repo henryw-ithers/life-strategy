@@ -1,11 +1,9 @@
 /**
  * Home's day in words and states (spec §5.1).
  */
-import type { PlannedWindow } from "@glide/scoring";
 import { describe, expect, it } from "vitest";
 
 import {
-  closedLabel,
   eveningFrom,
   openIndex,
   passCardDue,
@@ -17,18 +15,6 @@ import {
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 const r = (start: number, end: number) => ({ start, end });
 const windows = [r(h(8, 30), h(10, 50)), r(h(12, 40), h(16)), r(h(18, 10), h(21, 30))];
-
-const win = (over: Partial<PlannedWindow> = {}): PlannedWindow => ({
-  range: windows[0]!,
-  ended: false,
-  done: [],
-  pinned: [],
-  timed: [],
-  suggested: [],
-  showAll: [],
-  full: false,
-  ...over,
-});
 
 describe("which window is open", () => {
   it("is the one you're in, or the next one", () => {
@@ -70,14 +56,6 @@ describe("time left", () => {
     expect(timeLeft(r(h(12, 40), h(16)), h(15, 25))).toBe("35 min left");
     expect(timeLeft(r(h(12, 40), h(16)), h(14))).toBe("2 h left");
     expect(timeLeft(r(h(12, 40), h(16)), h(12))).toBe("Starts at 12:40");
-  });
-});
-
-describe("a closed window", () => {
-  it("says how many were done, or only its times; never what wasn't", () => {
-    expect(closedLabel(win({ done: ["a", "b"] }), "past")).toBe("✓ 2 done");
-    expect(closedLabel(win({ suggested: [{ taskId: "a", reason: "due" }] }), "past")).toBe("");
-    expect(closedLabel(win({ suggested: [{ taskId: "a", reason: "due" }] }), "later")).toBe("1 task");
   });
 });
 

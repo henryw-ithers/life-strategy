@@ -43,7 +43,7 @@ import {
 } from "./planning";
 import { SchedulePicker, SizePicker, type OneOffState } from "./SchedulePicker";
 import type { OneOffSize } from "./OneOffPicker";
-import { type TaskDetail } from "./TaskDetailPicker";
+import { type TaskDetail } from "./taskDetail";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 import { needsDays } from "./unitSelection";
 

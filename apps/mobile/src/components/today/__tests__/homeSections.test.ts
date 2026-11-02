@@ -5,7 +5,7 @@
 import { planDay, type OpenTask, type PlanDayInput } from "@glide/scoring";
 import { describe, expect, it } from "vitest";
 
-import { anchorOf, doneGroups, homeSections, inYourOrder, partOfMinute, windowKey } from "../homeSections";
+import { anchorOf, doneGroups, foldedLabel, homeSections, inYourOrder, partOfMinute, windowKey } from "../homeSections";
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 const task = (taskId: string, over: Partial<OpenTask> = {}): OpenTask => ({
@@ -87,5 +87,25 @@ describe("what's done", () => {
       { range: windows[1], taskIds: ["a"] },
       { range: null, taskIds: ["c"] },
     ]);
+  });
+});
+
+describe("a folded window", () => {
+  const section = (over: { rows?: string[]; done?: string[] }) => {
+    const planned = plan({
+      windows: [{ start: h(9), end: h(12) }],
+      open: (over.rows ?? []).map((id) => task(id)),
+      done: (over.done ?? []).map((taskId) => ({ taskId, size: "quick" as const, minute: h(10) })),
+    });
+    return homeSections({ planned, partOf: () => null, dayOrder: new Map() })[0]!;
+  };
+
+  it("counts only what's done once it's over, and nothing while tasks are open", () => {
+    expect(foldedLabel(section({ done: ["a", "b"] }), "past")).toBe("✓ 2 done");
+    expect(foldedLabel(section({ rows: ["a"], done: ["b"] }), "past")).toBe("");
+  });
+
+  it("says how many tasks one still to come holds", () => {
+    expect(foldedLabel(section({ rows: ["a"] }), "later")).toBe("1 task");
   });
 });
