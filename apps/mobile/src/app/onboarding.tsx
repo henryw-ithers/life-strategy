@@ -139,10 +139,10 @@ export default function OnboardingScreen() {
           <AppText variant="title" color={theme.muted}>
             +
           </AppText>
-          <Figure value="10" label="anything else you did" theme={theme} />
+          <Figure value="10" label="anything you didn’t plan" theme={theme} />
         </View>
         <AppText color={theme.ink} style={styles.lead}>
-          Do what the day asked and it scores 90. A score is a guide, never a verdict, and it’s only yours.
+          On most days, doing what you planned scores 90. A score is a guide, never a verdict, and it’s only yours.
         </AppText>
       </OnboardingPage>
     );

@@ -320,10 +320,7 @@ export default function LifeScreen() {
           canMoveDown={false}
           theme={theme}
           onMove={() => undefined}
-          onSave={({ tier, override: own }) => {
-            if (tier !== weighingTier) priority.moveToEnd(weighingShown, tier);
-            else if (tier !== "notNow") priority.setOverride(weighingShown, own);
-          }}
+          onSave={({ tier, override: own }) => priority.setUnit(weighingShown, tier, own)}
           onClose={() => setWeighing(null)}
         />
       ) : null}

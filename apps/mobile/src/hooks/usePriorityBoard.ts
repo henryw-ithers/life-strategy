@@ -100,6 +100,20 @@ export function usePriorityBoard(onSaved: () => void) {
     move(unitId, tier, count);
   };
 
+  /** From the unit's sheet: its tier and your own weight, saved together. */
+  const setUnit = (unitId: string, tier: Tier, value: number | null) => {
+    const here = placement.find((p) => p.unitId === unitId)?.tier;
+    const next =
+      here === tier
+        ? placement
+        : moveTo(placement, unitId, tier, placement.filter((p) => p.tier === tier && p.unitId !== unitId).length);
+    const own = tier === "notNow" || value === live.recommended.get(unitId) ? null : value;
+    const nextOverrides = new Map(overrides);
+    if (own === null) nextOverrides.delete(unitId);
+    else nextOverrides.set(unitId, own);
+    confirmNotNow(unitId, tier, () => void commit(next, nextOverrides));
+  };
+
   /** Your own weight, or null for the recommended one. */
   const setOverride = (unitId: string, value: number | null) => {
     const own = value === live.recommended.get(unitId) ? null : value;
@@ -113,7 +127,7 @@ export function usePriorityBoard(onSaved: () => void) {
    *  any, then every tier, empty or not, so each can take a drop. */
   const slots: Slot[] = [...(unsorted > 0 ? (["unsorted"] as const) : []), ...TIERS];
 
-  return { board, placement, overrides, live, unsorted, slots, reload, move, moveToEnd, setOverride };
+  return { board, placement, overrides, live, unsorted, slots, reload, move, moveToEnd, setOverride, setUnit };
 }
 
 export const SLOT_LABEL: Record<Slot, string> = { ...TIER_LABEL, unsorted: "Unsorted" };
