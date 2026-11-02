@@ -111,3 +111,24 @@ export function moveWithinTier(
   next[j] = unit;
   return next;
 }
+
+/**
+ * Drop a unit into a section at a place among the units already there
+ * (Life's drag, ADR-0048): `index` counts that section's units without
+ * the one being moved. Sections stay in order, top first.
+ */
+export function moveTo(
+  placement: readonly BoardUnit[],
+  unitId: string,
+  slot: Slot,
+  index: number,
+): BoardUnit[] {
+  if (!placement.some((p) => p.unitId === unitId)) return [...placement];
+  const rest = placement.filter((p) => p.unitId !== unitId);
+  return SLOTS.flatMap((t) => {
+    const here = rest.filter((p) => p.tier === t);
+    if (t !== slot) return here;
+    const at = Math.max(0, Math.min(index, here.length));
+    return [...here.slice(0, at), { unitId, tier: slot }, ...here.slice(at)];
+  });
+}

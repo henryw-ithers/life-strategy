@@ -8,10 +8,12 @@ import {
   boardRows,
   headerTier,
   inTiers,
+  moveTo,
   moveToTier,
   moveWithinTier,
   placementFromRows,
   sortedPlacement,
+  type BoardUnit,
 } from "../board";
 
 const placement = [
@@ -120,5 +122,27 @@ describe("Unsorted, on a first run", () => {
       { unitId: "b", tier: "top" },
       { unitId: "a", tier: "important" },
     ]);
+  });
+});
+
+describe("moveTo", () => {
+  const start: BoardUnit[] = [
+    { unitId: "a", tier: "top" },
+    { unitId: "b", tier: "top" },
+    { unitId: "c", tier: "important" },
+  ];
+
+  it("drops a unit into another tier at the place it was let go", () => {
+    expect(moveTo(start, "a", "important", 1)).toEqual([
+      { unitId: "b", tier: "top" },
+      { unitId: "c", tier: "important" },
+      { unitId: "a", tier: "important" },
+    ]);
+    expect(moveTo(start, "a", "important", 0).map((p) => p.unitId)).toEqual(["b", "a", "c"]);
+  });
+
+  it("reorders within a tier, and fills an empty one", () => {
+    expect(moveTo(start, "b", "top", 0).map((p) => p.unitId)).toEqual(["b", "a", "c"]);
+    expect(moveTo(start, "c", "notNow", 0)).toEqual([...start.slice(0, 2), { unitId: "c", tier: "notNow" }]);
   });
 });

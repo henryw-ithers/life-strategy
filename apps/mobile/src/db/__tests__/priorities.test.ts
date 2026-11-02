@@ -122,6 +122,22 @@ describe("savePriorities", () => {
     expect(units.find((u) => u.id !== "exercise" && u.weight !== null)?.recommendedWeight).toBeNull();
   });
 
+  it("folds a same-day save into that day's snapshot, and starts a new one the next day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 19, 12));
+    try {
+      await savePriorities(plan({ exercise: "top" }), new Map(), { sameDay: true });
+      await savePriorities(plan({ sleep: "top" }), new Map(), { sameDay: true });
+      expect(testDb().select().from(snapshot).all()).toHaveLength(1);
+      expect((await loadPriorities()).units[0]).toMatchObject({ unitId: "sleep", tier: "top" });
+      // Without it, each save is its own snapshot, as Done always made.
+      await savePriorities(plan({ friends: "top" }), new Map());
+      expect(testDb().select().from(snapshot).all()).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refuses a plan with every unit in Not now", async () => {
     await expect(
       savePriorities(
