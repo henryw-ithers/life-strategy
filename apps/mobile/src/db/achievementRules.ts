@@ -23,7 +23,6 @@ import {
   gradeRuns,
   inScheduleOn,
   isoWeekday,
-  localDateOf,
   parseWeekdays,
   storedDayScore,
   tickMinutes,
@@ -39,6 +38,7 @@ import {
 } from "@glide/scoring";
 
 import { awayDatesBetween, commitmentRoots } from "./windowRules";
+import { localDateAt } from "../lib/calendar";
 
 export interface AchievementFacts {
   today: string;
@@ -138,7 +138,7 @@ const countBy = <T>(rows: readonly T[], key: (row: T) => string | null): Map<str
 /** A task's first day: when it was made, or its own first day if
  *  that's later. */
 function firstDay(t: AchievementFacts["tasks"][number]): string {
-  const made = localDateOf(new Date(t.createdAt));
+  const made = localDateAt(new Date(t.createdAt));
   return t.repeatFrom !== null && t.repeatFrom > made ? t.repeatFrom : made;
 }
 

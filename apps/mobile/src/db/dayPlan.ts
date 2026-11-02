@@ -10,10 +10,8 @@
  */
 import {
   addDays,
-  DAY_END_LIMIT,
   appliesOn,
   dayHours,
-  dayMinute,
   pinsOn,
   planDay,
   totalMinutes,
@@ -27,11 +25,11 @@ import {
 } from "@glide/scoring";
 import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, dayMinuteAt, todayEnd } from "../lib/calendar";
 import { db } from "./client";
 import {
-  eventRange,
   eventsOn,
+  eventTimesOn,
   isFlexible,
   spreadDays,
   spreadsTo,
@@ -221,7 +219,7 @@ export async function loadWeek(date: string): Promise<WeekDay[]> {
     const hours = hoursOn(date, {
       versions,
       ...rows,
-      events: eventsOn(events, date).map(eventRange),
+      events: eventTimesOn(events, date, todayEnd()),
       setAside: marker === "away" || marker === "dayOff" || clears.has(date),
     });
     out.push({
@@ -249,7 +247,7 @@ async function clearedBetween(start: string, end: string): Promise<Set<string>> 
 function minuteOfTick(completedAt: string, date: string): number | null {
   const at = new Date(completedAt);
   if (Number.isNaN(at.getTime())) return null;
-  const m = dayMinute(at.getHours(), at.getMinutes());
+  const m = dayMinuteAt(at);
   // Before the rollover the wall-clock date is the next day's.
   const wall = m >= 24 * 60 ? addDays(date, 1) : date;
   const local = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
@@ -296,7 +294,7 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
   const hours = hoursOn(date, {
     versions,
     ...rows,
-    events: dayEvents.map(eventRange),
+    events: eventTimesOn(events, date, todayEnd()),
     setAside,
   });
 
@@ -327,7 +325,7 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
     .filter((t) => t !== null);
 
   const now =
-    date === today ? dayMinute(at.getHours(), at.getMinutes()) : date < today ? DAY_END_LIMIT : null;
+    date === today ? dayMinuteAt(at) : date < today ? todayEnd() : null;
   // Every tick on the day is done, so it's never suggested again. One
   // logged afterwards, or with a time that can't be read, sits in no
   // window (minute -1) rather than being left open.

@@ -8,7 +8,6 @@
  * nothing here touches a score, a weight or the plan.
  */
 import {
-  localDateOf,
   ranksReached,
   RANKS,
   seriesById,
@@ -19,7 +18,7 @@ import {
 import { and, asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, localDateAt } from "../lib/calendar";
 import {
   highestRank,
   runShown,
@@ -92,7 +91,7 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
       // only when it was ticked on the day it's for.
       .map(({ completedAt, ...c }) => {
         const at = new Date(completedAt);
-        return { ...c, hour: localDateOf(at) === c.localDate ? at.getHours() : null };
+        return { ...c, hour: localDateAt(at) === c.localDate ? at.getHours() : null };
       }),
     grades: tx
       .select({

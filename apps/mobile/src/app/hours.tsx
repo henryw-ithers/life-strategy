@@ -56,7 +56,7 @@ import { loadDayPlan } from "../db/dayPlan";
 import { loadHoursVersions, saveHoursFrom, setDayOverride } from "../db/hours";
 import { hoursProblem } from "../db/windowRules";
 import { recordProblem } from "../lib/problemLog";
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, endFromClock, startFromClock } from "../lib/calendar";
 import { templateFor } from "../lib/onboardingTemplates";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
@@ -330,7 +330,12 @@ function RangeRow({
     <TimeFieldRow style={styles.range}>
       <TimeField
         minutes={range.start}
-        onChange={(start) => onChange({ start, end: Math.max(range.end, start + 15) })}
+        // Moving the start keeps the length; times before the day starts
+        // are after midnight, the same day (ADR-0049).
+        onChange={(clock) => {
+          const start = startFromClock(clock);
+          onChange({ start, end: start + (range.end - range.start) });
+        }}
         label={`${label}, starts`}
         accent={theme.accent}
         theme={theme}
@@ -338,8 +343,8 @@ function RangeRow({
       <AppText color={theme.muted}>–</AppText>
       <TimeField
         minutes={range.end}
-        min={range.start + 15}
-        onChange={(end) => onChange({ ...range, end })}
+        // Earlier on the clock than the start is the next morning.
+        onChange={(clock) => onChange({ ...range, end: endFromClock(range.start, clock) })}
         label={`${label}, ends`}
         accent={theme.accent}
         theme={theme}

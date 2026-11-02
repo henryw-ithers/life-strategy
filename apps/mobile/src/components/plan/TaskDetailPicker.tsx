@@ -29,6 +29,7 @@ import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { Segmented } from "./Segmented";
+import { endFromClock, startFromClock } from "../../lib/calendar";
 
 export interface TaskDetail {
   /** Minutes from local midnight, or null for no clock time. */
@@ -105,7 +106,8 @@ export function TaskDetailPicker({
   /** Moving the start drags the end with it, keeping the span — the
    *  behaviour every calendar has, and the one that does not quietly
    *  shorten a block you already sized. */
-  const setStart = (m: number) => {
+  const setStart = (clock: number) => {
+    const m = startFromClock(clock);
     const span =
       value.startMinute !== null && value.endMinute !== null
         ? value.endMinute - value.startMinute
@@ -113,13 +115,15 @@ export function TaskDetailPicker({
     onChange({
       ...value,
       startMinute: m,
-      endMinute: span === null ? value.endMinute : Math.min(1439, m + span),
+      endMinute: span === null ? value.endMinute : m + span,
     });
   };
 
-  const setEnd = (m: number) => {
-    const floor = value.startMinute === null ? 0 : value.startMinute + MIN_SPAN;
-    onChange({ ...value, endMinute: Math.min(1439, Math.max(m, floor)) });
+  /** Earlier on the clock than the start is the next day (ADR-0049). */
+  const setEnd = (clock: number) => {
+    if (value.startMinute === null) return;
+    const end = endFromClock(value.startMinute, clock);
+    onChange({ ...value, endMinute: Math.max(end, value.startMinute + MIN_SPAN) });
   };
 
   return (
@@ -160,7 +164,7 @@ export function TaskDetailPicker({
           <ValueRow
             label="Starts"
             empty="No time"
-            onSet={() => setStart(defaultFor("start", value))}
+            onSet={() => onChange({ ...value, startMinute: defaultFor("start", value) })}
             // Clearing a start clears the end too: an end on its own is
             // not a block, and the grid would have nothing to draw.
             onClear={() =>
@@ -182,14 +186,13 @@ export function TaskDetailPicker({
             <ValueRow
               label="Ends"
               empty="Open-ended"
-              onSet={() => setEnd(defaultFor("end", value))}
+              onSet={() => onChange({ ...value, endMinute: defaultFor("end", value) })}
               onClear={() => onChange({ ...value, endMinute: null })}
               theme={theme}
             >
               {value.endMinute !== null ? (
                 <TimeField
                   minutes={value.endMinute}
-                  min={Math.min(1439, value.startMinute + MIN_SPAN)}
                   onChange={setEnd}
                   label="Ends"
                   accent={accent}
@@ -252,7 +255,7 @@ export function TaskDetailPicker({
  *  scroll away from before you can pick one. */
 function defaultFor(which: "start" | "end", d: TaskDetail): number {
   if (which === "start") return 9 * 60;
-  return Math.min(1439, (d.startMinute ?? 9 * 60) + 30);
+  return (d.startMinute ?? 9 * 60) + 30;
 }
 
 /**

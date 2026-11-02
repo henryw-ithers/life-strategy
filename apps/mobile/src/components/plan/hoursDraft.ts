@@ -16,7 +16,9 @@ import {
   type TimeRange,
   type Weekday,
   type WorkSchedule,
+  dayEnd,
 } from "@glide/scoring";
+import { dayStartHour } from "../../lib/calendar";
 
 /** What the editor holds: the template as you're changing it. */
 export interface HoursDraft {
@@ -59,7 +61,8 @@ export function nextRange(ranges: readonly TimeRange[]): TimeRange | null {
   const last = [...ranges].sort((a, b) => b.end - a.end)[0];
   const start = last ? last.end + DRAW_GAP : 9 * 60;
   const end = start + 60;
-  return end <= 24 * 60 ? { start, end } : null;
+  // A range may start up to the next day's start and run past it.
+  return start < dayEnd(dayStartHour()) ? { start, end } : null;
 }
 
 /** A new group with the days no group has yet, or null when every day

@@ -58,6 +58,20 @@ export const eventRange = (e: EventRow): TimeRange => ({
   end: e.endMinute!,
 });
 
+/**
+ * The time `date`'s windows are kept clear of: its own events, and the
+ * tail of any from the day before that runs on past the start of this
+ * one (ADR-0049). A night shift stays the day it started, but you're
+ * still at work when the next day begins.
+ */
+export function eventTimesOn(rows: readonly EventRow[], date: string, dayEndMinute: number): TimeRange[] {
+  const own = eventsOn(rows, date).map(eventRange);
+  const spill = eventsOn(rows, addDays(date, -1))
+    .filter((e) => e.endMinute! > dayEndMinute)
+    .map((e) => ({ start: Math.max(0, e.startMinute! - 24 * 60), end: e.endMinute! - 24 * 60 }));
+  return [...spill, ...own];
+}
+
 /** A unit's tier as `planDay` ranks it. A commitment, which has no
  *  tier, ranks with Important: its work is scheduled, not ranked. */
 export function tierRankOf(tier: string | null | undefined): TierRank {

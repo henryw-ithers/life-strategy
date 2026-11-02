@@ -16,7 +16,6 @@
  */
 import {
   addDays,
-  dayMinute,
   isoWeekday,
   planDay,
   specialDayBonus,
@@ -104,6 +103,7 @@ import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { spokenDate } from "../../../lib/format";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
+import { dayMinuteAt } from "../../../lib/calendar";
 
 const SORT_KEY = "open_tasks_sort";
 const SORTS: readonly OpenSort[] = ["suggested", "dueDate", "size", "priority", "points"];
@@ -112,7 +112,7 @@ const SORTS: readonly OpenSort[] = ["suggested", "dueDate", "size", "priority", 
 function useNowMinute(): number {
   const read = () => {
     const d = new Date();
-    return dayMinute(d.getHours(), d.getMinutes());
+    return dayMinuteAt(d);
   };
   const [now, setNow] = useState(read);
   useEffect(() => {

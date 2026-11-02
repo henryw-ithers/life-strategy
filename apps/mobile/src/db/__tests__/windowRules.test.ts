@@ -67,9 +67,9 @@ describe("stored hours", () => {
     ).toBe("A day can be in only one group.");
     expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [{ start: 60, end: 30 }] }], [])).not.toBeNull();
     expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [nineToFive] }], [])).toBeNull();
-    // A range may run past midnight until the rollover (EC-01).
-    expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [{ start: 22 * 60, end: 26 * 60 }] }], [])).toBeNull();
-    expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [{ start: 22 * 60, end: 28 * 60 }] }], [])).not.toBeNull();
+    // A range may run overnight, for up to a day (ADR-0049).
+    expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [{ start: 22 * 60, end: 30 * 60 }] }], [])).toBeNull();
+    expect(hoursProblem("2026-10-19", [{ weekdays: [1], ranges: [{ start: 22 * 60, end: 46 * 60 + 1 }] }], [])).not.toBeNull();
   });
 });
 

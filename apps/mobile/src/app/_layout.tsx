@@ -25,6 +25,7 @@ import { runDataMigrations } from "../db/migrations";
 import { pruneEndedPinsToday } from "../db/pins";
 import { archiveEndedSeries } from "../db/seriesWrites";
 import { syncTaxonomy } from "../db/seed";
+import { loadDayStart } from "../db/settings";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
 import { getTheme, type ThemeTokens } from "../theme/colors";
@@ -205,6 +206,8 @@ function MigrationGate() {
     // Taxonomy first: data fixups may reference units it seeds.
     syncTaxonomy(db)
       .then(runDataMigrations)
+      // When the day starts, before anything asks what day it is.
+      .then(loadDayStart)
       // Old pins aren't kept (windows-and-pins §7). A cleanup that fails
       // is logged and the app opens anyway: a leftover pin is a smaller
       // problem than an app that won't start.

@@ -17,6 +17,7 @@ import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { NativeSheet } from "../ui/NativeSheet";
+import { dayStartHour, endFromClock, startFromClock } from "../../lib/calendar";
 
 interface WindowTimesSheetProps {
   visible: boolean;
@@ -63,7 +64,7 @@ export function WindowTimesSheet({
     }
   }
 
-  const invalid = rangeError(range);
+  const invalid = rangeError(range, dayStartHour());
   const save = async () => {
     if (saving || invalid !== null) return;
     setSaving(true);
@@ -104,7 +105,12 @@ export function WindowTimesSheet({
         </AppText>
         <TimeField
           minutes={range.start}
-          onChange={(start) => setRange((r) => ({ start, end: Math.max(r.end, start + 30) }))}
+          onChange={(clock) =>
+            setRange((r) => {
+              const start = startFromClock(clock);
+              return { start, end: start + (r.end - r.start) };
+            })
+          }
           label="Starts"
           accent={theme.accent}
           theme={theme}
@@ -116,8 +122,7 @@ export function WindowTimesSheet({
         </AppText>
         <TimeField
           minutes={range.end}
-          min={range.start + 15}
-          onChange={(end) => setRange((r) => ({ ...r, end }))}
+          onChange={(clock) => setRange((r) => ({ ...r, end: endFromClock(r.start, clock) }))}
           label="Ends"
           accent={theme.accent}
           theme={theme}

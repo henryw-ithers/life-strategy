@@ -53,7 +53,9 @@ describe("groups and ranges", () => {
 
   it("adds a range a quarter hour after the last", () => {
     expect(nextRange([{ start: h(9), end: h(12) }])).toEqual({ start: h(12, 15), end: h(13, 15) });
-    expect(nextRange([{ start: h(9), end: h(23, 30) }])).toBeNull();
+    // Past midnight is still the day, until the next one starts at 3am.
+    expect(nextRange([{ start: h(9), end: h(23, 30) }])).toEqual({ start: h(23, 45), end: h(24, 45) });
+    expect(nextRange([{ start: h(9), end: h(26, 50) }])).toBeNull();
   });
 
   it("adds a group with the days left", () => {

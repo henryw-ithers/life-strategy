@@ -30,7 +30,10 @@ const clock = vi.hoisted(() => ({ today: "2026-10-19" }));
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
 vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
-vi.mock("../../lib/calendar", () => ({ currentLocalDate: () => clock.today }));
+vi.mock("../../lib/calendar", async (original) => ({
+  ...(await original<typeof import("../../lib/calendar")>()),
+  currentLocalDate: () => clock.today,
+}));
 
 const MON = "2026-10-19";
 

@@ -5,6 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 
+import { applyDayStart } from "../lib/calendar";
 import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
 import { appSetting } from "./schema";
@@ -52,6 +53,23 @@ export async function eventsDefaultOnce(): Promise<boolean> {
 
 export async function setEventsDefaultOnce(on: boolean): Promise<void> {
   await setSetting(EVENTS_ONCE_KEY, on ? "1" : "0");
+}
+
+const DAY_START_KEY = "day.startHour";
+
+/** Read the stored day start into the clock (ADR-0049). At launch,
+ *  before anything asks what day it is. */
+export async function loadDayStart(): Promise<void> {
+  const stored = await getSetting(DAY_START_KEY);
+  if (stored !== null) applyDayStart(Number(stored));
+}
+
+/** Change when the day starts, 0–23. */
+export async function setDayStart(hour: number): Promise<void> {
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new Error("The day must start on an hour.");
+  await setSetting(DAY_START_KEY, String(hour));
+  applyDayStart(hour);
+  await markGradesStale();
 }
 
 const SCORE_EXPLAINED_KEY = "score.explained";

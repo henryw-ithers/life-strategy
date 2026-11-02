@@ -48,6 +48,7 @@ import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
   eventsDefaultOnce,
+  setDayStart,
   setEventsDefaultOnce,
   setNotificationEnabled,
   setNotificationTime,
@@ -55,7 +56,8 @@ import {
 } from "../db/settings";
 import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, dayStartHour } from "../lib/calendar";
+import { HourStepper } from "../components/ui/HourStepper";
 import { askClearToday } from "../components/today/clearToday";
 import { hhmmToMinutes } from "../lib/pickerValues";
 import { loadDay } from "../db/today";
@@ -88,6 +90,7 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   /** New events start one-time (ADR-0040 §6). */
   const [eventsOnce, setEventsOnce] = useState(false);
+  const [dayStart, setDayStartShown] = useState(dayStartHour);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
@@ -300,6 +303,26 @@ export default function SettingsScreen() {
         {/* Day-level changes (ADR-0040 §§4–5). Clear today is also in
             Home's ⋯. */}
         <Group theme={theme} title="Your days" flush>
+          {/* When a day begins and ends (ADR-0049): for nights and shifted
+              schedules. Anything started before the next day begins is
+              that day's, however late it runs. */}
+          <View style={[styles.row, styles.inset]}>
+            <View style={styles.grow}>
+              <AppText color={theme.ink}>Day starts at</AppText>
+              <AppText variant="footnote" color={theme.muted}>
+                Anything you start before then counts for the day before.
+              </AppText>
+            </View>
+            <HourStepper
+              hour={dayStart}
+              onChange={(h) => {
+                setDayStartShown(h);
+                void saveThen(() => setDayStart(h), () => undefined, retry);
+              }}
+              theme={theme}
+            />
+          </View>
+          <GroupDivider theme={theme} />
           <SettingsRow
             label="Time away"
             onPress={() => router.push("/away" as Href)}

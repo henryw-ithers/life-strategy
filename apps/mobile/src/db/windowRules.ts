@@ -14,7 +14,7 @@
  */
 import {
   addDays,
-  DAY_END_LIMIT,
+  dayEnd,
   isFinalized,
   isLocalDate,
   isoWeekday,
@@ -33,6 +33,7 @@ import {
 } from "@glide/scoring";
 
 import { MAX_CHOICE_TASKS } from "./commitmentPlan";
+import { dayStartHour } from "../lib/calendar";
 
 // ── Working hours ───────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ function readRange(value: unknown): TimeRange | null {
   const { start, end } = value as { start?: unknown; end?: unknown };
   if (typeof start !== "number" || typeof end !== "number") return null;
   const range = { start, end };
-  return rangeError(range) === null ? range : null;
+  return rangeError(range, dayStartHour()) === null ? range : null;
 }
 
 function readWeekdays(value: unknown): Weekday[] {
@@ -127,7 +128,7 @@ export function toHoursVersion(row: {
 
 function rangesProblem(ranges: readonly TimeRange[]): string | null {
   for (const r of ranges) {
-    const problem = rangeError(r);
+    const problem = rangeError(r, dayStartHour());
     if (problem !== null) return problem;
   }
   return null;
@@ -156,7 +157,7 @@ export function hoursProblem(
   for (const g of gaps) {
     if (g.name.trim() === "") return "A gap needs a name.";
     if (g.weekdays.length === 0 || !g.weekdays.every(isWeekday)) return "A gap needs its days.";
-    const problem = rangeError(g.range);
+    const problem = rangeError(g.range, dayStartHour());
     if (problem !== null) return problem;
   }
   return null;
@@ -241,8 +242,8 @@ export type DayEditInput =
 export function dayEditProblem(localDate: string, edit: DayEditInput, today: string): string | null {
   if (!isLocalDate(localDate)) return `Not a date: ${localDate}`;
   if (localDate < today) return "A past day's windows can't be changed.";
-  if (edit.kind === "change") return rangeError(edit.from) ?? rangeError(edit.to);
-  return rangeError(edit.range);
+  if (edit.kind === "change") return rangeError(edit.from, dayStartHour()) ?? rangeError(edit.to, dayStartHour());
+  return rangeError(edit.range, dayStartHour());
 }
 
 // ── Pins ────────────────────────────────────────────────────────────
@@ -299,7 +300,7 @@ export type PinWhen =
 /** What's wrong with a pin about to be saved, or null. Pins are made
  *  from today on, never on a past day (§2.4). */
 export function pinProblem(anchor: number, when: PinWhen, today: string): string | null {
-  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= DAY_END_LIMIT) {
+  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= dayEnd(dayStartHour())) {
     return "A pin's time must be within the day.";
   }
   if (when.repeat === "once") {

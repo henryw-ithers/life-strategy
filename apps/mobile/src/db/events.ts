@@ -12,6 +12,7 @@
  * That is the one place a clock time is required (ADR-0036 is about
  * tasks, and stays true of them).
  */
+import { MAX_RANGE } from "@glide/scoring";
 
 export interface EventInput {
   title: string;
@@ -52,6 +53,7 @@ export function eventProblem(a: EventInput): string | null {
   if (a.endMinute - a.startMinute < MIN_EVENT_MINUTES) {
     return "It has to end at least 15 minutes after it starts.";
   }
+  if (a.endMinute - a.startMinute > MAX_RANGE) return "An event can run for a day at most.";
   return null;
 }
 

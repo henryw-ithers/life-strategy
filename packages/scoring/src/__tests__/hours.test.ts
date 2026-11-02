@@ -9,6 +9,7 @@ import {
   currentWindow,
   dayHours,
   dayMinute,
+  endAfter,
   dayPhase,
   DEFAULT_RANGES,
   rangeError,
@@ -64,7 +65,15 @@ describe("where windows come from (§1.1)", () => {
   it("lets a range run past midnight up to the rollover, and no further (EC-01)", () => {
     expect(rangeError(r(h(20), h(25)))).toBeNull();
     expect(rangeError(r(h(20), h(27)))).toBeNull();
-    expect(rangeError(r(h(20), h(28)))).toMatch(/rolls over/);
+    // Overnight, any length up to a day (ADR-0049): a 10pm–6am shift.
+    expect(rangeError(r(h(22), h(30)))).toBeNull();
+    expect(rangeError(r(h(20), h(44)))).toBeNull();
+    expect(rangeError(r(h(20), h(44) + 1))).toMatch(/a day at most/);
+    // A start must fall in the day: before the next day starts.
+    expect(rangeError(r(h(26), h(28)))).toBeNull();
+    expect(rangeError(r(h(27), h(28)))).toMatch(/start during the day/);
+    // A day that starts at 2pm runs to 2pm the next day.
+    expect(rangeError(r(h(37), h(39)), 14)).toBeNull();
     expect(rangeError(r(h(10), h(9)))).toMatch(/after it starts/);
   });
 });
@@ -197,6 +206,14 @@ describe("the current window (§1.3)", () => {
   it("counts the small hours as the day before (EC-07)", () => {
     expect(dayMinute(1, 30)).toBe(h(25, 30));
     expect(dayMinute(3, 0)).toBe(h(3));
+    expect(dayMinute(9, 0, 14)).toBe(h(33));
+  });
+
+  it("puts an end earlier on the clock than its start on the next day", () => {
+    expect(endAfter(h(22), h(6))).toBe(h(30));
+    expect(endAfter(h(9), h(17))).toBe(h(17));
+    expect(endAfter(h(9), h(9))).toBe(h(33));
+    expect(endAfter(h(25), h(2))).toBe(h(26));
     const late = [r(h(22), h(26))];
     expect(currentWindow(late, dayMinute(1, 30))).toEqual(r(h(22), h(26)));
   });

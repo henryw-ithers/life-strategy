@@ -18,7 +18,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { eventProblem, type EventInput } from "../../db/events";
 import { addDays } from "@glide/scoring";
 import type { Bounds } from "../../db/seriesRules";
-import { currentLocalDate } from "../../lib/calendar";
+import { currentLocalDate, endFromClock, startFromClock } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -166,11 +166,15 @@ export function EventSheet({
   /** Moving the start keeps the length, as every calendar does. A
    *  first start brings an hour-long end with it, unless an end was
    *  already chosen. */
-  const pickStart = (m: number) => {
+  const pickStart = (clock: number) => {
+    const m = startFromClock(clock);
     setStart(m);
-    if (start !== null && end !== null) setEnd(Math.min(1439, m + (end - start)));
-    else if (end === null) setEnd(Math.min(1439, m + 60));
+    if (start !== null && end !== null) setEnd(m + (end - start));
+    else if (end === null) setEnd(m + 60);
   };
+  /** An end earlier on the clock than the start is the next day: a
+   *  night shift is one event (ADR-0049). */
+  const pickEnd = (clock: number) => setEnd(endFromClock(start ?? 9 * 60, clock));
 
   return (
     <NativeSheet onDismissed={onDismissed}
@@ -260,7 +264,10 @@ export function EventSheet({
           <PickRow
             label="Starts"
             empty="Pick a time"
-            onSet={() => pickStart(9 * 60)}
+            onSet={() => {
+              setStart(9 * 60);
+              if (end === null) setEnd(10 * 60);
+            }}
             theme={theme}
           >
             {start !== null ? (
@@ -270,11 +277,11 @@ export function EventSheet({
           <PickRow
             label="Ends"
             empty="Pick a time"
-            onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
+            onSet={() => setEnd((start ?? 9 * 60) + 60)}
             theme={theme}
           >
             {end !== null ? (
-              <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
+              <TimeField minutes={end} onChange={pickEnd} label="Ends" accent={accent} theme={theme} />
             ) : null}
           </PickRow>
         </View>
