@@ -27,7 +27,7 @@ import { Pressable, StyleSheet, Switch, View } from "react-native";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { TimeField } from "../ui/DateTimeField";
+import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { Segmented } from "./Segmented";
 
 export interface TaskDetail {
@@ -279,7 +279,7 @@ function ValueRow({
 }) {
   const set = children !== null && children !== undefined;
   return (
-    <View style={styles.valueRow}>
+    <TimeFieldRow style={styles.valueRow}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
@@ -316,7 +316,7 @@ function ValueRow({
           </AppText>
         </Pressable>
       ) : null}
-    </View>
+    </TimeFieldRow>
   );
 }
 

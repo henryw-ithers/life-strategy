@@ -15,7 +15,7 @@ import { StyleSheet, Switch, View } from "react-native";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { TimeField } from "../ui/DateTimeField";
+import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { NativeSheet } from "../ui/NativeSheet";
 
 interface WindowTimesSheetProps {
@@ -98,7 +98,7 @@ export function WindowTimesSheet({
         <Switch value={weekly} onValueChange={setWeekly} accessibilityLabel={`Every ${weekdayName}`} />
       </View>
       )}
-      <View style={styles.row}>
+      <TimeFieldRow style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Starts
         </AppText>
@@ -109,8 +109,8 @@ export function WindowTimesSheet({
           accent={theme.accent}
           theme={theme}
         />
-      </View>
-      <View style={styles.row}>
+      </TimeFieldRow>
+      <TimeFieldRow style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Ends
         </AppText>
@@ -122,7 +122,7 @@ export function WindowTimesSheet({
           accent={theme.accent}
           theme={theme}
         />
-      </View>
+      </TimeFieldRow>
       {problem ?? invalid ? (
         <AppText
           variant="caption"

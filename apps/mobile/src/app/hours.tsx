@@ -46,7 +46,7 @@ import { formatWeekdaySummary } from "../components/plan/planning";
 import { WeekdayPicker } from "../components/plan/WeekdayPicker";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
-import { TimeField } from "../components/ui/DateTimeField";
+import { FieldScope, TimeField, TimeFieldRow } from "../components/ui/DateTimeField";
 import { Group } from "../components/ui/Group";
 import { InfoButton } from "../components/ui/InfoButton";
 import { KeyboardScroll } from "../components/ui/KeyboardScroll";
@@ -148,7 +148,7 @@ export default function HoursScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+    <FieldScope style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
           variant="done"
@@ -309,7 +309,7 @@ export default function HoursScreen() {
         </>
       )}
       </KeyboardScroll>
-    </View>
+    </FieldScope>
   );
 }
 
@@ -327,7 +327,7 @@ function RangeRow({
   onRemove?: () => void;
 }) {
   return (
-    <View style={styles.range}>
+    <TimeFieldRow style={styles.range}>
       <TimeField
         minutes={range.start}
         onChange={(start) => onChange({ start, end: Math.max(range.end, start + 15) })}
@@ -356,7 +356,7 @@ function RangeRow({
           <Ionicons name="remove-circle" size={22} color={theme.danger} />
         </Pressable>
       ) : null}
-    </View>
+    </TimeFieldRow>
   );
 }
 

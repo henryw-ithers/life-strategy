@@ -43,7 +43,7 @@ import { LoadFailure, saveThen, useScreenLoad } from "../components/ui/ScreenLoa
 import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
-import { TimeField } from "../components/ui/DateTimeField";
+import { FieldScope, TimeField, TimeFieldRow } from "../components/ui/DateTimeField";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
@@ -217,7 +217,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <FieldScope style={styles.root}>
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
@@ -256,7 +256,7 @@ export default function SettingsScreen() {
             </View>
 
             {settings.enabled ? (
-              <View style={styles.timeRow}>
+              <TimeFieldRow style={styles.timeRow}>
                 <AppText color={theme.ink} style={styles.grow}>
                   Time
                 </AppText>
@@ -267,7 +267,7 @@ export default function SettingsScreen() {
                   accent={theme.accent}
                   theme={theme}
                 />
-              </View>
+              </TimeFieldRow>
             ) : null}
 
             {deniedAtOs ? (
@@ -419,7 +419,7 @@ export default function SettingsScreen() {
         ) : null}
       </ScrollView>
 
-    </View>
+    </FieldScope>
   );
 }
 

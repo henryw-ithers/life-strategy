@@ -23,7 +23,7 @@ import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { DayField, TimeField } from "../ui/DateTimeField";
+import { DayField, TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { KeyboardScroll } from "../ui/KeyboardScroll";
 import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
@@ -331,7 +331,7 @@ function PickRow({
 }) {
   const set = children !== null && children !== undefined;
   return (
-    <View style={styles.row}>
+    <TimeFieldRow style={styles.row}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
@@ -347,7 +347,7 @@ function PickRow({
           <AppText color={theme.muted}>{empty}</AppText>
         </Pressable>
       )}
-    </View>
+    </TimeFieldRow>
   );
 }
 
