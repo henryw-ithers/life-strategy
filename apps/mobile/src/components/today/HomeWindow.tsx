@@ -88,7 +88,18 @@ export function HomeSectionCard({
   const windowStart = isWindow ? section.window.range.start : null;
   const title = isWindow ? spanLabel(section.window.range) : PART_LABEL[section.part];
   const spoken = isWindow ? `window ${spokenSpan(section.window.range)}` : PART_LABEL[section.part];
-  const right = expanded ? (open && now !== null && range ? timeLeft(range, now) : "") : foldedLabel(section, state);
+  // "Now" only inside it; the window you're waiting for is "Next".
+  const inside = open && (now === null || range === null || now >= range.start);
+  const lead = open ? (inside ? "NOW · " : "NEXT · ") : "";
+  const past = state === "past";
+  // A window that's over says so, in the same quiet words as Plan.
+  const right = expanded
+    ? inside && now !== null && range
+      ? timeLeft(range, now)
+      : past
+        ? "Over"
+        : ""
+    : foldedLabel(section, state) || (past ? "Over" : "");
   const overflow = isWindow ? section.overflow : [];
   const shownRows = showAll ? [...section.rows, ...overflow] : section.rows;
   const [over, attach] = useDropTarget(section.key, shownRows.map((r) => r.taskId));
@@ -100,11 +111,11 @@ export function HomeSectionCard({
       onPress={onToggleExpanded}
       accessibilityRole="button"
       accessibilityState={{ expanded }}
-      accessibilityLabel={`${open ? "Now, " : ""}${spoken}${right ? `, ${right}` : ""}`}
+      accessibilityLabel={`${open ? (inside ? "Now, " : "Next, ") : ""}${spoken}${right ? `, ${right}` : ""}`}
       style={styles.header}
     >
-      <AppText variant="label" color={open ? theme.accent : theme.ink} tabular style={styles.grow}>
-        {open ? "NOW · " : ""}
+      <AppText variant="label" color={open ? theme.accent : past ? theme.muted : theme.ink} tabular style={styles.grow}>
+        {lead}
         {title}
       </AppText>
       {right ? (

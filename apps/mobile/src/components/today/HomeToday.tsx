@@ -28,6 +28,7 @@ import { cardStyle } from "../../theme/surfaces";
 import { space } from "../../theme/tokens";
 import { spanLabel, timeline } from "../plan/dayView";
 import { AppText } from "../ui/AppText";
+import { ExpandChevron } from "../ui/ExpandChevron";
 import { DragRow, useDropTarget } from "./DayDrag";
 import { openIndex, situationLine, windowState, type WindowState } from "./homeDay";
 import { doneGroups, type HomeSection } from "./homeSections";
@@ -229,9 +230,12 @@ export function HomeToday({
             accessibilityState={{ expanded: othersOpen }}
             style={styles.othersHeader}
           >
-            <AppText variant="label" color={theme.ink}>
-              {othersOpen ? "▾" : "▸"} Other open tasks ({otherCount})
-            </AppText>
+            <View style={styles.othersTitle}>
+              <AppText variant="label" color={theme.ink}>
+                Other open tasks ({otherCount})
+              </AppText>
+              <ExpandChevron open={othersOpen} color={theme.muted} size={13} />
+            </View>
           </Pressable>
           {othersOpen
             ? groups.map((g) =>
@@ -294,5 +298,6 @@ const styles = StyleSheet.create({
   groupLabel: { paddingHorizontal: space.xs },
   list: { paddingHorizontal: space.lg, paddingVertical: space.xs },
   othersHeader: { minHeight: 44, justifyContent: "center" },
+  othersTitle: { flexDirection: "row", alignItems: "center", gap: space.xs },
   doneLabel: { paddingTop: space.sm },
 });

@@ -231,6 +231,9 @@ export function SchedulePicker({
                   onPress={() => pickWhen(option)}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: on }}
+                  // 36pt chips with 8pt between rows: the slop makes each
+                  // a 44pt target without overlapping its neighbours.
+                  hitSlop={{ top: 4, bottom: 4 }}
                   style={({ pressed }) => [
                     styles.chip,
                     {

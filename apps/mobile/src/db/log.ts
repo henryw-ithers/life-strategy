@@ -30,6 +30,7 @@ import { type PeriodGrade, type SeriesId } from "@glide/scoring";
 import { desc, inArray } from "drizzle-orm";
 
 import { achievementTitle } from "../lib/achievementCopy";
+import { currentLocalDate } from "../lib/calendar";
 import { db } from "./client";
 import { loadMonthGrade } from "./grades";
 import { photoUriResolver } from "./photos";
@@ -87,6 +88,7 @@ export interface LogMonth {
  * When a real log outgrows this, the fix is a month index, not a cursor.
  */
 export async function loadLog(): Promise<LogMonth[]> {
+  const today = currentLocalDate();
   const [notes, photos, achievements, graded] = await Promise.all([
     db.select().from(journalEntry).orderBy(desc(journalEntry.localDate)),
     db.select().from(photo).orderBy(desc(photo.localDate)),
@@ -145,8 +147,10 @@ export async function loadLog(): Promise<LogMonth[]> {
     const entry = entryFor(g.localDate);
     entry.flagged = g.flagged;
     entry.title = g.title;
+    // Today is still going: its number would read as a score before the
+    // day has had its chance, so the log shows one only once it's over.
     entry.score =
-      g.pointsPossible > 0
+      g.pointsPossible > 0 && g.localDate < today
         ? Math.round((g.pointsEarned / g.pointsPossible) * 100)
         : null;
   }

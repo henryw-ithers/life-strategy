@@ -75,8 +75,11 @@ describe("labels", () => {
   });
 
   it("heads a day with its windows and free time, to the half hour", () => {
-    expect(dayHeading("2026-10-21", 3, 370)).toBe("Wednesday · 3 windows · about 6 h free");
-    expect(dayHeading("2026-10-21", 1, 100)).toBe("Wednesday · 1 window · about 1.5 h free");
+    const plain = (s: string) => s.replace(/ /g, " ");
+    expect(plain(dayHeading("2026-10-21", 3, 370))).toBe("Wednesday · 3 windows · about 6 h free");
+    expect(plain(dayHeading("2026-10-21", 1, 100))).toBe("Wednesday · 1 window · about 1.5 h free");
+    // Phrases hold together: the only ordinary spaces sit beside a dot.
+    expect(dayHeading("2026-10-21", 3, 370)).toContain("about 6 h free");
     expect(dayHeading("2026-10-24", 0, 0)).toBe("Saturday · no windows");
   });
 

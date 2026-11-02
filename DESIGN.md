@@ -261,7 +261,7 @@ picker (ADR-0043 §1).
 ### Drag and drop
 
 Home's tasks and Life's units move by hold-and-drag (`DayDrag`): the row
-lifts into a copy that follows the finger, a line marks where it will
+lifts into a copy, edged in the accent, that follows the finger, a line marks where it will
 land, and the target section is outlined in the accent. Holding and
 letting go without moving opens the row's menu. Every drag has a
 non-drag route: the menu, and a VoiceOver action.

@@ -34,6 +34,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   type SharedValue,
 } from "react-native-reanimated";
@@ -279,8 +280,11 @@ export function DayDrag({ children, onDrop, onDraggingChange, renderGhost, scrol
     [registerSection, registerRow, start, move, finish, reset, ghostTop, active?.id, target?.sectionKey],
   );
 
+  // The lifted copy grows a touch, unless Reduce Motion is on.
+  const reduce = useReducedMotion();
+  const lift = reduce ? 1 : 1.02;
   const ghostStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: ghostTop.value - (active?.rootY ?? 0) }, { scale: 1.02 }],
+    transform: [{ translateY: ghostTop.value - (active?.rootY ?? 0) }, { scale: lift }],
   }));
 
   return (
@@ -305,7 +309,12 @@ export function DayDrag({ children, onDrop, onDraggingChange, renderGhost, scrol
             <Animated.View
               style={[
                 styles.ghost,
-                { left: active.rect.x - active.rootX, width: active.rect.width, backgroundColor: theme.surface },
+                {
+                  left: active.rect.x - active.rootX,
+                  width: active.rect.width,
+                  backgroundColor: theme.surface,
+                  borderColor: theme.accent,
+                },
                 ghostStyle,
               ]}
             >
@@ -414,11 +423,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     borderRadius: radius.md,
-    shadowColor: "#000000",
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    // An accent edge rather than a shadow: DESIGN.md keeps shadows out
+    // of the app, and the outline matches the section it's over.
+    borderWidth: 1.5,
   },
   lifted: { opacity: 0.3 },
 });

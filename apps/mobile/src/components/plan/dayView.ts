@@ -76,13 +76,16 @@ export function fillLabel(planned: number, w: TimeRange): string {
 }
 
 /** "Wednesday · 3 windows · about 6 h free". Free time rounds to the
- *  half hour: the sizes it's set against are rough. */
+ *  half hour: the sizes it's set against are rough. Each phrase holds
+ *  together with no-break spaces, so a narrow phone wraps between
+ *  phrases, never leaving "free" on a line of its own. */
 export function dayHeading(date: string, windows: number, freeMinutes: number): string {
   const weekday = new Date(`${date}T12:00:00`).toLocaleDateString("en-AU", { weekday: "long" });
   if (windows === 0) return `${weekday} · no windows`;
   const half = Math.round(freeMinutes / 30) / 2;
   const free = Number.isInteger(half) ? String(half) : half.toFixed(1);
-  return `${weekday} · ${windows} ${windows === 1 ? "window" : "windows"} · about ${free} h free`;
+  const nb = (phrase: string) => phrase.replace(/ /g, " ");
+  return `${weekday} · ${nb(`${windows} ${windows === 1 ? "window" : "windows"}`)} · ${nb(`about ${free} h free`)}`;
 }
 
 /** "Week of 18 Oct", by the week's Sunday (ADR-0004 §1). */

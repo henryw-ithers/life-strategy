@@ -228,7 +228,7 @@ export default function LifeScreen() {
                 onPress={() => router.push("/goals/achievements" as Href)}
                 accessibilityRole="button"
                 accessibilityLabel="Achievements"
-                style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+                style={({ pressed }) => [styles.achievements, { opacity: pressed ? 0.6 : 1 }]}
               >
                 <Medal rank={topRank} run={false} theme={theme} />
                 <AppText color={theme.ink} style={styles.grow}>
@@ -508,7 +508,7 @@ function UnitRows({
               >
                 <View style={[styles.dot, { backgroundColor: hue }]} />
                 <View style={styles.grow}>
-                  <AppText color={theme.ink} numberOfLines={1}>
+                  <AppText color={theme.ink} numberOfLines={2}>
                     {u.name}
                   </AppText>
                   {/* A share of your time, drawn against the largest. */}
@@ -605,6 +605,8 @@ const styles = StyleSheet.create({
   link: { minHeight: 44, justifyContent: "center" },
   empty: { gap: space.md },
   row: { flexDirection: "row", alignItems: "center", paddingRight: space.sm },
+  /** A settings-style row: 52pt, like the rows in Settings. */
+  achievements: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 52 },
   rowMain: {
     flex: 1,
     flexDirection: "row",

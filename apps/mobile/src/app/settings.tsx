@@ -305,29 +305,31 @@ export default function SettingsScreen() {
             Home's ⋯. */}
         <Group theme={theme} title="Your days" flush>
           {/* When a day begins and ends (ADR-0049): for nights and shifted
-              schedules. Anything started before the next day begins is
-              that day's, however late it runs. */}
-          <View style={[styles.row, styles.inset]}>
-            <View style={styles.grow}>
-              <AppText color={theme.ink}>Day starts at</AppText>
-              <AppText variant="footnote" color={theme.muted}>
-                Anything you start before then counts for the day before.
+              schedules. The note runs under the row at full width, so a
+              narrow phone doesn't squeeze the label into a column. */}
+          <View style={styles.inset}>
+            <View style={styles.row}>
+              <AppText color={theme.ink} style={styles.grow}>
+                Day starts at
               </AppText>
+              <HourStepper
+                hour={dayStart}
+                onChange={(h) => {
+                  setDayStartShown(h);
+                  // Saved once you stop tapping: each change moves every
+                  // stored time onto the new day.
+                  if (dayStartTimer.current) clearTimeout(dayStartTimer.current);
+                  dayStartTimer.current = setTimeout(
+                    () => void saveThen(() => changeDayStart(h), () => undefined, retry),
+                    700,
+                  );
+                }}
+                theme={theme}
+              />
             </View>
-            <HourStepper
-              hour={dayStart}
-              onChange={(h) => {
-                setDayStartShown(h);
-                // Saved once you stop tapping: each change moves every
-                // stored time onto the new day.
-                if (dayStartTimer.current) clearTimeout(dayStartTimer.current);
-                dayStartTimer.current = setTimeout(
-                  () => void saveThen(() => changeDayStart(h), () => undefined, retry),
-                  700,
-                );
-              }}
-              theme={theme}
-            />
+            <AppText variant="footnote" color={theme.muted}>
+              Anything you start before then counts for the day before.
+            </AppText>
           </View>
           <GroupDivider theme={theme} />
           <SettingsRow
@@ -460,8 +462,9 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   grow: { flex: 1 },
-  /** A row inside a flush group, padded as `SettingsRow` is. */
-  inset: { paddingHorizontal: space.lg, paddingVertical: space.sm },
+  /** A row inside a flush group, padded as `SettingsRow` is: the group
+   *  already gives it its sides. */
+  inset: { minHeight: 52, paddingVertical: space.sm },
   resourceLine: { marginTop: -space.xs },
   build: { marginTop: space.xxl, textAlign: "center" },
   link: { flexDirection: "row", alignItems: "center", gap: space.xs },

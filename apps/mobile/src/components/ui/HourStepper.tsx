@@ -1,6 +1,6 @@
 /**
- * An hour of the day, set one hour at a time: "3:00 am" between − and +,
- * wrapping round midnight. For a value that is only ever a whole hour,
+ * An hour of the day, set one hour at a time: "3 am" between − and +,
+ * stopping at midnight and 11pm. For a value that is only ever a whole hour,
  * where a time wheel would offer minutes it can't keep.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -10,11 +10,11 @@ import type { ThemeTokens } from "../../theme/colors";
 import { radius, space, weight } from "../../theme/tokens";
 import { AppText } from "./AppText";
 
-/** `14` → "2:00 pm". */
+/** `14` → "2 pm". */
 export function hourLabel(hour: number): string {
   const h = ((hour % 24) + 24) % 24;
   const twelve = h % 12 === 0 ? 12 : h % 12;
-  return `${twelve}:00 ${h < 12 ? "am" : "pm"}`;
+  return `${twelve} ${h < 12 ? "am" : "pm"}`;
 }
 
 export function HourStepper({
@@ -60,5 +60,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xs,
   },
   button: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  value: { minWidth: 72, textAlign: "center", fontVariant: ["tabular-nums"], fontWeight: weight.medium },
+  value: { minWidth: 56, textAlign: "center", fontVariant: ["tabular-nums"], fontWeight: weight.medium },
 });
