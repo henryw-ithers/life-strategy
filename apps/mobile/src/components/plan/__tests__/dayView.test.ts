@@ -44,7 +44,7 @@ const win = (over: Partial<PlannedWindow> = {}): PlannedWindow => ({
   full: false,
   ...over,
 });
-const pin = (taskId: string) => ({ ruleId: `p-${taskId}`, taskId, kind: "window" as const, extra: false, carried: false });
+const pin = (taskId: string) => ({ ruleId: `p-${taskId}`, taskId, kind: "window" as const, extra: false, carried: false, anchor: 540 });
 
 describe("timeline", () => {
   it("lists windows, events, named gaps and buffers in time order", () => {

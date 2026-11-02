@@ -139,6 +139,8 @@ export interface PlacedPin {
   readonly extra: boolean;
   /** A pin until done carried from an earlier window or day. */
   readonly carried: boolean;
+  /** The time it holds, or null for one carried from an earlier day. */
+  readonly anchor: number | null;
 }
 
 export interface Suggestion {
@@ -320,6 +322,7 @@ export function planDay(input: PlanDayInput): PlannedDay {
       kind: pin.kind,
       extra: pin.extra,
       carried: moved,
+      anchor: pin.carried ? null : pin.anchor,
     };
     if (i === null) {
       unplacedPins.push(placed);

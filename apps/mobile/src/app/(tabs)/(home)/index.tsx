@@ -20,7 +20,6 @@ import {
   planDay,
   specialDayBonus,
   weekStart,
-  type OpenSort,
   type TimeRange,
 } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
@@ -67,13 +66,16 @@ import { CompletionTagSheet } from "../../../components/today/CompletionTagSheet
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
-import { HomeToday, windowId } from "../../../components/today/HomeToday";
+import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
+import { anchorOf, homeSections } from "../../../components/today/homeSections";
+import { HomeToday, OTHERS_KEY, windowId } from "../../../components/today/HomeToday";
+import type { RowExtra } from "../../../components/today/HomeWindow";
 import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
 import { NoteSheet } from "../../../components/today/NoteSheet";
 import { PartialSheet } from "../../../components/today/PartialSheet";
 import { RecordActions } from "../../../components/today/RecordActions";
 import { ScoreSheet } from "../../../components/today/ScoreSheet";
-import { TaskRow } from "../../../components/today/TaskRow";
+import { rowHold, TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { AppText } from "../../../components/ui/AppText";
 import { Backdrop, constellation } from "../../../components/ui/Backdrop";
@@ -83,16 +85,15 @@ import { NativeSheet } from "../../../components/ui/NativeSheet";
 import { saveThen } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
-import { setCompletionFraction, setCompletionTags, toggleCompletion } from "../../../db/completions";
+import { setCompletionFraction, setCompletionTags, setCompletionWindow, toggleCompletion } from "../../../db/completions";
 import { setDayKind } from "../../../db/dayGrades";
 import { addDayEdit } from "../../../db/hours";
 import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
 import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
-import { pinForDay } from "../../../db/pins";
-import { getSetting, setSetting } from "../../../db/settings";
+import { pinForDay, unpinForDay } from "../../../db/pins";
 import { addSkip } from "../../../db/skips";
-import { archiveTask } from "../../../db/tasks";
+import { archiveTask, reorderDayTasks } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
 import { skipProblem, type SkipInput } from "../../../db/windowRules";
@@ -105,8 +106,6 @@ import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { dayMinuteAt } from "../../../lib/calendar";
 
-const SORT_KEY = "open_tasks_sort";
-const SORTS: readonly OpenSort[] = ["suggested", "dueDate", "size", "priority", "points"];
 
 /** The minute of the planning day, now, ticking once a minute. */
 function useNowMinute(): number {
@@ -214,6 +213,13 @@ export default function TodayScreen() {
   const [taggingTask, setTaggingTask] = useState<TodayTask | null>(null);
   const [partialTask, setPartialTask] = useState<TodayTask | null>(null);
   const [movingTask, setMovingTask] = useState<TodayTask | null>(null);
+  /** A tick being filed under another window ("Done in…", ADR-0048). */
+  const [doneInTask, setDoneInTask] = useState<TodayTask | null>(null);
+  const [doneInTaskShown, doneInTaskGone] = useRetained(doneInTask);
+  /** While a row is held, the page holds still under it. */
+  const [dragging, setDragging] = useState(false);
+  const scroller = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
   /** A task to move once the partial sheet has closed (its "Move it"). */
   const moveNext = useRef<TodayTask | null>(null);
   const [taggingTaskShown, taggingTaskGone] = useRetained(taggingTask);
@@ -242,7 +248,6 @@ export default function TodayScreen() {
   const [pulledIn, setPulledIn] = useState<ReadonlyMap<number, number>>(new Map());
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [othersOpen, setOthersOpen] = useState(false);
-  const [sort, setSort] = useState<OpenSort>("suggested");
   const [passHidden, setPassHidden] = useState<string | null>(null);
   const [shownDate, setShownDate] = useState<string | null>(null);
   if (day && day.date !== shownDate) {
@@ -275,9 +280,6 @@ export default function TodayScreen() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   useEffect(() => {
     void isOnboardingComplete().then(setOnboarded);
-    void getSetting(SORT_KEY).then((s) => {
-      if (s && (SORTS as readonly string[]).includes(s)) setSort(s as OpenSort);
-    });
     void passCardHiddenWeek().then(setPassHidden);
   }, []);
 
@@ -300,6 +302,18 @@ export default function TodayScreen() {
       pulledIn,
     });
   }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
+  /** The day as sections you can rearrange (ADR-0048). */
+  const sections = useMemo(
+    () =>
+      planned && plan
+        ? homeSections({
+            planned,
+            partOf: (id) => plan.tasks.get(id)?.partOfDay ?? null,
+            dayOrder: plan.dayOrder,
+          })
+        : [],
+    [planned, plan],
+  );
   /** A day ahead, shown as Plan's day view (spec §5.2). */
   const isFuture = day !== null && day.date > day.today && plan !== null;
   const needsPlan = day !== null && day.date === day.today && plan === null;
@@ -414,43 +428,66 @@ export default function TodayScreen() {
     ]);
   };
 
-  /** Today's windows a task could move to: those still to come. */
+  /** Today's windows a task could move to: any of them, over or not
+   *  (ADR-0048), except the one it's pinned in. */
   const movableTo = (t: TodayTask): TimeRange[] =>
-    (planned?.windows ?? [])
-      .filter((w) => !w.ended && !w.pinned.some((p) => p.taskId === t.id))
-      .map((w) => w.range);
+    (planned?.windows ?? []).filter((w) => !w.pinned.some((p) => p.taskId === t.id)).map((w) => w.range);
 
-  /** A row, with the gestures the day allows on it. */
-  const taskRow = (t: TodayTask, extra: { reason?: string; onSwap?: () => void } = {}) => (
+  /** What a hold on a row can do. */
+  const handlersFor = (t: TodayTask) => ({
+    onTag:
+      t.completedToday && day.editable && day.communalUnits.length > 0 ? () => setTaggingTask(t) : undefined,
+    onPartial:
+      t.allowsPartial && day.editable && t.progress < 1 && t.doneAheadOn === null
+        ? () => setPartialTask(t)
+        : undefined,
+    onMove:
+      isToday && t.kind === "task" && !t.completedToday && movableTo(t).length > 0
+        ? () => setMovingTask(t)
+        : undefined,
+    onDoneIn:
+      isToday && t.kind === "task" && t.completedToday && (planned?.windows.length ?? 0) > 1
+        ? () => setDoneInTask(t)
+        : undefined,
+    onSkip: t.kind === "event" && !t.completedToday && day.date >= day.today ? () => askSkipEvent(t) : undefined,
+    onEdit: day.editable ? () => setEditingItem(t.id) : undefined,
+  });
+
+  /** A task dropped somewhere new on today (ADR-0048): into another
+   *  window or part of the day for today only, and in your order, kept. */
+  const dropTask = (taskId: string, fromKey: string, to: DropTarget) => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (to.sectionKey === OTHERS_KEY) {
+      void saveThen(() => unpinForDay(taskId, day.date), () => refresh());
+      return;
+    }
+    const section = sections.find((s) => s.key === to.sectionKey);
+    if (!section) return;
+    const order = section.rows.map((r) => r.taskId).filter((id) => id !== taskId);
+    order.splice(to.index, 0, taskId);
+    const moved = to.sectionKey !== fromKey;
+    // A part of the day with no window holds only what's kept to it.
+    if (moved && section.kind === "part" && (planned?.windows.length ?? 0) > 0) return;
+    const anchor = section.kind === "window" ? section.window.range.start : anchorOf(section.part);
+    void saveThen(async () => {
+      if (moved) await pinForDay(taskId, day.date, anchor, "window", { order: to.index });
+      await reorderDayTasks(order);
+    }, () => refresh());
+  };
+
+  /** A row, with the gestures the day allows on it. A tick is filed
+   *  under the window the row sits in (ADR-0048). */
+  const taskRow = (t: TodayTask, extra: Partial<RowExtra> = {}) => (
     <TaskRow
       task={t}
       hue={hueFor(t)}
       disabled={!day.editable}
-      onToggle={() => void toggle(t).then(celebration.check)}
-      onTag={
-        t.completedToday && day.editable && day.communalUnits.length > 0
-          ? () => setTaggingTask(t)
-          : undefined
-      }
-      onPartial={
-        t.allowsPartial && day.editable && t.progress < 1 && t.doneAheadOn === null
-          ? () => setPartialTask(t)
-          : undefined
-      }
-      onMove={
-        isToday && t.kind === "task" && !t.completedToday && movableTo(t).length > 0
-          ? () => setMovingTask(t)
-          : undefined
-      }
-      onSkip={
-        t.kind === "event" && !t.completedToday && day.date >= day.today
-          ? () => askSkipEvent(t)
-          : undefined
-      }
-      onEdit={day.editable ? () => setEditingItem(t.id) : undefined}
+      onToggle={() => void toggle(t, extra.windowStart ?? null).then(celebration.check)}
+      {...handlersFor(t)}
       reason={extra.reason}
       onSwap={extra.onSwap}
       trailing={isToday ? "size" : "points"}
+      holdByDrag={extra.dragged === true}
       tagHues={theme.areas}
       theme={theme}
       reduceMotion={reduceMotion}
@@ -479,9 +516,6 @@ export default function TodayScreen() {
       run: () => addDayEdit(day.date, { kind: "remove", range }),
     });
   };
-  const hiddenWindows = new Set(
-    [...undo.hidden].filter((id) => id.startsWith("win-")).map((id) => id.slice(4)),
-  );
 
   const saveTimes = async (range: TimeRange, weekly: boolean): Promise<string | null> => {
     const from = windowSheet?.kind === "times" ? windowSheet.range : undefined;
@@ -570,11 +604,30 @@ export default function TodayScreen() {
         theme={theme}
       />
 
+      <DayDrag
+        onDrop={dropTask}
+        onDraggingChange={setDragging}
+        renderGhost={(id) => {
+          const t = plan?.tasks.get(id);
+          return t ? <View style={styles.ghost}>{taskRow(t, { dragged: true })}</View> : null;
+        }}
+        scroll={{
+          y: () => scrollY.current,
+          to: (y) => scroller.current?.scrollTo({ y, animated: false }),
+        }}
+        theme={theme}
+      >
       <GestureDetector gesture={swipe}>
       <ScrollView
+        ref={scroller}
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
+        scrollEnabled={!dragging}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
       >
         <Animated.View style={[styles.slide, slideStyle]}>
         {day.finalized ? (
@@ -697,19 +750,17 @@ export default function TodayScreen() {
               <HomeToday
                 plan={plan}
                 planned={planned}
+                sections={sections}
                 now={nowMinute}
-                hidden={hiddenWindows}
                 expanded={expanded}
-                onToggleWindow={(id, open) => setExpanded((e) => ({ ...e, [id]: open }))}
+                onToggleSection={(key, open) => setExpanded((e) => ({ ...e, [key]: open }))}
                 ahead={ahead}
                 othersOpen={othersOpen}
                 onToggleOthers={() => setOthersOpen((v) => !v)}
-                sort={sort}
-                onSort={(next) => {
-                  setSort(next);
-                  void setSetting(SORT_KEY, next);
-                }}
                 renderRow={taskRow}
+                holdFor={(t) => rowHold(t, handlersFor(t))?.run}
+                canDrag={(t) => t.kind === "task" && !t.completedToday && t.doneAheadOn === null}
+                reduceMotion={reduceMotion}
                 editable={windowEditable}
                 onSwap={(start, taskId) =>
                   setDeclined((d) => new Map(d).set(start, new Set([...(d.get(start) ?? []), taskId])))
@@ -813,6 +864,7 @@ export default function TodayScreen() {
         </Animated.View>
       </ScrollView>
       </GestureDetector>
+      </DayDrag>
 
       <UndoBar undo={undo} theme={theme} />
 
@@ -899,6 +951,23 @@ export default function TodayScreen() {
             const t = movingTaskShown;
             setMovingTask(null);
             void saveThen(() => pinForDay(t.id, day.date, w.start, "window"), () => refresh());
+          }}
+        />
+      ) : null}
+
+      {doneInTaskShown ? (
+        <MoveToWindowSheet
+          visible={doneInTask !== null}
+          onDismissed={doneInTaskGone}
+          title={`${doneInTaskShown.title}: done in`}
+          taskTitle={doneInTaskShown.title}
+          windows={(planned?.windows ?? []).map((w) => w.range)}
+          theme={theme}
+          onClose={() => setDoneInTask(null)}
+          onPick={(w) => {
+            const t = doneInTaskShown;
+            setDoneInTask(null);
+            void saveThen(() => setCompletionWindow(t.id, day.date, w.start), () => refresh());
           }}
         />
       ) : null}
@@ -1047,6 +1116,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
   loading: { marginTop: space.xxxl },
   body: { flex: 1 },
+  /** The lifted copy of a row, padded as it is in its card. */
+  ghost: { paddingHorizontal: space.lg },
   container: {
     paddingHorizontal: space.screen,
     paddingTop: space.sm,

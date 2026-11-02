@@ -157,6 +157,7 @@ export type {
   TierRank,
 } from "./fill";
 export {
+  overlapsPart,
   partOfDayOf,
   planDay,
   sizeMinutes,

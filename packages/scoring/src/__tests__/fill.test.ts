@@ -221,7 +221,7 @@ describe("pins (§2)", () => {
       pins: [pin("x", { anchor: h(9), kind: "untilDone" })],
     });
     expect(day.windows[0]?.pinned).toEqual([
-      { ruleId: "pin-x", taskId: "x", kind: "untilDone", extra: false, carried: false },
+      { ruleId: "pin-x", taskId: "x", kind: "untilDone", extra: false, carried: false, anchor: h(9) },
     ]);
   });
 
