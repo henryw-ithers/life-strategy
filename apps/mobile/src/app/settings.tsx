@@ -417,9 +417,9 @@ export default function SettingsScreen() {
             only second line left in the list. */}
         <Group theme={theme} title="Start over" flush>
           <SettingsRow
-            label="Run setup again"
-            detail="Priorities, commitments, hours and a few tasks, each one skippable. Nothing is deleted."
-            hint="Opens setup again; nothing you’ve entered is deleted"
+            label="How it works"
+            detail="The opening pages again. Nothing changes."
+            hint="Shows the opening pages again; nothing you’ve entered changes"
             onPress={() => {
               void resetOnboarding().then(() => router.replace("/onboarding"));
             }}

@@ -176,7 +176,6 @@ export default function RootLayout() {
 const PUSHED: [route: string, title: string][] = [
   ["settings", "Settings"],
   // The tiers (ADR-0041), from Life, and from onboarding's step 2.
-  ["priorities/index", "Priorities"],
   ["backup", "Your data"],
   ["away", "Time away"],
   // From Plan's ⋯ menu (spec §5.3.1).

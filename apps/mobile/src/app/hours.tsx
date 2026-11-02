@@ -57,7 +57,6 @@ import { loadHoursVersions, saveHoursFrom, setDayOverride } from "../db/hours";
 import { hoursProblem } from "../db/windowRules";
 import { recordProblem } from "../lib/problemLog";
 import { currentLocalDate, endFromClock, startFromClock } from "../lib/calendar";
-import { templateFor } from "../lib/onboardingTemplates";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -73,10 +72,9 @@ export default function HoursScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const today = currentLocalDate();
-  /** From onboarding (ADR-0045 step 4): `template` fills in hours not
-   *  yet set, and `setup`, sent only when none are, saves them from
+  /** `setup`, sent only when no hours are set yet, saves them from
    *  today with no question. */
-  const { template, setup } = useLocalSearchParams<{ template?: string; setup?: string }>();
+  const { setup } = useLocalSearchParams<{ setup?: string }>();
   const [draft, setDraft] = useState<HoursDraft | null>(null);
   const [events, setEvents] = useState<TimeRange[]>([]);
   const [saving, setSaving] = useState(false);
@@ -85,9 +83,9 @@ export default function HoursScreen() {
     // Only the first load seeds the draft: coming back from a sheet
     // mustn't throw away what you've changed.
     const [versions, plan] = await Promise.all([loadHoursVersions(), loadDayPlan(today)]);
-    setDraft((d) => d ?? draftFrom(versions, today, templateFor(template)?.schedules));
+    setDraft((d) => d ?? draftFrom(versions, today));
     setEvents(plan.events.map((e) => ({ start: e.start, end: e.end })));
-  }, [today, template]);
+  }, [today]);
   const { error, retry } = useScreenLoad(load);
 
   const problem = draft ? hoursProblem(today, draft.schedules, draft.gaps) : null;

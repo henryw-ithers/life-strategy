@@ -719,9 +719,9 @@ export default function TodayScreen() {
         {!day.hasSnapshot ? (
           <View style={styles.empty}>
             <AppText color={theme.ink} style={styles.centerText}>
-              Sort your priorities to start your plan.
+              Sort your units into tiers to start your plan.
             </AppText>
-            <Button label="Set your priorities" onPress={() => router.push("/priorities" as Href)} theme={theme} />
+            <Button label="Sort your units" onPress={() => router.navigate("/goals" as Href)} theme={theme} />
           </View>
         ) : !day.hasTasks && isToday ? (
           <View style={styles.empty}>

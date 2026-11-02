@@ -1,135 +1,63 @@
 /**
- * Onboarding (ADR-0045, amending ADR-0011): seven short steps that end
- * in a working Home, in about three minutes.
+ * Onboarding (ADR-0045 as amended by ADR-0048): a few short pages on
+ * what the app is for and how it works, then where to start. **It
+ * explains and fills nothing in** (Henry, 2026-11-02): no templates, no
+ * starter tasks, no hours set for you.
  *
  * 1. Welcome, with the privacy line (ADR-0011 §4).
- * 2. Priorities: the tiers screen, pushed over this one. Required on a
- *    first run.
- * 3. Commitments: "Anything with set hours?" and up to three
- *    commitments with their events.
- * 4. Working hours: the hours editor, pushed, filled in from step 3.
- * 5. A few tasks: starters for each Top unit, tap to add.
- * 6. Your first week: Plan's week, live, and the one line on the score.
- * 7. The daily reminder, asked before the system asks (ADR-0010), and
- *    the one line about Support resources (ADR-0008). Then Home, which
- *    opens at the current window.
+ * 2. Tiers: what matters most decides what each day is worth.
+ * 3. A day out of 100: planned work, the rest, and scores as a guide.
+ * 4. Your time: windows, ticking whenever suits you, moving anything.
+ * 5. Where to start: your units on Life, then a few tasks.
+ * 6. The daily reminder, asked before the system asks (ADR-0010), and
+ *    the one line about Support resources (ADR-0008).
  *
- * Every step after Priorities can be skipped. Each writes as it goes,
- * and the step you're on is stored, so quitting resumes where you left.
- * Running it again from Settings opens at Priorities with your tiers,
- * deletes nothing, and lets you skip anything (ADR-0045 §2).
- *
- * Priorities and Hours are their own screens, pushed from here: they
- * save on Done and go back. Coming back, a save moves the flow on; a
- * screen backed out of leaves you on the step to try again or skip.
+ * Then Life, to sort your units, or Home if you already have. Each page
+ * is one example and a line or two (an example beats an explanation).
+ * The page you're on is stored, so quitting resumes where you left.
  *
  * Displayed copy carries no em dashes (ADR-0011 action item 5).
  */
-import { router, useFocusEffect, type Href } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, useColorScheme, View } from "react-native";
 
-import { CommitmentsStep } from "../components/onboarding/CommitmentsStep";
-import { FirstWeekStep } from "../components/onboarding/FirstWeekStep";
 import { OnboardingPage } from "../components/onboarding/OnboardingPage";
-import { StarterTasksStep } from "../components/onboarding/StarterTasksStep";
 import { AppText } from "../components/ui/AppText";
 import { constellation } from "../components/ui/Backdrop";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
-import { loadHoursVersions } from "../db/hours";
-import {
-  completeOnboarding,
-  loadOnboardingStep,
-  loadOnboardingTemplate,
-  saveOnboardingStep,
-  saveOnboardingTemplate,
-  type OnboardingStep,
-} from "../db/onboarding";
-import { latestPriorities } from "../db/priorities";
-import {
-  eventsDefaultOnce,
-  hasAskedNotificationPermission,
-  setEventsDefaultOnce,
-} from "../db/settings";
-import { loadPlan, type PlanData } from "../db/tasks";
-import { canSkip, nextStep } from "../lib/onboardingFlow";
-import { templateFor, type TemplateId } from "../lib/onboardingTemplates";
+import { completeOnboarding, loadOnboardingStep, saveOnboardingStep, type OnboardingStep } from "../db/onboarding";
+import { hasPriorities } from "../db/priorities";
+import { hasAskedNotificationPermission } from "../db/settings";
+import { nextStep } from "../lib/onboardingFlow";
 import { recordProblem } from "../lib/problemLog";
 import { askForNudge, declineNudge } from "../notifications/dailyNudge";
-import { getTheme } from "../theme/colors";
-
-/** What a pushed screen looked like before it opened, to see a save. */
-type Awaiting = { screen: "priorities" | "hours"; before: string | null };
-
-/** The hours as stored, to compare before and after the editor. */
-async function hoursFingerprint(): Promise<string> {
-  return JSON.stringify(await loadHoursVersions());
-}
+import { getTheme, type ThemeTokens } from "../theme/colors";
+import { cardStyle } from "../theme/surfaces";
+import { radius, space } from "../theme/tokens";
 
 export default function OnboardingScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
   const [step, setStep] = useState<OnboardingStep | null>(null);
-  const [plan, setPlan] = useState<PlanData | null>(null);
-  const [template, setTemplate] = useState<TemplateId | null>(null);
   const [askedNudge, setAskedNudge] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  /** Set when Priorities or Hours is pushed, read when we come back. A
-   *  ref, so arming it can't re-run the focus effect and cancel the
-   *  push it's waiting on. */
-  const awaiting = useRef<Awaiting | null>(null);
-
   const go = useCallback((next: OnboardingStep) => {
     setStep(next);
-    void saveOnboardingStep(next).catch((e: unknown) =>
-      recordProblem(e, "save"),
-    );
+    void saveOnboardingStep(next).catch((e: unknown) => recordProblem(e, "save"));
   }, []);
 
   const load = useCallback(async () => {
-    const [stored, nextPlan, storedTemplate, asked] = await Promise.all([
-      loadOnboardingStep(),
-      loadPlan(),
-      loadOnboardingTemplate(),
-      hasAskedNotificationPermission(),
-    ]);
-    setPlan(nextPlan);
-    setTemplate(templateFor(storedTemplate)?.id ?? null);
+    const [stored, asked] = await Promise.all([loadOnboardingStep(), hasAskedNotificationPermission()]);
     setAskedNudge(asked);
     // Only the first load sets the step; after that this screen owns it.
     setStep((s) => s ?? stored);
   }, []);
-  const { error, retry, save } = useScreenLoad(load);
+  const { error, retry } = useScreenLoad(load);
 
-  /* Back from Priorities or Hours: a save moves on, backing out stays. */
-  useFocusEffect(
-    useCallback(() => {
-      const waiting = awaiting.current;
-      if (waiting === null) return;
-      awaiting.current = null;
-      let cancelled = false;
-      const after =
-        waiting.screen === "priorities" ? latestPriorities() : hoursFingerprint();
-      void after
-        .then((now) => {
-          if (cancelled || now === waiting.before) return;
-          go(waiting.screen === "priorities" ? "commitments" : "tasks");
-        })
-        .catch((e: unknown) => {
-          // The step stays put, and Skip or a second try still work.
-          recordProblem(e, "load");
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [go]),
-  );
-
-  /** One action at a time. A ref, checked and set in the same tap, so
-   *  two taps in one frame can't both get through; `busy` only greys
-   *  the buttons. */
+  /** One action at a time: a ref checked and set in the same tap. */
   const running = useRef(false);
   const run = async (action: () => Promise<void>) => {
     if (running.current) return;
@@ -150,46 +78,14 @@ export default function OnboardingScreen() {
     }
   };
 
-  const open = (screen: Awaiting["screen"]) =>
-    run(async () => {
-      const before = screen === "priorities" ? await latestPriorities() : await hoursFingerprint();
-      awaiting.current = { screen, before };
-      if (screen === "priorities") router.push("/priorities" as Href);
-      else {
-        // First hours save from today with no question. On a re-run,
-        // with hours already set, the editor asks as it always does.
-        const params = new URLSearchParams();
-        if (before === "[]") params.set("setup", "1");
-        if (template) params.set("template", template);
-        router.push(`/hours?${params.toString()}` as Href);
-      }
-    });
-
-  /** Picking a schedule: remembered for the hours step, and shift work
-   *  makes new events one-time. Moving off shift work turns that back
-   *  off; otherwise Settings' own choice is left alone. */
-  const chooseTemplate = (id: TemplateId) => {
-    setTemplate(id);
-    void save(async () => {
-      const was = await loadOnboardingTemplate();
-      await saveOnboardingTemplate(id);
-      const once = templateFor(id)?.eventsOnce === true;
-      if (once || was === "shifts") {
-        if ((await eventsDefaultOnce()) !== once) await setEventsDefaultOnce(once);
-      }
-    });
-  };
-
-  /** Home, at the current window (ADR-0045 §1 step 7). */
+  /** Where to start: Life to sort your units, or Home once you have. */
   const complete = async () => {
     await completeOnboarding();
-    router.replace("/" as Href);
+    router.replace(((await hasPriorities()) ? "/" : "/goals") as Href);
   };
 
-  const finish = () => run(complete);
-
-  /** The reminder's answer, then Home. A failed ask still finishes:
-   *  the reminder is in Settings either way. */
+  /** The reminder's answer, then on. A failed ask still finishes: the
+   *  reminder is in Settings either way. */
   const remind = (yes: boolean) =>
     run(async () => {
       try {
@@ -201,7 +97,6 @@ export default function OnboardingScreen() {
       await complete();
     });
 
-  const hasSnapshot = plan?.hasSnapshot === true;
   const next = () => step && go(nextStep(step));
 
   if (error) {
@@ -211,8 +106,7 @@ export default function OnboardingScreen() {
       </View>
     );
   }
-
-  if (step === null || plan === null) {
+  if (step === null) {
     return (
       <View style={[styles.screen, styles.center, { backgroundColor: theme.canvas }]}>
         <ActivityIndicator color={theme.muted} />
@@ -220,79 +114,70 @@ export default function OnboardingScreen() {
     );
   }
 
-  if (step === "priorities") {
+  if (step === "tiers") {
     return (
-      <OnboardingPage
-        theme={theme}
-        step="priorities"
-        action={hasSnapshot ? "Look at your tiers" : "Sort your priorities"}
-        onPress={() => void open("priorities")}
-        onSkip={canSkip("priorities", hasSnapshot) ? next : undefined}
-        busy={busy}
-      >
+      <OnboardingPage theme={theme} step="tiers" action="Next" onPress={next}>
         <AppText variant="display" color={theme.ink}>
-          What matters most right now?
+          What matters most?
         </AppText>
         <AppText color={theme.ink} style={styles.lead}>
-          Sort the 18 parts of your life into tiers.
+          Sort 18 parts of your life into tiers. The higher a part sits, the more of each day it’s worth.
         </AppText>
-        <AppText color={theme.muted} style={styles.lead}>
-          Rough is fine. About 30 seconds.
-        </AppText>
+        <TiersExample theme={theme} />
       </OnboardingPage>
     );
   }
 
-  if (step === "commitments") {
+  if (step === "day") {
     return (
-      <OnboardingPage theme={theme} step="commitments" action="Next" onPress={next} top>
-        <CommitmentsStep
-          template={template}
-          onTemplate={chooseTemplate}
-          commitments={plan.commitments}
-          save={save}
-          reload={retry}
-          theme={theme}
-        />
-      </OnboardingPage>
-    );
-  }
-
-  if (step === "hours") {
-    return (
-      <OnboardingPage
-        theme={theme}
-        step="hours"
-        action="Set your hours"
-        onPress={() => void open("hours")}
-        onSkip={next}
-        busy={busy}
-      >
+      <OnboardingPage theme={theme} step="day" action="Next" onPress={next}>
         <AppText variant="display" color={theme.ink}>
-          When are you free?
+          A day out of 100
         </AppText>
+        <View style={[cardStyle(theme), styles.example, styles.split]}>
+          <Figure value="90" label="the work you planned" theme={theme} />
+          <AppText variant="title" color={theme.muted}>
+            +
+          </AppText>
+          <Figure value="10" label="anything else you did" theme={theme} />
+        </View>
         <AppText color={theme.ink} style={styles.lead}>
-          When you’re free to get things done.
-        </AppText>
-        <AppText color={theme.muted} style={styles.lead}>
-          {template
-            ? `Filled in for ${templateFor(template)?.label ?? "you"}. Change anything.`
-            : "Set them like a sleep schedule: some days, some times."}
+          Do what the day asked and it scores 90. A score is a guide, never a verdict, and it’s only yours.
         </AppText>
       </OnboardingPage>
     );
   }
 
-  if (step === "tasks") {
+  if (step === "time") {
     return (
-      <OnboardingPage theme={theme} step="tasks" action="Next" onPress={next} top>
-        <StarterTasksStep plan={plan} save={save} theme={theme} />
+      <OnboardingPage theme={theme} step="time" action="Next" onPress={next}>
+        <AppText variant="display" color={theme.ink}>
+          Your time, in windows
+        </AppText>
+        <WindowExample theme={theme} />
+        <AppText color={theme.ink} style={styles.lead}>
+          Tell it when you’re free, and it fills that time with tasks. Tick things off whenever suits you, even all at once at night. Hold any task to move it.
+        </AppText>
       </OnboardingPage>
     );
   }
 
-  if (step === "week") {
-    return <FirstWeekStep theme={theme} onNext={next} />;
+  if (step === "start") {
+    return (
+      <OnboardingPage theme={theme} step="start" action="Next" onPress={next}>
+        <AppText variant="display" color={theme.ink}>
+          Where to start
+        </AppText>
+        <View style={[cardStyle(theme), styles.example]}>
+          <StepLine n={1} text="On Life, drag your units into tiers." theme={theme} />
+          <StepLine n={2} text="Add a few tasks to the ones on top." theme={theme} />
+          <StepLine n={3} text="Set your hours when you want windows." theme={theme} />
+        </View>
+        <AppText color={theme.muted} style={styles.lead}>
+          Rough is fine. Everything can change later.
+        </AppText>
+      </OnboardingPage>
+    );
   }
 
   if (step === "notify" || step === "done") {
@@ -301,7 +186,7 @@ export default function OnboardingScreen() {
         theme={theme}
         step="notify"
         action={askedNudge ? "Done" : "Turn on"}
-        onPress={() => (askedNudge ? void finish() : void remind(true))}
+        onPress={() => (askedNudge ? void run(complete) : void remind(true))}
         onSkip={askedNudge ? undefined : () => void remind(false)}
         busy={busy}
         circles={constellation(theme.areas)}
@@ -324,25 +209,100 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <OnboardingPage
-      theme={theme}
-      step="welcome"
-      action="Get started"
-      onPress={next}
-      circles={constellation(theme.areas)}
-    >
+    <OnboardingPage theme={theme} step="welcome" action="Get started" onPress={next} circles={constellation(theme.areas)}>
       <AppText variant="display" color={theme.ink}>
         Life Strategy
       </AppText>
       <AppText color={theme.ink} style={styles.lead}>
-        Plan your week around what matters to you and the time you
-        actually have.
+        Plan your week around what matters to you and the time you actually have.
       </AppText>
       <AppText color={theme.muted} style={styles.lead}>
-        Everything you enter stays on this phone. No account, no server,
-        nothing uploaded.
+        Everything you enter stays on this phone. No account, no server, nothing uploaded.
       </AppText>
     </OnboardingPage>
+  );
+}
+
+/** Four tiers, each a little less of the day: an example, not a rule. */
+function TiersExample({ theme }: { theme: ThemeTokens }) {
+  const tiers = [
+    { label: "Top", share: 1, example: "Exercise & fitness" },
+    { label: "Important", share: 0.62, example: "Friendship" },
+    { label: "Background", share: 0.38, example: "Living space" },
+    { label: "Not now", share: 0, example: "Adventure" },
+  ];
+  return (
+    <View style={[cardStyle(theme), styles.example]} accessible accessibilityLabel="Example: Top, Important, Background, each worth less of the day, and Not now, out of the plan.">
+      {tiers.map((t) => (
+        <View key={t.label} style={styles.tierRow}>
+          <AppText variant="caption" color={theme.muted} style={styles.tierLabel}>
+            {t.label}
+          </AppText>
+          <View style={styles.tierBody}>
+            <AppText variant="caption" color={theme.ink} numberOfLines={1}>
+              {t.example}
+            </AppText>
+            <View style={[styles.track, { backgroundColor: theme.fill }]}>
+              <View style={[styles.bar, { width: `${t.share * 100}%`, backgroundColor: theme.accent }]} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Figure({ value, label, theme }: { value: string; label: string; theme: ThemeTokens }) {
+  return (
+    <View style={styles.figure}>
+      <AppText variant="numeral" color={theme.ink} tabular>
+        {value}
+      </AppText>
+      <AppText variant="caption" color={theme.muted} style={styles.centered}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
+/** A window as Home draws one: its times, two tasks, one ticked. */
+function WindowExample({ theme }: { theme: ThemeTokens }) {
+  const rows = [
+    { title: "Run", done: true },
+    { title: "Read for 30 minutes", done: false },
+  ];
+  return (
+    <View style={[cardStyle(theme), styles.example]} accessible accessibilityLabel="Example: a window from 9 to 12 with two tasks, one ticked.">
+      <AppText variant="label" color={theme.ink} tabular>
+        09:00–12:00
+      </AppText>
+      {rows.map((r) => (
+        <View key={r.title} style={styles.taskRow}>
+          <View
+            style={[
+              styles.check,
+              { borderColor: theme.accent, backgroundColor: r.done ? theme.accent : "transparent" },
+            ]}
+          />
+          <AppText color={r.done ? theme.muted : theme.ink}>{r.title}</AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function StepLine({ n, text, theme }: { n: number; text: string; theme: ThemeTokens }) {
+  return (
+    <View style={styles.stepLine}>
+      <View style={[styles.stepNumber, { backgroundColor: theme.fill }]}>
+        <AppText variant="caption" color={theme.ink} tabular>
+          {n}
+        </AppText>
+      </View>
+      <AppText color={theme.ink} style={styles.grow}>
+        {text}
+      </AppText>
+    </View>
   );
 }
 
@@ -350,4 +310,18 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: "center", justifyContent: "center" },
   lead: { maxWidth: 340 },
+  grow: { flex: 1 },
+  centered: { textAlign: "center" },
+  example: { padding: space.lg, gap: space.md },
+  split: { flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  figure: { alignItems: "center", gap: space.xs, flex: 1 },
+  tierRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+  tierLabel: { width: 84 },
+  tierBody: { flex: 1, gap: space.xs },
+  track: { height: 6, borderRadius: radius.pill, overflow: "hidden" },
+  bar: { height: 6, borderRadius: radius.pill },
+  taskRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 36 },
+  check: { width: 20, height: 20, borderRadius: 10, borderWidth: 2 },
+  stepLine: { flexDirection: "row", alignItems: "center", gap: space.md },
+  stepNumber: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });

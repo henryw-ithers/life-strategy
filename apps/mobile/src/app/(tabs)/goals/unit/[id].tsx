@@ -183,7 +183,7 @@ export default function UnitScreen() {
           unit={unit}
           hue={hue}
           justAdded={justAdded}
-          onOpenPriorities={() => router.push("/priorities" as Href)}
+          onOpenPriorities={() => router.navigate("/goals" as Href)}
           onReorder={(ids) => void save(() => reorderUnitTasks(unit.id, ids))}
           onEditTask={setEditing}
           onDeleteTask={deleteTask}
