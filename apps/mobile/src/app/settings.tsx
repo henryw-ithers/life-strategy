@@ -48,7 +48,6 @@ import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
   eventsDefaultOnce,
-  setDayStart,
   setEventsDefaultOnce,
   setNotificationEnabled,
   setNotificationTime,
@@ -58,6 +57,7 @@ import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
 import { currentLocalDate, dayStartHour } from "../lib/calendar";
 import { HourStepper } from "../components/ui/HourStepper";
+import { changeDayStart } from "../db/dayStart";
 import { askClearToday } from "../components/today/clearToday";
 import { hhmmToMinutes } from "../lib/pickerValues";
 import { loadDay } from "../db/today";
@@ -91,6 +91,7 @@ export default function SettingsScreen() {
   /** New events start one-time (ADR-0040 §6). */
   const [eventsOnce, setEventsOnce] = useState(false);
   const [dayStart, setDayStartShown] = useState(dayStartHour);
+  const dayStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
@@ -317,7 +318,13 @@ export default function SettingsScreen() {
               hour={dayStart}
               onChange={(h) => {
                 setDayStartShown(h);
-                void saveThen(() => setDayStart(h), () => undefined, retry);
+                // Saved once you stop tapping: each change moves every
+                // stored time onto the new day.
+                if (dayStartTimer.current) clearTimeout(dayStartTimer.current);
+                dayStartTimer.current = setTimeout(
+                  () => void saveThen(() => changeDayStart(h), () => undefined, retry),
+                  700,
+                );
               }}
               theme={theme}
             />

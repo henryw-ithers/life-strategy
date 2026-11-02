@@ -12,6 +12,12 @@
  * **Every open task, once** (EC-19): each task in `open` that owes a
  * run and wasn't ticked today lands in exactly one place in the result.
  * An extra-run task (§2.8) shows only while its pin does.
+ *
+ * **The clock never moves anything** (ADR-0048). Most people tick once
+ * or twice a day, often at night, so a window that has ended keeps what
+ * it held, folded on Home, and a tick is filed under the window the task
+ * was in, not the minute it was tapped. What is in a window changes
+ * only when you move it there or the plan itself changes.
  */
 import { normalizeWindows, type TimeRange } from "./hours";
 import { resolvePin, type DayPin, type PinKind } from "./pins";
@@ -82,13 +88,17 @@ export interface OpenTask {
   readonly plannedLater?: boolean;
 }
 
-/** A task ticked today, and when. It counts toward its window's room so
- *  a refill only comes when there's room left (§3.3). */
+/** A task ticked today. It counts toward the room of the window it's
+ *  filed under, so ticking it frees nothing for the rest of the day. */
 export interface DoneToday {
   readonly taskId: string;
   readonly size: TaskSize | null;
-  /** Minute of the day it was ticked. */
+  /** Minute of the day it was ticked: where it's filed when it has no
+   *  `windowStart`. */
   readonly minute: number;
+  /** The start of the window it was done in (ADR-0048): where it sat
+   *  when ticked, or where you said it was done. */
+  readonly windowStart?: number | null;
 }
 
 export type SuggestOrder = "suggested" | "dueDate" | "priority";
@@ -173,6 +183,16 @@ export interface PlannedDay {
   /** Open work planned for a later day and not pinned here, ranked:
    *  listed last, so it can be done early (ADR-0037 §3). */
   readonly plannedAhead: readonly string[];
+  /** Tasks kept to a part of the day no window touches, ranked: shown
+   *  in that part of the day's own section (ADR-0048). */
+  readonly byPart: Readonly<Record<PartOfDay, readonly string[]>>;
+}
+
+/** Whether a window touches a part of the day at all. */
+export function overlapsPart(w: TimeRange, part: PartOfDay): boolean {
+  const b = PART_OF_DAY_BOUNDS[part];
+  // A day that starts late holds its morning after midnight (ADR-0049).
+  return [0, 24 * 60].some((shift) => w.start < b.end + shift && w.end > b.start + shift);
 }
 
 /** Which part of the day a window mostly sits in, by its midpoint. A
@@ -192,8 +212,9 @@ function capacity(w: TimeRange, fill: number): number {
 
 /** The ranking (spec §4.3), for one window's part of day. */
 function compareFor(window: TimeRange | null, suggestBy: SuggestOrder) {
-  const part = window ? partOfDayOf(window) : null;
   const flag = (b: boolean) => (b ? 0 : 1);
+  const fitsPart = (t: OpenTask) =>
+    window !== null && t.partOfDay !== null && overlapsPart(window, t.partOfDay);
   return (a: OpenTask, b: OpenTask): number => {
     if (suggestBy === "dueDate") {
       const da = a.dueDate ?? "9999-99-99";
@@ -204,7 +225,7 @@ function compareFor(window: TimeRange | null, suggestBy: SuggestOrder) {
     return (
       flag(a.dueToday) - flag(b.dueToday) ||
       flag(a.carried) - flag(b.carried) ||
-      flag(part !== null && a.partOfDay === part) - flag(part !== null && b.partOfDay === part) ||
+      flag(fitsPart(a)) - flag(fitsPart(b)) ||
       a.tierRank - b.tierRank ||
       a.unitOrder - b.unitOrder ||
       (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0) ||
@@ -216,7 +237,7 @@ function compareFor(window: TimeRange | null, suggestBy: SuggestOrder) {
 function reasonFor(task: OpenTask, window: TimeRange): SuggestionReason {
   if (task.dueToday) return "due";
   if (task.carried) return "carried";
-  if (task.partOfDay !== null && task.partOfDay === partOfDayOf(window)) return "partOfDay";
+  if (task.partOfDay !== null && overlapsPart(window, task.partOfDay)) return "partOfDay";
   return "fits";
 }
 
@@ -259,7 +280,6 @@ export function planDay(input: PlanDayInput): PlannedDay {
     input.open.filter((t) => !doneIds.has(t.taskId)).map((t) => [t.taskId, t]),
   );
   const pinnedIds = new Set<string>();
-  const carriedHere = new Set<string>();
 
   const slots = windows.map((range) => ({
     range,
@@ -273,9 +293,11 @@ export function planDay(input: PlanDayInput): PlannedDay {
   const unplacedPins: PlacedPin[] = [];
   const atTime: string[] = [];
 
-  // Ticked today: they sit where they were done, and use its room.
+  // Ticked today: filed under the window they were done in, using its
+  // room, so a tick never reshuffles the rest of the day.
   for (const d of input.done ?? []) {
-    const i = windowHolding(windows, d.minute);
+    const i =
+      d.windowStart != null ? resolvePin(windows, d.windowStart) : windowHolding(windows, d.minute);
     if (i === null) continue;
     slots[i]!.done.push(d.taskId);
     slots[i]!.usedMinutes += sizeMinutes(d.size);
@@ -286,20 +308,11 @@ export function planDay(input: PlanDayInput): PlannedDay {
     const task = byId.get(pin.taskId);
     if (!task || pinnedIds.has(task.taskId)) continue;
     if (!task.owesRun && !pin.extra) continue;
-    let i = pin.carried ? live : resolvePin(windows, pin.anchor);
-    let moved = pin.carried;
-    if (i !== null && ended(windows[i]!)) {
-      if (pin.kind === "window") {
-        // The window is over and the pin is finished. The task carries
-        // forward like any open task; an extra run, owing nothing, steps
-        // aside instead.
-        if (task.owesRun) carriedHere.add(task.taskId);
-        else pinnedIds.add(task.taskId);
-        continue;
-      }
-      i = live;
-      moved = true;
-    }
+    // A pin stays in its window after the window ends: you may tick it
+    // there tonight (ADR-0048). One carried from an earlier day comes to
+    // the first window still to come.
+    const i = pin.carried ? live : resolvePin(windows, pin.anchor);
+    const moved = pin.carried;
     pinnedIds.add(task.taskId);
     const placed: PlacedPin = {
       ruleId: pin.ruleId,
@@ -326,34 +339,38 @@ export function planDay(input: PlanDayInput): PlannedDay {
     .sort(compareFor(null, suggestBy))
     .map((t) => t.taskId);
 
-  // 2. Timed tasks go at their time; the rest are ranked. A task whose
-  // window has ended carries forward, ranked as carried.
+  // 2. Timed tasks go at their time, ended or not; the rest are ranked.
+  // A task kept to a part of the day that no window touches waits in
+  // that part's own section.
   const ranked: OpenTask[] = [];
+  const byPart: Record<PartOfDay, OpenTask[]> = { morning: [], afternoon: [], evening: [] };
+  const partHasWindow = (p: PartOfDay) => windows.some((w) => overlapsPart(w, p));
   for (const task of candidates) {
     const m = task.clockMinute;
     const i = m == null ? null : windowHolding(windows, m);
     if (m != null && i === null) {
       atTime.push(task.taskId);
-    } else if (i !== null && !ended(windows[i]!)) {
+    } else if (i !== null) {
       slots[i]!.timed.push(task.taskId);
       slots[i]!.usedMinutes += sizeMinutes(task.size);
-    } else if (i !== null || carriedHere.has(task.taskId)) {
-      ranked.push({ ...task, carried: true });
+    } else if (task.partOfDay !== null && windows.length > 0 && !partHasWindow(task.partOfDay)) {
+      byPart[task.partOfDay].push(task);
     } else {
       ranked.push(task);
     }
   }
 
-  // 3. Suggestions, window by window, from the room each has left.
+  // 3. Suggestions, window by window, from the room each has left. A
+  // task with a part of the day goes only in a window that touches it.
   const remaining = new Map(ranked.map((t) => [t.taskId, t]));
   slots.forEach((slot) => {
-    if (ended(slot.range)) return;
     const declined = input.declined?.get(slot.range.start);
     let room = capacity(slot.range, fill) - slot.usedMinutes;
     let pulls = input.pulledIn?.get(slot.range.start) ?? 0;
     const order = [...remaining.values()].sort(compareFor(slot.range, suggestBy));
     for (const task of order) {
       if (declined?.has(task.taskId)) continue;
+      if (task.partOfDay !== null && !overlapsPart(slot.range, task.partOfDay)) continue;
       const need = sizeMinutes(task.size);
       if (need <= room) {
         room -= need;
@@ -371,7 +388,7 @@ export function planDay(input: PlanDayInput): PlannedDay {
   });
 
   // What's left: too big for any window still to come, or ranked lower.
-  const biggest = Math.max(0, ...windows.filter((w) => !ended(w)).map((w) => capacity(w, fill)));
+  const biggest = Math.max(0, ...windows.map((w) => capacity(w, fill)));
   const doesntFit: string[] = [];
   const later: string[] = [];
   for (const task of [...remaining.values()].sort(compareFor(null, suggestBy))) {
@@ -406,7 +423,20 @@ export function planDay(input: PlanDayInput): PlannedDay {
     };
   });
 
-  return { windows: planned, atTime, unplacedPins, doesntFit, later, plannedAhead };
+  const rank = compareFor(null, suggestBy);
+  return {
+    windows: planned,
+    atTime,
+    unplacedPins,
+    doesntFit,
+    later,
+    plannedAhead,
+    byPart: {
+      morning: byPart.morning.sort(rank).map((t) => t.taskId),
+      afternoon: byPart.afternoon.sort(rank).map((t) => t.taskId),
+      evening: byPart.evening.sort(rank).map((t) => t.taskId),
+    },
+  };
 }
 
 // ── Outside windows (§4) ────────────────────────────────────────────

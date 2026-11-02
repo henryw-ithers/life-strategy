@@ -1,0 +1,1 @@
+ALTER TABLE `task_completion` ADD `window_start` integer;

@@ -100,6 +100,11 @@ export interface DayPlan {
   /** What `planned` was filled from, so a screen can fill it again with
    *  a swap or a "Pull in another" without reading the rows again. */
   readonly input: PlanDayInput;
+  /** Your order for each task, where you've set one (`day_order`): how
+   *  rows sit inside a window or a part of the day. Display only. */
+  readonly dayOrder: ReadonlyMap<string, number>;
+  /** The window each of today's ticks is filed under, by task. */
+  readonly doneIn: ReadonlyMap<string, number | null>;
 }
 
 // ── Reading the rows ────────────────────────────────────────────────
@@ -273,6 +278,7 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
             id: task.id,
             rankInUnit: task.rankInUnit,
             createdAt: task.createdAt,
+            dayOrder: task.dayOrder,
             tier: lifeUnit.tier,
           })
           .from(task)
@@ -281,7 +287,11 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
       : Promise.resolve([]),
     ids.length
       ? db
-          .select({ taskId: taskCompletion.taskId, completedAt: taskCompletion.completedAt })
+          .select({
+            taskId: taskCompletion.taskId,
+            completedAt: taskCompletion.completedAt,
+            windowStart: taskCompletion.windowStart,
+          })
           .from(taskCompletion)
           .where(and(eq(taskCompletion.localDate, date), inArray(taskCompletion.taskId, ids)))
       : Promise.resolve([]),
@@ -325,15 +335,22 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
     .filter((t) => t !== null);
 
   const now =
-    date === today ? dayMinuteAt(at) : date < today ? todayEnd() : null;
-  // Every tick on the day is done, so it's never suggested again. One
-  // logged afterwards, or with a time that can't be read, sits in no
-  // window (minute -1) rather than being left open.
+    // A past day is over, overnight windows included.
+    date === today ? dayMinuteAt(at) : date < today ? todayEnd() + 24 * 60 : null;
+  // Every tick on the day is done, so it's never suggested again. It's
+  // filed under the window it was done in (ADR-0048); one from before
+  // that was stored falls back to the time it was made, and one logged
+  // afterwards, or with a time that can't be read, sits in no window.
   const done = ticks
     .map((c) => {
       const t = byId.get(c.taskId);
       return t && t.kind === "task"
-        ? { taskId: t.id, size: t.size ?? t.oneOffSize, minute: minuteOfTick(c.completedAt, date) ?? -1 }
+        ? {
+            taskId: t.id,
+            size: t.size ?? t.oneOffSize,
+            minute: minuteOfTick(c.completedAt, date) ?? -1,
+            windowStart: c.windowStart,
+          }
         : null;
     })
     .filter((d) => d !== null);
@@ -369,6 +386,10 @@ export async function loadDayPlan(date: string, at: Date = new Date()): Promise<
     freeMinutes: totalMinutes(hours.windows),
     now: date === today ? now : null,
     input,
+    dayOrder: new Map(
+      facts.filter((f) => f.dayOrder !== null).map((f) => [f.id, f.dayOrder!] as const),
+    ),
+    doneIn: new Map(ticks.map((c) => [c.taskId, c.windowStart] as const)),
   };
 }
 

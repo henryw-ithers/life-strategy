@@ -41,12 +41,17 @@ function isWeekday(n: unknown): n is Weekday {
   return typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 7;
 }
 
+/** Stored ranges are read as if the day could start as late as 11pm,
+ *  so a change of day start never drops one: a read is tolerant, a
+ *  write is checked against the day start now. */
+const READ_DAY_START = 23;
+
 function readRange(value: unknown): TimeRange | null {
   if (typeof value !== "object" || value === null) return null;
   const { start, end } = value as { start?: unknown; end?: unknown };
   if (typeof start !== "number" || typeof end !== "number") return null;
   const range = { start, end };
-  return rangeError(range, dayStartHour()) === null ? range : null;
+  return rangeError(range, READ_DAY_START) === null ? range : null;
 }
 
 function readWeekdays(value: unknown): Weekday[] {
@@ -242,8 +247,10 @@ export type DayEditInput =
 export function dayEditProblem(localDate: string, edit: DayEditInput, today: string): string | null {
   if (!isLocalDate(localDate)) return `Not a date: ${localDate}`;
   if (localDate < today) return "A past day's windows can't be changed.";
-  if (edit.kind === "change") return rangeError(edit.from, dayStartHour()) ?? rangeError(edit.to, dayStartHour());
-  return rangeError(edit.range, dayStartHour());
+  // An edit names a window the day already has, and a piece of an
+  // overnight window can start after the next day begins.
+  if (edit.kind === "change") return rangeError(edit.from, READ_DAY_START) ?? rangeError(edit.to, READ_DAY_START);
+  return rangeError(edit.range, READ_DAY_START);
 }
 
 // ── Pins ────────────────────────────────────────────────────────────
@@ -300,7 +307,8 @@ export type PinWhen =
 /** What's wrong with a pin about to be saved, or null. Pins are made
  *  from today on, never on a past day (§2.4). */
 export function pinProblem(anchor: number, when: PinWhen, today: string): string | null {
-  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= dayEnd(dayStartHour())) {
+  // A window of an overnight range may start after the next day begins.
+  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= dayEnd(dayStartHour()) + 24 * 60) {
     return "A pin's time must be within the day.";
   }
   if (when.repeat === "once") {

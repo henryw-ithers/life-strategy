@@ -31,11 +31,30 @@ import { loadDay, type DayData } from "./today";
 export async function toggleCompletion(
   taskId: string,
   date: string,
+  /** The window it was in when ticked (ADR-0048), so a tick made at
+   *  night is filed where the task was, not at the time of the tap. */
+  windowStart: number | null = null,
 ): Promise<DayData | null> {
   assertEditable(date);
   const cleared = await clearCompletion(taskId, date);
-  if (!cleared) await writeCompletion(taskId, date, 1);
+  if (!cleared) await writeCompletion(taskId, date, 1, null, windowStart);
   return afterCompletionEdit(taskId, date);
+}
+
+/**
+ * "Done in…": file a tick under another window of its day (ADR-0048).
+ * Display only, so the grade isn't touched.
+ */
+export async function setCompletionWindow(
+  taskId: string,
+  date: string,
+  windowStart: number | null,
+): Promise<void> {
+  assertEditable(date);
+  await db
+    .update(taskCompletion)
+    .set({ windowStart, updatedAt: new Date().toISOString() })
+    .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)));
 }
 
 /**
@@ -135,6 +154,8 @@ async function recacheCoveredSessions(
 interface CarriedTick {
   /** "Took about…", if it was set. */
   actualMinutes: number | null;
+  /** The window it was filed under. */
+  windowStart: number | null;
 }
 
 /**
@@ -150,7 +171,10 @@ async function clearCompletion(taskId: string, date: string): Promise<CarriedTic
       .all();
     if (existing.length === 0) return null;
     const ids = existing.map((c) => c.id);
-    const carried = { actualMinutes: existing[0]?.actualMinutes ?? null };
+    const carried = {
+      actualMinutes: existing[0]?.actualMinutes ?? null,
+      windowStart: existing[0]?.windowStart ?? null,
+    };
     // Tags hang off the completion, so unchecking takes them with it —
     // otherwise they'd be orphaned against their foreign key, and a
     // re-check would silently inherit yesterday's tags.
@@ -168,8 +192,10 @@ async function writeCompletion(
   taskId: string,
   date: string,
   fraction: number,
-  /** A rewritten tick's "Took about…" (`clearCompletion`). */
+  /** A rewritten tick's "Took about…" and window (`clearCompletion`). */
   carried: CarriedTick | null = null,
+  /** A new tick's window. */
+  windowStart: number | null = null,
 ): Promise<void> {
   const find = (d: DayData) =>
     [...d.due, ...d.week, ...d.doneThisWeek].find((t) => t.id === taskId);
@@ -201,6 +227,7 @@ async function writeCompletion(
     pointsEarned: points,
     fraction: applied,
     actualMinutes: carried?.actualMinutes ?? null,
+    windowStart: carried?.windowStart ?? windowStart,
   };
   // Pricing awaited `loadDay`, so an overlapping tap may have written
   // the day's completion since this one cleared it. The check and the

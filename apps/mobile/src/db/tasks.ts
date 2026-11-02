@@ -977,6 +977,20 @@ export async function setTaskTime(
 }
 
 /**
+ * Keep the order rows sit in on Home, top first (ADR-0048). Writes
+ * `day_order` on each task, so the order you set carries into later
+ * days. Touches no points: `rank_in_unit` still prices the task, and
+ * this only decides where its row sits.
+ */
+export async function reorderDayTasks(orderedTaskIds: readonly string[]): Promise<void> {
+  db.transaction((tx) => {
+    for (const [i, taskId] of orderedTaskIds.entries()) {
+      tx.update(task).set({ dayOrder: i + 1 }).where(eq(task.id, taskId)).run();
+    }
+  });
+}
+
+/**
  * The one place a pair of clock times is made storable.
  *
  * Keeps a start inside the day, and drops an end that does not come after its

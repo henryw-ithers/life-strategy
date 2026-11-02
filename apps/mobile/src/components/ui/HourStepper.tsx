@@ -26,7 +26,9 @@ export function HourStepper({
   onChange: (hour: number) => void;
   theme: ThemeTokens;
 }) {
-  const step = (by: number) => onChange((hour + by + 24) % 24);
+  // Stops at midnight and 11pm rather than wrapping: one tap past
+  // midnight would make today yesterday.
+  const step = (by: number) => onChange(Math.min(23, Math.max(0, hour + by)));
   return (
     <View
       style={[styles.root, { backgroundColor: theme.fill }]}

@@ -265,8 +265,9 @@ export function EventSheet({
             label="Starts"
             empty="Pick a time"
             onSet={() => {
-              setStart(9 * 60);
-              if (end === null) setEnd(10 * 60);
+              const nine = startFromClock(9 * 60);
+              setStart(nine);
+              if (end === null) setEnd(nine + 60);
             }}
             theme={theme}
           >
@@ -277,7 +278,7 @@ export function EventSheet({
           <PickRow
             label="Ends"
             empty="Pick a time"
-            onSet={() => setEnd((start ?? 9 * 60) + 60)}
+            onSet={() => setEnd((start ?? startFromClock(9 * 60)) + 60)}
             theme={theme}
           >
             {end !== null ? (

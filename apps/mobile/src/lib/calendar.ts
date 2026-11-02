@@ -65,6 +65,20 @@ export function endFromClock(start: number, clock: number): number {
   return endAfter(start, clock);
 }
 
+/** A stored start moved onto a day that starts at `hour`: the same time
+ *  on the clock, as that day counts it. */
+export function rebaseStart(start: number, hour: number): number {
+  const clock = ((start % 1440) + 1440) % 1440;
+  return clock < hour * 60 ? clock + 1440 : clock;
+}
+
+/** A stored range moved onto a day that starts at `hour`, keeping its
+ *  length. */
+export function rebaseRange(r: { start: number; end: number }, hour: number): { start: number; end: number } {
+  const start = rebaseStart(r.start, hour);
+  return { start, end: r.end + (start - r.start) };
+}
+
 export function assertEditable(date: string): void {
   if (!isEditable(date, currentLocalDate())) {
     throw new Error("That day hasn't happened yet.");

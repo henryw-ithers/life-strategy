@@ -463,6 +463,14 @@ export const taskCompletion = sqliteTable("task_completion", {
    * (ADR-0047 §3); it never changes points.
    */
   actualMinutes: integer("actual_minutes"),
+  /**
+   * The start of the window it was done in, in minutes from the date's
+   * midnight (ADR-0048): where the task sat on Home when it was ticked,
+   * or where you said it was done ("Done in…"). Null for a tick with no
+   * window, which is filed by the time it was made. Display only: it
+   * never changes points.
+   */
+  windowStart: integer("window_start"),
   ...timestamps,
 });
 

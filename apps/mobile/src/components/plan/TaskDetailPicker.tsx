@@ -254,8 +254,8 @@ export function TaskDetailPicker({
  *  hour past the start for an end, so neither lands on a value you must
  *  scroll away from before you can pick one. */
 function defaultFor(which: "start" | "end", d: TaskDetail): number {
-  if (which === "start") return 9 * 60;
-  return (d.startMinute ?? 9 * 60) + 30;
+  if (which === "start") return startFromClock(9 * 60);
+  return (d.startMinute ?? startFromClock(9 * 60)) + 30;
 }
 
 /**
