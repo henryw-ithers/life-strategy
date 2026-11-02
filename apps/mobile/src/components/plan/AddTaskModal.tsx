@@ -75,8 +75,8 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
-import { SchedulePicker, type OneOffState } from "./SchedulePicker";
-import { NO_DETAIL, type TaskDetail } from "./TaskDetailPicker";
+import { SchedulePicker, SizePicker, type OneOffState } from "./SchedulePicker";
+import { NO_DETAIL, type TaskDetail } from "./taskDetail";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
 import { guessUnit, needsDays } from "./unitSelection";
 
@@ -265,6 +265,13 @@ export function AddTaskModal({
         ) : null}
       </View>
 
+      <SizePicker
+        value={once ? oneOff.size : (detail.size ?? "normal")}
+        onChange={(size) => (once ? setOneOff({ ...oneOff, size }) : setDetail({ ...detail, size }))}
+        accent={accent}
+        theme={theme}
+      />
+
       <UnitPicker
         units={units}
         value={unitIds}
@@ -332,7 +339,7 @@ const styles = StyleSheet.create({
   /** 12pt, against the 24pt `SchedulePicker` opens with. The name and
    *  the unit are one thought (what this is); the schedule is the
    *  other. Even 16s everywhere made five fields read as one list. */
-  scrollBody: { gap: space.md, paddingTop: space.xs, paddingBottom: space.xs },
+  scrollBody: { gap: space.lg, paddingTop: space.xs, paddingBottom: space.xl },
   field: { gap: space.xs },
   counter: { alignSelf: "flex-end" },
   input: {

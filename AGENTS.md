@@ -44,7 +44,8 @@ npm workspaces monorepo:
   one module per concern (`today.ts` assembles a day; completions,
   activities, journal, photos, placements and the stored `dayGrades`
   each have their own), `hooks/` holds screen state, `lib/` is pure
-  helpers (`calendar.ts` owns "what day is it"), and `components/` is
+  helpers (`calendar.ts` owns "what day is it", from the user's Day
+  starts at, ADR-0049), and `components/` is
   grouped by feature. **The data layer never imports from
   `components/`**; a rule both need belongs in `@glide/scoring` or
   `lib/`.
@@ -91,8 +92,8 @@ Use these terms consistently in code, docs, and UI copy:
 | **SLA** — Strategic Life Area | One of 6 top-level life areas (e.g., Relationships) |
 | **SLU** — Strategic Life Unit | One of 18 sub-areas under the SLAs (e.g., Friendship); the unit of priority and scoring. Taxonomy revisions preserve unit ids (renames/re-homes are labels); retired units are archived by the launch-time sync, never deleted |
 | **Motivation kind** | `instrumental` or `communal` (ADR-0025 §1). Since ADR-0027 §4 the three Relationships units are ordinary units: they hold tasks and are planned like any other. `motivation_kind` is editorial context only, and tagging a completion with them no longer pays. "Autotelic" is editorial only too |
-| **Priorities** | Where the user sorts the 18 SLUs into four tiers (Top, Important, Background, Not now) and orders them within each (ADR-0041). Replaced the diagnostic's ranking and satisfaction rating; satisfaction is no longer asked. **User-facing copy says "Priority," never "Importance"**; schema and engine keep `importance` as the domain term. Not now is out of the plan: no weight, no tasks |
-| **Snapshot** | One saved set of priorities, written when the user taps Done on Priorities; snapshots form the history |
+| **Priorities** | The 18 SLUs sorted into four tiers (Top, Important, Background, Not now), ordered within each (ADR-0041). Set on **Life → Your units** by dragging, saved as you go; there is no Priorities screen (ADR-0048). Replaced the diagnostic's ranking and satisfaction rating; satisfaction is no longer asked. **User-facing copy says "Priority," never "Importance"**; schema and engine keep `importance` as the domain term. Not now is out of the plan: no weight, no tasks |
+| **Snapshot** | One saved set of priorities, at most one a day: saves on the same day fold into it (ADR-0048). Snapshots form the history |
 | **Effort share** | Each unit's share of all completed work over the last 4 weeks, shown on Life with no target. Replaced the portfolio graph (ADR-0041) |
 | **Weight** | An SLU's share of the 100 daily points, derived from its tier and its order within the tier |
 | **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight |
@@ -100,9 +101,10 @@ Use these terms consistently in code, docs, and UI copy:
 | **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing**: the share divides across eligible *tasks*. A commitment either holds sub-commitments and no work of its own, or holds its own work and has none. There is no switch: adding the first sub-commitment splits the commitment and moves its work into one called **General**; removing the last one puts the work back (ADR-0035 §1, ADR-0044 §7). Tap a title to rename it |
 | **Event** | A time you attend: a class, a shift, a doctor's visit. A task with `kind = 'event'` and a **required** start and end; ticked and paid like any task. A repeating event can run for N weeks or until a date, and weeks can be skipped (ADR-0038, ADR-0040). No location |
 | **Working hours** | The weekly template of when the user is free to work, set like iOS Sleep schedules: groups of days, each with time ranges (ADR-0039 §1) |
-| **Window** | A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039) |
+| **Window** | A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039). **The clock moves nothing**: a window that has ended keeps its tasks, a tick is filed under the window it was done in, and a task with a part of the day goes only in windows touching it (ADR-0048) |
 | **Gap** | Time between two windows. Implicit, and may be given a name ("Lunch"). Not the same as a rest day |
-| **Suggestion / pin** | Suggestions fill windows live and are never stored. A pin is a task the user placed in a window; the app never moves it while that window is current or upcoming (ADR-0039 §§5–6) |
+| **Suggestion / pin** | Suggestions fill windows live and are never stored. A pin is a task the user placed in a window, by dragging it there for today or with Move it; the app never moves it, and a window that has ended keeps it (ADR-0039 §§5–6, ADR-0048) |
+| **Day starts at** | The hour the user's day begins, 3am unless changed in Settings. A day runs 24 hours from it, and anything that starts before the next day begins belongs to the day it started, for up to a day (ADR-0049) |
 | **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3). **Removed from the UI** (Henry, 2026-10-25): nothing creates one now, but a choice saved before still scores |
 | **Clear today / Away** | Clear today sets aside today's windows and unticked events; the day is still graded, or ungraded if nothing is left due. Away is a date range of days off (ADR-0040) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |

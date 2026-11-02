@@ -19,6 +19,7 @@ import { FORMULA_VERSION, isTier, type Tier, type TieredUnit } from "@glide/scor
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
+import { currentLocalDate, localDateAt } from "../lib/calendar";
 import { db } from "./client";
 import { isCommitmentUnit } from "./commitmentPlan";
 import { recacheAllDayScores } from "./dayGrades";
@@ -160,10 +161,19 @@ export interface OverrideReview {
 export async function savePriorities(
   placement: readonly Placement[],
   overrides: ReadonlyMap<string, number>,
+  {
+    sameDay = false,
+  }: {
+    /**
+     * Fold this into today's snapshot if there is one (ADR-0041 as
+     * amended by ADR-0048): Life saves on every drag, and the history
+     * should keep one set of priorities a day, not one per move.
+     */
+    sameDay?: boolean;
+  } = {},
 ): Promise<{ snapshotId: string; review: OverrideReview[] }> {
   const board = boardWeights(placement, overrides);
   if (board.problem) throw new Error(board.problem);
-  const snapshotId = Crypto.randomUUID();
   const result = writeAndMarkStale((tx) => {
     const units = lifeUnits(tx);
     const byId = new Map(units.map((u) => [u.id, u]));
@@ -176,6 +186,13 @@ export async function savePriorities(
     }
 
     const previousId = latestSnapshotId(tx);
+    const [previous] =
+      previousId === null
+        ? []
+        : tx.select({ takenAt: snapshot.takenAt }).from(snapshot).where(eq(snapshot.id, previousId)).all();
+    const replacing =
+      sameDay && previousId !== null && previous !== undefined && localDateAt(new Date(previous.takenAt)) === currentLocalDate();
+    const snapshotId = replacing ? previousId : Crypto.randomUUID();
     const before = new Map(
       previousId === null
         ? []
@@ -204,15 +221,18 @@ export async function savePriorities(
     restoreTasksOf(tx, returning);
 
     // Strictly after the last snapshot, so "latest" is never a tie.
-    const [last] =
-      previousId === null
-        ? []
-        : tx.select({ takenAt: snapshot.takenAt }).from(snapshot).where(eq(snapshot.id, previousId)).all();
     const nowMs = Date.now();
     const takenAt = new Date(
-      last ? Math.max(nowMs, Date.parse(last.takenAt) + 1) : nowMs,
+      previous ? Math.max(nowMs, Date.parse(previous.takenAt) + 1) : nowMs,
     ).toISOString();
-    tx.insert(snapshot).values({ id: snapshotId, takenAt, formulaVersion: FORMULA_VERSION }).run();
+    if (replacing) {
+      // Today's snapshot, rewritten: same id, so nothing pointing at it
+      // breaks, and its weights replaced whole.
+      tx.delete(unitWeight).where(eq(unitWeight.snapshotId, snapshotId)).run();
+      tx.update(snapshot).set({ takenAt, formulaVersion: FORMULA_VERSION }).where(eq(snapshot.id, snapshotId)).run();
+    } else {
+      tx.insert(snapshot).values({ id: snapshotId, takenAt, formulaVersion: FORMULA_VERSION }).run();
+    }
     tx.insert(unitWeight)
       .values(
         placement.map((p) => ({

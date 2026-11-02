@@ -1,17 +1,14 @@
 /**
- * Onboarding's stored state (ADR-0045 §2): where it resumes, a re-run
- * that opens at Priorities when tiers exist and deletes nothing, and
- * the schedule picked on the commitments step.
+ * Onboarding's stored state (ADR-0045 §2): where it resumes, and a
+ * re-run that starts at the welcome and deletes nothing.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   isOnboardingComplete,
   loadOnboardingStep,
-  loadOnboardingTemplate,
   resetOnboarding,
   saveOnboardingStep,
-  saveOnboardingTemplate,
   completeOnboarding,
 } from "../onboarding";
 import { setSetting } from "../settings";
@@ -32,13 +29,13 @@ describe("onboarding's stored state", () => {
 
   it("starts at the welcome, and resumes where it was left", async () => {
     expect(await loadOnboardingStep()).toBe("welcome");
-    await saveOnboardingStep("hours");
-    expect(await loadOnboardingStep()).toBe("hours");
+    await saveOnboardingStep("time");
+    expect(await loadOnboardingStep()).toBe("time");
   });
 
   it("resumes the old flow's stored step at the nearest new one", async () => {
     await setSetting("onboarding.step", "diagnostic");
-    expect(await loadOnboardingStep()).toBe("priorities");
+    expect(await loadOnboardingStep()).toBe("tiers");
   });
 
   it("marks itself complete", async () => {
@@ -53,18 +50,12 @@ describe("onboarding's stored state", () => {
     expect(await loadOnboardingStep()).toBe("welcome");
   });
 
-  it("runs again from Priorities when tiers exist, deleting nothing", async () => {
+  it("runs again from the welcome when tiers exist, deleting nothing", async () => {
     testDb().insert(snapshot).values({ id: "s1", takenAt: "2026-10-01T00:00:00Z", formulaVersion: 11 }).run();
     const units = testDb().select().from(lifeUnit).all().length;
     await resetOnboarding();
-    expect(await loadOnboardingStep()).toBe("priorities");
+    expect(await loadOnboardingStep()).toBe("welcome");
     expect(testDb().select().from(snapshot).all()).toHaveLength(1);
     expect(testDb().select().from(lifeUnit).all()).toHaveLength(units);
-  });
-
-  it("keeps the schedule picked on the commitments step", async () => {
-    expect(await loadOnboardingTemplate()).toBeNull();
-    await saveOnboardingTemplate("shifts");
-    expect(await loadOnboardingTemplate()).toBe("shifts");
   });
 });

@@ -103,14 +103,14 @@ export default function PlanScreen() {
   useEffect(() => {
     if (!addParam || plan === null) return;
     router.setParams({ add: undefined });
-    if (!canAdd) router.push("/priorities" as Href);
+    if (!canAdd) router.navigate("/goals" as Href);
   }, [addParam, plan, canAdd]);
   // A day link is cleared once followed, so the same link works again.
   useEffect(() => {
     if (dateParam) router.setParams({ date: undefined });
   }, [dateParam]);
   const addHere = (what: "task" | "event") => {
-    if (!canAdd) router.push("/priorities" as Href);
+    if (!canAdd) router.navigate("/goals" as Href);
     else setAdding(what);
   };
 

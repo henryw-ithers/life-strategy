@@ -16,7 +16,9 @@ import {
   type TimeRange,
   type Weekday,
   type WorkSchedule,
+  dayEnd,
 } from "@glide/scoring";
+import { dayStartHour } from "../../lib/calendar";
 
 /** What the editor holds: the template as you're changing it. */
 export interface HoursDraft {
@@ -34,18 +36,10 @@ const WEEKDAYS: readonly Weekday[] = [1, 2, 3, 4, 5];
  * Where the editor starts: the hours in force today, or, with none set
  * yet, weekdays nine to five, a plain start to change.
  */
-export function draftFrom(
-  versions: readonly HoursVersion[],
-  today: string,
-  /** Hours to start from when none are set: onboarding's template. */
-  fallback?: readonly WorkSchedule[],
-): HoursDraft {
+export function draftFrom(versions: readonly HoursVersion[], today: string): HoursDraft {
   const version = versionFor(versions, today);
   if (version) return { schedules: version.schedules, gaps: version.gaps };
-  return {
-    schedules: fallback ? [...fallback] : [{ weekdays: WEEKDAYS, ranges: [{ start: 9 * 60, end: 17 * 60 }] }],
-    gaps: [],
-  };
+  return { schedules: [{ weekdays: WEEKDAYS, ranges: [{ start: 9 * 60, end: 17 * 60 }] }], gaps: [] };
 }
 
 /** Days other groups already have, for group `index`'s day buttons. */
@@ -59,7 +53,8 @@ export function nextRange(ranges: readonly TimeRange[]): TimeRange | null {
   const last = [...ranges].sort((a, b) => b.end - a.end)[0];
   const start = last ? last.end + DRAW_GAP : 9 * 60;
   const end = start + 60;
-  return end <= 24 * 60 ? { start, end } : null;
+  // A range may start up to the next day's start and run past it.
+  return start < dayEnd(dayStartHour()) ? { start, end } : null;
 }
 
 /** A new group with the days no group has yet, or null when every day

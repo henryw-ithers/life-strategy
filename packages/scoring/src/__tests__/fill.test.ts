@@ -206,22 +206,28 @@ describe("pins (§2)", () => {
     expect(day.unplacedPins[0]?.ruleId).toBe("pin-x");
   });
 
-  it("finishes a window pin when its window has ended, and carries the task forward", () => {
+  it("keeps a pin in its window after the window ends, to tick there tonight (ADR-0048)", () => {
     const day = plan({ windows, now: h(14), open: [task("x")], pins: [pin("x", { anchor: h(9) })] });
-    expect(day.windows[0]?.pinned).toEqual([]);
-    expect(day.windows[1]?.suggested).toEqual([{ taskId: "x", reason: "carried" }]);
+    expect(day.windows[0]?.ended).toBe(true);
+    expect(day.windows[0]?.pinned.map((p) => p.taskId)).toEqual(["x"]);
+    expect(suggestedIn(day, 1)).toEqual([]);
   });
 
-  it("moves a pin until done, still pinned, to the next window (§2.9)", () => {
+  it("keeps a pin until done in its window too: the clock moves nothing", () => {
     const day = plan({
       windows,
       now: h(14),
       open: [task("x")],
       pins: [pin("x", { anchor: h(9), kind: "untilDone" })],
     });
-    expect(day.windows[1]?.pinned).toEqual([
-      { ruleId: "pin-x", taskId: "x", kind: "untilDone", extra: false, carried: true },
+    expect(day.windows[0]?.pinned).toEqual([
+      { ruleId: "pin-x", taskId: "x", kind: "untilDone", extra: false, carried: false, anchor: h(9) },
     ]);
+  });
+
+  it("pins into a window that has already ended", () => {
+    const day = plan({ windows, now: h(20), open: [task("x")], pins: [pin("x", { anchor: h(9) })] });
+    expect(day.windows[0]?.pinned.map((p) => p.taskId)).toEqual(["x"]);
   });
 
   it("puts a pin until done carried from an earlier day in the first window to come", () => {
@@ -264,9 +270,9 @@ describe("tasks with a clock time (§2.10)", () => {
     expect(day.atTime).toEqual(["call"]);
   });
 
-  it("carries forward like any task once its window has ended", () => {
+  it("stays in its window once the window has ended", () => {
     const day = plan({ windows, now: h(13), open: [task("call", { clockMinute: h(10) })] });
-    expect(day.windows[1]?.suggested).toEqual([{ taskId: "call", reason: "carried" }]);
+    expect(day.windows[0]?.timed).toEqual(["call"]);
   });
 
   it("follows a pin into another window when one was set", () => {
@@ -283,16 +289,12 @@ describe("tasks with a clock time (§2.10)", () => {
 describe("past and future (§§3.4–3.5)", () => {
   const windows = [r(h(9), h(12)), r(h(13), h(17))];
 
-  it("suggests nothing into a window that has ended today", () => {
-    const day = plan({ windows, now: h(12, 30), open: [task("a")] });
-    expect(day.windows[0]?.suggested).toEqual([]);
-    expect(day.windows[0]?.ended).toBe(true);
-    expect(suggestedIn(day, 1)).toEqual(["a"]);
-  });
-
-  it("lists everything in one list once the last window has ended", () => {
-    const day = plan({ windows, now: h(18), open: [task("a"), task("b")] });
-    expect(day.later).toEqual(["a", "b"]);
+  it("lays the day out the same whatever the time: an ended window keeps its tasks", () => {
+    const morning = plan({ windows, now: h(8), open: [task("a")] });
+    const evening = plan({ windows, now: h(20), open: [task("a")] });
+    expect(suggestedIn(evening, 0)).toEqual(["a"]);
+    expect(evening.windows[0]?.ended).toBe(true);
+    expect(suggestedIn(morning, 0)).toEqual(suggestedIn(evening, 0));
   });
 
   it("treats every window of a future day as still to come", () => {
@@ -378,14 +380,14 @@ describe("what the reviews found", () => {
     expect(everywhere(day)).toEqual([]);
   });
 
-  it("lets an extra-run task step aside once its window pin is finished", () => {
+  it("keeps an extra-run pin in its window after it ends", () => {
     const day = plan({
       windows,
       now: h(14),
       open: [task("gym", { owesRun: false })],
       pins: [pin("gym", { anchor: h(9), extra: true })],
     });
-    expect(everywhere(day)).toEqual([]);
+    expect(day.windows[0]?.pinned.map((p) => p.taskId)).toEqual(["gym"]);
   });
 
   it("puts windows in order and joins overlaps before filling", () => {
@@ -451,5 +453,47 @@ describe("the list outside windows (§4)", () => {
     expect(sortOpenTasks(open, "size").map((t) => t.taskId)).toEqual(["quick", "top", "big"]);
     expect(sortOpenTasks(open, "priority").map((t) => t.taskId)).toEqual(["top", "quick", "big"]);
     expect(sortOpenTasks(open, "dueDate").map((t) => t.taskId)).toEqual(["top", "big", "quick"]);
+  });
+});
+
+describe("ticking whenever you like (ADR-0048)", () => {
+  const windows = [r(h(9), h(12)), r(h(13), h(17)), r(h(18), h(21))];
+
+  it("files a late tick under the window it was done in, not the minute it was tapped", () => {
+    const done = [{ taskId: "run", size: "normal" as const, minute: h(22), windowStart: h(9) }];
+    const day = plan({ windows, now: h(22), open: [task("run")], done });
+    expect(day.windows[0]?.done).toEqual(["run"]);
+    expect(day.windows[2]?.done).toEqual([]);
+  });
+
+  it("leaves the rest of the day where it was when one is ticked", () => {
+    const open = [task("a"), task("b"), task("c"), task("d")];
+    const before = plan({ windows, now: h(22), open });
+    const first = suggestedIn(before, 0)[0]!;
+    const done = [{ taskId: first, size: "normal" as const, minute: h(22), windowStart: h(9) }];
+    const after = plan({ windows, now: h(22), open, done });
+    expect(suggestedIn(after, 1)).toEqual(suggestedIn(before, 1));
+    expect(suggestedIn(after, 2)).toEqual(suggestedIn(before, 2));
+  });
+});
+
+describe("part of the day (ADR-0048)", () => {
+  it("never suggests a morning task into an afternoon window", () => {
+    const windows = [r(h(9), h(12)), r(h(13), h(17))];
+    const open = [task("m1", { partOfDay: "morning" }), task("m2", { partOfDay: "morning" }), task("m3", { partOfDay: "morning" })];
+    const day = plan({ windows, open });
+    expect(suggestedIn(day, 1)).toEqual([]);
+    expect(day.later.length + suggestedIn(day, 0).length).toBe(3);
+  });
+
+  it("holds a part of the day no window touches in that part's own section", () => {
+    const day = plan({ windows: [r(h(13), h(17))], open: [task("m", { partOfDay: "morning" }), task("x")] });
+    expect(day.byPart.morning).toEqual(["m"]);
+    expect(suggestedIn(day, 0)).toEqual(["x"]);
+  });
+
+  it("counts a window that reaches into a part of the day as that part", () => {
+    const day = plan({ windows: [r(h(11), h(14))], open: [task("m", { partOfDay: "morning" })] });
+    expect(suggestedIn(day, 0)).toEqual(["m"]);
   });
 });

@@ -253,8 +253,18 @@ twice.
 
 ### Date and time pickers
 
-`DateTimeField`: iOS's compact picker, which stays open while you
-scroll (ADR-0043 §1).
+`DateTimeField`: a time is a pill; tapping it slides a wheel open under
+its row, which stays open while you turn it and closes when you tap
+the pill again or anywhere else (`FieldScope`). Dates use iOS's compact
+picker (ADR-0043 §1).
+
+### Drag and drop
+
+Home's tasks and Life's units move by hold-and-drag (`DayDrag`): the row
+lifts into a copy, edged in the accent, that follows the finger, a line marks where it will
+land, and the target section is outlined in the accent. Holding and
+letting go without moving opens the row's menu. Every drag has a
+non-drag route: the menu, and a VoiceOver action.
 
 ### Cards and groups
 

@@ -46,7 +46,7 @@ import { formatWeekdaySummary } from "../components/plan/planning";
 import { WeekdayPicker } from "../components/plan/WeekdayPicker";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
-import { TimeField } from "../components/ui/DateTimeField";
+import { FieldScope, TimeField, TimeFieldRow } from "../components/ui/DateTimeField";
 import { Group } from "../components/ui/Group";
 import { InfoButton } from "../components/ui/InfoButton";
 import { KeyboardScroll } from "../components/ui/KeyboardScroll";
@@ -56,8 +56,7 @@ import { loadDayPlan } from "../db/dayPlan";
 import { loadHoursVersions, saveHoursFrom, setDayOverride } from "../db/hours";
 import { hoursProblem } from "../db/windowRules";
 import { recordProblem } from "../lib/problemLog";
-import { currentLocalDate } from "../lib/calendar";
-import { templateFor } from "../lib/onboardingTemplates";
+import { currentLocalDate, endFromClock, startFromClock } from "../lib/calendar";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
 
@@ -73,10 +72,9 @@ export default function HoursScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const today = currentLocalDate();
-  /** From onboarding (ADR-0045 step 4): `template` fills in hours not
-   *  yet set, and `setup`, sent only when none are, saves them from
+  /** `setup`, sent only when no hours are set yet, saves them from
    *  today with no question. */
-  const { template, setup } = useLocalSearchParams<{ template?: string; setup?: string }>();
+  const { setup } = useLocalSearchParams<{ setup?: string }>();
   const [draft, setDraft] = useState<HoursDraft | null>(null);
   const [events, setEvents] = useState<TimeRange[]>([]);
   const [saving, setSaving] = useState(false);
@@ -85,9 +83,9 @@ export default function HoursScreen() {
     // Only the first load seeds the draft: coming back from a sheet
     // mustn't throw away what you've changed.
     const [versions, plan] = await Promise.all([loadHoursVersions(), loadDayPlan(today)]);
-    setDraft((d) => d ?? draftFrom(versions, today, templateFor(template)?.schedules));
+    setDraft((d) => d ?? draftFrom(versions, today));
     setEvents(plan.events.map((e) => ({ start: e.start, end: e.end })));
-  }, [today, template]);
+  }, [today]);
   const { error, retry } = useScreenLoad(load);
 
   const problem = draft ? hoursProblem(today, draft.schedules, draft.gaps) : null;
@@ -148,7 +146,7 @@ export default function HoursScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.canvas }]}>
+    <FieldScope style={[styles.root, { backgroundColor: theme.canvas }]}>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
           variant="done"
@@ -309,7 +307,7 @@ export default function HoursScreen() {
         </>
       )}
       </KeyboardScroll>
-    </View>
+    </FieldScope>
   );
 }
 
@@ -327,10 +325,15 @@ function RangeRow({
   onRemove?: () => void;
 }) {
   return (
-    <View style={styles.range}>
+    <TimeFieldRow style={styles.range}>
       <TimeField
         minutes={range.start}
-        onChange={(start) => onChange({ start, end: Math.max(range.end, start + 15) })}
+        // Moving the start keeps the length; times before the day starts
+        // are after midnight, the same day (ADR-0049).
+        onChange={(clock) => {
+          const start = startFromClock(clock);
+          onChange({ start, end: start + (range.end - range.start) });
+        }}
         label={`${label}, starts`}
         accent={theme.accent}
         theme={theme}
@@ -338,8 +341,8 @@ function RangeRow({
       <AppText color={theme.muted}>–</AppText>
       <TimeField
         minutes={range.end}
-        min={range.start + 15}
-        onChange={(end) => onChange({ ...range, end })}
+        // Earlier on the clock than the start is the next morning.
+        onChange={(clock) => onChange({ ...range, end: endFromClock(range.start, clock) })}
         label={`${label}, ends`}
         accent={theme.accent}
         theme={theme}
@@ -356,7 +359,7 @@ function RangeRow({
           <Ionicons name="remove-circle" size={22} color={theme.danger} />
         </Pressable>
       ) : null}
-    </View>
+    </TimeFieldRow>
   );
 }
 

@@ -3,11 +3,14 @@
  * (spec §5.4). A list, and each row opens its own screen:
  *
  * - **Commitments**, with what each holds.
- * - **Your units** by tier, in your order, with Priorities beside the
- *   heading. Each has its task count and a bar of its share of the time
- *   you spent in the last 4 weeks. The bar has **no target** (ADR-0041
- *   §5); weights live on Priorities, so a bar can't read as falling
- *   short. Not now starts closed.
+ * - **Your units** by tier, in your order: this is where you set your
+ *   priorities (ADR-0041 as amended by ADR-0048). Hold a unit and drag
+ *   it to another tier or another place in its own; it saves at once.
+ *   Hold and let go for its menu: your own weight, or a tier. Each row
+ *   has its task count and a bar of its share of the time you spent in
+ *   the last 4 weeks. The bar has **no target** (ADR-0041 §5): weights
+ *   show only in a unit's sheet, so a bar can't read as falling short.
+ *   Not now starts closed.
  * - **A unit opens in place** (Henry, 2026-10-25): its tasks, each
  *   opening its edit sheet, and Add task. ⓘ opens the unit's own
  *   screen for its weight, events and what it covers.
@@ -16,10 +19,10 @@
  * carries its highest rank and a streak mark while a run is going.
  * Adding a task or event from the + menu happens on Plan (`openAdd`).
  */
-import { addDays } from "@glide/scoring";
+import { addDays, TIERS } from "@glide/scoring";
 import { router, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 
@@ -29,7 +32,11 @@ import {
 } from "../../../components/commitments/CommitmentSheet";
 import { CommitmentsList } from "../../../components/commitments/CommitmentsList";
 import { Medal, StreakFlame } from "../../../components/achievements/Medal";
-import { tierGroups, type TierGroup } from "../../../components/life/lifeRows";
+import { tierGroups, type LifeUnitRow, type TierGroup } from "../../../components/life/lifeRows";
+import { type Slot } from "../../../components/priorities/board";
+import { TIER_LABEL, UnitSheet } from "../../../components/priorities/UnitSheet";
+import { DayDrag, DragRow, useDropTarget } from "../../../components/today/DayDrag";
+import { showActions } from "../../../components/ui/actionSheet";
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AddTaskModal } from "../../../components/plan/AddTaskModal";
 import { applyTaskEdit, editableFrom } from "../../../components/plan/applyTaskEdit";
@@ -50,6 +57,7 @@ import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/c
 import { createCommitment } from "../../../db/commitmentWrites";
 import { addTask, archiveTask, loadPlan, type PlanData, type PlanTask } from "../../../db/tasks";
 import { loadWorkShares } from "../../../db/weeklyPass";
+import { SLOT_LABEL, usePriorityBoard } from "../../../hooks/usePriorityBoard";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { RANK_LABEL } from "../../../lib/achievementCopy";
@@ -72,10 +80,18 @@ export default function LifeScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [commitments, setCommitments] = useState<CommitmentsScreenData | null>(null);
   const [groups, setGroups] = useState<TierGroup[] | null>(null);
-  const [hasPlan, setHasPlan] = useState(true);
+  /** A unit whose weight and tier are being set. */
+  const [weighing, setWeighing] = useState<string | null>(null);
+  const [weighingShown, weighingGone] = useRetained(weighing);
+  const [dragging, setDragging] = useState(false);
+  const scroller = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  /** After a save, the screen reads everything again. */
+  const afterSave = useRef<() => void>(() => undefined);
+  const priority = usePriorityBoard(() => afterSave.current());
   const [notNowOpen, setNotNowOpen] = useState(false);
   const [badges, setBadges] = useState<ReadonlyMap<string, UnitBadge>>(new Map());
-  const [earned, setEarned] = useState<{ count: number; top: UnitBadge["rank"] }>({ count: 0, top: null });
+  const [topRank, setTopRank] = useState<UnitBadge["rank"]>(null);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -109,15 +125,17 @@ export default function LifeScreen() {
     ]);
     setCommitments(nextCommitments);
     setBadges(badgesByUnit(achievements));
-    setEarned({
-      count: achievements.reduce((n, a) => n + a.earned.length, 0),
-      top: highestRank(achievements),
-    });
-    setHasPlan(plan.hasSnapshot);
+    setTopRank(highestRank(achievements));
     setPlan(plan);
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
+    await priority.reload();
+    // `priority.reload` is stable (a useCallback with no deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const { error, retry, save } = useScreenLoad(reload);
+  useEffect(() => {
+    afterSave.current = () => void retry();
+  }, [retry]);
   // A deleted task waits on Undo, as on the unit screen.
   const undo = useUndoDelete(save);
   const tasksOf = useMemo(() => {
@@ -133,6 +151,25 @@ export default function LifeScreen() {
     return out;
   }, [plan, undo.hidden]);
   const allUnits = useMemo(() => pickableUnits(plan), [plan]);
+  /** Each unit's row, by id, in whatever tier it's in now. */
+  const rowOf = useMemo(
+    () => new Map((groups ?? []).flatMap((g) => g.units).map((u) => [u.id, u] as const)),
+    [groups],
+  );
+  /** What holding a unit and letting go offers. */
+  const unitMenu = (u: LifeUnitRow) => () => {
+    const here = priority.placement.find((p) => p.unitId === u.id)?.tier;
+    showActions(u.name, [
+      // A weight's recommendation settles once every unit has a tier.
+      ...(here && here !== "unsorted" && here !== "notNow" && priority.unsorted === 0
+        ? [{ label: "Your weight", onPress: () => setWeighing(u.id) }]
+        : []),
+      ...TIERS.filter((t) => t !== here).map((t) => ({
+        label: `Move to ${TIER_LABEL[t]}`,
+        onPress: () => priority.moveToEnd(u.id, t),
+      })),
+    ]);
+  };
   const rowsProps = {
     badges,
     open,
@@ -140,17 +177,44 @@ export default function LifeScreen() {
     onToggle: toggle,
     onEdit: setEditing,
     onAdd: setAdding,
+    onHold: unitMenu,
     theme,
   };
+  const weighingUnit = weighingShown ? priority.board?.units.find((u) => u.unitId === weighingShown) : undefined;
+  const weighingTier = priority.placement.find((p) => p.unitId === weighingShown)?.tier;
 
   return (
     <View style={styles.root}>
       {/* The scroll view comes first, so the large title and the tab bar
           follow it; the backdrop goes inside it. */}
+      <DayDrag
+        onDrop={(unitId, _from, to) => priority.move(unitId, to.sectionKey as Slot, to.index)}
+        onDraggingChange={setDragging}
+        renderGhost={(id) => {
+          const u = rowOf.get(id);
+          return u ? (
+            <View style={styles.ghost}>
+              <View style={[styles.dot, { backgroundColor: theme.areas[u.areaId] ?? theme.accent }]} />
+              <AppText color={theme.ink}>{u.name}</AppText>
+            </View>
+          ) : null;
+        }}
+        scroll={{
+          y: () => scrollY.current,
+          to: (y) => scroller.current?.scrollTo({ y, animated: false }),
+        }}
+        theme={theme}
+      >
       <ScrollView
+        ref={scroller}
         style={styles.root}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
+        scrollEnabled={!dragging}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {error ? (
@@ -163,15 +227,12 @@ export default function LifeScreen() {
               <Pressable
                 onPress={() => router.push("/goals/achievements" as Href)}
                 accessibilityRole="button"
-                accessibilityLabel={`Achievements, ${earned.count} earned`}
-                style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+                accessibilityLabel="Achievements"
+                style={({ pressed }) => [styles.achievements, { opacity: pressed ? 0.6 : 1 }]}
               >
-                <Medal rank={earned.top} run={false} theme={theme} />
+                <Medal rank={topRank} run={false} theme={theme} />
                 <AppText color={theme.ink} style={styles.grow}>
                   Achievements
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  {earned.count} earned
                 </AppText>
                 <Chevron color={theme.muted} theme={theme} size={13} />
               </Pressable>
@@ -214,66 +275,56 @@ export default function LifeScreen() {
               </AppText>
               <InfoButton
                 title="Your units"
-                body="Each bar is that unit's share of the time you spent in the last 4 weeks. Tap a unit for its tasks; the info button opens the unit itself."
+                body="Your priorities. Drag a unit to another tier, or higher in its own, to give it more of the day; Not now is out of the plan. Hold a unit for your own weight. Each bar is that unit's share of your time over the last 4 weeks."
                 theme={theme}
               />
-              <Pressable
-                onPress={() => router.push("/priorities" as Href)}
-                accessibilityRole="button"
-                style={styles.link}
-              >
-                <AppText variant="caption" color={theme.accent}>
-                  Priorities ›
-                </AppText>
-              </Pressable>
             </View>
-            {!hasPlan ? (
-              <View style={styles.empty}>
-                <AppText color={theme.ink}>
-                  Your plan starts with your priorities. Sort what matters into tiers first.
-                </AppText>
-                <Button label="Set your priorities" onPress={() => router.push("/priorities" as Href)} theme={theme} />
-              </View>
-            ) : (
-              <>
-                {groups.map((g) =>
-                  g.tier === "notNow" ? (
-                    <View key={g.tier}>
-                      <Pressable
-                        onPress={() => setNotNowOpen((v) => !v)}
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: notNowOpen }}
-                        style={styles.link}
-                      >
-                        <View style={styles.toggleRow}>
-                          <AppText variant="caption" color={theme.muted}>
-                            Not now ({g.units.length})
-                          </AppText>
-                          <ExpandChevron open={notNowOpen} color={theme.muted} size={13} />
-                        </View>
-                      </Pressable>
-                      {notNowOpen ? (
-                        <Animated.View entering={OPEN} exiting={CLOSE}>
-                          <UnitRows units={g.units} {...rowsProps} />
-                        </Animated.View>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <View key={g.tier}>
-                      <AppText variant="caption" color={theme.muted} style={styles.tier}>
-                        {g.label}
-                      </AppText>
-                      <UnitRows units={g.units} {...rowsProps} />
-                    </View>
-                  ),
-                )}
-              </>
-            )}
+            {priority.unsorted > 0 ? (
+              <AppText color={theme.muted}>Drag each unit into a tier. Not now is a tier too.</AppText>
+            ) : null}
+            {priority.unsorted === 0 && priority.live.problem ? (
+              <AppText variant="footnote" color={theme.muted}>
+                {priority.live.problem}
+              </AppText>
+            ) : null}
+            {priority.slots.map((slot) => (
+              <TierSection
+                key={slot}
+                slot={slot}
+                units={priority.placement
+                  .filter((p) => p.tier === slot)
+                  .map((p) => rowOf.get(p.unitId))
+                  .filter((u): u is LifeUnitRow => u !== undefined)}
+                collapsed={slot === "notNow" && !notNowOpen}
+                onToggleCollapsed={slot === "notNow" ? () => setNotNowOpen((v) => !v) : undefined}
+                rowsProps={rowsProps}
+                theme={theme}
+              />
+            ))}
           </>
         )}
       </ScrollView>
+      </DayDrag>
 
       <UndoBar undo={undo} theme={theme} />
+
+      {weighingShown && weighingUnit && weighingTier && weighingTier !== "unsorted" ? (
+        <UnitSheet
+          key={weighingShown}
+          visible={weighing !== null}
+          onDismissed={weighingGone}
+          unitName={weighingUnit.name}
+          tier={weighingTier}
+          recommended={priority.live.recommended.get(weighingShown) ?? 0}
+          override={priority.overrides.get(weighingShown) ?? null}
+          canMoveUp={false}
+          canMoveDown={false}
+          theme={theme}
+          onMove={() => undefined}
+          onSave={({ tier, override: own }) => priority.setUnit(weighingShown, tier, own)}
+          onClose={() => setWeighing(null)}
+        />
+      ) : null}
 
       <TabToolbar
         onTask={() => openAdd("task")}
@@ -334,8 +385,70 @@ export default function LifeScreen() {
   );
 }
 
+/** One tier on Life: its label and its units, a place to drop a unit
+ *  whether or not it holds any. Not now folds; dropping on its label
+ *  still moves a unit there. */
+function TierSection({
+  slot,
+  units,
+  collapsed,
+  onToggleCollapsed,
+  rowsProps,
+  theme,
+}: {
+  slot: Slot;
+  units: LifeUnitRow[];
+  collapsed: boolean;
+  onToggleCollapsed?: () => void;
+  rowsProps: Omit<React.ComponentProps<typeof UnitRows>, "units" | "slot">;
+  theme: ThemeTokens;
+}) {
+  const [over, attach] = useDropTarget(slot, collapsed ? [] : units.map((u) => u.id));
+  const label = slot === "notNow" ? `Not now (${units.length})` : SLOT_LABEL[slot];
+  return (
+    <View
+      ref={attach}
+      collapsable={false}
+      style={over ? [styles.over, { borderColor: theme.accent }] : styles.notOver}
+    >
+      {onToggleCollapsed ? (
+        <Pressable
+          onPress={onToggleCollapsed}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !collapsed }}
+          style={styles.link}
+        >
+          <View style={styles.toggleRow}>
+            <AppText variant="caption" color={theme.muted}>
+              {label}
+            </AppText>
+            <ExpandChevron open={!collapsed} color={theme.muted} size={13} />
+          </View>
+        </Pressable>
+      ) : (
+        <AppText variant="caption" color={theme.muted} style={styles.tier}>
+          {label}
+        </AppText>
+      )}
+      {collapsed ? null : units.length === 0 ? (
+        <View style={[styles.emptyTier, { borderColor: theme.hairline }]}>
+          <AppText variant="caption" color={theme.muted}>
+            Drag a unit here
+          </AppText>
+        </View>
+      ) : (
+        <Animated.View entering={OPEN} exiting={CLOSE}>
+          <UnitRows units={units} slot={slot} {...rowsProps} />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
 function UnitRows({
   units,
+  slot,
+  onHold,
   badges,
   open,
   tasksOf,
@@ -345,6 +458,10 @@ function UnitRows({
   theme,
 }: {
   units: TierGroup["units"];
+  /** The tier they're in, for the drag. */
+  slot: Slot;
+  /** Holding a unit and letting go: its menu. */
+  onHold: (u: LifeUnitRow) => () => void;
   badges: ReadonlyMap<string, UnitBadge>;
   open: ReadonlySet<string>;
   tasksOf: ReadonlyMap<string, PlanTask[]>;
@@ -366,11 +483,18 @@ function UnitRows({
           // Rows below an opening unit slide down rather than jump.
           <Animated.View key={u.id} layout={MOVE}>
             {i > 0 ? <GroupDivider theme={theme} /> : null}
+            <DragRow id={u.id} sectionKey={slot} enabled onHold={onHold(u)}>
             <View style={styles.row}>
               <Pressable
                 onPress={() => onToggle(u.id)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
+                // Dragging can't be done with VoiceOver: the same menu a
+                // hold opens is an action here (WCAG 2.2 SC 2.5.7).
+                accessibilityActions={[{ name: "menu", label: "Tier and weight" }]}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === "menu") onHold(u)();
+                }}
                 accessibilityLabel={[
                   u.name,
                   `${u.tasks} ${u.tasks === 1 ? "task" : "tasks"}`,
@@ -384,7 +508,7 @@ function UnitRows({
               >
                 <View style={[styles.dot, { backgroundColor: hue }]} />
                 <View style={styles.grow}>
-                  <AppText color={theme.ink} numberOfLines={1}>
+                  <AppText color={theme.ink} numberOfLines={2}>
                     {u.name}
                   </AppText>
                   {/* A share of your time, drawn against the largest. */}
@@ -416,6 +540,7 @@ function UnitRows({
                 <Ionicons name="information-circle-outline" size={20} color={theme.muted} />
               </Pressable>
             </View>
+            </DragRow>
             {expanded ? (
               <Animated.View
                 entering={OPEN}
@@ -480,6 +605,8 @@ const styles = StyleSheet.create({
   link: { minHeight: 44, justifyContent: "center" },
   empty: { gap: space.md },
   row: { flexDirection: "row", alignItems: "center", paddingRight: space.sm },
+  /** A settings-style row: 52pt, like the rows in Settings. */
+  achievements: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 52 },
   rowMain: {
     flex: 1,
     flexDirection: "row",
@@ -490,6 +617,25 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  /** A tier being dragged over, outlined; the same space when not, so
+   *  nothing shifts as a drag passes. */
+  over: { borderWidth: 1.5, borderRadius: radius.md, margin: -1.5 },
+  notOver: {},
+  emptyTier: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ghost: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    minHeight: 56,
+    paddingHorizontal: space.lg,
+  },
   info: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
   tasks: {
     marginHorizontal: space.md,

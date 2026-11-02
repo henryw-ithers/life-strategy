@@ -1,90 +1,45 @@
 /**
- * How often, which days, when in the day — the three questions that
- * turn a task into a plan (ADR-0024 §1).
+ * The task form below the name (ADR-0024 §1, redesigned 2026-11-02):
+ * how big, then repeats or once and which days, then when in the day,
+ * then part credit. One component for the add and edit sheets, so the
+ * two can't drift into asking the same things in two orders.
  *
- * One component, used by both the add dialog and the edit sheet, so
- * the two surfaces cannot drift into asking the same thing in two
- * orders. Creating a task and revising one are the same act at
- * different times, and a plan made in a different sequence than it is
- * later read is a plan you have to re-learn.
+ * Each question is asked **once**:
  *
- * The order is fixed and deliberate: **frequency, then days, then part
- * of day.** How often is the commitment; the days and the part of day
- * are where you put it. Asking for placement before the commitment
- * exists is asking about a thing that has no size yet.
+ * - **Size** is one control (`SizePicker`, under the name), for a
+ *   repeating task and a one-off alike. It was asked in two places.
+ * - **Days** are one control: tap days to fix them, or leave them all
+ *   off and say how many a week. Picking days *is* the count
+ *   (ADR-0024 §Schema), so the two never offer different answers.
+ * - **When in the day** is one control: Anytime, a part of the day, or
+ *   a time. A part of the day and a clock time were two unlinked
+ *   controls. Anytime is the default, and a time is never required
+ *   (ADR-0036).
  *
- * Picking days *is* setting the frequency (ADR-0024 §Schema), so the
- * stepper is replaced by a line stating what the days come to rather
- * than sitting beside them offering a second answer to one question.
- * The block stays where it is either way — swapping its contents
- * rather than removing it keeps the two controls below from jumping
- * under the finger that just lit a chip.
- *
- * Multiple days are the point, not a power feature: three chips is
- * three times a week on those three days, and the research this ADR
- * rests on is about the stability of the cue, not the count.
- *
- * **Repeats or once, first.** A one-off answers different questions —
- * how big, which day if any, due by when — so the block swaps rather
- * than growing. Putting the choice at the top means a person never
- * fills in a cadence for something that happens once.
+ * Laid out as iOS inset groups, each with its label above it, so the
+ * sheet scans as a few short questions rather than a list of settings.
  */
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
 
+import { endFromClock, startFromClock } from "../../lib/calendar";
 import type { ThemeTokens } from "../../theme/colors";
-import { space } from "../../theme/tokens";
+import { radius, space } from "../../theme/tokens";
+import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { AppText } from "../ui/AppText";
+import { Group, GroupDivider } from "../ui/Group";
 import { formatFrequency } from "./frequency";
 import { FrequencyStepper } from "./FrequencyStepper";
 import { OneOffPicker, type OneOffSize } from "./OneOffPicker";
 import { Segmented } from "./Segmented";
-import { PartOfDayPicker } from "./PartOfDayPicker";
-import { frequencyForWeekdays, type PartOfDay, type Weekday } from "./planning";
-import { TaskDetailPicker, type TaskDetail } from "./TaskDetailPicker";
+import {
+  frequencyForWeekdays,
+  PART_OF_DAY_LABEL,
+  PART_OF_DAY_ORDER,
+  type PartOfDay,
+  type Weekday,
+} from "./planning";
+import type { TaskDetail } from "./taskDetail";
 import { WeekdayPicker } from "./WeekdayPicker";
-
-interface SchedulePickerProps {
-  /** `true` swaps the whole block for the one-off questions. */
-  once: boolean;
-  onOnceChange: (next: boolean) => void;
-  /**
-   * Whether the Repeats/Once switch is offered at all.
-   *
-   * False on the edit sheet. Converting a task that already has
-   * completions would strand them — a recurring task turned one-off
-   * reads as settled and disappears — so cadence is decided once, when
-   * the task is made. Everything else about a one-off stays editable.
-   */
-  canChangeCadence?: boolean;
-  oneOff: OneOffState;
-  onOneOffChange: (next: OneOffState) => void;
-  timesPerWeek: number;
-  onTimesPerWeekChange: (times: number) => void;
-  /** Empty is flexible — "any N days", the default and not a lesser
-   *  state. Most of a plan is deliberately unpinned. */
-  weekdays: Weekday[];
-  onWeekdaysChange: (days: Weekday[]) => void;
-  /** Null is *Anytime*, a value rather than a gap. */
-  partOfDay: PartOfDay | null;
-  onPartOfDayChange: (part: PartOfDay | null) => void;
-  /** Which half of the fortnight a fortnightly task falls in. */
-  fortnightOffset?: number;
-  /** Omit and the switch-weeks control never shows. */
-  onFortnightOffsetChange?: (offset: 0 | 1) => void;
-  /** A clock time, a size, and part credit — all optional, all closed
-   *  by default (ADR-0036 §2). */
-  detail: TaskDetail;
-  onDetailChange: (next: TaskDetail) => void;
-  /**
-   * The task is recurring commitment work, so its days are required
-   * rather than optional (ADR-0033; `needsDays`). Changes what the
-   * "Which days" line says, so the requirement is stated where it
-   * applies instead of only as a disabled button further down.
-   */
-  daysRequired?: boolean;
-  accent: string;
-  theme: ThemeTokens;
-}
 
 export interface OneOffState {
   size: OneOffSize;
@@ -92,11 +47,61 @@ export interface OneOffState {
   due: string | null;
 }
 
-/** Two words, because the difference is the whole point. */
+const SIZES = [
+  { value: "quick" as const, label: "Quick" },
+  { value: "normal" as const, label: "Normal" },
+  { value: "big" as const, label: "Big" },
+];
+
+/** How big, under the name: about half an hour, an hour, two. */
+export function SizePicker({
+  value,
+  onChange,
+  accent,
+  theme,
+}: {
+  value: OneOffSize;
+  onChange: (size: OneOffSize) => void;
+  accent: string;
+  theme: ThemeTokens;
+}) {
+  return (
+    <Segmented segments={SIZES} value={value} onChange={onChange} accent={accent} theme={theme} label="How big" />
+  );
+}
+
 const CADENCE = [
   { value: "repeats" as const, label: "Repeats" },
   { value: "once" as const, label: "Once" },
 ];
+
+interface SchedulePickerProps {
+  once: boolean;
+  onOnceChange: (next: boolean) => void;
+  /** False on the edit sheet: a task with completions can't change
+   *  between repeating and once without stranding them. */
+  canChangeCadence?: boolean;
+  oneOff: OneOffState;
+  onOneOffChange: (next: OneOffState) => void;
+  timesPerWeek: number;
+  onTimesPerWeekChange: (times: number) => void;
+  /** Empty is "any N days", the default and not a lesser state. */
+  weekdays: Weekday[];
+  onWeekdaysChange: (days: Weekday[]) => void;
+  /** Null is Anytime, unless a time is set. */
+  partOfDay: PartOfDay | null;
+  onPartOfDayChange: (part: PartOfDay | null) => void;
+  fortnightOffset?: number;
+  /** Omit and the switch-weeks control never shows. */
+  onFortnightOffsetChange?: (offset: 0 | 1) => void;
+  /** Its time and part credit. Its size is `SizePicker`'s. */
+  detail: TaskDetail;
+  onDetailChange: (next: TaskDetail) => void;
+  /** Recurring commitment work must name its days (ADR-0033). */
+  daysRequired?: boolean;
+  accent: string;
+  theme: ThemeTokens;
+}
 
 export function SchedulePicker({
   once,
@@ -119,165 +124,221 @@ export function SchedulePicker({
   theme,
 }: SchedulePickerProps) {
   const pinned = weekdays.length > 0;
-  const effectiveTimes = frequencyForWeekdays(weekdays, timesPerWeek);
+  const times = frequencyForWeekdays(weekdays, timesPerWeek);
+  const timed = detail.startMinute !== null;
+
+  /** One choice for when in the day: a part, Anytime, or a time. */
+  const pickWhen = (next: PartOfDay | "anytime" | "time") => {
+    if (next === "time") {
+      const start = detail.startMinute ?? startFromClock(9 * 60);
+      onPartOfDayChange(null);
+      onDetailChange({ ...detail, startMinute: start, endMinute: detail.endMinute ?? start + 30 });
+      return;
+    }
+    onDetailChange({ ...detail, startMinute: null, endMinute: null });
+    onPartOfDayChange(next === "anytime" ? null : next);
+  };
+  const when = timed ? "time" : (partOfDay ?? "anytime");
 
   return (
-    /* One block, three questions. The trio used to sit as three
-       siblings in the sheet's own stack, evenly spaced with the name
-       and the unit, so five equal-weight fields read as a list of
-       settings rather than as two questions and a plan. A rule above
-       them and their own inner rhythm is what makes the sheet scan as
-       *what it is*, then *when it happens*. */
-    <View style={[styles.group, { borderTopColor: theme.hairline }]}>
-      {canChangeCadence ? (
-        <Segmented
-          segments={CADENCE}
-          value={once ? "once" : "repeats"}
-          onChange={(next) => onOnceChange(next === "once")}
-          accent={accent}
-          theme={theme}
-          label="Repeats or once"
-        />
-      ) : null}
+    <View style={styles.root}>
+      <Group theme={theme} title={once ? "When it happens" : "Days"}>
+        <View style={styles.stack}>
+          {canChangeCadence ? (
+            <Segmented
+              segments={CADENCE}
+              value={once ? "once" : "repeats"}
+              onChange={(next) => onOnceChange(next === "once")}
+              accent={accent}
+              theme={theme}
+              label="Repeats or once"
+            />
+          ) : null}
 
-      {once ? (
-        <OneOffPicker
-          size={oneOff.size}
-          onSizeChange={(size) => onOneOffChange({ ...oneOff, size })}
-          date={oneOff.date}
-          onDateChange={(date) => onOneOffChange({ ...oneOff, date })}
-          due={oneOff.due}
-          onDueChange={(due) => onOneOffChange({ ...oneOff, due })}
-          accent={accent}
-          theme={theme}
-        />
-      ) : (
-      <>
-      <View style={styles.block}>
-        <AppText variant="caption" color={theme.muted}>
-          How often
-        </AppText>
-        {pinned ? (
-          // Stated rather than implied, so picking days never feels
-          // like it lost the setting the stepper used to hold. Reads as
-          // fact about the plan, never as a target to hit.
-          <View style={styles.derived}>
-            <AppText color={theme.ink}>{formatFrequency(effectiveTimes)}</AppText>
-            <AppText variant="footnote" color={theme.muted}>
-              Set by the days below.
-            </AppText>
-          </View>
-        ) : (
-          <FrequencyStepper
-            value={timesPerWeek}
-            onChange={onTimesPerWeekChange}
-            theme={theme}
-          />
-        )}
-      </View>
-
-      <View style={styles.block}>
-        <View style={styles.blockHeader}>
-          <AppText variant="caption" color={theme.muted}>
-            Which days
-          </AppText>
-          {/* Says what "no chips" means, so flexible reads as a choice
-              rather than as a field left blank, and says how to get
-              back to the stepper once chips are lit. */}
-          <AppText
-            variant="footnote"
-            // Ink, not muted, only while it is the thing standing
-            // between you and Save — the one place the sheet asks.
-            color={daysRequired && !pinned ? theme.ink : theme.muted}
-          >
-            {pinned
-              ? daysRequired
-                ? "Paid on these days"
-                : "Clear to pick a count instead"
-              : daysRequired
-                ? "Pick the days it happens"
-                : "Any days"}
-          </AppText>
+          {once ? (
+            <OneOffPicker
+              date={oneOff.date}
+              onDateChange={(date) => onOneOffChange({ ...oneOff, date })}
+              due={oneOff.due}
+              onDueChange={(due) => onOneOffChange({ ...oneOff, due })}
+              accent={accent}
+              theme={theme}
+            />
+          ) : (
+            <>
+              <WeekdayPicker value={weekdays} onChange={onWeekdaysChange} accent={accent} theme={theme} />
+              {pinned ? (
+                <View style={styles.daysLine}>
+                  <AppText color={theme.ink} style={styles.grow}>
+                    {formatFrequency(times)}
+                  </AppText>
+                  {!daysRequired ? (
+                    <Pressable
+                      onPress={() => onWeekdaysChange([])}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear the days, and say how many a week instead"
+                      hitSlop={8}
+                      style={styles.link}
+                    >
+                      <AppText variant="caption" color={accent}>
+                        Any days instead
+                      </AppText>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : daysRequired ? (
+                <AppText variant="footnote" color={theme.ink}>
+                  Pick the days it happens.
+                </AppText>
+              ) : (
+                // No days picked: how many a week, any days. The stepper
+                // says it in words ("3 days a week"), so it needs no label.
+                <FrequencyStepper value={timesPerWeek} onChange={onTimesPerWeekChange} theme={theme} />
+              )}
+              {/* A fortnightly task on a weekday has two answers to
+                  "which week" (ADR-0024 §1 as amended). */}
+              {pinned && times === 0 && onFortnightOffsetChange ? (
+                <Pressable
+                  onPress={() => onFortnightOffsetChange(fortnightOffset === 0 ? 1 : 0)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    fortnightOffset === 0
+                      ? "Happens this week. Switch to next week."
+                      : "Happens next week. Switch to this week."
+                  }
+                  style={styles.link}
+                >
+                  <AppText variant="footnote" color={theme.muted}>
+                    {fortnightOffset === 0 ? "This week" : "Next week"} · switch
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </>
+          )}
         </View>
-        <WeekdayPicker
-          value={weekdays}
-          onChange={onWeekdaysChange}
-          accent={accent}
-          theme={theme}
-        />
+      </Group>
 
-        {/* Only a fortnightly task pinned to a weekday has two possible
-            answers to "which one" — every other cadence is due on every
-            matching day, and the fortnight boundary is fixed so the
-            date cannot decide it (ADR-0024 §1 as amended). */}
-        {pinned && effectiveTimes === 0 && onFortnightOffsetChange ? (
-          <Pressable
-            onPress={() => onFortnightOffsetChange(fortnightOffset === 0 ? 1 : 0)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              fortnightOffset === 0
-                ? "Happens this week. Switch to next week."
-                : "Happens next week. Switch to this week."
-            }
-            style={({ pressed }) => [styles.flip, { opacity: pressed ? 0.5 : 1 }]}
-          >
-            <AppText variant="footnote" color={theme.muted}>
-              {fortnightOffset === 0 ? "This week" : "Next week"} · switch
-            </AppText>
-          </Pressable>
-        ) : null}
-      </View>
+      <Group theme={theme} title="When in the day">
+        <View style={styles.stack}>
+          <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="When in the day">
+            {(["anytime", ...PART_OF_DAY_ORDER, "time"] as const).map((option) => {
+              const on = when === option;
+              const label =
+                option === "anytime" ? "Anytime" : option === "time" ? "At a time" : PART_OF_DAY_LABEL[option];
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => pickWhen(option)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  // 36pt chips with 8pt between rows: the slop makes each
+                  // a 44pt target without overlapping its neighbours.
+                  hitSlop={{ top: 4, bottom: 4 }}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      borderColor: on ? accent : theme.hairline,
+                      backgroundColor: on ? theme.fill : "transparent",
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <AppText variant="caption" color={on ? theme.ink : theme.muted}>
+                    {label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+          {timed ? (
+            <View>
+              <TimeFieldRow style={styles.timeRow}>
+                <AppText color={theme.ink} style={styles.grow}>
+                  Starts
+                </AppText>
+                <TimeField
+                  minutes={detail.startMinute!}
+                  onChange={(clock) => {
+                    const start = startFromClock(clock);
+                    const span = detail.endMinute !== null ? detail.endMinute - detail.startMinute! : null;
+                    onDetailChange({ ...detail, startMinute: start, endMinute: span === null ? null : start + span });
+                  }}
+                  label="Starts"
+                  accent={accent}
+                  theme={theme}
+                />
+              </TimeFieldRow>
+              <GroupDivider theme={theme} />
+              <TimeFieldRow style={styles.timeRow}>
+                <AppText color={theme.ink} style={styles.grow}>
+                  Ends
+                </AppText>
+                {detail.endMinute !== null ? (
+                  <TimeField
+                    minutes={detail.endMinute}
+                    onChange={(clock) =>
+                      onDetailChange({
+                        ...detail,
+                        endMinute: Math.max(endFromClock(detail.startMinute!, clock), detail.startMinute! + 15),
+                      })
+                    }
+                    label="Ends"
+                    accent={accent}
+                    theme={theme}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => onDetailChange({ ...detail, endMinute: detail.startMinute! + 30 })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ends, open-ended. Set an end"
+                    style={styles.link}
+                  >
+                    <AppText variant="caption" color={accent}>
+                      Add an end
+                    </AppText>
+                  </Pressable>
+                )}
+              </TimeFieldRow>
+            </View>
+          ) : null}
+        </View>
+      </Group>
 
-      </>
-      )}
-
-      <View style={styles.block}>
-        <AppText variant="caption" color={theme.muted}>
-          When in the day
-        </AppText>
-        <PartOfDayPicker
-          value={partOfDay}
-          onChange={onPartOfDayChange}
-          accent={accent}
-          theme={theme}
-        />
-      </View>
-
-      {/* Last, and closed. Part of day above it is the default and the
-          answer most tasks will ever need; this is the step toward
-          precision that is offered and never required (ADR-0036 §2).
-          A one-off is not asked its size twice — it answered above. */}
-      <TaskDetailPicker
-        value={detail}
-        onChange={onDetailChange}
-        showSize={!once}
-        accent={accent}
+      <Group
         theme={theme}
-      />
+        footnote="Tick part of it on a busy day, and it counts for the part you did."
+      >
+        <View style={styles.switchRow}>
+          <AppText color={theme.ink} style={styles.grow}>
+            Part credit
+          </AppText>
+          <Switch
+            value={detail.allowsPartial}
+            onValueChange={(allowsPartial) => onDetailChange({ ...detail, allowsPartial })}
+            trackColor={{ false: theme.hairline, true: accent }}
+            thumbColor={theme.canvas}
+            accessibilityLabel="Part credit"
+          />
+        </View>
+      </Group>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  /** The three questions as one unit: a rule above them, and visibly
-   *  more air than the 12pt between the fields above, so the sheet
-   *  reads as *what it is* and then *when it happens* rather than as
-   *  five evenly spaced settings. */
-  group: {
-    gap: space.lg,
-    paddingTop: space.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  root: { gap: space.lg },
+  stack: { gap: space.md },
+  grow: { flex: 1 },
+  daysLine: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
+  link: { minHeight: 44, justifyContent: "center" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: "center",
   },
-  block: { gap: space.sm },
-  /** Sits under the chips it qualifies, quiet enough that a weekly
-   *  task's row never looks like it is missing one. */
-  flip: { minHeight: 32, justifyContent: "center" },
-  /** Exactly the stepper's 50pt, so the two blocks below hold still
-   *  when the chips take the frequency over. */
-  derived: { gap: 2, minHeight: 50, justifyContent: "center" },
-  blockHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-  },
+  timeRow: { flexDirection: "row", alignItems: "center", minHeight: 48 },
+  switchRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
 });

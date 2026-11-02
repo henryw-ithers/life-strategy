@@ -15,7 +15,9 @@ import { NativeSheet } from "../ui/NativeSheet";
 interface MoveToWindowSheetProps {
   visible: boolean;
   taskTitle: string;
-  /** Today's windows still to come, other than the one it's in. */
+  /** The sheet's title; "Move …" unless given. */
+  title?: string;
+  /** Today's windows, other than the one it's in. */
   windows: readonly TimeRange[];
   theme: ThemeTokens;
   onClose: () => void;
@@ -26,6 +28,7 @@ interface MoveToWindowSheetProps {
 export function MoveToWindowSheet({
   visible,
   taskTitle,
+  title,
   windows,
   theme,
   onClose,
@@ -33,7 +36,7 @@ export function MoveToWindowSheet({
   onPick,
 }: MoveToWindowSheetProps) {
   return (
-    <NativeSheet visible={visible} onClose={onClose} onDismissed={onDismissed} title={`Move ${taskTitle}`}>
+    <NativeSheet visible={visible} onClose={onClose} onDismissed={onDismissed} title={title ?? `Move ${taskTitle}`}>
       {windows.length === 0 ? (
         <AppText color={theme.muted}>There&apos;s no other window left today.</AppText>
       ) : (

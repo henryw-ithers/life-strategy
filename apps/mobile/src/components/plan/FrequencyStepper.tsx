@@ -12,7 +12,7 @@
  * other controls are already chip rows: a fourth would have made four
  * different questions look like one question repeated.
  *
- * The track deliberately matches `PartOfDayPicker`'s — same 3pt inset,
+ * The track deliberately matches `Segmented`'s — same 3pt inset,
  * same 44pt inner height, same radius and surface fill — so the two
  * controls in this block read as one family rather than two borrowed
  * widgets.

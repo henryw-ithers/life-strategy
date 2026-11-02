@@ -15,8 +15,9 @@ import { StyleSheet, Switch, View } from "react-native";
 import type { ThemeTokens } from "../../theme/colors";
 import { space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
-import { TimeField } from "../ui/DateTimeField";
+import { TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { NativeSheet } from "../ui/NativeSheet";
+import { dayStartHour, endFromClock, startFromClock } from "../../lib/calendar";
 
 interface WindowTimesSheetProps {
   visible: boolean;
@@ -63,7 +64,7 @@ export function WindowTimesSheet({
     }
   }
 
-  const invalid = rangeError(range);
+  const invalid = rangeError(range, dayStartHour());
   const save = async () => {
     if (saving || invalid !== null) return;
     setSaving(true);
@@ -98,31 +99,35 @@ export function WindowTimesSheet({
         <Switch value={weekly} onValueChange={setWeekly} accessibilityLabel={`Every ${weekdayName}`} />
       </View>
       )}
-      <View style={styles.row}>
+      <TimeFieldRow style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Starts
         </AppText>
         <TimeField
           minutes={range.start}
-          onChange={(start) => setRange((r) => ({ start, end: Math.max(r.end, start + 30) }))}
+          onChange={(clock) =>
+            setRange((r) => {
+              const start = startFromClock(clock);
+              return { start, end: start + (r.end - r.start) };
+            })
+          }
           label="Starts"
           accent={theme.accent}
           theme={theme}
         />
-      </View>
-      <View style={styles.row}>
+      </TimeFieldRow>
+      <TimeFieldRow style={styles.row}>
         <AppText variant="body" color={theme.ink} style={styles.grow}>
           Ends
         </AppText>
         <TimeField
           minutes={range.end}
-          min={range.start + 15}
-          onChange={(end) => setRange((r) => ({ ...r, end }))}
+          onChange={(clock) => setRange((r) => ({ ...r, end: endFromClock(r.start, clock) }))}
           label="Ends"
           accent={theme.accent}
           theme={theme}
         />
-      </View>
+      </TimeFieldRow>
       {problem ?? invalid ? (
         <AppText
           variant="caption"

@@ -28,6 +28,9 @@ interface TaskRowProps {
    * not one you are still deciding when to do.
    */
   onMove?: () => void;
+  /** Press-and-hold on a row ticked today: say which window it was done
+   *  in (ADR-0048). */
+  onDoneIn?: () => void;
   /** Press-and-hold on an unticked event: skip it (ADR-0040 §2). An
    *  event has its own time, so it isn't moved, it's skipped. */
   onSkip?: () => void;
@@ -49,8 +52,32 @@ interface TaskRowProps {
   /** What the end of the row shows: today's points (the default), or
    *  the task's size, as Home's windows do (spec §5.1). */
   trailing?: "points" | "size";
+  /** A drag around the row owns the hold, and opens the menu when the
+   *  row is let go without moving (`DragRow`). */
+  holdByDrag?: boolean;
   theme: ThemeTokens;
   reduceMotion: boolean;
+}
+
+type HoldHandlers = Pick<TaskRowProps, "onTag" | "onSkip" | "onPartial" | "onMove" | "onDoneIn" | "onEdit">;
+
+/** What a hold on a row does: its one action, or a menu of them. Null
+ *  when a hold does nothing. Shared with `DragRow`'s hold. */
+export function rowHold(
+  task: TodayTask,
+  { onTag, onSkip, onPartial, onMove, onDoneIn, onEdit }: HoldHandlers,
+): { run: () => void; label: string } | null {
+  const actions: SheetAction[] = [
+    ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
+    ...(onSkip ? [{ label: "Skip this event", onPress: onSkip }] : []),
+    ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
+    ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
+    ...(onDoneIn ? [{ label: "Done in…", onPress: onDoneIn }] : []),
+    ...(onEdit ? [{ label: task.kind === "event" ? "Edit event" : "Edit task", onPress: onEdit }] : []),
+  ];
+  if (actions.length === 0) return null;
+  if (actions.length === 1) return { run: actions[0]!.onPress, label: actions[0]!.label };
+  return { run: () => showActions(task.title, actions), label: "More" };
 }
 
 /** One checklist row: area-hue check circle, title, factual caption. */
@@ -61,6 +88,7 @@ export function TaskRow({
   onToggle,
   onTag,
   onMove,
+  onDoneIn,
   onSkip,
   onPartial,
   onEdit,
@@ -68,6 +96,7 @@ export function TaskRow({
   reason,
   onSwap,
   trailing = "points",
+  holdByDrag = false,
   theme,
   reduceMotion,
 }: TaskRowProps) {
@@ -91,26 +120,14 @@ export function TaskRow({
   const caption = reason ?? rowCaption(task);
   // Everything a hold can do here, as one menu when there's more than
   // one (Henry, 2026-10-26: every object editable).
-  const holdActions: SheetAction[] = [
-    ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
-    ...(onSkip ? [{ label: "Skip this event", onPress: onSkip }] : []),
-    ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
-    ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
-    ...(onEdit ? [{ label: task.kind === "event" ? "Edit event" : "Edit task", onPress: onEdit }] : []),
-  ];
-  const longPress =
-    holdActions.length === 0
-      ? undefined
-      : holdActions.length === 1
-        ? holdActions[0]!.onPress
-        : () => showActions(task.title, holdActions);
-  const longPressLabel =
-    holdActions.length === 0 ? null : holdActions.length === 1 ? holdActions[0]!.label : "More";
+  const hold = rowHold(task, { onTag, onSkip, onPartial, onMove, onDoneIn, onEdit });
+  const longPress = hold?.run;
+  const longPressLabel = hold?.label ?? null;
 
   return (
     <Pressable
       onPress={onToggle}
-      onLongPress={longPress}
+      onLongPress={holdByDrag ? undefined : longPress}
       delayLongPress={350}
       disabled={disabled}
       accessibilityRole="checkbox"

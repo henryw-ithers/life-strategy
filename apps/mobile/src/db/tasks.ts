@@ -19,6 +19,7 @@ import {
   type BandTask,
   type BandUnit,
   type Tier,
+  MAX_RANGE,
 } from "@glide/scoring";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -48,7 +49,7 @@ import { forgetPinsOf } from "./pins";
 import type { Bounds } from "./seriesRules";
 import { tieredUnits } from "./tierRules";
 import { markGradesStaleIn, writeAndMarkStale } from "./settings";
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, todayEnd } from "../lib/calendar";
 
 export interface PlanTask {
   id: string;
@@ -976,9 +977,23 @@ export async function setTaskTime(
 }
 
 /**
+ * Keep the order rows sit in on Home, top first (ADR-0048). Writes
+ * `day_order` on each task, so the order you set carries into later
+ * days. Touches no points: `rank_in_unit` still prices the task, and
+ * this only decides where its row sits.
+ */
+export async function reorderDayTasks(orderedTaskIds: readonly string[]): Promise<void> {
+  db.transaction((tx) => {
+    for (const [i, taskId] of orderedTaskIds.entries()) {
+      tx.update(task).set({ dayOrder: i + 1 }).where(eq(task.id, taskId)).run();
+    }
+  });
+}
+
+/**
  * The one place a pair of clock times is made storable.
  *
- * Clamps to the day, and drops an end that does not come after its
+ * Keeps a start inside the day, and drops an end that does not come after its
  * start — a negative-height block would silently vanish from the grid
  * rather than looking wrong. An end with no start is dropped too: it is
  * not a block, and nothing in the window math can read one.
@@ -989,12 +1004,16 @@ function clockTimes(
   startMinute: number | null,
   endMinute: number | null,
 ): { startMinute: number | null; endMinute: number | null } {
-  const clamp = (m: number | null) =>
-    m === null ? null : Math.max(0, Math.min(1439, Math.round(m)));
-  const start = clamp(startMinute);
-  const end = clamp(endMinute);
+  // A start falls in the day; an end may run into the next, for up to a
+  // day (ADR-0049).
+  const start =
+    startMinute === null ? null : Math.max(0, Math.min(todayEnd() - 1, Math.round(startMinute)));
+  const end = endMinute === null ? null : Math.round(endMinute);
   if (start === null) return { startMinute: null, endMinute: null };
-  return { startMinute: start, endMinute: end !== null && end > start ? end : null };
+  return {
+    startMinute: start,
+    endMinute: end !== null && end > start && end - start <= MAX_RANGE ? end : null,
+  };
 }
 
 /**

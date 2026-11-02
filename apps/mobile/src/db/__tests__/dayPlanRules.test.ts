@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   eventsOn,
+  eventTimesOn,
   isFlexible,
   spreadDays,
   tierRankOf,
@@ -94,6 +95,17 @@ describe("eventsOn", () => {
       event("onceSkipped", { oneOffSize: "normal", oneOffDate: MON, skippedDates: new Set([MON]) }),
     ];
     expect(eventsOn(rows, MON)).toEqual([]);
+  });
+});
+
+describe("eventTimesOn", () => {
+  it("keeps the next morning clear of a night shift that runs into it", () => {
+    // Sunday 10pm to Monday 6am, with the day starting at 3am.
+    const rows = [event("night", { plannedWeekdays: "7", startMinute: 22 * 60, endMinute: 30 * 60 })];
+    expect(eventTimesOn(rows, MON, 27 * 60)).toEqual([{ start: 0, end: 6 * 60 }]);
+    // Ending by the day's start, it holds nothing of Monday.
+    const short = [event("late", { plannedWeekdays: "7", startMinute: 22 * 60, endMinute: 26 * 60 })];
+    expect(eventTimesOn(short, MON, 27 * 60)).toEqual([]);
   });
 });
 

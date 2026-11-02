@@ -134,7 +134,9 @@ export {
   subtract,
   totalMinutes,
   versionFor,
-  DAY_END_LIMIT,
+  dayEnd,
+  endAfter,
+  MAX_RANGE,
   DEFAULT_RANGES,
   EVENT_BUFFER,
   MIN_WINDOW,
@@ -155,7 +157,7 @@ export type {
   TierRank,
 } from "./fill";
 export {
-  partOfDayOf,
+  overlapsPart,
   planDay,
   sizeMinutes,
   sortOpenTasks,

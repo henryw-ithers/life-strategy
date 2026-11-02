@@ -251,8 +251,8 @@ export default function WeeklyPassScreen() {
           </AppText>
           <Button
             variant="tonal"
-            label="Open Priorities"
-            onPress={() => router.push("/priorities" as Href)}
+            label="Open your units"
+            onPress={() => router.navigate("/goals" as Href)}
             theme={theme}
           />
         </View>

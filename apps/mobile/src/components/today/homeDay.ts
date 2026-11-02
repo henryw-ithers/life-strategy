@@ -13,7 +13,6 @@ import {
   formatMinutes,
   isoWeekday,
   weekStart,
-  type PlannedWindow,
   type TimeRange,
 } from "@glide/scoring";
 
@@ -67,14 +66,6 @@ export function timeLeft(w: TimeRange, now: number): string {
   const rest = m % 60;
   if (h === 0) return `${rest} min left`;
   return rest === 0 ? `${h} h left` : `${h} h ${rest} left`;
-}
-
-/** What a closed window says: a past one how many were done (or
- *  nothing), a later one how many tasks it holds. */
-export function closedLabel(w: PlannedWindow, state: WindowState): string {
-  if (state === "past") return w.done.length > 0 ? `✓ ${w.done.length} done` : "";
-  const n = w.pinned.length + w.timed.length + w.suggested.length;
-  return n === 0 ? "" : `${n} ${n === 1 ? "task" : "tasks"}`;
 }
 
 /** The evening card's default start (spec §5.1): an hour before the

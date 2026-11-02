@@ -80,8 +80,8 @@ export function PlanUnitSection({
             bring it back.
           </AppText>
           <OutlineAction
-            label="Open Priorities"
-            accessibilityLabel={`Open Priorities to move ${unit.name} up`}
+            label="Open your units"
+            accessibilityLabel={`Open your units on Life to move ${unit.name} up`}
             onPress={onOpenPriorities}
             theme={theme}
           />
@@ -184,7 +184,7 @@ export function PlanUnitSection({
             <Pressable
               onPress={onOpenPriorities}
               accessibilityRole="button"
-              accessibilityLabel={`Change ${unit.name}'s tier in Priorities`}
+              accessibilityLabel={`Change ${unit.name}'s tier on Life`}
               style={({ pressed }) => [styles.footAction, { opacity: pressed ? 0.5 : 1 }]}
             >
               <AppText variant="caption" color={theme.muted}>

@@ -17,7 +17,6 @@ import {
   addDays,
   aggregateGrade,
   DAILY_BUDGET,
-  localDateOf,
   monthStart,
   nextMonthStart,
   periodDays,
@@ -28,7 +27,7 @@ import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
 import { db } from "./client";
 import { dayGrade, lifeUnit, task } from "./schema";
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, localDateAt } from "../lib/calendar";
 import { recordUntouchedDays, refreshStaleGrades } from "./dayGrades";
 
 /**
@@ -59,7 +58,7 @@ async function gradingStart(): Promise<string | null> {
     orderBy: (s, { asc }) => asc(s.takenAt),
     limit: 1,
   });
-  return first ? localDateOf(new Date(first.takenAt)) : null;
+  return first ? localDateAt(new Date(first.takenAt)) : null;
 }
 
 async function loadRangeGrade(start: string, end: string): Promise<PeriodGrade> {

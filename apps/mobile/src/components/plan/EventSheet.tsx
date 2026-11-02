@@ -18,12 +18,12 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { eventProblem, type EventInput } from "../../db/events";
 import { addDays } from "@glide/scoring";
 import type { Bounds } from "../../db/seriesRules";
-import { currentLocalDate } from "../../lib/calendar";
+import { currentLocalDate, endFromClock, startFromClock } from "../../lib/calendar";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
-import { DayField, TimeField } from "../ui/DateTimeField";
+import { DayField, TimeField, TimeFieldRow } from "../ui/DateTimeField";
 import { KeyboardScroll } from "../ui/KeyboardScroll";
 import { NativeSheet } from "../ui/NativeSheet";
 import { TextField } from "../ui/TextField";
@@ -166,11 +166,15 @@ export function EventSheet({
   /** Moving the start keeps the length, as every calendar does. A
    *  first start brings an hour-long end with it, unless an end was
    *  already chosen. */
-  const pickStart = (m: number) => {
+  const pickStart = (clock: number) => {
+    const m = startFromClock(clock);
     setStart(m);
-    if (start !== null && end !== null) setEnd(Math.min(1439, m + (end - start)));
-    else if (end === null) setEnd(Math.min(1439, m + 60));
+    if (start !== null && end !== null) setEnd(m + (end - start));
+    else if (end === null) setEnd(m + 60);
   };
+  /** An end earlier on the clock than the start is the next day: a
+   *  night shift is one event (ADR-0049). */
+  const pickEnd = (clock: number) => setEnd(endFromClock(start ?? 9 * 60, clock));
 
   return (
     <NativeSheet onDismissed={onDismissed}
@@ -260,7 +264,11 @@ export function EventSheet({
           <PickRow
             label="Starts"
             empty="Pick a time"
-            onSet={() => pickStart(9 * 60)}
+            onSet={() => {
+              const nine = startFromClock(9 * 60);
+              setStart(nine);
+              if (end === null) setEnd(nine + 60);
+            }}
             theme={theme}
           >
             {start !== null ? (
@@ -270,11 +278,11 @@ export function EventSheet({
           <PickRow
             label="Ends"
             empty="Pick a time"
-            onSet={() => setEnd(Math.min(1439, (start ?? 9 * 60) + 60))}
+            onSet={() => setEnd((start ?? startFromClock(9 * 60)) + 60)}
             theme={theme}
           >
             {end !== null ? (
-              <TimeField minutes={end} onChange={setEnd} label="Ends" accent={accent} theme={theme} />
+              <TimeField minutes={end} onChange={pickEnd} label="Ends" accent={accent} theme={theme} />
             ) : null}
           </PickRow>
         </View>
@@ -331,7 +339,7 @@ function PickRow({
 }) {
   const set = children !== null && children !== undefined;
   return (
-    <View style={styles.row}>
+    <TimeFieldRow style={styles.row}>
       <AppText color={theme.ink} style={styles.grow}>
         {label}
       </AppText>
@@ -347,7 +355,7 @@ function PickRow({
           <AppText color={theme.muted}>{empty}</AppText>
         </Pressable>
       )}
-    </View>
+    </TimeFieldRow>
   );
 }
 

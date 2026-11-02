@@ -27,15 +27,6 @@
       "WebFetch(domain:reactnative.dev)",
       "WebFetch(domain:code.claude.com)"
     ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(npm run build:ios *)",
-      "Bash(npm run submit:ios *)",
-      "Bash(npx eas-cli *)",
-      "Bash(eas *)",
-      "Bash(npm install *)",
-      "Bash(npm uninstall *)"
-    ],
     "deny": [
       "Bash(npm audit fix --force*)",
       "Edit(/apps/mobile/drizzle/**)",
@@ -46,6 +37,15 @@
       "Read(**/*.pem)",
       "Read(**/*.key)",
       "Read(**/*.mobileprovision)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(npm run build:ios *)",
+      "Bash(npm run submit:ios *)",
+      "Bash(npx eas-cli *)",
+      "Bash(eas *)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)"
     ]
   },
   "hooks": {
@@ -61,5 +61,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@anthropic-plugin-directory": true
   }
 }

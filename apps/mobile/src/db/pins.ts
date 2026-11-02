@@ -19,7 +19,7 @@
  * Transactions here use synchronous callbacks: on the app's driver an
  * async callback commits after its first statement.
  */
-import { and, eq, gte, inArray, isNull, lt, max, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, max, or } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import {
@@ -357,6 +357,13 @@ export async function pruneEndedPins(today = currentLocalDate()): Promise<number
     .select({ id: windowChoice.id })
     .from(windowChoice)
     .where(lt(windowChoice.localDate, editWindowStart(today)));
+  // Which window a past tick was filed under goes with its day, as
+  // ended pins do: kept beside the time it was ticked, it would let
+  // someone work out how often pins were kept (ADR-0029 §3, ADR-0048).
+  db.update(taskCompletion)
+    .set({ windowStart: null })
+    .where(and(lt(taskCompletion.localDate, today), isNotNull(taskCompletion.windowStart)))
+    .run();
   if (ended.length === 0 && oldChoices.length === 0) return 0;
 
   const carrying = await stillCarrying(ended, today);

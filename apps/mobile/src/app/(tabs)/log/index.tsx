@@ -411,7 +411,7 @@ function DayEntry({
       {entry.achievements.map((title) => (
         <View key={title} style={styles.item}>
           <View style={styles.gutter}>
-            <Ionicons name="trophy-outline" size={14} color={theme.accent} />
+            <Ionicons name="shield-outline" size={14} color={theme.accent} />
           </View>
           <AppText color={theme.accent} style={styles.grow}>
             {title}

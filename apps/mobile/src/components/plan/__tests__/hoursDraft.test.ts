@@ -32,11 +32,8 @@ describe("draftFrom", () => {
     expect(draftFrom([version, later], WED).schedules).toBe(version.schedules);
   });
 
-  it("starts from onboarding's template only when no hours are set", () => {
-    const template = [{ weekdays: [1, 2, 3, 4, 5, 6, 7] as const, ranges: [{ start: h(8), end: h(20) }] }];
-    expect(draftFrom([], WED, template).schedules).toEqual(template);
-    const version = { from: "2026-10-01", schedules: [], gaps: [] };
-    expect(draftFrom([version], WED, template).schedules).toBe(version.schedules);
+  it("starts from weekdays nine to five when no hours are set", () => {
+    expect(draftFrom([], WED).schedules).toEqual([{ weekdays: [1, 2, 3, 4, 5], ranges: [{ start: h(9), end: h(17) }] }]);
   });
 });
 
@@ -53,7 +50,9 @@ describe("groups and ranges", () => {
 
   it("adds a range a quarter hour after the last", () => {
     expect(nextRange([{ start: h(9), end: h(12) }])).toEqual({ start: h(12, 15), end: h(13, 15) });
-    expect(nextRange([{ start: h(9), end: h(23, 30) }])).toBeNull();
+    // Past midnight is still the day, until the next one starts at 3am.
+    expect(nextRange([{ start: h(9), end: h(23, 30) }])).toEqual({ start: h(23, 45), end: h(24, 45) });
+    expect(nextRange([{ start: h(9), end: h(26, 50) }])).toBeNull();
   });
 
   it("adds a group with the days left", () => {

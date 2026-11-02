@@ -100,7 +100,9 @@ export function useDayData() {
     if (day) void reload(day.date, month);
   };
 
-  const toggle = async (task: TodayTask) => {
+  /** Tick or untick. `windowStart` is the window the row sat in, so a
+   *  tick made later is filed there (ADR-0048). */
+  const toggle = async (task: TodayTask, windowStart: number | null = null) => {
     if (!day) return;
     void Haptics.selectionAsync();
     // Tap always moves forward until the task is done: on a part-done row
@@ -111,7 +113,7 @@ export function useDayData() {
         ? await setCompletionFraction(task.id, day.date, 1)
         : // A session done ahead belongs to the day it was done on, so
           // undoing it undoes that tick — one session, one completion.
-          await toggleCompletion(task.id, task.doneAheadOn ?? day.date);
+          await toggleCompletion(task.id, task.doneAheadOn ?? day.date, windowStart);
     const next = await reload(day.date, undefined, scored);
     // A newer load overtook this one: it says nothing.
     if (next === null) return;

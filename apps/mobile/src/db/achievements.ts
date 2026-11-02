@@ -8,7 +8,6 @@
  * nothing here touches a score, a weight or the plan.
  */
 import {
-  localDateOf,
   ranksReached,
   RANKS,
   seriesById,
@@ -19,7 +18,7 @@ import {
 import { and, asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, localDateAt } from "../lib/calendar";
 import {
   highestRank,
   runShown,
@@ -92,7 +91,7 @@ function readFacts(tx: Tx, today: string): AchievementFacts {
       // only when it was ticked on the day it's for.
       .map(({ completedAt, ...c }) => {
         const at = new Date(completedAt);
-        return { ...c, hour: localDateOf(at) === c.localDate ? at.getHours() : null };
+        return { ...c, hour: localDateAt(at) === c.localDate ? at.getHours() : null };
       }),
     grades: tx
       .select({
@@ -299,6 +298,28 @@ export function badgesByUnit(items: readonly AchievementItem[]): Map<string, Uni
 export async function loadUncelebrated(): Promise<EarnedAchievement[]> {
   const rows = await db.select().from(achievement).where(isNull(achievement.celebratedAt));
   return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(toEarned);
+}
+
+/**
+ * Hand out the ranks waiting to be celebrated, and mark every one of
+ * them celebrated in the same transaction, so each is shown once
+ * however the card is left: Done, another tab, or closing the app.
+ * Ranks of a series in `skip` are marked too but not returned; they're
+ * celebrated somewhere else (plan weeks, on Achievements).
+ */
+export async function takeUncelebrated(skip: ReadonlySet<SeriesId>): Promise<EarnedAchievement[]> {
+  const now = new Date().toISOString();
+  const rows = db.transaction((tx) => {
+    const waiting = tx.select().from(achievement).where(isNull(achievement.celebratedAt)).all();
+    if (waiting.length > 0) {
+      tx.update(achievement).set({ celebratedAt: now }).where(isNull(achievement.celebratedAt)).run();
+    }
+    return waiting;
+  });
+  return rows
+    .filter((r) => !skip.has(r.series as SeriesId))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map(toEarned);
 }
 
 /** Mark the celebration shown, so it's shown once. */

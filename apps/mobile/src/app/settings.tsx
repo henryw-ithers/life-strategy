@@ -43,7 +43,7 @@ import { LoadFailure, saveThen, useScreenLoad } from "../components/ui/ScreenLoa
 import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
-import { TimeField } from "../components/ui/DateTimeField";
+import { FieldScope, TimeField, TimeFieldRow } from "../components/ui/DateTimeField";
 import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
@@ -55,7 +55,9 @@ import {
 } from "../db/settings";
 import { resetOnboarding } from "../db/onboarding";
 import { eraseAllData } from "../db/reset";
-import { currentLocalDate } from "../lib/calendar";
+import { currentLocalDate, dayStartHour } from "../lib/calendar";
+import { HourStepper } from "../components/ui/HourStepper";
+import { changeDayStart } from "../db/dayStart";
 import { askClearToday } from "../components/today/clearToday";
 import { hhmmToMinutes } from "../lib/pickerValues";
 import { loadDay } from "../db/today";
@@ -88,6 +90,8 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   /** New events start one-time (ADR-0040 §6). */
   const [eventsOnce, setEventsOnce] = useState(false);
+  const [dayStart, setDayStartShown] = useState(dayStartHour);
+  const dayStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
@@ -217,7 +221,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <FieldScope style={styles.root}>
       <ScrollView
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
@@ -256,7 +260,7 @@ export default function SettingsScreen() {
             </View>
 
             {settings.enabled ? (
-              <View style={styles.timeRow}>
+              <TimeFieldRow style={styles.timeRow}>
                 <AppText color={theme.ink} style={styles.grow}>
                   Time
                 </AppText>
@@ -267,7 +271,7 @@ export default function SettingsScreen() {
                   accent={theme.accent}
                   theme={theme}
                 />
-              </View>
+              </TimeFieldRow>
             ) : null}
 
             {deniedAtOs ? (
@@ -300,6 +304,34 @@ export default function SettingsScreen() {
         {/* Day-level changes (ADR-0040 §§4–5). Clear today is also in
             Home's ⋯. */}
         <Group theme={theme} title="Your days" flush>
+          {/* When a day begins and ends (ADR-0049): for nights and shifted
+              schedules. The note runs under the row at full width, so a
+              narrow phone doesn't squeeze the label into a column. */}
+          <View style={styles.inset}>
+            <View style={styles.row}>
+              <AppText color={theme.ink} style={styles.grow}>
+                Day starts at
+              </AppText>
+              <HourStepper
+                hour={dayStart}
+                onChange={(h) => {
+                  setDayStartShown(h);
+                  // Saved once you stop tapping: each change moves every
+                  // stored time onto the new day.
+                  if (dayStartTimer.current) clearTimeout(dayStartTimer.current);
+                  dayStartTimer.current = setTimeout(
+                    () => void saveThen(() => changeDayStart(h), () => undefined, retry),
+                    700,
+                  );
+                }}
+                theme={theme}
+              />
+            </View>
+            <AppText variant="footnote" color={theme.muted}>
+              Anything you start before then counts for the day before.
+            </AppText>
+          </View>
+          <GroupDivider theme={theme} />
           <SettingsRow
             label="Time away"
             onPress={() => router.push("/away" as Href)}
@@ -387,9 +419,9 @@ export default function SettingsScreen() {
             only second line left in the list. */}
         <Group theme={theme} title="Start over" flush>
           <SettingsRow
-            label="Run setup again"
-            detail="Priorities, commitments, hours and a few tasks, each one skippable. Nothing is deleted."
-            hint="Opens setup again; nothing you’ve entered is deleted"
+            label="How it works"
+            detail="The opening pages again. Nothing changes."
+            hint="Shows the opening pages again; nothing you’ve entered changes"
             onPress={() => {
               void resetOnboarding().then(() => router.replace("/onboarding"));
             }}
@@ -419,7 +451,7 @@ export default function SettingsScreen() {
         ) : null}
       </ScrollView>
 
-    </View>
+    </FieldScope>
   );
 }
 
@@ -430,8 +462,9 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 44 },
   grow: { flex: 1 },
-  /** A row inside a flush group, padded as `SettingsRow` is. */
-  inset: { paddingHorizontal: space.lg, paddingVertical: space.sm },
+  /** A row inside a flush group, padded as `SettingsRow` is: the group
+   *  already gives it its sides. */
+  inset: { minHeight: 52, paddingVertical: space.sm },
   resourceLine: { marginTop: -space.xs },
   build: { marginTop: space.xxl, textAlign: "center" },
   link: { flexDirection: "row", alignItems: "center", gap: space.xs },

@@ -5,6 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 
+import { applyDayStart } from "../lib/calendar";
 import { FEEDBACK_KINDS, type FeedbackKind } from "../lib/feedback";
 import { db } from "./client";
 import { appSetting } from "./schema";
@@ -53,6 +54,17 @@ export async function eventsDefaultOnce(): Promise<boolean> {
 export async function setEventsDefaultOnce(on: boolean): Promise<void> {
   await setSetting(EVENTS_ONCE_KEY, on ? "1" : "0");
 }
+
+export const DAY_START_KEY = "day.startHour";
+
+/** Read the stored day start into the clock (ADR-0049). At launch,
+ *  before anything asks what day it is. */
+export async function loadDayStart(): Promise<void> {
+  const stored = await getSetting(DAY_START_KEY);
+  if (stored !== null) applyDayStart(Number(stored));
+}
+
+// Changing it moves stored times too: `changeDayStart` in `dayStart.ts`.
 
 const SCORE_EXPLAINED_KEY = "score.explained";
 

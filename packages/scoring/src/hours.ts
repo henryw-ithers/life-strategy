@@ -10,8 +10,11 @@
  *
  * Times are **minutes from local midnight on the wall clock**, never
  * instants, so a day the clocks change keeps its times and nothing
- * appears twice (EC-03, EC-04). A range may run past midnight up to the
- * rollover and belongs to the day it starts on (EC-01): 1 am is 1500.
+ * appears twice (EC-03, EC-04). The day starts at the hour the user
+ * chose (3 am unless changed, ADR-0049) and lasts 24 hours, so a time
+ * after midnight but before that hour is the same day: 1 am is 1500.
+ * A range belongs to the day it starts on and may run any length up to
+ * a day, into the next one: a 10 pm to 6 am shift is 1320–1800.
  *
  * Pure, like everything in this package. The data layer (Phase 5)
  * stores the template, its versions, the day overrides and the edits;
@@ -30,8 +33,14 @@ export interface TimeRange {
   readonly end: number;
 }
 
-/** The latest a range may end: the rollover, the next morning (EC-01). */
-export const DAY_END_LIMIT = 24 * 60 + ROLLOVER_HOUR * 60;
+/** Where the day ends, and the next begins: 24 hours after the day
+ *  starts, in minutes from the date's midnight (ADR-0049). A range must
+ *  start before this; it may end after it. */
+export function dayEnd(dayStartHour: number = ROLLOVER_HOUR): number {
+  return 24 * 60 + dayStartHour * 60;
+}
+/** The longest a range may run: a day. */
+export const MAX_RANGE = 24 * 60;
 /** A stretch shorter than this is a buffer, not a window. */
 export const MIN_WINDOW = 30;
 /** Space kept around each event, by default (Settings, spec §3.4). */
@@ -116,12 +125,12 @@ export interface DayHours {
 
 /** What's wrong with a range, or null. For whatever saves one: ranges
  *  stored wrong are tolerated on read but never written (EC-01). */
-export function rangeError(range: TimeRange): string | null {
+export function rangeError(range: TimeRange, dayStartHour: number = ROLLOVER_HOUR): string | null {
   const { start, end } = range;
   if (!Number.isInteger(start) || !Number.isInteger(end)) return "Times must be whole minutes.";
-  if (start < 0 || start >= 24 * 60) return "A range must start during the day.";
+  if (start < 0 || start >= dayEnd(dayStartHour)) return "A range must start during the day.";
   if (end <= start) return "A range must end after it starts.";
-  if (end > DAY_END_LIMIT) return "A range can run past midnight only until the day rolls over.";
+  if (end - start > MAX_RANGE) return "A range can run for a day at most.";
   return null;
 }
 
@@ -280,12 +289,23 @@ export function totalMinutes(ranges: readonly TimeRange[]): number {
 
 /**
  * Where `hour:minute` on the wall clock falls in the planning day:
- * before the rollover it still belongs to the day before, so 1:30 am is
- * minute 1530 of that day (EC-07).
+ * before the day starts it still belongs to the day before, so 1:30 am
+ * is minute 1530 of that day (EC-07).
  */
 export function dayMinute(hour: number, minute: number, rolloverHour: number = ROLLOVER_HOUR): number {
   const m = hour * 60 + minute;
   return hour < rolloverHour ? m + 24 * 60 : m;
+}
+
+/**
+ * A wall-clock time picked for the end of a range (0–1439) → its minute
+ * in the day: the first time it comes round after `start`, so an end
+ * earlier on the clock than the start is the next day (ADR-0049).
+ */
+export function endAfter(start: number, clock: number): number {
+  let end = Math.floor(start / (24 * 60)) * 24 * 60 + (clock % (24 * 60));
+  while (end <= start) end += 24 * 60;
+  return end;
 }
 
 /** Where the day is at minute `now`. */
