@@ -1,5 +1,14 @@
 # Redesign spec: windows, Plan, Home and Life
 
+> **Amended after testing (2026-11-02).** Two later ADRs change parts
+> of what follows, and win where they disagree:
+> [ADR-0048](../adr/0048-the-day-is-yours-to-arrange.md) (the clock
+> moves nothing on Home: ticks filed by window, ended windows keep their
+> tasks, drag to rearrange; Priorities is edited on Life; onboarding
+> only explains) and
+> [ADR-0049](../adr/0049-the-day-starts-when-you-say.md) (a Day starts
+> at setting; times run overnight).
+
 Draft for Henry's review, 2026-10-12, revised 2026-10-13. None of this
 is built. Where it disagrees with an accepted ADR, the ADR stands until
 the new ADRs in §9 are written and accepted. The evidence behind it is
