@@ -27,13 +27,10 @@ import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { DayField } from "../ui/DateTimeField";
-import { Segmented } from "./Segmented";
 
 export type OneOffSize = "quick" | "normal" | "big";
 
 interface OneOffPickerProps {
-  size: OneOffSize;
-  onSizeChange: (next: OneOffSize) => void;
   /** `YYYY-MM-DD`, or null for "no particular day". */
   date: string | null;
   onDateChange: (next: string | null) => void;
@@ -43,15 +40,7 @@ interface OneOffPickerProps {
   theme: ThemeTokens;
 }
 
-const SIZES = [
-  { value: "quick" as const, label: "Quick" },
-  { value: "normal" as const, label: "Normal" },
-  { value: "big" as const, label: "Big" },
-];
-
 export function OneOffPicker({
-  size,
-  onSizeChange,
   date,
   onDateChange,
   due,
@@ -61,20 +50,6 @@ export function OneOffPicker({
 }: OneOffPickerProps) {
   return (
     <View style={styles.root}>
-      <View style={styles.block}>
-        <AppText variant="caption" color={theme.muted}>
-          How big
-        </AppText>
-        <Segmented
-          segments={SIZES}
-          value={size}
-          onChange={onSizeChange}
-          accent={accent}
-          theme={theme}
-          label="How big"
-        />
-      </View>
-
       <View style={styles.block}>
         <View style={styles.blockHeader}>
           <AppText variant="caption" color={theme.muted}>

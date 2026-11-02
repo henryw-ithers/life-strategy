@@ -41,7 +41,7 @@ import {
   type PartOfDay,
   type Weekday,
 } from "./planning";
-import { SchedulePicker, type OneOffState } from "./SchedulePicker";
+import { SchedulePicker, SizePicker, type OneOffState } from "./SchedulePicker";
 import type { OneOffSize } from "./OneOffPicker";
 import { type TaskDetail } from "./TaskDetailPicker";
 import { UnitPicker, type PickableUnit } from "./UnitPicker";
@@ -223,6 +223,13 @@ export function TaskEditSheet({
           there — which made the same five fields a different form
           depending on how you arrived at them. Identity first, plan
           second, in both. */}
+      <SizePicker
+        value={once ? oneOff.size : (detail.size ?? "normal")}
+        onChange={(size) => (once ? setOneOff({ ...oneOff, size }) : setDetail({ ...detail, size }))}
+        accent={accent}
+        theme={theme}
+      />
+
       <UnitPicker
         units={units}
         value={unitIds}
