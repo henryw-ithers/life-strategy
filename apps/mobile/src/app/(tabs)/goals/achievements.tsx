@@ -60,9 +60,7 @@ export default function AchievementsScreen() {
         ) : (
           <>
             <View style={styles.leadRow}>
-              <AppText variant="caption" color={theme.muted} style={styles.grow}>
-                {earnedCount(sections)} earned
-              </AppText>
+              <View style={styles.grow} />
               <InfoButton
                 title="Achievements"
                 body="Earned from what you do: nothing to set up, and nothing earned is ever taken back. Each has five ranks, Bronze to Diamond. Tap one to see what each rank takes."
@@ -111,10 +109,6 @@ function byStanding(items: readonly AchievementItem[]): AchievementItem[] {
   const standing = (i: AchievementItem) =>
     i.earned.length + (i.next && i.progress !== null ? Math.min(1, i.progress / i.next.threshold) : 0);
   return [...items].sort((a, b) => standing(b) - standing(a));
-}
-
-function earnedCount(sections: readonly AchievementSection[]): number {
-  return sections.reduce((n, s) => n + s.rows.reduce((m, r) => m + r.items.reduce((k, i) => k + i.earned.length, 0), 0), 0);
 }
 
 /** "Gold", or how far along the first rank: "3 / 10". */

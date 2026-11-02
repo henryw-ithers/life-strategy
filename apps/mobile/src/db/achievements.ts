@@ -301,6 +301,28 @@ export async function loadUncelebrated(): Promise<EarnedAchievement[]> {
   return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(toEarned);
 }
 
+/**
+ * Hand out the ranks waiting to be celebrated, and mark every one of
+ * them celebrated in the same transaction, so each is shown once
+ * however the card is left: Done, another tab, or closing the app.
+ * Ranks of a series in `skip` are marked too but not returned; they're
+ * celebrated somewhere else (plan weeks, on Achievements).
+ */
+export async function takeUncelebrated(skip: ReadonlySet<SeriesId>): Promise<EarnedAchievement[]> {
+  const now = new Date().toISOString();
+  const rows = db.transaction((tx) => {
+    const waiting = tx.select().from(achievement).where(isNull(achievement.celebratedAt)).all();
+    if (waiting.length > 0) {
+      tx.update(achievement).set({ celebratedAt: now }).where(isNull(achievement.celebratedAt)).run();
+    }
+    return waiting;
+  });
+  return rows
+    .filter((r) => !skip.has(r.series as SeriesId))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map(toEarned);
+}
+
 /** Mark the celebration shown, so it's shown once. */
 export async function markCelebrated(ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;

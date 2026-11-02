@@ -17,12 +17,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 
-import {
-  awardAchievements,
-  loadUncelebrated,
-  markCelebrated,
-  type EarnedAchievement,
-} from "../db/achievements";
+import { awardAchievements, takeUncelebrated, type EarnedAchievement } from "../db/achievements";
 import { achievementTitle } from "../lib/achievementCopy";
 import { recordProblem } from "../lib/problemLog";
 
@@ -34,35 +29,33 @@ const PLAN_WEEKS: ReadonlySet<SeriesId> = new Set<SeriesId>([
   "wholeUnitRun",
 ]);
 
+/**
+ * Ranks are marked celebrated the moment they're taken, so the card
+ * shows once whether or not Done is tapped: a later open, or a check
+ * after the app was closed, finds nothing new and shows nothing. What
+ * was taken stays on the card for the rest of this session until Done.
+ */
 export function useCelebration() {
-  const [waiting, setWaiting] = useState<EarnedAchievement[]>([]);
+  const [waiting, setWaiting] = useState<readonly EarnedAchievement[]>([]);
   /** Only the latest check lands. */
   const turn = useRef(0);
-  /** What has already buzzed, so a re-check doesn't buzz again. */
-  const felt = useRef<ReadonlySet<string>>(new Set());
-  /** Put away this session, so a check that was already running can't
-   *  bring them back before `markCelebrated` lands. */
-  const dismissed = useRef<Set<string>>(new Set());
+  /** Taken this session and not yet put away. */
   const shown = useRef<readonly EarnedAchievement[]>([]);
 
   const check = useCallback(async () => {
     const mine = ++turn.current;
     try {
       await awardAchievements();
-      const list = (await loadUncelebrated()).filter(
-        (a) => !dismissed.current.has(a.id) && !PLAN_WEEKS.has(a.series),
-      );
-      if (mine !== turn.current) return;
-      const fresh = list.filter((a) => !felt.current.has(a.id));
+      const fresh = await takeUncelebrated(PLAN_WEEKS);
       if (fresh.length > 0) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         AccessibilityInfo.announceForAccessibility(
           `You earned ${fresh.map((a) => achievementTitle(a)).join(", ")}`,
         );
-        felt.current = new Set(list.map((a) => a.id));
+        shown.current = [...shown.current, ...fresh];
       }
-      shown.current = list;
-      setWaiting(list);
+      if (mine !== turn.current) return;
+      setWaiting(shown.current);
     } catch (e) {
       // A celebration missed is not worth interrupting the day for.
       recordProblem(e, "load");
@@ -75,18 +68,9 @@ export function useCelebration() {
     }, [check]),
   );
 
-  const dismiss = useCallback(async () => {
-    // A check already running is discarded, and can't re-show these.
-    turn.current += 1;
-    const ids = shown.current.map((a) => a.id);
-    for (const id of ids) dismissed.current.add(id);
+  const dismiss = useCallback(() => {
     shown.current = [];
     setWaiting([]);
-    try {
-      await markCelebrated(ids);
-    } catch (e) {
-      recordProblem(e, "save");
-    }
   }, []);
 
   return { waiting, check, dismiss };

@@ -12,6 +12,7 @@ import {
   loadAchievements,
   loadUncelebrated,
   markCelebrated,
+  takeUncelebrated,
 } from "../achievements";
 import { setTookAbout, toggleCompletion } from "../completions";
 import { loadLog } from "../log";
@@ -121,6 +122,25 @@ describe("celebrating", () => {
     const waiting = await loadUncelebrated();
     expect(waiting.length).toBeGreaterThan(0);
     await markCelebrated(waiting.map((a) => a.id));
+    expect(await loadUncelebrated()).toEqual([]);
+  });
+
+  it("is handed out once, even if the card is never put away", async () => {
+    ticks(20);
+    await awardAchievements();
+    const first = await takeUncelebrated(new Set());
+    expect(first.length).toBeGreaterThan(0);
+    // The next open: nothing new was earned, so nothing is shown.
+    await awardAchievements();
+    expect(await takeUncelebrated(new Set())).toEqual([]);
+  });
+
+  it("marks skipped series without returning them", async () => {
+    ticks(20);
+    await awardAchievements();
+    const all = await loadUncelebrated();
+    const skipped = new Set(all.map((a) => a.series));
+    expect(await takeUncelebrated(skipped)).toEqual([]);
     expect(await loadUncelebrated()).toEqual([]);
   });
 });

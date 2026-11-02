@@ -624,9 +624,9 @@ export default function TodayScreen() {
         {celebration.waiting.length > 0 ? (
           <CelebrationCard
             earned={celebration.waiting}
-            onDone={() => void celebration.dismiss()}
+            onDone={celebration.dismiss}
             onSeeAll={() => {
-              void celebration.dismiss();
+              celebration.dismiss();
               router.navigate("/goals/achievements" as Href);
             }}
             theme={theme}

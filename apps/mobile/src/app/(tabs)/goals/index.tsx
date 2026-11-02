@@ -75,7 +75,7 @@ export default function LifeScreen() {
   const [hasPlan, setHasPlan] = useState(true);
   const [notNowOpen, setNotNowOpen] = useState(false);
   const [badges, setBadges] = useState<ReadonlyMap<string, UnitBadge>>(new Map());
-  const [earned, setEarned] = useState<{ count: number; top: UnitBadge["rank"] }>({ count: 0, top: null });
+  const [topRank, setTopRank] = useState<UnitBadge["rank"]>(null);
   const [sheet, setSheet] = useState<CommitmentSheetMode | null>(null);
   const [sheetShown, sheetGone] = useRetained(sheet);
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -109,10 +109,7 @@ export default function LifeScreen() {
     ]);
     setCommitments(nextCommitments);
     setBadges(badgesByUnit(achievements));
-    setEarned({
-      count: achievements.reduce((n, a) => n + a.earned.length, 0),
-      top: highestRank(achievements),
-    });
+    setTopRank(highestRank(achievements));
     setHasPlan(plan.hasSnapshot);
     setPlan(plan);
     setGroups(tierGroups(plan.areas.flatMap((a) => a.units), shares));
@@ -163,15 +160,12 @@ export default function LifeScreen() {
               <Pressable
                 onPress={() => router.push("/goals/achievements" as Href)}
                 accessibilityRole="button"
-                accessibilityLabel={`Achievements, ${earned.count} earned`}
+                accessibilityLabel="Achievements"
                 style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
               >
-                <Medal rank={earned.top} run={false} theme={theme} />
+                <Medal rank={topRank} run={false} theme={theme} />
                 <AppText color={theme.ink} style={styles.grow}>
                   Achievements
-                </AppText>
-                <AppText variant="caption" color={theme.muted}>
-                  {earned.count} earned
                 </AppText>
                 <Chevron color={theme.muted} theme={theme} size={13} />
               </Pressable>
