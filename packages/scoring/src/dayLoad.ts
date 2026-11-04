@@ -116,6 +116,11 @@ export interface DayLoad {
   anchored: Map<string, number>;
   /** The day's share of the flexible pool. */
   flexible: number;
+  /** Loose one-offs (neither day nor deadline) done today: the weight
+   *  they put on the expected side, and what of it was done. They make
+   *  no day a working day on their own (ADR-0050). */
+  loose?: number;
+  looseDone?: number;
 }
 
 /** How many days of the week remain, counting `date` itself. Weeks open
@@ -285,6 +290,7 @@ export function computeDayLoad(
   let spread = 0;
   /** Undated one-offs done today: counted on both sides (ADR-0050). */
   let doneLoose = 0;
+  let looseDone = 0;
   let earned = 0;
   let extra = 0;
 
@@ -315,15 +321,20 @@ export function computeDayLoad(
       const paid = task.weight * (task.oneOff ? Math.min(f, owed) : f);
       if (owed > 0) earned += paid;
       else extra += task.weight * f;
-      // Asked of no day, it counts on the day it's done (ADR-0050).
-      if (owed > 0 && loose) doneLoose += paid;
+      // Asked of no day, it counts on the day it's done (ADR-0050): all
+      // of what's owed is expected, so a sliver of it is a sliver done.
+      if (owed > 0 && loose) {
+        doneLoose += task.weight * owed;
+        looseDone += paid;
+      }
     }
 
     if (owed === 0 || loose) continue;
     if (isAnchoredOn(task, date)) {
       anchored.set(task.taskId, task.weight);
-    } else if (task.oneOff && task.oneOffDue && task.oneOffDue >= date) {
-      // A deadline: spread over the days until it's due (ADR-0050).
+    } else if (task.oneOff && task.oneOffDue) {
+      // A deadline: spread over the days until it's due, and all of it
+      // once due or overdue (ADR-0050).
       spread += (task.weight * owed) / daysUntil(date, task.oneOffDue, away);
     } else if (!isPinnedElsewhere(task, date)) {
       // Flexible: the runs it still owes join the pool, at most one for
@@ -347,6 +358,8 @@ export function computeDayLoad(
 
   return {
     expected: anchoredTotal + flexible + spread + doneLoose,
+    loose: doneLoose,
+    looseDone,
     earned,
     extra,
     anchored,

@@ -258,6 +258,12 @@ describe("the commitment share from the day (ADR-0044)", () => {
     expect(after?.band).toBe(38);
     expect(after?.eligibleTaskIds).toContain("form");
   });
+
+  it("never makes a band out of nothing when one is ticked on a free day", async () => {
+    addTask({ id: "form", unitId: "school", oneOffSize: "quick" });
+    tick("form", TUE);
+    expect(await loadCommitmentDay(TUE)).toBeNull();
+  });
 });
 
 describe('"Do N of these" (ADR-0039 §6)', () => {

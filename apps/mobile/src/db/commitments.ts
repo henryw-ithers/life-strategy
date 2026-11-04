@@ -75,11 +75,23 @@ async function eligibleOn(
   // drag every day's band down.
   const undated = rows.filter((t) => t.oneOffSize != null && t.oneOffDate == null).map((t) => t.id);
   const undatedDates = await completionDatesAround(undated, date);
-  const eligible = eligibleTaskIds(rows, settledBefore, date).filter((id) => {
+  const isUndated = (id: string) => {
     const t = rows.find((r) => r.id === id);
-    if (t?.oneOffSize != null && t.oneOffDate == null) return (undatedDates.get(id) ?? []).includes(date);
+    return t?.oneOffSize != null && t.oneOffDate == null;
+  };
+  const scheduled = eligibleTaskIds(rows, settledBefore, date).filter((id) => {
+    if (isUndated(id)) return false;
+    const t = rows.find((r) => r.id === id);
     return !(t?.oneOffSize != null && t.oneOffDate != null && t.oneOffDate < date);
   });
+  // A ticked one joins a band the day already has: on a day with no
+  // commitment work it would make a band of 10 out of nothing, and turn
+  // a rest day of 70 into a day of 10.
+  const tickedUndated =
+    scheduled.length > 0
+      ? undated.filter((id) => (undatedDates.get(id) ?? []).includes(date) && !settledBefore.has(id))
+      : [];
+  const eligible = [...scheduled, ...tickedUndated];
   if (includeCovered) return eligible;
 
   // **A session done early is done** (ADR-0032 §4, amended 2026-10-01).

@@ -62,9 +62,16 @@ the average. Unit weights themselves are untouched (ADR-0041).
 - A **one-off with a deadline** (`oneOffDue`) is spread over the days
   until it's due; due today or overdue, it's all today's.
 - A **one-off with neither a day nor a deadline** asks nothing of any
-  day. Ticked, it counts in full on that day, on both sides.
+  day. Ticked, all of what it still owes joins that day's expected
+  work and what was done its earned, so a part-done tick is a part
+  done, never a whole day. On a day that otherwise asks nothing, it
+  leaves a rest day a rest day and is paid on top, at an average day's
+  worth, as early work is (ADR-0037 §3).
 - An **undated commitment one-off** takes a share of the band only on
-  the day it's ticked, matching how its time counts toward the band.
+  the day it's ticked, matching how its time counts toward the band,
+  and only on a day that already has commitment work: it never makes a
+  band of 10 out of nothing, which would turn a rest day of 70 into 10.
+  Ticked on a day with no commitment work, it pays nothing that day.
 
 ### 3. Achievements are for units, areas, commitments and you
 

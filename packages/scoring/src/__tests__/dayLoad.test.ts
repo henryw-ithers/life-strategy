@@ -212,6 +212,7 @@ describe("one-offs", () => {
     expect(computeDayLoad([essay], [], MONDAY).expected).toBeCloseTo(1, 10);
     // Due today, or overdue, it's all today's.
     expect(computeDayLoad([{ ...essay, oneOffDue: MONDAY }], [], MONDAY).expected).toBe(14);
+    expect(computeDayLoad([{ ...essay, oneOffDue: SUNDAY }], [], MONDAY).expected).toBe(14);
   });
 
   it("stops expecting a one-off once it is done", () => {

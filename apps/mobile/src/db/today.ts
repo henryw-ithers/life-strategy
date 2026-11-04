@@ -673,7 +673,8 @@ export async function loadDay(
   const band = commitmentBandOn(commitmentDay);
   const hasPlan =
     averageExpected > 0 || commitmentTasks.some((t) => t.oneOffSize == null);
-  const nothingDue = kind !== "rest" && load.expected <= 0 && band <= 0 && hasPlan;
+  // A loose one-off done today asks nothing of the day (ADR-0050).
+  const nothingDue = kind !== "rest" && load.expected - (load.loose ?? 0) <= 0 && band <= 0 && hasPlan;
   const weekEnd = addDays(weekStart(date), 6);
   const lifeCompletionsBefore = lifeCompletions.filter((c) => c.localDate < date);
 
