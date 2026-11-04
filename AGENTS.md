@@ -96,7 +96,7 @@ Use these terms consistently in code, docs, and UI copy:
 | **Snapshot** | One saved set of priorities, at most one a day: saves on the same day fold into it (ADR-0048). Snapshots form the history |
 | **Effort share** | Each unit's share of all completed work over the last 4 weeks, shown on Life with no target. Replaced the portfolio graph (ADR-0041) |
 | **Weight** | An SLU's share of the 100 daily points, derived from its tier and its order within the tier |
-| **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight |
+| **Task** | The unit of execution; happens N times per week (`times_per_week`, 1–7; 0 = once every two weeks) on whichever days, and earns points from its unit's weight, evened half-way toward the average task (ADR-0050) |
 | **Commitment** | A custom `life_unit` (`is_custom`) holding tasks, events and **sub-commitments**: School, Work, Basketball Club. At most three. Scored from its **own share of the day**, not the 18 units' 100 (ADR-0035, ADR-0032, ADR-0044) |
 | **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing**: the share divides across eligible *tasks*. A commitment either holds sub-commitments and no work of its own, or holds its own work and has none. There is no switch: adding the first sub-commitment splits the commitment and moves its work into one called **General**; removing the last one puts the work back (ADR-0035 §1, ADR-0044 §7). Tap a title to rename it |
 | **Event** | A time you attend: a class, a shift, a doctor's visit. A task with `kind = 'event'` and a **required** start and end; ticked and paid like any task. A repeating event can run for N weeks or until a date, and weeks can be skipped (ADR-0038, ADR-0040). No location |
@@ -109,7 +109,7 @@ Use these terms consistently in code, docs, and UI copy:
 | **Clear today / Away** | Clear today sets aside today's windows and unticked events; the day is still graded, or ungraded if nothing is left due. Away is a date range of days off (ADR-0040) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |
 | **Grade** | Points earned out of 100 (daily), aggregated weekly/monthly |
-| **Achievement** | Defined and awarded by the app, never set up by the user (ADR-0047, which replaced goals). A **series** counts one thing (a task's completions, a unit's hours, an every-day streak, weeks a plan was met, days scoring 80 or above) with five **ranks**, Bronze to Diamond, peaking near 1,000. Forty series, each drawn as a shield (an outline before Bronze). Earned ranks are never taken back. Feeds the Achievements screen, unit badges and monthly summaries, never daily grades |
+| **Achievement** | Defined and awarded by the app, never set up by the user (ADR-0047, which replaced goals). A **series** counts one thing (a task's completions, a unit's hours, an every-day streak, weeks a plan was met, days scoring 80 or above) with five **ranks**, Bronze to Diamond, peaking near 1,000. Units, areas, commitments and the whole app earn them; nothing is counted per task (ADR-0050). Each drawn as a shield (an outline before Bronze). Earned ranks are never taken back. Feeds the Achievements screen, unit badges and monthly summaries, never daily grades |
 | **Contentment check-in** | Weekly 1–10 "how content did you feel?" question used to calibrate grading |
 | **Memory flag** | User mark on a day or activity meaning "worth remembering"; feeds look-back views. Journal entries, photos, and flags stay addable after a grade settles, and since 2026-08-13 notes are editable and deletable and photos removable (ADR-0002 amendment; press and hold in the day record) |
 
@@ -143,8 +143,12 @@ second one. What separates it is its **band**, not its table
   and divided evenly over the days the week has left. Do what the day
   asked and the planned band pays 90 of the 100; the other 10 is the
   unplanned pool. Cadence decides how often something is due, never
-  what it is worth, and how many tasks a unit holds never changes what
-  that unit is worth.
+  what it is worth. Each task's weight is evened half-way toward the
+  average task (formula v12, ADR-0050), so no single task dwarfs the
+  rest. **A day asks only what can be done in it**: a task owes at most
+  one run a day, fortnightly work spreads over its fortnight, a one-off
+  with a deadline over the days until it's due, and one with neither a
+  day nor a deadline counts only on the day it's done.
 - **A task's point value is a property of the day, not the task.**
   `task.point_value` stores a *weight* (a share of the 100); points are
   `90 × weight ÷ that day's expected load`, computed per day. Do not
@@ -157,8 +161,9 @@ second one. What separates it is its **band**, not its table
   streak, or plan-completion percentage is computed, stored, or
   derivable. Adding one would be the schedule-violation mechanic
   ADR-0024 §2 existed to prevent. **The one exception is
-  achievements** (ADR-0047 §4): they may count weeks a task's weekly
-  target, or every task in a unit, was met, in total and in a row. Only
+  achievements** (ADR-0047 §4): they may count weeks every task in a
+  unit met its target, in total and in a row (per-task series retired,
+  ADR-0050). Only
   there: never a rate or percentage, never a missed count, never on
   Home, Plan or a grade, and a run ending is never mentioned. Unfinished work is *shown* again
   later in the same week as "Still open" (ADR-0039 §8); that is a
