@@ -1,8 +1,9 @@
 /**
  * Life → Achievements (ADR-0047 §7): every achievement, earned and
  * locked, as shields (Henry, 2026-10-25). The badges for everything you
- * do sit in a grid at the top; then each commitment, and each area with
- * its units and their tasks, with that subject's badges in a row.
+ * do sit in a grid at the top. Then each achievement your units,
+ * areas and commitments can earn, named once, with every one's badge
+ * for it in a row beneath, units in your priority order (ADR-0050).
  *
  * Tap any badge to open it over the screen (`BadgeSheet`): its shield,
  * how far along you are, and what every rank takes.
@@ -24,6 +25,7 @@ import { Group, GroupDivider } from "../../../components/ui/Group";
 import { InfoButton } from "../../../components/ui/InfoButton";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
 import { loadAchievements, type AchievementItem } from "../../../db/achievements";
+import { loadPriorities } from "../../../db/priorities";
 import { useRetained } from "../../../hooks/useRetained";
 import { RANK_LABEL, SERIES_LABEL } from "../../../lib/achievementCopy";
 import { getTheme, type ThemeTokens } from "../../../theme/colors";
@@ -41,8 +43,10 @@ export default function AchievementsScreen() {
   const turn = useRef(0);
   const reload = useCallback(async () => {
     const mine = ++turn.current;
-    const items = await loadAchievements();
-    if (mine === turn.current) setSections(achievementSections(items));
+    const [items, priorities] = await Promise.all([loadAchievements(), loadPriorities()]);
+    // Your units, Top first, so each row reads in your order.
+    const order = new Map(priorities.units.map((u, i) => [u.unitId, i] as const));
+    if (mine === turn.current) setSections(achievementSections(items, order));
   }, []);
   const { error, retry } = useScreenLoad(reload);
 
@@ -169,15 +173,18 @@ function SubjectBadges({
           const top = item.earned.at(-1)?.rank ?? null;
           return (
             <Pressable
-              key={item.series}
+              key={`${item.subjectKind}|${item.subjectId}|${item.series}`}
               onPress={() => onOpen(item)}
               accessibilityRole="button"
-              accessibilityLabel={`${row.name}, ${SERIES_LABEL[item.series]}, ${top ? `${RANK_LABEL[top]} earned` : "not earned yet"}`}
+              accessibilityLabel={`${row.bySubject ? item.subjectName : row.name}, ${SERIES_LABEL[item.series]}, ${top ? `${RANK_LABEL[top]} earned` : "not earned yet"}`}
               style={({ pressed }) => [styles.mini, { opacity: pressed ? 0.6 : 1 }]}
             >
               <ShieldBadge rank={top} icon={SERIES_ICON[item.series]} theme={theme} size={36} />
-              <AppText variant="footnote" color={theme.muted} numberOfLines={2} style={styles.miniName}>
-                {SERIES_LABEL[item.series]}
+              <AppText variant="footnote" color={theme.ink} numberOfLines={2} style={styles.miniName}>
+                {row.bySubject ? item.subjectName : SERIES_LABEL[item.series]}
+              </AppText>
+              <AppText variant="footnote" color={theme.muted} tabular numberOfLines={1}>
+                {badgeCaption(item)}
               </AppText>
             </Pressable>
           );
@@ -202,6 +209,7 @@ const styles = StyleSheet.create({
   subjectHead: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg },
   streak: { flexDirection: "row", alignItems: "center", gap: 2 },
   badgeRow: { gap: space.sm, paddingHorizontal: space.lg },
-  mini: { width: 72, alignItems: "center", gap: 4 },
+  /** Wide enough for a unit's name on two lines. */
+  mini: { width: 84, alignItems: "center", gap: 2 },
   miniName: { textAlign: "center" },
 });

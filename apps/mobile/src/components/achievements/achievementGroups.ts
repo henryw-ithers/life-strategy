@@ -1,8 +1,6 @@
 /**
- * How Life → Achievements is laid out (ADR-0047 §7): everything first,
- * then each commitment, then each area with its units, each unit
- * followed by its tasks. A subject is one row holding its series.
- * Ranks of a subject since removed sit at the end, kept.
+ * How Life → Achievements is laid out (ADR-0047 §7, by achievement
+ * since ADR-0050): see `achievementSections`.
  */
 import type { Rank } from "@glide/scoring";
 
@@ -20,6 +18,9 @@ export interface SubjectRow {
   top: Rank | null;
   /** Its longest run going now, days before weeks. */
   streak: UnitBadge["streak"];
+  /** One achievement across subjects: each badge is named for its
+   *  subject rather than its series. */
+  bySubject?: boolean;
 }
 
 export interface AchievementSection {
@@ -50,9 +51,21 @@ function bySubject(items: readonly AchievementItem[]): AchievementItem[][] {
   return [...out.values()];
 }
 
-export function achievementSections(items: readonly AchievementItem[]): AchievementSection[] {
+/**
+ * Life → Achievements, by achievement (Henry, 2026-11-04): each one
+ * named once, with every subject's badge for it in a row beneath, units
+ * in your priority order. Everything comes first, then your units,
+ * areas and commitments, and ranks of a subject since removed at the
+ * end, kept.
+ *
+ * `order` is each unit's place in your priorities (Top first). Areas
+ * follow their highest unit; anything unplaced goes last, by name.
+ */
+export function achievementSections(
+  items: readonly AchievementItem[],
+  order: ReadonlyMap<string, number> = new Map(),
+): AchievementSection[] {
   const live = items.filter((i) => i.groupId !== null);
-  const subjects = bySubject(live);
   const sections: AchievementSection[] = [];
 
   const everything = live.filter((i) => i.subjectKind === "all");
@@ -61,27 +74,40 @@ export function achievementSections(items: readonly AchievementItem[]): Achievem
     sections.push({ key: ALL, title: "Everything", rows: everything.map((i) => rowOf([i], false, SERIES_LABEL[i.series])) });
   }
 
-  const tasksIn = (groupId: string) =>
-    subjects.filter((s) => s[0]!.subjectKind === "task" && s[0]!.groupId === groupId).map((s) => rowOf(s, true));
-
-  for (const s of subjects.filter((s) => s[0]!.subjectKind === "commitment")) {
-    const c = s[0]!;
-    sections.push({
-      key: `commitment|${c.subjectId}`,
-      title: c.subjectName,
-      rows: [rowOf(s, false, `All of ${c.subjectName}`), ...tasksIn(c.subjectId)],
-    });
+  // An area sits where its highest unit does.
+  const areaOrder = new Map<string, number>();
+  for (const i of live) {
+    if (i.subjectKind !== "unit" || i.groupId === null) continue;
+    const at = order.get(i.subjectId) ?? Infinity;
+    areaOrder.set(i.groupId, Math.min(areaOrder.get(i.groupId) ?? Infinity, at));
   }
+  const rank = (i: AchievementItem) =>
+    i.subjectKind === "unit"
+      ? (order.get(i.subjectId) ?? Infinity)
+      : i.subjectKind === "area"
+        ? (areaOrder.get(i.subjectId) ?? Infinity)
+        : Infinity;
+  const ordered = (list: AchievementItem[]) =>
+    [...list].sort((a, b) => rank(a) - rank(b) || a.subjectName.localeCompare(b.subjectName));
 
-  for (const s of subjects.filter((s) => s[0]!.subjectKind === "area")) {
-    const a = s[0]!;
-    const units = subjects.filter((u) => u[0]!.subjectKind === "unit" && u[0]!.groupId === a.subjectId);
+  /** One row per series of a kind of subject, in the catalogue's order. */
+  const bySeries = (kind: AchievementItem["subjectKind"], key: string, title: string) => {
+    const mine = live.filter((i) => i.subjectKind === kind);
+    const series = [...new Set(mine.map((i) => i.series))];
+    if (series.length === 0) return;
     sections.push({
-      key: `area|${a.subjectId}`,
-      title: a.subjectName,
-      rows: [rowOf(s, false, `All of ${a.subjectName}`), ...units.flatMap((u) => [rowOf(u, false), ...tasksIn(u[0]!.subjectId)])],
+      key,
+      title,
+      rows: series.map((id) => ({
+        ...rowOf(ordered(mine.filter((i) => i.series === id)), false, SERIES_LABEL[id]),
+        key: `${key}|${id}`,
+        bySubject: true,
+      })),
     });
-  }
+  };
+  bySeries("unit", "units", "Your units");
+  bySeries("area", "areas", "Areas");
+  bySeries("commitment", "commitments", "Commitments");
 
   const gone = bySubject(items.filter((i) => i.groupId === null));
   if (gone.length > 0) {
