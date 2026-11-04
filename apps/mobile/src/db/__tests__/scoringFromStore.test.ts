@@ -6,7 +6,7 @@
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DAILY_BUDGET } from "@glide/scoring";
+import { DAILY_BUDGET, FORMULA_VERSION } from "@glide/scoring";
 
 import { loadCommitmentDay, loadShareWeek } from "../commitments";
 import { createSubCommitment, deleteCommitment, setCommitmentShare } from "../commitmentWrites";
@@ -248,10 +248,15 @@ describe("the commitment share from the day (ADR-0044)", () => {
 
   it("counts an undated one-off only on the day it's ticked", async () => {
     addTask({ id: "form", unitId: "school", oneOffSize: "quick" });
-    expect((await loadCommitmentDay(MON))?.band).toBe(31);
+    const before = await loadCommitmentDay(MON);
+    expect(before?.band).toBe(31);
+    // Nor does it take a share of the band until then (ADR-0050).
+    expect(before?.eligibleTaskIds).not.toContain("form");
     tick("form", MON);
     // Half an hour more: 3 of 8 hours.
-    expect((await loadCommitmentDay(MON))?.band).toBe(38);
+    const after = await loadCommitmentDay(MON);
+    expect(after?.band).toBe(38);
+    expect(after?.eligibleTaskIds).toContain("form");
   });
 });
 
@@ -352,7 +357,7 @@ describe("Away and kept hours, after review", () => {
     clock.today = MON;
     await recordUntouchedDays("2026-10-18", MON);
     const row = testDb().select().from(dayGrade).all().find((r) => r.localDate === "2026-10-18");
-    expect(row?.formulaVersion).toBe(11);
+    expect(row?.formulaVersion).toBe(FORMULA_VERSION);
     expect(row?.startingHours).not.toBeNull();
   });
 });

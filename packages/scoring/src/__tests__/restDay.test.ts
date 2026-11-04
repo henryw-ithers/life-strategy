@@ -146,7 +146,7 @@ describe("early work pays its planned day's worth — §3", () => {
   });
 
   it("prices a one-off planned for later against its own day", () => {
-    const errand: LoadTask = { ...weekly("errand", 6), oneOff: true };
+    const errand: LoadTask = { ...weekly("errand", 6), oneOff: true, oneOffDated: true };
     // Saturday, the last day of the week: the errand is the whole pool.
     expect(plannedDayRunPoints(PLAN, DONE_MONDAY, errand, "2026-07-18")).toBe(90);
   });

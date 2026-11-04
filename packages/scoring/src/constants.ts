@@ -156,6 +156,13 @@ export const REST_DAY_UNPLANNED = 30;
  *  - A commitment one-off carried past its day is no longer added to a
  *    later day's band; done late it is paid what its own day would have
  *    paid (ADR-0039 §8).
+ * - v12: only what can be done today (ADR-0050). Each task's weight is
+ *    evened half-way toward the average, so no single task dwarfs the
+ *    rest. A task owes at most one run a day; fortnightly work spreads
+ *    over its fortnight; a deadline one-off over the days until it's
+ *    due; a one-off with neither day nor deadline counts only the day
+ *    it's done; and an undated commitment one-off takes a share of the
+ *    band only on the day it's ticked.
  *  Settled grades keep the version they were scored under. */
-export const FORMULA_VERSION = 11;
+export const FORMULA_VERSION = 12;
 export const DAILY_BUDGET = 100;

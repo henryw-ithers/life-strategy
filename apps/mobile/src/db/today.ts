@@ -613,6 +613,8 @@ export async function loadDay(
     pinnedWeekdays: parseWeekdays(t.plannedWeekdays),
     fortnightOffset: t.fortnightOffset,
     oneOff: t.oneOffSize != null,
+    oneOffDated: t.oneOffDate != null,
+    oneOffDue: t.oneOffDue,
     repeatFrom: t.repeatFrom,
     repeatUntil: t.repeatUntil,
     skippedDates: t.skippedDates,
