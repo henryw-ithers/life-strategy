@@ -46,9 +46,13 @@ describe("the catalogue", () => {
     expect(peak("everyDayStreak")).toBe(1000);
   });
 
-  it("holds about forty series, each once", () => {
-    expect(SERIES).toHaveLength(40);
+  it("holds about forty live series, each once", () => {
+    expect(SERIES.filter((s) => !s.retired)).toHaveLength(37);
     expect(new Set(SERIES.map((s) => s.id)).size).toBe(SERIES.length);
+  });
+
+  it("counts nothing per task any more, only units and up (ADR-0050)", () => {
+    expect(SERIES.filter((s) => !s.retired && s.subject === "task")).toEqual([]);
   });
 
   it("counts nothing that's a rate or a miss", () => {

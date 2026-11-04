@@ -207,7 +207,8 @@ describe("a streak over skipped days", () => {
         .values({ id: "s", kind: "occurrence", taskId: "med", localDate: "2026-10-18", madeOn: "2026-10-17" })
         .run();
     }
-    return (await loadAchievements()).find((a) => a.series === "everyDayStreak" && a.subjectId === "med")?.streak;
+    // The unit's days in a row: its one task is an every-day one.
+    return (await loadAchievements()).find((a) => a.series === "unitDayRun" && a.subjectId === "mind")?.streak;
   }
 
   it("is ended by a missed every-day run that wasn't skipped", async () => {

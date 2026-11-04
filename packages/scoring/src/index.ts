@@ -97,6 +97,7 @@ export {
   gradeRuns,
   nextRank,
   ranksReached,
+  isLiveSeries,
   seriesById,
   tickMinutes,
   topRank,

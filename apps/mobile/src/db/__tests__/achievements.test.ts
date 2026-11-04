@@ -3,7 +3,6 @@
  * once and never taken back, progress toward the next, the celebration
  * shown once, the month review's list, and "Took about…".
  */
-import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -61,8 +60,10 @@ function ticks(n: number) {
   }
 }
 
+/** The unit's completions: per-task series are retired (ADR-0050), so
+ *  the run's ticks count for Fitness. Bronze is 50. */
 const runCompletions = async () =>
-  (await loadAchievements()).find((a) => a.series === "taskCompletions" && a.subjectId === "run")!;
+  (await loadAchievements()).find((a) => a.series === "unitCompletions" && a.subjectId === "fit")!;
 
 beforeEach(() => {
   resetTestDb();
@@ -72,46 +73,57 @@ beforeEach(() => {
 
 describe("awarding", () => {
   it("awards each rank reached once, dated today", async () => {
-    ticks(20);
+    ticks(50);
     const fresh = await awardAchievements();
-    expect(fresh.filter((a) => a.series === "taskCompletions")).toEqual([
-      expect.objectContaining({ subjectId: "run", subjectName: "Run", rank: "bronze", threshold: 20, earnedOn: TODAY }),
+    expect(fresh.filter((a) => a.series === "unitCompletions")).toEqual([
+      expect.objectContaining({ subjectId: "fit", subjectName: "Fitness", rank: "bronze", threshold: 50, earnedOn: TODAY }),
     ]);
     expect(await awardAchievements()).toEqual([]);
   });
 
   it("never takes a rank back when the tick that earned it is undone", async () => {
-    ticks(19);
+    ticks(49);
     await toggleCompletion("run", TODAY);
-    expect((await awardAchievements()).some((a) => a.rank === "bronze" && a.subjectId === "run")).toBe(true);
+    expect(
+      (await awardAchievements()).some((a) => a.rank === "bronze" && a.series === "unitCompletions"),
+    ).toBe(true);
     await toggleCompletion("run", TODAY);
     const item = await runCompletions();
     expect(item.earned.map((e) => e.rank)).toEqual(["bronze"]);
-    // Progress is honest: 19 toward Silver's 50.
-    expect(item).toMatchObject({ progress: 19, next: { rank: "silver", threshold: 50 } });
+    // Progress is honest: 49 toward Silver's 150.
+    expect(item).toMatchObject({ progress: 49, next: { rank: "silver", threshold: 150 } });
   });
 
   it("shows a locked one's progress", async () => {
     ticks(7);
-    expect(await runCompletions()).toMatchObject({ earned: [], progress: 7, next: { rank: "bronze", threshold: 20 } });
+    expect(await runCompletions()).toMatchObject({ earned: [], progress: 7, next: { rank: "bronze", threshold: 50 } });
   });
 
-  it("keeps the ranks of a task since deleted, under its old name", async () => {
-    ticks(20);
-    await awardAchievements();
-    testDb().delete(taskCompletion).run();
-    testDb().delete(taskUnit).run();
-    testDb().delete(task).where(eq(task.id, "run")).run();
-    const item = await runCompletions();
-    expect(item).toMatchObject({ subjectName: "Run", progress: null, next: null });
-    expect(item.earned.map((e) => e.rank)).toEqual(["bronze"]);
+  it("keeps a retired series' ranks for the Log, off the screen (ADR-0050)", async () => {
+    testDb()
+      .insert(achievement)
+      .values({
+        id: "old",
+        series: "taskCompletions",
+        subjectKind: "task",
+        subjectId: "run",
+        subjectName: "Run",
+        rank: "bronze",
+        threshold: 20,
+        earnedOn: "2026-10-10",
+        celebratedAt: "2026-10-10T00:00:00.000Z",
+      })
+      .run();
+    expect((await loadAchievements()).some((a) => a.series === "taskCompletions")).toBe(false);
+    const october = (await loadLog()).find((m) => m.month === "2026-10")!;
+    expect(october.earned).toContain("Bronze · Run · 20 completions");
   });
 
   it("gives the unit its highest rank, and its longest run going now", async () => {
     ticks(20);
     const badges = badgesByUnit(await loadAchievements());
-    // Daily since 1 October: three weeks ended with the run's target met.
-    expect(badges.get("fit")).toEqual({ rank: "bronze", streak: { length: 3, per: "week" } });
+    // Twenty days in a row to yesterday: the unit's days beat its weeks.
+    expect(badges.get("fit")).toEqual({ rank: "bronze", streak: { length: 20, per: "day" } });
   });
 });
 
@@ -147,10 +159,10 @@ describe("celebrating", () => {
 
 describe("the month review", () => {
   it("lists what was earned that month", async () => {
-    ticks(20);
+    ticks(50);
     await awardAchievements();
     const october = (await loadLog()).find((m) => m.month === "2026-10")!;
-    expect(october.earned).toContain("Bronze · Run · 20 completions");
+    expect(october.earned).toContain("Bronze · Fitness · 50 completions");
   });
 });
 

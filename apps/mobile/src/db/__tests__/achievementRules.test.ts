@@ -1,6 +1,7 @@
 /**
  * What each achievement series stands at (ADR-0047 §3), from plain
- * facts: counts, hours, every-day runs, plan weeks and score days.
+ * facts: counts, hours, a unit's days in a row, plan weeks and score
+ * days. Nothing is counted per task any more (ADR-0050).
  */
 import { addDays } from "@glide/scoring";
 import { describe, expect, it } from "vitest";
@@ -68,18 +69,18 @@ const valueOf = (f: AchievementFacts, series: string, subjectId: string) =>
   seriesValues(f).find((v) => v.series === series && v.subjectId === subjectId);
 
 describe("counts", () => {
-  it("counts a task's ticks, its unit's and its area's", () => {
+  it("counts a unit's ticks and its area's, and nothing per task", () => {
     const f = facts({
       tasks: [task("run"), task("lift")],
       completions: [tick("run", "2026-10-01"), tick("run", "2026-10-02"), tick("lift", "2026-10-02")],
     });
-    expect(valueOf(f, "taskCompletions", "run")).toMatchObject({ earned: 2, current: 2 });
+    expect(valueOf(f, "taskCompletions", "run")).toBeUndefined();
     expect(valueOf(f, "unitCompletions", "fit")?.earned).toBe(3);
     expect(valueOf(f, "areaCompletions", "health")?.earned).toBe(3);
   });
 
   it("lists a subject with nothing yet, at zero", () => {
-    expect(valueOf(facts({ tasks: [task("run")] }), "taskCompletions", "run")?.earned).toBe(0);
+    expect(valueOf(facts({ tasks: [task("run")] }), "unitCompletions", "fit")?.earned).toBe(0);
   });
 
   it("counts hours from Took about, else the size, scaled by part-done", () => {
@@ -111,32 +112,41 @@ describe("counts", () => {
   });
 });
 
-describe("every-day streaks", () => {
+describe("a unit's days in a row (ADR-0050)", () => {
   const daily = task("med", { timesPerWeek: 7 });
   const days = (from: string, n: number) => Array.from({ length: n }, (_, i) => addDays(from, i));
 
   it("awards from the run up to yesterday, and shows the run going now", () => {
     const f = facts({ tasks: [daily], completions: days("2026-10-14", 8).map((d) => tick("med", d)) });
     // The 14th to today: 8 days going, 7 of them finished.
-    expect(valueOf(f, "everyDayStreak", "med")).toMatchObject({ earned: 7, current: 8 });
+    expect(valueOf(f, "unitDayRun", "fit")).toMatchObject({ earned: 7, current: 8 });
   });
 
   it("is bridged by Away days, and starts again after a missed one", () => {
     const done = [...days("2026-10-10", 3), ...days("2026-10-15", 6)];
     const away = facts({ tasks: [daily], completions: done.map((d) => tick("med", d)), away: [{ startDate: "2026-10-13", endDate: "2026-10-14" }] });
-    expect(valueOf(away, "everyDayStreak", "med")?.current).toBe(9);
+    expect(valueOf(away, "unitDayRun", "fit")?.current).toBe(9);
     const missed = facts({ tasks: [daily], completions: done.map((d) => tick("med", d)) });
-    expect(valueOf(missed, "everyDayStreak", "med")).toMatchObject({ earned: 6, current: 6 });
+    expect(valueOf(missed, "unitDayRun", "fit")).toMatchObject({ earned: 6, current: 6 });
+  });
+
+  it("counts a day any of the unit's tasks was done", () => {
+    const f = facts({
+      tasks: [task("run"), task("lift")],
+      completions: [tick("run", "2026-10-19"), tick("lift", "2026-10-20"), tick("run", TODAY)],
+    });
+    expect(valueOf(f, "unitDayRun", "fit")).toMatchObject({ earned: 2, current: 3 });
   });
 });
 
 describe("plan weeks", () => {
+  // A unit with one task: its whole weeks are that task's weeks.
   it("counts weeks ended with the target met, and the run", () => {
     // Weeks of 4, 11 and 18 October: met, met, and this week (not ended).
     const done = ["2026-10-04", "2026-10-05", "2026-10-06", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-18", "2026-10-19", "2026-10-20"];
     const f = facts({ tasks: [task("run", { createdAt: "2026-10-04T00:00:00.000Z" })], completions: done.map((d) => tick("run", d)) });
-    expect(valueOf(f, "weeklyTargetTotal", "run")?.earned).toBe(2);
-    expect(valueOf(f, "weeklyTargetRun", "run")).toMatchObject({ earned: 2, current: 2 });
+    expect(valueOf(f, "wholeUnitTotal", "fit")?.earned).toBe(2);
+    expect(valueOf(f, "wholeUnitRun", "fit")).toMatchObject({ earned: 2, current: 2 });
   });
 
   it("asks less of a week partly Away, and passes over one wholly Away", () => {
@@ -146,7 +156,7 @@ describe("plan weeks", () => {
       away: [{ startDate: "2026-10-04", endDate: "2026-10-16" }],
       completions: [tick("run", "2026-10-17")],
     });
-    expect(valueOf(f, "weeklyTargetRun", "run")).toMatchObject({ earned: 1, current: 1 });
+    expect(valueOf(f, "wholeUnitRun", "fit")).toMatchObject({ earned: 1, current: 1 });
   });
 
   it("asks nothing of a day off, so it never breaks a run", () => {
@@ -157,7 +167,7 @@ describe("plan weeks", () => {
       completions: week.map((d) => tick("med", d)),
       grades: [{ localDate: "2026-10-14", kind: "rest", pointsEarned: 0, pointsPossible: 0, flagged: false }],
     });
-    expect(valueOf(f, "weeklyTargetRun", "med")).toMatchObject({ earned: 1, current: 1 });
+    expect(valueOf(f, "wholeUnitRun", "fit")).toMatchObject({ earned: 1, current: 1 });
   });
 
   it("counts a whole unit's week only when every task met its target", () => {

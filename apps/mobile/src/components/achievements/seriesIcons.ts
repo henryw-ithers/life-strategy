@@ -16,6 +16,7 @@ export const SERIES_ICON: Record<SeriesId, BadgeIcon> = {
   weeklyTargetRun: "repeat",
   wholeUnitTotal: "grid",
   wholeUnitRun: "albums",
+  unitDayRun: "flame",
   attended: "people",
   goodDays: "star-half",
   greatDays: "star",
