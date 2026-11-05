@@ -29,6 +29,14 @@ each phase did is in
 [docs/design/redesign-build.md](docs/design/redesign-build.md). The
 vocabulary and invariants below describe the code as it is.
 
+**Windows are set aside for launch** (ADR-0051, 2026-11-04): one
+switch, `WINDOWS` in `apps/mobile/src/lib/features.ts`, gives every
+day no windows, so the day shows in its parts. The tabs are **Today,
+Week, Life and Log** (routes still `(home)`, `plan`, `goals`, `log`).
+Working hours have no UI, and the commitment share reads the default
+hours. The window and hours code and tables stay for when windows come
+back; don't delete them, and don't build on them without a new ADR.
+
 ## Repository layout
 
 npm workspaces monorepo:
@@ -100,9 +108,10 @@ Use these terms consistently in code, docs, and UI copy:
 | **Commitment** | A custom `life_unit` (`is_custom`) holding tasks, events and **sub-commitments**: School, Work, Basketball Club. At most three. Scored from its **own share of the day**, not the 18 units' 100 (ADR-0035, ADR-0032, ADR-0044) |
 | **Sub-commitment** | A commitment's child unit (School → COMP2521), via `parent_unit_id`. Uncapped, and **prices nothing**: the share divides across eligible *tasks*. A commitment either holds sub-commitments and no work of its own, or holds its own work and has none. There is no switch: adding the first sub-commitment splits the commitment and moves its work into one called **General**; removing the last one puts the work back (ADR-0035 §1, ADR-0044 §7). Tap a title to rename it |
 | **Event** | A time you attend: a class, a shift, a doctor's visit. A task with `kind = 'event'` and a **required** start and end; ticked and paid like any task. A repeating event can run for N weeks or until a date, and weeks can be skipped (ADR-0038, ADR-0040). No location |
-| **Working hours** | The weekly template of when the user is free to work, set like iOS Sleep schedules: groups of days, each with time ranges (ADR-0039 §1) |
-| **Window** | A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039). **The clock moves nothing**: a window that has ended keeps its tasks, a tick is filed under the window it was done in, and a task with a part of the day goes only in windows touching it (ADR-0048) |
-| **Gap** | Time between two windows. Implicit, and may be given a name ("Lunch"). Not the same as a rest day |
+| **Part of the day** | Morning 5–12, Afternoon 12–5, Evening 5–12, Night 12–5, and Anytime: the sections a day shows in while windows are set aside. Events and timed tasks sit in theirs by the clock; tasks in your order, dragged between parts for a day. No task is set to Night (ADR-0051) |
+| **Working hours** | *Set aside for launch (ADR-0051): no UI; the share reads the defaults.* The weekly template of when the user is free to work, set like iOS Sleep schedules: groups of days, each with time ranges (ADR-0039 §1) |
+| **Window** | *Set aside for launch (ADR-0051).* A stretch of free time to work in: working hours minus events (with a 10-minute buffer) minus named gaps; pieces under 30 min are buffer. **Windows have no names**; they are shown by their times. A day's windows can be added, changed or removed from Home or Plan (ADR-0039). **The clock moves nothing**: a window that has ended keeps its tasks, a tick is filed under the window it was done in, and a task with a part of the day goes only in windows touching it (ADR-0048) |
+| **Gap** | *Set aside with windows (ADR-0051).* Time between two windows. Implicit, and may be given a name ("Lunch"). Not the same as a rest day |
 | **Suggestion / pin** | Suggestions fill windows live and are never stored. A pin is a task the user placed in a window, by dragging it there for today or with Move it; the app never moves it, and a window that has ended keeps it (ADR-0039 §§5–6, ADR-0048) |
 | **Day starts at** | The hour the user's day begins, 3am unless changed in Settings. A day runs 24 hours from it, and anything that starts before the next day begins belongs to the day it started, for up to a day (ADR-0049) |
 | **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3). **Removed from the UI** (Henry, 2026-10-25): nothing creates one now, but a choice saved before still scores |
@@ -239,7 +248,8 @@ second one. What separates it is its **band**, not its table
   scheduled that day; pins and carried tasks never count, and an undated
   one-off counts only on the day it's ticked) divided by
   the day's working hours as they stood at the start of the day
-  (ADR-0044). The total is kept between 10 and `shareLimit` (70, 70 or
+  (ADR-0044) — the default 10 hours while windows are set aside
+  (ADR-0051). The total is kept between 10 and `shareLimit` (70, 70 or
   80 for one, two or three commitments), and a share set on the
   commitment (`life_unit.set_share`) overrides the automatic one. The
   old hand-set band is retired (formula v11). A commitment one-off

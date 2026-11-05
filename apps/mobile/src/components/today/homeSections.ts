@@ -19,16 +19,31 @@ import {
 
 import type { WindowState } from "./homeDay";
 
-export type Part = PartOfDay | "anytime";
+/** A section of the day. Night (midnight to 5) is the app's own, for
+ *  late events and what you drag there; no task is set to it
+ *  (ADR-0051). */
+export type Part = PartOfDay | "night" | "anytime";
 
 export const PART_LABEL: Record<Part, string> = {
   morning: "Morning",
   afternoon: "Afternoon",
   evening: "Evening",
+  night: "Night",
   anytime: "Anytime",
 };
 
 const PARTS: readonly PartOfDay[] = ["morning", "afternoon", "evening"];
+
+/** Night in the day's minutes: after midnight, so it follows Evening
+ *  whatever hour the day starts. */
+export const NIGHT_RANGE: TimeRange = { start: 24 * 60, end: 29 * 60 };
+
+/** An event, or a task at a time, sitting in its part of the day. */
+export interface TimedRow {
+  readonly taskId: string;
+  readonly start: number;
+  readonly event: boolean;
+}
 
 export interface SectionRow {
   readonly taskId: string;
@@ -55,6 +70,9 @@ export type HomeSection =
       readonly part: Part;
       /** Its hours, or null for Anytime. */
       readonly range: TimeRange | null;
+      /** Its events and timed tasks, by time, above the rows. They
+       *  stay at their time, so they aren't dragged. */
+      readonly timed: readonly TimedRow[];
       readonly rows: readonly SectionRow[];
     };
 
@@ -94,24 +112,49 @@ export function windowRows(
   };
 }
 
-/** The part of the day a minute is in, either side of midnight; outside
- *  them all (as a pin to Anytime is), Anytime. */
+/** A day's events and timed tasks, for its parts. */
+export function timedRows(
+  plan: {
+    readonly events: readonly { readonly id: string; readonly start: number }[];
+    readonly tasks: ReadonlyMap<string, { readonly startMinute: number | null }>;
+  },
+  planned: Pick<PlannedDay, "atTime">,
+): TimedRow[] {
+  const tasks = planned.atTime.flatMap((id) => {
+    const start = plan.tasks.get(id)?.startMinute ?? null;
+    return start === null ? [] : [{ taskId: id, start, event: false }];
+  });
+  return [...plan.events.map((e) => ({ taskId: e.id, start: e.start, event: true })), ...tasks];
+}
+
+/** The part of the day a pin's minute is in, either side of midnight;
+ *  midnight itself is a pin to Anytime. */
 export function partOfMinute(m: number): Part {
   for (const p of PARTS) {
     const b = PART_OF_DAY_BOUNDS[p];
     if ((m >= b.start && m < b.end) || (m >= b.start + 1440 && m < b.end + 1440)) return p;
   }
+  if (m >= NIGHT_RANGE.start && m < NIGHT_RANGE.end) return "night";
   return "anytime";
+}
+
+/** The part of the day a time is in, by the clock: midnight to 5 is
+ *  Night, on whichever side of the day's start it falls. */
+export function partAt(m: number): Part {
+  const clock = ((m % 1440) + 1440) % 1440;
+  return clock < PART_OF_DAY_BOUNDS.morning.start ? "night" : partOfMinute(clock);
 }
 
 /** The time a pin to a part of the day holds: its start, or for
  *  Anytime, midnight, which is in none of them. */
 export function anchorOf(part: Part): number {
-  return part === "anytime" ? 0 : PART_OF_DAY_BOUNDS[part].start;
+  if (part === "anytime") return 0;
+  return part === "night" ? NIGHT_RANGE.start : PART_OF_DAY_BOUNDS[part].start;
 }
 
 export function partRange(part: Part): TimeRange | null {
-  return part === "anytime" ? null : PART_OF_DAY_BOUNDS[part];
+  if (part === "anytime") return null;
+  return part === "night" ? NIGHT_RANGE : PART_OF_DAY_BOUNDS[part];
 }
 
 /**
@@ -121,14 +164,19 @@ export function partRange(part: Part): TimeRange | null {
  *   no window touches that holds a task kept to it.
  * - With none: Morning, Afternoon, Evening and Anytime, holding the
  *   day's open tasks by where you put them today, else their part of
- *   the day. All four are always there, so each can take a drop.
+ *   the day. All four are always there, so each can take a drop. Each
+ *   holds its events and timed tasks too (`timed`), by the clock; Night
+ *   is there only when it holds something (ADR-0051).
  */
 export function homeSections(input: {
   planned: PlannedDay;
   partOf: (taskId: string) => PartOfDay | null;
   dayOrder: ReadonlyMap<string, number>;
+  /** The day's events and timed tasks, placed in parts when there are
+   *  no windows. */
+  timed?: readonly TimedRow[];
 }): HomeSection[] {
-  const { planned, partOf, dayOrder } = input;
+  const { planned, partOf, dayOrder, timed = [] } = input;
   if (planned.windows.length > 0) {
     const windows: HomeSection[] = planned.windows.map((w, index) => ({
       key: windowKey(w.range),
@@ -142,6 +190,7 @@ export function homeSections(input: {
       kind: "part" as const,
       part: p,
       range: PART_OF_DAY_BOUNDS[p],
+      timed: [],
       rows: inYourOrder(
         planned.byPart[p].map((taskId) => ({ taskId, reason: "partOfDay" as const, swappable: false })),
         dayOrder,
@@ -151,7 +200,7 @@ export function homeSections(input: {
     return [...windows, ...parts].sort((a, b) => start(a) - start(b));
   }
 
-  const held: Record<Part, SectionRow[]> = { morning: [], afternoon: [], evening: [], anytime: [] };
+  const held: Record<Part, SectionRow[]> = { morning: [], afternoon: [], evening: [], night: [], anytime: [] };
   const pinned = new Set<string>();
   for (const p of planned.unplacedPins) {
     pinned.add(p.taskId);
@@ -161,13 +210,21 @@ export function homeSections(input: {
     if (pinned.has(taskId)) continue;
     held[partOf(taskId) ?? "anytime"].push({ taskId, swappable: false });
   }
-  return (["morning", "afternoon", "evening", "anytime"] as const).map((part) => ({
-    key: partKey(part),
-    kind: "part" as const,
-    part,
-    range: partRange(part),
-    rows: inYourOrder(held[part], dayOrder),
-  }));
+  const at: Record<Part, TimedRow[]> = { morning: [], afternoon: [], evening: [], night: [], anytime: [] };
+  for (const row of timed) at[partAt(row.start)].push(row);
+  // By the clock, so Night reads from midnight even when the day
+  // starts at 3 and a 4am event is the day's first.
+  const clock = (m: number) => ((m % 1440) + 1440) % 1440;
+  return (["morning", "afternoon", "evening", "night", "anytime"] as const)
+    .filter((part) => part !== "night" || held.night.length > 0 || at.night.length > 0)
+    .map((part) => ({
+      key: partKey(part),
+      kind: "part" as const,
+      part,
+      range: partRange(part),
+      timed: [...at[part]].sort((a, b) => clock(a.start) - clock(b.start)),
+      rows: inYourOrder(held[part], dayOrder),
+    }));
 }
 
 /** Today's ticks, under the window each was done in, in the day's
@@ -194,7 +251,7 @@ export function doneGroups(input: {
  *  while it still holds open rows, so it never counts what wasn't done
  *  (P7, P8). */
 export function foldedLabel(section: HomeSection, state: WindowState): string {
-  const n = section.rows.length + (section.kind === "window" ? section.overflow.length : 0);
+  const n = section.rows.length + (section.kind === "window" ? section.overflow.length : section.timed.length);
   if (state === "past") {
     return n === 0 && section.kind === "window" && section.window.done.length > 0
       ? `✓ ${section.window.done.length} done`

@@ -15,7 +15,7 @@
  * - A window's ••• has Edit times and Remove (spec §3.5).
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { TimeRange } from "@glide/scoring";
+import { formatMinutes, type TimeRange } from "@glide/scoring";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
@@ -28,7 +28,7 @@ import { reasonLabel, spanLabel, spokenSpan } from "../plan/dayView";
 import { showActions } from "../ui/actionSheet";
 import { AppText } from "../ui/AppText";
 import { DragRow, useDropTarget } from "./DayDrag";
-import { foldedLabel, PART_LABEL, type HomeSection, type SectionRow } from "./homeSections";
+import { foldedLabel, PART_LABEL, type HomeSection, type SectionRow, type TimedRow } from "./homeSections";
 import { timeLeft, type WindowState } from "./homeDay";
 
 export interface RowExtra {
@@ -145,6 +145,19 @@ export function HomeSectionCard({
     );
   };
 
+  // Events and timed tasks stay at their time: above the rows, not
+  // dragged, and held for their own menu.
+  const timedRow = (r: TimedRow) => {
+    const t = tasks.get(r.taskId);
+    if (!t) return null;
+    return (
+      <View key={`at-${r.taskId}`}>
+        {renderRow(t, { reason: r.event ? undefined : `At ${formatMinutes(r.start)}`, windowStart: null, dragged: false })}
+      </View>
+    );
+  };
+  const timed = section.kind === "part" ? section.timed : [];
+
   return (
     <View
       ref={attach}
@@ -181,8 +194,9 @@ export function HomeSectionCard({
 
       {expanded ? (
         <View style={styles.rows}>
+          {timed.map(timedRow)}
           {shownRows.map(row)}
-          {shownRows.length === 0 ? (
+          {shownRows.length === 0 && timed.length === 0 ? (
             <AppText variant="caption" color={theme.muted} style={styles.empty}>
               {isWindow ? "Nothing here. Drag a task in." : "Drag a task here."}
             </AppText>

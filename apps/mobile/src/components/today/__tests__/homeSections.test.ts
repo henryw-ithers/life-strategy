@@ -66,6 +66,58 @@ describe("a day with no windows", () => {
   });
 });
 
+describe("events and Night (ADR-0051)", () => {
+  const sectionsWith = (timed: { taskId: string; start: number }[], pins: PlanDayInput["pins"] = []) =>
+    homeSections({
+      planned: plan({ open: [task("read")], pins }),
+      partOf: () => null,
+      dayOrder: new Map(),
+      timed: timed.map((t) => ({ ...t, event: true })),
+    });
+  const timedIn = (sections: ReturnType<typeof homeSections>, key: string) => {
+    const s = sections.find((x) => x.key === key);
+    return s?.kind === "part" ? ids(s.timed) : null;
+  };
+
+  it("puts events in their part by the clock, evening running to midnight", () => {
+    const sections = sectionsWith([
+      { taskId: "class", start: h(9) },
+      { taskId: "late", start: h(23, 30) },
+    ]);
+    expect(timedIn(sections, "p-morning")).toEqual(["class"]);
+    expect(timedIn(sections, "p-evening")).toEqual(["late"]);
+  });
+
+  it("puts 1am and 4am in Night, after Evening, by the clock", () => {
+    // 1am after midnight is minute 25:00 of the day; 4am, with the day
+    // starting at 3, is 04:00 of the day itself.
+    const sections = sectionsWith([
+      { taskId: "four", start: h(4) },
+      { taskId: "one", start: h(25) },
+    ]);
+    expect(sections.map((s) => s.key)).toEqual(["p-morning", "p-afternoon", "p-evening", "p-night", "p-anytime"]);
+    expect(timedIn(sections, "p-night")).toEqual(["one", "four"]);
+  });
+
+  it("shows Night only when it holds something", () => {
+    expect(sectionsWith([]).map((s) => s.key)).not.toContain("p-night");
+  });
+
+  it("holds a task dragged to Night", () => {
+    const sections = sectionsWith(
+      [],
+      [{ ruleId: "p", taskId: "read", kind: "window", anchor: anchorOf("night"), extra: false, order: 0, carried: false }],
+    );
+    const night = sections.find((s) => s.key === "p-night");
+    expect(night && ids(night.rows)).toEqual(["read"]);
+    expect(partOfMinute(anchorOf("night"))).toBe("night");
+  });
+
+  it("never has a window section", () => {
+    expect(sectionsWith([{ taskId: "class", start: h(9) }]).every((s) => s.kind === "part")).toBe(true);
+  });
+});
+
 describe("a part of the day with no window", () => {
   it("gets its own section, in time order with the windows", () => {
     const planned = plan({ windows: [{ start: h(13), end: h(17) }], open: [task("run", { partOfDay: "morning" })] });

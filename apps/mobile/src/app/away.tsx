@@ -65,7 +65,7 @@ export default function AwayScreen() {
         ) : (
           <>
             <AppText variant="caption" color={theme.muted} style={styles.lead}>
-              Days you&apos;re away aren&apos;t graded and have no windows or events. Anything
+              Days you&apos;re away aren&apos;t graded and have no events. Anything
               flexible is spread over the rest of the week.
             </AppText>
             <Button

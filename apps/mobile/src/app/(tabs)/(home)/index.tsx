@@ -54,7 +54,7 @@ import { CelebrationCard } from "../../../components/achievements/CelebrationCar
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { ItemEditor } from "../../../components/plan/ItemEditor";
-import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
+import { DayParts, partsOf } from "../../../components/plan/DayParts";
 import { addableTo, spanLabel } from "../../../components/plan/dayView";
 import { WindowTimesSheet } from "../../../components/plan/WindowTimesSheet";
 import { WEEKDAY_NAME } from "../../../components/plan/planning";
@@ -67,7 +67,7 @@ import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
 import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
-import { anchorOf, homeSections } from "../../../components/today/homeSections";
+import { anchorOf, homeSections, timedRows } from "../../../components/today/homeSections";
 import { HomeToday, OTHERS_KEY, windowId } from "../../../components/today/HomeToday";
 import type { RowExtra } from "../../../components/today/HomeWindow";
 import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
@@ -105,6 +105,7 @@ import { spokenDate } from "../../../lib/format";
 import { getTheme } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { dayMinuteAt } from "../../../lib/calendar";
+import { WINDOWS } from "../../../lib/features";
 
 
 /** The minute of the planning day, now, ticking once a minute. */
@@ -204,7 +205,6 @@ export default function TodayScreen() {
   const [kindSheet, setKindSheet] = useState(false);
   const [scoreSheet, setScoreSheet] = useState(false);
   /** A future day's view, for the + menu's Window. */
-  const futureView = useRef<PlanDayViewHandle>(null);
   const [activitySheet, setActivitySheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
   /** Set while the note sheet is rewriting an existing entry. */
@@ -302,7 +302,10 @@ export default function TodayScreen() {
       pulledIn,
     });
   }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
-  /** The day as sections you can rearrange (ADR-0048). */
+  /** A day ahead, shown in its parts as Week shows it (ADR-0051). */
+  const isFuture = day !== null && day.date > day.today && plan !== null;
+  /** The day as sections you can rearrange (ADR-0048): today live, a
+   *  day ahead as planned. */
   const sections = useMemo(
     () =>
       planned && plan
@@ -310,12 +313,13 @@ export default function TodayScreen() {
             planned,
             partOf: (id) => plan.tasks.get(id)?.partOfDay ?? null,
             dayOrder: plan.dayOrder,
+            timed: timedRows(plan, planned),
           })
-        : [],
-    [planned, plan],
+        : isFuture && plan
+          ? partsOf(plan)
+          : [],
+    [planned, plan, isFuture],
   );
-  /** A day ahead, shown as Plan's day view (spec §5.2). */
-  const isFuture = day !== null && day.date > day.today && plan !== null;
   const needsPlan = day !== null && day.date === day.today && plan === null;
   useEffect(() => {
     if (needsPlan) void refresh();
@@ -375,14 +379,12 @@ export default function TodayScreen() {
       onTask={() => openAdd("task")}
       onEvent={() => openAdd("event")}
       onWindow={
-        windowEditable
+        WINDOWS && windowEditable
           ? () => {
               setOpened((n) => n + 1);
               setWindowSheet({ kind: "times" });
             }
-          : isFuture && day.away === null
-            ? () => futureView.current?.addWindow()
-            : undefined
+          : undefined
       }
       onLog={logSomething}
       onToday={day.date !== day.today ? () => select(day.today) : undefined}
@@ -797,16 +799,15 @@ export default function TodayScreen() {
                 theme={theme}
               />
             ) : isFuture && plan ? (
-              <PlanDayView
+              <DayParts
                 // Its sheets belong to the day: a new day starts clean.
                 key={plan.day.date}
-                ref={futureView}
                 day={plan}
-                today={day.today}
-                save={(write) => saveThen(write, refresh)}
+                sections={sections}
+                editable
                 reload={() => void refresh()}
                 undo={undo}
-                compact
+                reduceMotion={reduceMotion}
                 theme={theme}
               />
             ) : !isToday ? (

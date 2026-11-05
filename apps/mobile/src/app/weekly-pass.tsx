@@ -15,6 +15,9 @@
  *    their suggestions to pin, accept or add to. Anything you don't pin
  *    is still suggested.
  *
+ * Windows and hours are set aside for launch (ADR-0051): step 3 and
+ * Change hours are left out while `WINDOWS` is off.
+ *
  * **Skipping the pass is never mentioned** and nothing records it.
  */
 import { isoWeekday, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
@@ -68,6 +71,7 @@ import { daysLeft } from "../db/weeklyPassRules";
 import { useRetained } from "../hooks/useRetained";
 import { useUndoDelete } from "../hooks/useUndoDelete";
 import { currentLocalDate } from "../lib/calendar";
+import { WINDOWS } from "../lib/features";
 import { recordProblem } from "../lib/problemLog";
 import { spokenDate } from "../lib/format";
 import { getTheme } from "../theme/colors";
@@ -139,7 +143,11 @@ export default function WeeklyPassScreen() {
     if (turn !== loadTurn.current) return;
     setShifts(once);
     // The steps are set once, as the pass opens, and stay for it.
-    setSteps((s) => s ?? [...(due ? (["tiers"] as const) : []), "lastWeek", "different", "windows"]);
+    // Windows are set aside for launch, and their step with them
+    // (ADR-0051).
+    setSteps(
+      (s) => s ?? [...(due ? (["tiers"] as const) : []), "lastWeek", "different", ...(WINDOWS ? (["windows"] as const) : [])],
+    );
     setLast(lastWeek);
     setEvents(weekEvents);
     setDays(plans);
@@ -365,7 +373,9 @@ export default function WeeklyPassScreen() {
           )}
           <Group theme={theme} flush>
             {shifts ? <PassLink label="Copy last week's events" onPress={copyEvents} theme={theme} /> : null}
-            <PassLink label="Change hours this week" onPress={() => router.push("/hours" as Href)} theme={theme} />
+            {WINDOWS ? (
+              <PassLink label="Change hours this week" onPress={() => router.push("/hours" as Href)} theme={theme} />
+            ) : null}
             <PassLink
               label="Add an event"
               onPress={() => {

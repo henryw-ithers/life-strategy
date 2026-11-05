@@ -1,5 +1,11 @@
 # Redesign spec: windows, Plan, Home and Life
 
+> **Windows are set aside for launch (2026-11-04).**
+> [ADR-0051](../adr/0051-launch-without-windows.md) hides windows and
+> working hours behind one switch: the day shows in its parts, Home is
+> Today and Plan is Week. What follows describes windows as built, for
+> when they come back.
+
 > **Amended after testing (2026-11-02).** Two later ADRs change parts
 > of what follows, and win where they disagree:
 > [ADR-0048](../adr/0048-the-day-is-yours-to-arrange.md) (the clock

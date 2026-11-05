@@ -3,6 +3,10 @@
  * windows-and-pins.md §§1–3): windows from the hours less events,
  * suggestions, pins, work planned for later, flexible runs spread over
  * a future week, the week strip, and copying last week's events.
+ *
+ * Windows are set aside for launch (ADR-0051), but their code is kept
+ * for when they come back, so these run with the switch on; one test
+ * turns it off.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,10 +20,12 @@ import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
 
 const clock = vi.hoisted(() => ({ today: "2026-10-19" }));
+const features = vi.hoisted(() => ({ WINDOWS: true }));
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
 vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
 vi.mock("../../lib/problemLog", () => ({ recordProblem: vi.fn() }));
+vi.mock("../../lib/features", () => features);
 vi.mock("../../lib/calendar", async (original) => ({
   ...(await original<typeof import("../../lib/calendar")>()),
   currentLocalDate: () => clock.today,
@@ -124,6 +130,26 @@ describe("windows (§3.2)", () => {
     ]);
     expect(plan.events.map((e) => [e.id, e.start, e.end])).toEqual([["lecture", h(10), h(11, 30)]]);
     expect(plan.freeMinutes).toBe(50 + 320);
+  });
+
+  it("are set aside for launch, with events kept (ADR-0051)", async () => {
+    addTask({
+      id: "lecture",
+      unitId: "school",
+      kind: "event",
+      plannedWeekdays: "1",
+      startMinute: h(10),
+      endMinute: h(11, 30),
+    });
+    features.WINDOWS = false;
+    try {
+      const plan = await loadDayPlan(MON, EARLY);
+      expect(plan.hours.windows).toEqual([]);
+      expect(plan.planned.windows).toEqual([]);
+      expect(plan.events.map((e) => e.id)).toEqual(["lecture"]);
+    } finally {
+      features.WINDOWS = true;
+    }
   });
 
   it("are set aside on a cleared day and an Away day", async () => {

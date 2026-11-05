@@ -28,6 +28,7 @@ import {
 } from "@glide/scoring";
 
 import { currentLocalDate } from "../lib/calendar";
+import { WINDOWS } from "../lib/features";
 import { db } from "./client";
 import { dayGrade, dayWindowEdit, workDayOverride, workHours } from "./schema";
 import { writeAndMarkStale } from "./settings";
@@ -48,8 +49,11 @@ import {
 // ── The hours a day began with (ADR-0044 §5) ───────────────────────
 
 /** The working time `date` has now: its template or own hours, less
- *  named gaps, with the edits made ahead of the day (`dayHours`). */
+ *  named gaps, with the edits made ahead of the day (`dayHours`). While
+ *  windows are set aside, always the default hours, whatever was saved
+ *  before: hours that can't be seen can't be changed (ADR-0051). */
 export async function workingHoursNow(date: string): Promise<TimeRange[]> {
+  if (!WINDOWS) return [...dayHours({ date, versions: [], override: null, edits: [] }).working];
   const [versions, override, edits] = await Promise.all([
     loadHoursVersions(),
     loadDayOverride(date),

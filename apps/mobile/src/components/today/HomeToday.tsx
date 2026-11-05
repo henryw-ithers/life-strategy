@@ -4,8 +4,10 @@
  * them, then Other open tasks, then what's done.
  *
  * - Sections are the day's windows, plus any part of the day no window
- *   touches; on a day with no windows, Morning, Afternoon, Evening and
- *   Anytime. **None disappears when its time is over** (`HomeWindow`).
+ *   touches; on a day with no windows, Morning, Afternoon, Evening,
+ *   Night (when it holds something) and Anytime, each with its events
+ *   at their times (ADR-0051, which sets windows aside for launch).
+ *   **None disappears when its time is over** (`HomeWindow`).
  * - Hold a task and drag it into any section, or within one, to move
  *   it for today and set your order (`DayDrag`).
  * - Events sit at their times and are ticked like tasks; a long press
@@ -101,12 +103,16 @@ export function HomeToday({
   const open = openIndex(ranges, now);
   const line = situationLine(ranges, plan.hours.gaps, now);
 
-  // Timed tasks no window holds sit at their time, like events.
-  const atTime = planned.atTime
-    .map((id) => tasks.get(id))
-    .filter((t): t is TodayTask => t !== undefined && t.startMinute !== null);
+  // With no windows, the parts of the day hold the events and timed
+  // tasks (ADR-0051); with windows, they sit at their time between.
+  const inParts = ranges.length === 0;
+  const atTime = inParts
+    ? []
+    : planned.atTime
+        .map((id) => tasks.get(id))
+        .filter((t): t is TodayTask => t !== undefined && t.startMinute !== null);
   const items = [
-    ...timeline({ ...plan.hours, windows: [] }, plan.events).map((item) => ({
+    ...timeline({ ...plan.hours, windows: [] }, inParts ? [] : plan.events).map((item) => ({
       start: item.kind === "event" ? item.event.start : item.range.start,
       item,
     })),
@@ -144,7 +150,8 @@ export function HomeToday({
   const stateOf = (s: HomeSection): WindowState =>
     s.kind === "window" ? windowState(s.index, open, ranges, now) : partState(s.range, now);
   const startsOpen = (s: HomeSection, state: WindowState) =>
-    state === "open" || (state === "past" ? s.rows.length > 0 : s.kind === "part" && s.rows.length > 0);
+    state === "open" ||
+    (state === "past" ? s.rows.length > 0 : s.kind === "part" && s.rows.length + s.timed.length > 0);
 
   const otherRow = (id: string) => {
     const t = tasks.get(id);
@@ -288,9 +295,12 @@ export function HomeToday({
           <View style={[cardStyle(theme), styles.list]}>
             {done.map((g) => (
               <View key={g.range ? `d-${g.range.start}` : "d-other"}>
-                <AppText variant="footnote" color={theme.muted} tabular style={styles.doneLabel}>
-                  {g.range ? spanLabel(g.range) : "Outside your windows"}
-                </AppText>
+                {/* With no windows, one group, and nothing to name it by. */}
+                {g.range || done.length > 1 ? (
+                  <AppText variant="footnote" color={theme.muted} tabular style={styles.doneLabel}>
+                    {g.range ? spanLabel(g.range) : "Outside your windows"}
+                  </AppText>
+                ) : null}
                 {g.taskIds.map((id) => {
                   const t = tasks.get(id);
                   return t ? (

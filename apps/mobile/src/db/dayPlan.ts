@@ -26,6 +26,7 @@ import {
 import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 
 import { currentLocalDate, dayMinuteAt, todayEnd } from "../lib/calendar";
+import { WINDOWS } from "../lib/features";
 import { db } from "./client";
 import {
   eventsOn,
@@ -188,7 +189,10 @@ interface HoursInputs {
   readonly setAside: boolean;
 }
 
-function hoursOn(date: string, input: HoursInputs): DayHours {
+/** `room`: the hours behind the week strip's spread of flexible runs,
+ *  which still read the default hours less events while windows are set
+ *  aside, so runs go to the emptier days (ADR-0051). */
+function hoursOn(date: string, input: HoursInputs, room = false): DayHours {
   const hours = dayHours({
     date,
     versions: input.versions,
@@ -196,6 +200,8 @@ function hoursOn(date: string, input: HoursInputs): DayHours {
     edits: input.editsOn.get(date) ?? [],
     events: input.events,
   });
+  // With windows set aside for launch, no day has any (ADR-0051).
+  if (!WINDOWS && !room) return { ...hours, windows: [], buffers: [], gaps: [] };
   return input.setAside ? { ...hours, windows: [], buffers: [] } : hours;
 }
 
@@ -226,7 +232,7 @@ export async function loadWeek(date: string): Promise<WeekDay[]> {
       ...rows,
       events: eventTimesOn(events, date, todayEnd()),
       setAside: marker === "away" || marker === "dayOff" || clears.has(date),
-    });
+    }, true);
     out.push({
       date,
       freeMinutes: totalMinutes(hours.windows),

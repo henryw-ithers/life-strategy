@@ -31,10 +31,14 @@ import { resetTestDb, testDb } from "./harness";
 
 // Hoisted above the imports by vitest.
 const clock = vi.hoisted(() => ({ today: "2026-10-19" }));
+/** Hours are set aside for launch (ADR-0051); these tests keep the
+ *  code that reads them, with the switch on unless a test turns it off. */
+const features = vi.hoisted(() => ({ WINDOWS: true }));
 
 vi.mock("../client", async () => (await import("./harness")).mockClient());
 vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
 vi.mock("../../lib/problemLog", () => ({ recordProblem: vi.fn() }));
+vi.mock("../../lib/features", () => features);
 vi.mock("../../lib/calendar", async (original) => ({
   ...(await original<typeof import("../../lib/calendar")>()),
   currentLocalDate: () => clock.today,
@@ -213,6 +217,16 @@ describe("the commitment share from the day (ADR-0044)", () => {
     const day = await loadCommitmentDay(MON);
     expect(day?.band).toBe(31);
     expect(day?.fromDay).toBe(true);
+  });
+
+  it("reads the default hours while hours are set aside, whatever was saved (ADR-0051)", async () => {
+    features.WINDOWS = false;
+    try {
+      // The same 2.5 hours over the default 10 (9–12, 1–5, 6–9): 25%.
+      expect((await loadCommitmentDay(MON))?.band).toBe(25);
+    } finally {
+      features.WINDOWS = true;
+    }
   });
 
   it("counts edits made ahead, not those made on the day (EC-56)", async () => {
