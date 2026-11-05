@@ -22,7 +22,7 @@ export async function askClearToday(onDone: () => void): Promise<void> {
   const today = currentLocalDate();
   const [cleared, ranges] = await Promise.all([isCleared(today), loadAwayRanges()]);
   if (ranges.some((r) => r.startDate <= today && today <= r.endDate)) {
-    Alert.alert("You're away today", "Away days have no windows or events to set aside.");
+    Alert.alert("You're away today", "Away days have no events to set aside.");
     return;
   }
   if (cleared) {
@@ -34,7 +34,7 @@ export async function askClearToday(onDone: () => void): Promise<void> {
   }
   Alert.alert(
     "Clear today?",
-    "Today's windows and remaining events are set aside. Your open tasks show in one list.",
+    "Today's remaining events are set aside.",
     [
       { text: "Clear today", onPress: () => run(clearToday, onDone) },
       {

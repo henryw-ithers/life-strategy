@@ -1,5 +1,5 @@
 /**
- * Plan's stack: a large "Plan" title in the native nav bar, with the +
+ * Week's stack: a large "Week" title in the native nav bar, with the +
  * menu (ADR-0043 §1).
  */
 import { Stack } from "expo-router";
@@ -13,7 +13,7 @@ export default function PlanLayout() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" options={tabRootOptions(theme, "Plan")} />
+      <Stack.Screen name="index" options={tabRootOptions(theme, "Week")} />
     </Stack>
   );
 }

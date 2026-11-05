@@ -340,7 +340,7 @@ export default function SettingsScreen() {
           <GroupDivider theme={theme} />
           <SettingsRow
             label="Clear today"
-            detail="Set today's windows and remaining events aside"
+            detail="Set today's remaining events aside"
             onPress={() => void askClearToday(() => {})}
             theme={theme}
           />

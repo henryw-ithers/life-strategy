@@ -27,7 +27,8 @@ export const MIN_WINDOW_MINUTES = 30;
 export const PART_OF_DAY_BOUNDS = {
   morning: { start: 5 * 60, end: 12 * 60 },
   afternoon: { start: 12 * 60, end: 17 * 60 },
-  evening: { start: 17 * 60, end: 23 * 60 },
+  // To midnight since ADR-0051; the app's Night section takes 0–5.
+  evening: { start: 17 * 60, end: 24 * 60 },
 } as const;
 
 export type PartOfDay = keyof typeof PART_OF_DAY_BOUNDS;

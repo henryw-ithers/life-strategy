@@ -50,18 +50,19 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0036](0036-granularity-is-the-users.md) | Any task may have a clock time; none requires one | Accepted; events excepted by 0038; pins per 0039 |
 | [0037](0037-rest-days.md) | A day with nothing due becomes a rest day worth 70 | Accepted; §§1, 3 amended by 0040 and 0039 |
 | [0038](0038-events.md) | Events: timed tasks such as classes and shifts | Accepted; location removed and repeats bounded by 0040 |
-| [0039](0039-work-windows-come-from-your-hours.md) | Windows come from your working hours; suggestions are live and pins are yours | Accepted; §§5, 6, 8, 10 amended by 0048; §1's rollover by 0049 |
+| [0039](0039-work-windows-come-from-your-hours.md) | Windows come from your working hours; suggestions are live and pins are yours | Accepted; §§5, 6, 8, 10 amended by 0048; §1's rollover by 0049; set aside for launch by 0051 |
 | [0040](0040-schedules-can-end-skip-and-clear.md) | Repeats can end and skip weeks; Clear today and Away; event location removed | Accepted |
 | [0041](0041-priorities-are-tiers.md) | Priorities are four tiers; satisfaction and the portfolio graph go | Accepted; the screen moved to Life by 0048 |
 | [0042](0042-goals-are-measured-by-the-app.md) | Goals count times done, time, points or a streak; existing goals erased; templates replace the goal library | Superseded by 0047 |
 | [0043](0043-the-app-uses-native-ios-controls.md) | Native iOS controls, Liquid Glass, the Prism style and user colours; EAS builds | Accepted; §3 accent and backgrounds amended 2026-10-25 |
-| [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted |
+| [0044](0044-a-commitment-share-comes-from-your-day.md) | A commitment's share is its time as a part of your working day, with an override | Accepted; §5 amended by 0051 |
 | [0045](0045-onboarding-builds-a-first-week.md) | Onboarding sets up priorities, commitments and hours, and shows a first week | Accepted; amended by 0048 (explains, fills nothing in) |
 | [0046](0046-backups-are-plain-files.md) | Backups are plain files: no passphrase, no encryption, a CRC-32 check | Accepted |
 | [0047](0047-achievements-replace-goals.md) | Achievements the app defines and ranks replace goals; plan weeks and good days count, with guard rails | Accepted |
-| [0048](0048-the-day-is-yours-to-arrange.md) | The clock moves nothing: ticks filed by window, ended windows keep their tasks, drag to rearrange; Priorities on Life; onboarding explains | Accepted |
+| [0048](0048-the-day-is-yours-to-arrange.md) | The clock moves nothing: ticks filed by window, ended windows keep their tasks, drag to rearrange; Priorities on Life; onboarding explains | Accepted; amended by 0051 |
 | [0049](0049-the-day-starts-when-you-say.md) | A Day starts at setting; times run overnight for up to a day and belong to the day they start | Accepted |
 | [0050](0050-a-day-asks-only-what-it-can.md) | Formula v12: task weights evened toward the average; a day asks only what can be done in it; achievements are for units, not tasks | Accepted |
+| [0051](0051-launch-without-windows.md) | Launch without windows: the day in parts, Week replaces Plan, working hours set aside | Accepted |
 
 ## Reading guide
 
@@ -119,10 +120,10 @@ when its trigger happens.
 0041 and 0044 together make formula v11. 0046 (plain backups) and 0047
 (achievements replace goals) followed during the build. 0048 and 0049
 came from testing: the day is arranged by you, not the clock, and it
-starts when you say.
+starts when you say. 0051 sets windows aside for launch.
 
 **Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
-0050 were written as other decisions came up first; renumbering to fill
+0051 were written as other decisions came up first; renumbering to fill
 the gaps would break every existing link to them.
 
 **Not ADRs:** release operations ([release.md](../release.md)), testing

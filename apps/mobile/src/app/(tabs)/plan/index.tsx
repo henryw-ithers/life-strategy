@@ -1,33 +1,34 @@
 /**
- * The Plan tab: is my week set up? (spec §5.3). A week strip across the
- * top, Sunday to Saturday (ADR-0004 §1), and below it the chosen day:
- * its windows, events and named gaps in time order, each window filled
- * with its pins and live suggestions.
+ * The Week tab: is my week set up? (spec §5.3, ADR-0051). A week strip
+ * across the top, Sunday to Saturday (ADR-0004 §1), and below it the
+ * chosen day in its parts (`DayParts`): events at their times, then
+ * tasks in your order. Drag a task to another part of that day.
  *
- * Suggestions are worked out each time and never saved
- * (`loadDayPlan`); only what you pin is. **Nothing here changes a
- * score** but a "Do N of these" choice and the hours (ADR-0039 §12),
- * and there's no warning about load anywhere (P3, ADR-0026 §3).
+ * It was the Plan tab, of windows; windows are set aside for launch
+ * (ADR-0051) and the route kept its `plan` path. **Nothing here
+ * changes a score**, nothing is counted, and there's no warning about
+ * load anywhere (P3, ADR-0026 §3).
  *
  * The units and their tasks moved to Life in Phase 8 (Henry,
  * 2026-10-20). This tab still opens the New task and New event sheets
  * from its + menu, and from another tab's (`openAdd`).
  */
-import { addDays } from "@glide/scoring";
+import { addDays, weekStart } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
 import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
 import { AddTaskModal } from "../../../components/plan/AddTaskModal";
 import { weekLabel } from "../../../components/plan/dayView";
 import { EventSheet } from "../../../components/plan/EventSheet";
-import { PlanDayView, type PlanDayViewHandle } from "../../../components/plan/PlanDayView";
+import { DayParts, dropInPart, partsOf, PartRow } from "../../../components/plan/DayParts";
 import { PlanWeekStrip } from "../../../components/plan/PlanWeekStrip";
 import { savedOrSaid, CANCELLED, saveNewEvent } from "../../../components/plan/saveEvent";
 import { pickableUnits } from "../../../components/plan/unitSelection";
+import { DayDrag } from "../../../components/today/DayDrag";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { LoadFailure, useScreenLoad } from "../../../components/ui/ScreenLoad";
@@ -35,7 +36,7 @@ import { UndoBar } from "../../../components/ui/UndoBar";
 import { setDayKind } from "../../../db/dayGrades";
 import { loadDayPlan, loadWeek, type DayPlan, type WeekDay } from "../../../db/dayPlan";
 import { eventsDefaultOnce } from "../../../db/settings";
-import { addTask, loadPlan, type PlanData } from "../../../db/tasks";
+import { addTask, copyLastWeeksEvents, loadPlan, type PlanData } from "../../../db/tasks";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { currentLocalDate } from "../../../lib/calendar";
@@ -126,16 +127,62 @@ export default function PlanScreen() {
     void Haptics.selectionAsync();
   };
 
-  const dayView = useRef<PlanDayViewHandle>(null);
+  /** The chosen day in its parts, and a drag across them. */
+  const sections = useMemo(() => (day ? partsOf(day) : []), [day]);
+  const [dragging, setDragging] = useState(false);
+  const scroller = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const dropTask = (taskId: string, fromKey: string, to: Parameters<typeof dropInPart>[4]) => {
+    const write = dropInPart(date, sections, taskId, fromKey, to);
+    if (!write) return;
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void save(write);
+  };
+
+  /** One-time events from last week, a week later (shift work). */
+  const copyEvents = () => {
+    void save(async () => {
+      const added = await copyLastWeeksEvents(weekStart(date));
+      Alert.alert(
+        added === 0 ? "Nothing to copy" : "Copied",
+        added === 0
+          ? "Last week had no one-time events to bring forward, or they're already here."
+          : `${added} ${added === 1 ? "event" : "events"} from last week, a week later. Change any times that moved.`,
+      );
+    });
+  };
 
   // ── Render ───────────────────────────────────────────────────────
 
   return (
     <View style={styles.root}>
+      <DayDrag
+        onDrop={dropTask}
+        onDraggingChange={setDragging}
+        renderGhost={(id) => {
+          const t = day?.tasks.get(id);
+          return t ? (
+            <View style={styles.ghost}>
+              <PartRow task={t} event={false} theme={theme} />
+            </View>
+          ) : null;
+        }}
+        scroll={{
+          y: () => scrollY.current,
+          to: (y) => scroller.current?.scrollTo({ y, animated: false }),
+        }}
+        theme={theme}
+      >
       <ScrollView
+        ref={scroller}
         style={styles.body}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
+        scrollEnabled={!dragging}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
       >
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {week ? (
@@ -156,33 +203,37 @@ export default function PlanScreen() {
         ) : day === null ? (
           <ActivityIndicator color={theme.muted} style={styles.loading} />
         ) : (
-          <PlanDayView
-            ref={dayView}
+          <DayParts
+            // Its sheets belong to the day: a new day starts clean.
+            key={date}
             day={day}
-            today={today}
-            save={save}
+            sections={sections}
+            editable={editable}
             reload={retry}
             undo={undo}
-            onDayType={date <= today ? () => setKindSheet(true) : undefined}
+            reduceMotion={reduceMotion}
             theme={theme}
           />
         )}
       </ScrollView>
+      </DayDrag>
 
       <TabToolbar
         onTask={() => addHere("task")}
         onEvent={() => addHere("event")}
-        onWindow={editable ? () => dayView.current?.addWindow() : undefined}
         onLog={() => openAdd("activity")}
         more={[
           { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
-          { label: "Working hours", icon: "clock", onPress: () => router.push("/hours" as Href) },
           // For shifts that change week to week (events start one-time):
           // weekly events already repeat by themselves.
           ...(shifts
-            ? [{ label: "Copy last week's events", icon: "doc.on.doc" as const, onPress: () => dayView.current?.copyEvents() }]
+            ? [{ label: "Copy last week's events", icon: "doc.on.doc" as const, onPress: copyEvents }]
             : []),
           { label: "Time away", icon: "airplane", onPress: () => router.push("/away" as Href) },
+          // A day's type is set once it's begun (`setDayKind`).
+          ...(day && date <= today
+            ? [{ label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) }]
+            : []),
         ]}
       />
 
@@ -255,4 +306,5 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   container: { paddingHorizontal: space.screen, paddingBottom: space.xxl },
   loading: { marginTop: space.xxl },
+  ghost: { paddingHorizontal: space.lg },
 });

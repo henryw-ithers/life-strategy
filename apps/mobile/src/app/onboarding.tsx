@@ -7,7 +7,8 @@
  * 1. Welcome, with the privacy line (ADR-0011 §4).
  * 2. Tiers: what matters most decides what each day is worth.
  * 3. A day out of 100: planned work, the rest, and scores as a guide.
- * 4. Your time: windows, ticking whenever suits you, moving anything.
+ * 4. Your day: its parts, ticking whenever suits you, moving anything
+ *    (windows are set aside for launch, ADR-0051).
  * 5. Where to start: your units on Life, then a few tasks.
  * 6. The daily reminder, asked before the system asks (ADR-0010), and
  *    the one line about Support resources (ADR-0008).
@@ -152,11 +153,11 @@ export default function OnboardingScreen() {
     return (
       <OnboardingPage theme={theme} step="time" action="Next" onPress={next}>
         <AppText variant="display" color={theme.ink}>
-          Your time, in windows
+          Your day, in parts
         </AppText>
-        <WindowExample theme={theme} />
+        <PartExample theme={theme} />
         <AppText color={theme.ink} style={styles.lead}>
-          Tell it when you’re free, and it fills that time with tasks. Tick things off whenever suits you, even all at once at night. Hold any task to move it.
+          Tasks sit in the morning, afternoon or evening, and events at their times. Tick things off whenever suits you, even all at once at night. Hold any task to move it.
         </AppText>
       </OnboardingPage>
     );
@@ -171,7 +172,6 @@ export default function OnboardingScreen() {
         <View style={[cardStyle(theme), styles.example]}>
           <StepLine n={1} text="On Life, drag your units into tiers." theme={theme} />
           <StepLine n={2} text="Add a few tasks to the ones on top." theme={theme} />
-          <StepLine n={3} text="Set your hours when you want windows." theme={theme} />
         </View>
         <AppText color={theme.muted} style={styles.lead}>
           Rough is fine. Everything can change later.
@@ -214,7 +214,7 @@ export default function OnboardingScreen() {
         Life Strategy
       </AppText>
       <AppText color={theme.ink} style={styles.lead}>
-        Plan your week around what matters to you and the time you actually have.
+        Plan your week around what matters to you.
       </AppText>
       <AppText color={theme.muted} style={styles.lead}>
         Everything you enter stays on this phone. No account, no server, nothing uploaded.
@@ -265,16 +265,16 @@ function Figure({ value, label, theme }: { value: string; label: string; theme: 
   );
 }
 
-/** A window as Home draws one: its times, two tasks, one ticked. */
-function WindowExample({ theme }: { theme: ThemeTokens }) {
+/** A part of the day as Today draws one: two tasks, one ticked. */
+function PartExample({ theme }: { theme: ThemeTokens }) {
   const rows = [
     { title: "Run", done: true },
     { title: "Read for 30 minutes", done: false },
   ];
   return (
-    <View style={[cardStyle(theme), styles.example]} accessible accessibilityLabel="Example: a window from 9 to 12 with two tasks, one ticked.">
-      <AppText variant="label" color={theme.ink} tabular>
-        09:00–12:00
+    <View style={[cardStyle(theme), styles.example]} accessible accessibilityLabel="Example: the morning, with two tasks, one ticked.">
+      <AppText variant="label" color={theme.ink}>
+        Morning
       </AppText>
       {rows.map((r) => (
         <View key={r.title} style={styles.taskRow}>
