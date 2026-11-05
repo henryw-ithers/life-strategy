@@ -61,6 +61,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0047](0047-achievements-replace-goals.md) | Achievements the app defines and ranks replace goals; plan weeks and good days count, with guard rails | Accepted |
 | [0048](0048-the-day-is-yours-to-arrange.md) | The clock moves nothing: ticks filed by window, ended windows keep their tasks, drag to rearrange; Priorities on Life; onboarding explains | Accepted |
 | [0049](0049-the-day-starts-when-you-say.md) | A Day starts at setting; times run overnight for up to a day and belong to the day they start | Accepted |
+| [0050](0050-a-day-asks-only-what-it-can.md) | Formula v12: task weights evened toward the average; a day asks only what can be done in it; achievements are for units, not tasks | Accepted |
 
 ## Reading guide
 
@@ -121,7 +122,7 @@ came from testing: the day is arranged by you, not the clock, and it
 starts when you say.
 
 **Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
-0049 were written as other decisions came up first; renumbering to fill
+0050 were written as other decisions came up first; renumbering to fill
 the gaps would break every existing link to them.
 
 **Not ADRs:** release operations ([release.md](../release.md)), testing

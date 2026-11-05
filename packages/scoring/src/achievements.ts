@@ -41,6 +41,7 @@ export type SeriesId =
   | "weeklyTargetRun"
   | "wholeUnitTotal"
   | "wholeUnitRun"
+  | "unitDayRun"
   | "attended"
   | "goodDays"
   | "greatDays"
@@ -83,6 +84,12 @@ export interface Series {
   readonly thresholds: Thresholds;
   /** What a threshold counts, for "Gold: 100 completions". */
   readonly counts: string;
+  /**
+   * No longer counted or shown (ADR-0050): the per-task series, replaced
+   * by units'. Kept so ranks already earned still read in the Log,
+   * since nothing earned is taken back (ADR-0047 §6).
+   */
+  readonly retired?: true;
 }
 
 /**
@@ -92,16 +99,17 @@ export interface Series {
  * 1000"). Weeks peak lower than days: 520 weeks is ten years.
  */
 export const SERIES: readonly Series[] = [
-  { id: "taskCompletions", subject: "task", run: false, thresholds: [20, 50, 100, 250, 1000], counts: "completions" },
+  { id: "taskCompletions", subject: "task", run: false, thresholds: [20, 50, 100, 250, 1000], counts: "completions", retired: true },
   { id: "unitCompletions", subject: "unit", run: false, thresholds: [50, 150, 400, 1000, 2500], counts: "completions" },
   { id: "areaCompletions", subject: "area", run: false, thresholds: [50, 150, 400, 1000, 2500], counts: "completions" },
   { id: "unitHours", subject: "unit", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "hours" },
   { id: "commitmentHours", subject: "commitment", run: false, thresholds: [10, 50, 150, 500, 1000], counts: "hours" },
-  { id: "everyDayStreak", subject: "task", run: true, thresholds: [7, 30, 100, 365, 1000], counts: "days in a row" },
-  { id: "weeklyTargetTotal", subject: "task", run: false, thresholds: [4, 12, 52, 156, 520], counts: "weeks on target" },
-  { id: "weeklyTargetRun", subject: "task", run: true, thresholds: [2, 4, 12, 52, 156], counts: "weeks in a row on target" },
+  { id: "everyDayStreak", subject: "task", run: true, thresholds: [7, 30, 100, 365, 1000], counts: "days in a row", retired: true },
+  { id: "weeklyTargetTotal", subject: "task", run: false, thresholds: [4, 12, 52, 156, 520], counts: "weeks on target", retired: true },
+  { id: "weeklyTargetRun", subject: "task", run: true, thresholds: [2, 4, 12, 52, 156], counts: "weeks in a row on target", retired: true },
   { id: "wholeUnitTotal", subject: "unit", run: false, thresholds: [4, 12, 52, 156, 520], counts: "weeks with every task on target" },
   { id: "wholeUnitRun", subject: "unit", run: true, thresholds: [2, 4, 12, 52, 156], counts: "weeks in a row with every task on target" },
+  { id: "unitDayRun", subject: "unit", run: true, thresholds: [7, 30, 100, 365, 1000], counts: "days in a row with something done" },
   { id: "attended", subject: "commitment", run: false, thresholds: [10, 25, 100, 250, 1000], counts: "events attended" },
   { id: "goodDays", subject: "all", run: false, thresholds: [10, 30, 100, 365, 1000], counts: "days at 80 or above" },
   { id: "greatDays", subject: "all", run: false, thresholds: [5, 20, 100, 365, 1000], counts: "days at 90 or above" },
@@ -135,6 +143,9 @@ export const SERIES: readonly Series[] = [
 ];
 
 export const seriesById = (id: SeriesId): Series => SERIES.find((s) => s.id === id)!;
+
+/** Whether a series is still counted and shown (`Series.retired`). */
+export const isLiveSeries = (id: SeriesId): boolean => SERIES.find((s) => s.id === id)?.retired !== true;
 
 /** How many ranks a value has reached, 0 to 5. */
 export function ranksReached(thresholds: Thresholds, value: number): number {

@@ -72,14 +72,18 @@ describe("taskWeights", () => {
     expect(sum(taskWeights(units, tasks))).toBe(DAILY_BUDGET);
   });
 
-  it("does not change one unit's weights when another gains tasks", () => {
+  it("evens a lone task half-way toward the average (ADR-0050)", () => {
+    // A unit's only task used to carry all 40; five dailies split 60.
     const units = [unit("a", 60), unit("b", 40)];
-    const alone = taskWeights(units, [task("a1", "a"), task("b1", "b")]);
-    const crowded = taskWeights(units, [
-      task("a1", "a"),
-      ...Array.from({ length: 12 }, (_, i) => task(`b${i}`, "b", i + 1)),
+    const w = taskWeights(units, [
+      ...Array.from({ length: 5 }, (_, i) => task(`a${i}`, "a", i + 1)),
+      task("b1", "b"),
     ]);
-    expect(crowded.get("a1")).toBe(alone.get("a1"));
+    expect(sum(w)).toBe(100);
+    // Still worth the most, but no longer more than three of the others.
+    const a0 = w.get("a0")!;
+    expect(w.get("b1")!).toBeGreaterThan(a0);
+    expect(w.get("b1")!).toBeLessThan(3 * a0);
   });
 
   it("gives an excluded unit nothing to divide", () => {

@@ -146,7 +146,7 @@ describe("early work pays its planned day's worth — §3", () => {
   });
 
   it("prices a one-off planned for later against its own day", () => {
-    const errand: LoadTask = { ...weekly("errand", 6), oneOff: true };
+    const errand: LoadTask = { ...weekly("errand", 6), oneOff: true, oneOffDated: true };
     // Saturday, the last day of the week: the errand is the whole pool.
     expect(plannedDayRunPoints(PLAN, DONE_MONDAY, errand, "2026-07-18")).toBe(90);
   });
@@ -219,5 +219,20 @@ describe("busy days pay early work its planned value too", () => {
 
   it("is never negative", () => {
     expect(computeDayScore({ kind: "normal", load: busy, earlyCredit: -5 }).earned).toBe(90);
+  });
+});
+
+describe("a loose one-off (ADR-0050)", () => {
+  const errand: LoadTask = { taskId: "errand", weight: 10, timesPerWeek: 1, pinnedWeekdays: [], oneOff: true };
+
+  it("done on an empty day keeps it a rest day, paid on top like early work", () => {
+    const load = computeDayLoad([...PLAN, errand], [...DONE_MONDAY, { taskId: "errand", localDate: date }], date);
+    const s = computeDayScore({ kind: "normal", load, restDay: { ...REST, openThisWeek: true } });
+    expect(s.earned).toBe(Math.round(REST_DAY_BASE + restDayRunPoints(10, AVERAGE)));
+  });
+
+  it("counts a sliver of it as a sliver, never as the whole day", () => {
+    const load = computeDayLoad([errand], [{ taskId: "errand", localDate: date, fraction: 0.25 }], date);
+    expect([load.expected, load.earned]).toEqual([10, 2.5]);
   });
 });

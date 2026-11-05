@@ -51,7 +51,8 @@ export interface CommitmentRow {
  *
  * - **due on this date** (`isDueOn`: its weekday, inside its bounds,
  *   not skipped), or
- * - **an outstanding one-off** dated this day, or undated.
+ * - **an outstanding one-off** dated this day, or an undated one ticked
+ *   this day (ADR-0050).
  *
  * **A one-off dated earlier and still open is carried, not eligible**
  * (formula v11). A carried task is never added to a later day's load:
@@ -69,10 +70,28 @@ async function eligibleOn(
   // means finished, so a part-done assignment is still owed today.
   const oneOffIds = rows.filter((t) => t.oneOffSize != null).map((t) => t.id);
   const settledBefore = settledOf(await fractionsBefore(oneOffIds, date));
-  const eligible = eligibleTaskIds(rows, settledBefore, date).filter((id) => {
+  // An undated one-off belongs to no day, so it takes a share of the
+  // band only on the day it's ticked (ADR-0050): left undone, it can't
+  // drag every day's band down.
+  const undated = rows.filter((t) => t.oneOffSize != null && t.oneOffDate == null).map((t) => t.id);
+  const undatedDates = await completionDatesAround(undated, date);
+  const isUndated = (id: string) => {
+    const t = rows.find((r) => r.id === id);
+    return t?.oneOffSize != null && t.oneOffDate == null;
+  };
+  const scheduled = eligibleTaskIds(rows, settledBefore, date).filter((id) => {
+    if (isUndated(id)) return false;
     const t = rows.find((r) => r.id === id);
     return !(t?.oneOffSize != null && t.oneOffDate != null && t.oneOffDate < date);
   });
+  // A ticked one joins a band the day already has: on a day with no
+  // commitment work it would make a band of 10 out of nothing, and turn
+  // a rest day of 70 into a day of 10.
+  const tickedUndated =
+    scheduled.length > 0
+      ? undated.filter((id) => (undatedDates.get(id) ?? []).includes(date) && !settledBefore.has(id))
+      : [];
+  const eligible = [...scheduled, ...tickedUndated];
   if (includeCovered) return eligible;
 
   // **A session done early is done** (ADR-0032 §4, amended 2026-10-01).

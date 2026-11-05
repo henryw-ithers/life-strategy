@@ -389,9 +389,13 @@ export function isRestDay(
     | Pick<RestDayInput, "hasPlan" | "openThisWeek" | "earlyToday" | "emptiedToday">
     | undefined,
 ): boolean {
-  if (!rest || load.expected > 0 || commitmentBand > 0 || !rest.hasPlan) return false;
+  // A loose one-off done today asks nothing of the day (ADR-0050), so
+  // it doesn't make one a working day; done, it's early work, paid on
+  // top like any (ADR-0037 §3).
+  const due = load.expected - (load.loose ?? 0);
+  if (!rest || due > 1e-9 || commitmentBand > 0 || !rest.hasPlan) return false;
   if (rest.emptiedToday) return false;
-  return !rest.openThisWeek || rest.earlyToday;
+  return !rest.openThisWeek || rest.earlyToday || (load.looseDone ?? 0) > 0;
 }
 
 /** What one run is worth on a rest day when it has no planned day to
@@ -443,6 +447,8 @@ function restDayScore(input: DayScoreInput): DayScore {
   const early =
     Math.max(0, input.earlyCredit ?? 0) +
     EXTRA_RUN_RATE * runPoints(input.load.extra, average) +
+    // A loose one-off has no planned day: an average day's worth.
+    runPoints(input.load.looseDone ?? 0, average) +
     Math.max(0, input.offScheduleCredit ?? 0);
   const unplannedRaw =
     (input.activities ?? []).reduce(

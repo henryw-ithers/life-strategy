@@ -42,6 +42,16 @@
  * counted from the days *before* this one, the same rule
  * `deriveChecklist` uses for banding, so the denominator cannot shift
  * under the user while they are working through the list.
+ *
+ * **Only what can really be done today** (ADR-0050, formula v12):
+ *
+ * - A task owes at most one run a day: a week's backlog never asks for
+ *   three runs of one task on a Saturday you can tick it once.
+ * - Fortnightly work is spread over the days left in its fortnight,
+ *   not its week.
+ * - A one-off with a deadline is spread over the days until it's due.
+ * - A one-off with neither a day nor a deadline asks nothing of any
+ *   day; it counts on the day it's done, in full on both sides.
  */
 import { addDays, fortnightStart, weekStart } from "./days";
 import { inScheduleOn, isBounded, pinnedOn, type ScheduleBounds } from "./schedule";
@@ -61,6 +71,12 @@ export interface LoadTask extends ScheduleBounds {
   fortnightOffset?: number;
   /** A one-off: one run, then archived. Always flexible. */
   oneOff?: boolean;
+  /** A one-off's day, if it has one. A one-off with neither a day nor
+   *  a deadline counts only on the day it's done (ADR-0050). */
+  oneOffDated?: boolean;
+  /** A one-off's deadline, `YYYY-MM-DD`: it's spread over the days
+   *  until then (ADR-0050). */
+  oneOffDue?: string | null;
 }
 
 export interface LoadCompletion {
@@ -100,6 +116,11 @@ export interface DayLoad {
   anchored: Map<string, number>;
   /** The day's share of the flexible pool. */
   flexible: number;
+  /** Loose one-offs (neither day nor deadline) done today: the weight
+   *  they put on the expected side, and what of it was done. They make
+   *  no day a working day on their own (ADR-0050). */
+  loose?: number;
+  looseDone?: number;
 }
 
 /** How many days of the week remain, counting `date` itself. Weeks open
@@ -118,6 +139,23 @@ function remainingDays(date: string, away?: ReadonlySet<string>): string[] {
   const days: string[] = [];
   for (let d = date; d <= end; d = addDays(d, 1)) if (!away?.has(d)) days.push(d);
   return days;
+}
+
+/** The days from `date` to the end of its fortnight, without Away
+ *  days: what a fortnightly task's run is spread over (ADR-0050). */
+function remainingFortnightDays(date: string, away?: ReadonlySet<string>): string[] {
+  const end = addDays(fortnightStart(date), 13);
+  const days: string[] = [];
+  for (let d = date; d <= end; d = addDays(d, 1)) if (!away?.has(d)) days.push(d);
+  return days;
+}
+
+/** The days from `date` to `due`, both included, without Away days;
+ *  at least one, so a deadline today or past asks for it all today. */
+function daysUntil(date: string, due: string, away?: ReadonlySet<string>): number {
+  let n = 0;
+  for (let d = date; d <= due; d = addDays(d, 1)) if (!away?.has(d)) n += 1;
+  return Math.max(1, n);
 }
 
 /** The first day of the counting window `date` falls in: the fortnight
@@ -248,6 +286,11 @@ export function computeDayLoad(
 
   const anchored = new Map<string, number>();
   let flexibleDemand = 0;
+  /** Work spread over its own span rather than the week: a deadline. */
+  let spread = 0;
+  /** Undated one-offs done today: counted on both sides (ADR-0050). */
+  let doneLoose = 0;
+  let looseDone = 0;
   let earned = 0;
   let extra = 0;
 
@@ -272,22 +315,41 @@ export function computeDayLoad(
     // outside the band entirely (ADR-0023 §2). A part-done run counts
     // its fraction of the task's weight (ADR-0014), and a one-off can
     // pay at most what is still owed of it.
+    const loose = task.oneOff === true && task.oneOffDated !== true && !task.oneOffDue;
     if (today) {
       const f = today.fraction ?? 1;
-      if (owed > 0) earned += task.weight * (task.oneOff ? Math.min(f, owed) : f);
+      const paid = task.weight * (task.oneOff ? Math.min(f, owed) : f);
+      if (owed > 0) earned += paid;
       else extra += task.weight * f;
+      // Asked of no day, it counts on the day it's done (ADR-0050): all
+      // of what's owed is expected, so a sliver of it is a sliver done.
+      if (owed > 0 && loose) {
+        doneLoose += task.weight * owed;
+        looseDone += paid;
+      }
     }
 
-    if (owed === 0) continue;
+    if (owed === 0 || loose) continue;
     if (isAnchoredOn(task, date)) {
       anchored.set(task.taskId, task.weight);
+    } else if (task.oneOff && task.oneOffDue) {
+      // A deadline: spread over the days until it's due, and all of it
+      // once due or overdue (ADR-0050).
+      spread += (task.weight * owed) / daysUntil(date, task.oneOffDue, away);
     } else if (!isPinnedElsewhere(task, date)) {
-      // Flexible: every run it still owes joins the pool. A bounded
-      // series can only owe runs on days it still runs this week, so a
-      // series ending Tuesday doesn't load Wednesday (ADR-0040).
+      // Flexible: the runs it still owes join the pool, at most one for
+      // each day it can still run (ADR-0050): a bounded series ending
+      // Tuesday doesn't load Wednesday (ADR-0040), and a week's backlog
+      // never asks for more runs than there are days.
+      if (task.timesPerWeek === 0 && !task.oneOff) {
+        // Fortnightly: spread over the fortnight's days left, scaled so
+        // dividing by the week's days below gives that share.
+        const days = remainingFortnightDays(date, away).filter((d) => inScheduleOn(task, d)).length;
+        if (days > 0 && remaining > 0) flexibleDemand += (task.weight * Math.min(owed, days) * remaining) / days;
+        continue;
+      }
       const runsAhead = ahead.filter((d) => inScheduleOn(task, d)).length;
-      const runnable = runsAhead < ahead.length ? Math.min(owed, runsAhead) : owed;
-      flexibleDemand += task.weight * runnable;
+      flexibleDemand += task.weight * Math.min(owed, runsAhead);
     }
   }
 
@@ -295,7 +357,9 @@ export function computeDayLoad(
   const anchoredTotal = [...anchored.values()].reduce((a, b) => a + b, 0);
 
   return {
-    expected: anchoredTotal + flexible,
+    expected: anchoredTotal + flexible + spread + doneLoose,
+    loose: doneLoose,
+    looseDone,
     earned,
     extra,
     anchored,

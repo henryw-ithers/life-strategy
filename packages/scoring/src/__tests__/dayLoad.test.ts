@@ -15,6 +15,7 @@ import {
   isPinnedElsewhere,
   type LoadTask,
 } from "../dayLoad";
+import { fortnightStart } from "../days";
 import { isoWeekday } from "../schedule";
 
 // The week opens Sunday 2026-07-12 and closes Saturday 2026-07-18.
@@ -177,17 +178,41 @@ describe("earned and extra", () => {
 });
 
 describe("one-offs", () => {
-  it("treats a one-off as flexible work owing a single run", () => {
+  it("treats a one-off with a day as flexible work owing a single run", () => {
     const errand: LoadTask = {
       taskId: "errand",
       weight: 14,
       timesPerWeek: 1,
       pinnedWeekdays: [],
       oneOff: true,
+      oneOffDated: true,
     };
     expect(isAnchoredOn(errand, MONDAY)).toBe(false);
     // 14 of demand spread over the six days Monday leaves.
     expect(computeDayLoad([errand], [], MONDAY).expected).toBeCloseTo(14 / 6, 10);
+  });
+
+  it("asks nothing for one with neither a day nor a deadline, and counts it the day it's done (ADR-0050)", () => {
+    const errand: LoadTask = { taskId: "errand", weight: 14, timesPerWeek: 1, pinnedWeekdays: [], oneOff: true };
+    expect(computeDayLoad([errand], [], MONDAY).expected).toBe(0);
+    const doneToday = computeDayLoad([errand], [done("errand", MONDAY)], MONDAY);
+    expect([doneToday.expected, doneToday.earned]).toEqual([14, 14]);
+  });
+
+  it("spreads one with a deadline over the days until it's due (ADR-0050)", () => {
+    const essay: LoadTask = {
+      taskId: "essay",
+      weight: 14,
+      timesPerWeek: 1,
+      pinnedWeekdays: [],
+      oneOff: true,
+      oneOffDue: "2026-07-26",
+    };
+    // Monday the 13th to Sunday the 26th: fourteen days.
+    expect(computeDayLoad([essay], [], MONDAY).expected).toBeCloseTo(1, 10);
+    // Due today, or overdue, it's all today's.
+    expect(computeDayLoad([{ ...essay, oneOffDue: MONDAY }], [], MONDAY).expected).toBe(14);
+    expect(computeDayLoad([{ ...essay, oneOffDue: SUNDAY }], [], MONDAY).expected).toBe(14);
   });
 
   it("stops expecting a one-off once it is done", () => {
@@ -201,5 +226,18 @@ describe("one-offs", () => {
     expect(
       computeDayLoad([errand], [done("errand", SUNDAY)], MONDAY).expected,
     ).toBe(0);
+  });
+});
+
+describe("only what can be done today (ADR-0050)", () => {
+  it("asks at most one run of a task a day, however much the week still owes", () => {
+    // A 3×/week task with nothing done by Saturday: one run, not three.
+    expect(computeDayLoad([t("career", 3, 9)], [], SATURDAY).expected).toBeCloseTo(9, 10);
+  });
+
+  it("spreads a fortnightly task over the days left in its fortnight", () => {
+    const fortnightly = t("fort", 0, 14);
+    const days = 14 - (Date.parse(SATURDAY) - Date.parse(fortnightStart(SATURDAY))) / 86400000;
+    expect(computeDayLoad([fortnightly], [], SATURDAY).expected).toBeCloseTo(14 / days, 10);
   });
 });

@@ -10,6 +10,7 @@
 import {
   ranksReached,
   RANKS,
+  isLiveSeries,
   seriesById,
   type Rank,
   type SeriesId,
@@ -253,7 +254,9 @@ export async function loadAchievements(): Promise<AchievementItem[]> {
   const { values, rows } = db.transaction((tx) => {
     const values = seriesValues(readFacts(tx, today));
     awardIn(tx, values, today);
-    return { values, rows: tx.select().from(achievement).all() };
+    // A retired series' ranks stay stored for the Log; the screens show
+    // only series still counted (ADR-0050).
+    return { values, rows: tx.select().from(achievement).all().filter((r) => isLiveSeries(r.series as SeriesId)) };
   });
   const rowsBy = new Map<string, AchievementRow[]>();
   for (const r of rows) {

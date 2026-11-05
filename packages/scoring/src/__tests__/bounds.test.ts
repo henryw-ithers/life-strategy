@@ -174,8 +174,9 @@ describe("computeDayLoad with bounds and Away days", () => {
   it("spreads flexible work over the days you're here (EC-30)", () => {
     // Away Thursday to Saturday: Wednesday is the only day left.
     const away = new Set([THURSDAY, FRIDAY, SATURDAY]);
+    // Both runs are owed, but one day can hold only one (ADR-0050).
     const load = computeDayLoad([t("a", 2)], [], WEDNESDAY, away);
-    expect(load.flexible).toBeCloseTo(10 * 2, 6);
+    expect(load.flexible).toBeCloseTo(10, 6);
   });
 
   it("lets flexible work lapse when no days are left (EC-30)", () => {

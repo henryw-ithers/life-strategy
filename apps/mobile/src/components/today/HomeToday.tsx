@@ -19,6 +19,7 @@
  * Every open task shows exactly once (EC-19).
  */
 import { formatMinutes, type PlannedDay, type TimeRange } from "@glide/scoring";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { DayPlan } from "../../db/dayPlan";
@@ -94,6 +95,7 @@ export function HomeToday({
   reduceMotion,
   theme,
 }: HomeTodayProps) {
+  const [doneOpen, setDoneOpen] = useState(false);
   const tasks = plan.tasks;
   const ranges = planned.windows.map((w) => w.range);
   const open = openIndex(ranges, now);
@@ -137,6 +139,7 @@ export function HomeToday({
     doneIn: plan.doneIn,
     windows: ranges,
   });
+  const doneCount = done.reduce((n, g) => n + g.taskIds.length, 0);
 
   const stateOf = (s: HomeSection): WindowState =>
     s.kind === "window" ? windowState(s.index, open, ranges, now) : partState(s.range, now);
@@ -266,9 +269,22 @@ export function HomeToday({
 
       {done.length > 0 ? (
         <View style={styles.group}>
-          <AppText variant="headline" color={theme.ink} accessibilityRole="header">
-            Done
-          </AppText>
+          {/* Folded to its count, so a long evening's list stays short. */}
+          <Pressable
+            onPress={() => setDoneOpen((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: doneOpen }}
+            accessibilityLabel={`Done, ${doneCount}`}
+            style={styles.othersHeader}
+          >
+            <View style={styles.othersTitle}>
+              <AppText variant="headline" color={theme.ink} accessibilityRole="header">
+                Done ({doneCount})
+              </AppText>
+              <ExpandChevron open={doneOpen} color={theme.muted} size={13} />
+            </View>
+          </Pressable>
+          {doneOpen ? (
           <View style={[cardStyle(theme), styles.list]}>
             {done.map((g) => (
               <View key={g.range ? `d-${g.range.start}` : "d-other"}>
@@ -284,6 +300,7 @@ export function HomeToday({
               </View>
             ))}
           </View>
+          ) : null}
         </View>
       ) : null}
     </View>

@@ -76,9 +76,15 @@ export interface BandTask {
  * what else that day asks for. That is the honest number and it is
  * computed per day rather than stored.
  *
- * **Task count within a unit still does not change what the unit is
- * worth** (Henry, 2026-08-26). One task in a unit carries its whole
- * weight; five split it by rank and come to the same total.
+ * **Each task is evened half-way toward the average** (ADR-0050,
+ * formula v12). Split by unit alone, a unit's only task carried its
+ * whole weight while five dailies in another split theirs, so one task
+ * could outweigh five and a day of seven ticks out of twelve could
+ * score 35 (Henry, 2026-11-04). Half of each task's worth now comes
+ * from its unit and its rank, half is the average, so priorities still
+ * decide what's worth more but no single task dwarfs the rest. The
+ * total is kept, so the scale still cancels. This supersedes Henry's
+ * 2026-08-26 rule that task count never changes what a unit is worth.
  *
  * One-offs are deliberately absent. They are priced from their size
  * against their unit's weight, outside this allocation, so an errand
@@ -99,7 +105,46 @@ export function taskWeights(
     const values = taskPointValues(unit.weight, owned.length);
     owned.forEach((t, i) => weights.set(t.id, values[i] ?? 0));
   }
-  return weights;
+  return evenOut(weights);
+}
+
+/**
+ * Every weight evened half-way toward the average, as whole numbers
+ * that keep the same total (largest remainder), none below one. Zero
+ * stays zero.
+ */
+export function evenOut(weights: ReadonlyMap<string, number>): Map<string, number> {
+  const mean = meanTaskWeight(weights.values());
+  const counted = [...weights].filter(([, w]) => w > 0);
+  const total = counted.reduce((a, [, w]) => a + w, 0);
+  // Each keeps its floor of one; the rest is shared by the evened value.
+  const free = total - counted.length;
+  const exact = counted.map(([, w]) => Math.max(0, (1 - EVEN_SHARE) * w + EVEN_SHARE * mean - 1));
+  const scale = exact.reduce((a, b) => a + b, 0);
+  const extras = largestRemainder(
+    exact.map((e) => (scale > 0 ? (e * free) / scale : 0)),
+    Math.max(0, free),
+  );
+  const out = new Map(weights);
+  counted.forEach(([id], i) => out.set(id, 1 + (extras[i] ?? 0)));
+  return out;
+}
+
+/** How far each task's worth moves toward the average (ADR-0050). */
+export const EVEN_SHARE = 0.5;
+
+/** The average of the weights that count (above zero), or 0. */
+export function meanTaskWeight(weights: Iterable<number>): number {
+  const counted = [...weights].filter((w) => w > 0);
+  return counted.length === 0 ? 0 : counted.reduce((a, b) => a + b, 0) / counted.length;
+}
+
+/** A weight evened half-way toward `mean`, whole, and never below one;
+ *  zero stays zero (a unit out of the plan). Also prices one-offs, so an
+ *  errand is evened the same way as the work beside it. */
+export function evenedWeight(weight: number, mean: number): number {
+  if (weight <= 0) return 0;
+  return Math.max(1, Math.round((1 - EVEN_SHARE) * weight + EVEN_SHARE * mean));
 }
 
 /**

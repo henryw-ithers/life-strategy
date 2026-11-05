@@ -175,11 +175,6 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
   const awayAll = awayDatesBetween(f.away, "0000-01-01", f.today);
 
   // ── Counts: ticks, hours, attended ────────────────────────────────
-  const ticksByTask = countBy(ticks, (c) => c.taskId);
-  for (const t of f.tasks) {
-    if (isRecurringTask(t)) push("taskCompletions", "task", t.id, t.title, ticksByTask.get(t.id) ?? 0);
-  }
-
   const lifeTicks = ticks.filter((c) => {
     const t = taskById.get(c.taskId)!;
     return t.kind === "task" && (roots.get(t.unitId) ?? null) === null;
@@ -216,31 +211,37 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
   });
   for (const u of commitments) push("attended", "commitment", u.id, u.name, attendedByRoot.get(u.id) ?? 0);
 
-  // ── Every-day streaks (ADR-0004 §5's rules) ───────────────────────
-  // Days off, Away days and days the task wasn't due bridge a run; a
-  // cleared day doesn't. Ranks read the run up to yesterday (§6).
+  // ── A unit's days in a row (ADR-0050) ─────────────────────────────
+  // Any of its tasks done counts the day. Days off and Away days bridge
+  // a run (ADR-0004 §5); ranks read the run up to yesterday (§6).
   const restDays = f.grades.filter((g) => g.kind === "rest").map((g) => g.localDate);
   const doneByTask = new Map<string, string[]>();
   for (const c of ticks) doneByTask.set(c.taskId, [...(doneByTask.get(c.taskId) ?? []), c.localDate]);
-  for (const t of f.tasks) {
-    if (!isRecurringTask(t) || t.timesPerWeek !== 7) continue;
-    const done = doneByTask.get(t.id) ?? [];
-    const bounds = { repeatFrom: firstDay(t), repeatUntil: t.repeatUntil, skippedDates: f.skipped.get(t.id) };
-    const earliest = done.reduce((a, d) => (d < a ? d : a), f.today);
+  const daysByUnit = new Map<string, Set<string>>();
+  for (const c of lifeTicks) {
+    const unitId = taskById.get(c.taskId)!.unitId;
+    daysByUnit.set(unitId, (daysByUnit.get(unitId) ?? new Set()).add(c.localDate));
+  }
+  for (const u of lifeUnits) {
+    const done = [...(daysByUnit.get(u.id) ?? [])];
     const doneSet = new Set(done);
-    // A day it wasn't due bridges the run, unless it was done anyway.
+    // A day its every-day tasks were all skipped, or outside their
+    // dates, asked nothing of it, so it bridges the run rather than
+    // ending it, unless something was done anyway.
+    const dailies = f.tasks
+      .filter((t) => t.unitId === u.id && isRecurringTask(t) && t.timesPerWeek === 7)
+      .map((t) => ({ repeatFrom: firstDay(t), repeatUntil: t.repeatUntil, skippedDates: f.skipped.get(t.id) }));
+    const earliest = done.reduce((a, d) => (d < a ? d : a), f.today);
     const notDue: string[] = [];
-    for (let d = earliest; d <= f.today; d = addDays(d, 1)) {
-      if (!inScheduleOn(bounds, d) && !doneSet.has(d)) notDue.push(d);
+    if (dailies.length > 0) {
+      for (let d = earliest; d <= f.today; d = addDays(d, 1)) {
+        if (!doneSet.has(d) && dailies.every((b) => !inScheduleOn(b, d))) notDue.push(d);
+      }
     }
     const daysOff = [...restDays, ...awayAll, ...notDue];
-    const finished = everyDayRun(
-      done.filter((d) => d < f.today),
-      daysOff,
-      f.today,
-    );
+    const finished = everyDayRun(done.filter((d) => d < f.today), daysOff, f.today);
     const now = everyDayRun(done, daysOff, f.today);
-    push("everyDayStreak", "task", t.id, t.title, finished.longest, now.current);
+    push("unitDayRun", "unit", u.id, u.name, finished.longest, now.current);
   }
 
   // ── Plan weeks (§4): weeks ended, a target met by the week's end ──
@@ -274,9 +275,8 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
       weeks.set(ws, { weekStart: ws, met: target > 0 && runs >= target, skipped: target === 0 });
     }
     weeksByTask.set(t.id, weeks);
-    const r = weekRuns([...weeks.values()]);
-    push("weeklyTargetTotal", "task", t.id, t.title, r.total);
-    push("weeklyTargetRun", "task", t.id, t.title, r.longest, r.current);
+    // A task's weeks feed its unit's whole weeks; per-task series are
+    // retired (ADR-0050).
   }
 
   for (const u of lifeUnits) {
@@ -451,7 +451,8 @@ export function runShown(items: readonly { series: SeriesId; streak: number | nu
   let best: UnitBadge["streak"] = null;
   for (const i of items) {
     if (i.streak === null) continue;
-    const mine = { length: i.streak, per: i.series === "everyDayStreak" ? ("day" as const) : ("week" as const) };
+    const daily = i.series === "unitDayRun" || i.series === "everyDayStreak";
+    const mine = { length: i.streak, per: daily ? ("day" as const) : ("week" as const) };
     if (best === null || (best.per === mine.per ? mine.length > best.length : mine.per === "day")) best = mine;
   }
   return best;

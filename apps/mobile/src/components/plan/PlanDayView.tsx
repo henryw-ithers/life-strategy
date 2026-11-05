@@ -198,6 +198,12 @@ export function PlanDayView({
         </Pressable>
       ) : null}
 
+      {/* Up top, under the day (Henry, 2026-11-04): a day with no windows
+          is where planning starts, and the first thing to do is add one. */}
+      {editable && !day.day.away ? (
+        <Button variant="tonal" icon="add" label="Add window" onPress={() => openSheet({ kind: "times" })} theme={theme} />
+      ) : null}
+
       {items.map((item) => {
         if (item.kind === "event") {
           const e = item.event;
@@ -299,10 +305,6 @@ export function PlanDayView({
             })}
           </View>
         </View>
-      ) : null}
-
-      {editable && !day.day.away ? (
-        <Button variant="tonal" icon="add" label="Add window" onPress={() => openSheet({ kind: "times" })} theme={theme} />
       ) : null}
 
       <View style={styles.links}>

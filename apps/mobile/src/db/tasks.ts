@@ -20,6 +20,8 @@ import {
   type BandUnit,
   type Tier,
   MAX_RANGE,
+  evenedWeight,
+  meanTaskWeight,
 } from "@glide/scoring";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
@@ -531,14 +533,15 @@ export function recomputeAllUnitPoints(tx: Tx): void {
    * A floor of one, for ADR-0003 §5's reason — a zero-weight row cannot
    * move the number, so it is not a task.
    */
+  // Evened toward the average recurring task like the rest (ADR-0050),
+  // so a big errand can't outweigh a day of habits.
+  const mean = meanTaskWeight(points.values());
   for (const m of memberships) {
     const size = oneOffSizeByTask.get(m.taskId);
     if (size == null) continue;
     const weight = bandUnits.find((u) => u.unitId === m.unitId)?.weight ?? 0;
-    points.set(
-      `${m.taskId}::${m.unitId}`,
-      weight > 0 ? Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * weight)) : 0,
-    );
+    const raw = weight > 0 ? Math.max(1, Math.round(ONE_OFF_SIZE_RATE[size] * weight)) : 0;
+    points.set(`${m.taskId}::${m.unitId}`, mean > 0 ? evenedWeight(raw, mean) : raw);
   }
 
   // Totals are summed here rather than re-read per task. This used to

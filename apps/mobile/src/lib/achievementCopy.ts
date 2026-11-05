@@ -28,6 +28,7 @@ export const SERIES_LABEL: Record<SeriesId, string> = {
   weeklyTargetRun: "Weeks in a row",
   wholeUnitTotal: "Whole weeks",
   wholeUnitRun: "Whole weeks in a row",
+  unitDayRun: "Days in a row",
   attended: "Attended",
   // The score itself, never a label on it (Henry, 2026-10-21): no day
   // is called good or great.
