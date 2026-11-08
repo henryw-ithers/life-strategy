@@ -858,17 +858,6 @@ export async function archiveTask(taskId: string): Promise<void> {
   });
 }
 
-/** Undo an archive — the same rank slots reopen (ADR-0002 soft delete). */
-export async function restoreTask(taskId: string): Promise<void> {
-  db.transaction((tx) => {
-    tx.update(task)
-      .set({ active: true, archivedAt: null })
-      .where(eq(task.id, taskId))
-      .run();
-    recomputeAllUnitPoints(tx);
-  });
-}
-
 /**
  * Frequency now decides which **band** a task is paid from (ADR-0027
  * §1), so this rescales the whole plan rather than just writing a

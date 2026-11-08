@@ -34,13 +34,6 @@ import { withSchedule } from "./windowRules";
 import { completionDatesAround } from "./sessionCoverage";
 import { lifeUnit, task, taskCompletion, windowChoice, windowChoiceMember } from "./schema";
 
-export interface CommitmentRow {
-  id: string;
-  name: string;
-  share: number;
-  subUnitIds: string[];
-}
-
 /**
  * The commitment work eligible on `date`: scheduled sessions and work
  * planned for that day (ADR-0032 §3), from rows that already carry

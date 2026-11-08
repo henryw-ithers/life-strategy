@@ -267,35 +267,6 @@ export async function updateCommitment(
   });
 }
 
-/**
- * Split a commitment into sub-commitments, or fold them back in
- * (ADR-0035 §1 as amended 2026-10-02). The work always survives:
- *
- * - **On:** the commitment holds no work of its own while split, so any
- *   it has moves into its sub-commitment called General, made if it is
- *   not there, which can be renamed or deleted like any other.
- * - **Off:** every live sub-commitment's work moves up onto the
- *   commitment, remembering where it came from, and the sub-commitments
- *   are **archived**, not deleted.
- * - **On again** restores them and sends each task back to the one it
- *   came from.
- *
- * A task keeps every tag it had; only its home changes.
- */
-export async function setUsesSubCommitments(id: string, on: boolean): Promise<void> {
-  // One transaction, so a failure part way never leaves the work split
-  // between the commitment and its sub-commitments.
-  db.transaction((tx) => {
-    const [row] = tx.select().from(lifeUnit).where(eq(lifeUnit.id, id)).all();
-    if (!row) throw new Error(`No such commitment: ${id}`);
-    if (row.parentUnitId !== null) {
-      throw new Error("A sub-commitment cannot be split again (ADR-0035 §1).");
-    }
-    if (on) splitCommitment(tx, id, row.archivedAt === null);
-    else unsplitCommitment(tx, id);
-  });
-}
-
 function splitCommitment(tx: Tx, id: string, live: boolean): void {
   // Bring back the sub-commitments the switch put away (Henry,
   // 2026-10-02: "turning the switch on should auto restore archived
@@ -331,39 +302,6 @@ function splitCommitment(tx: Tx, id: string, live: boolean): void {
     tx.update(task).set({ movedFromUnitId: null }).where(eq(task.id, t.id)).run();
   }
   tx.update(lifeUnit).set({ usesSubCommitments: true }).where(eq(lifeUnit.id, id)).run();
-}
-
-function unsplitCommitment(tx: Tx, id: string): void {
-  const subs = tx
-    .select({ id: lifeUnit.id })
-    .from(lifeUnit)
-    .where(and(eq(lifeUnit.parentUnitId, id), isNull(lifeUnit.archivedAt)))
-    .all();
-  for (const sub of subs) {
-    for (const taskId of activeTaskIdsIn(tx, sub.id)) {
-      rehomeTask(tx, taskId, sub.id, id);
-      // Remembered, so turning sub-commitments back on returns it.
-      tx.update(task).set({ movedFromUnitId: sub.id }).where(eq(task.id, taskId)).run();
-    }
-  }
-  const now = new Date().toISOString();
-  if (subs.length > 0) {
-    tx.update(lifeUnit)
-      .set({ archivedAt: now })
-      .where(inArray(lifeUnit.id, subs.map((s) => s.id)))
-      .run();
-  }
-  tx.update(lifeUnit).set({ usesSubCommitments: false }).where(eq(lifeUnit.id, id)).run();
-}
-
-/** Active tasks homed in a unit. */
-function activeTaskIdsIn(tx: Tx, unitId: string): string[] {
-  return tx
-    .select({ id: task.id })
-    .from(task)
-    .where(and(eq(task.unitId, unitId), eq(task.active, true)))
-    .all()
-    .map((r) => r.id);
 }
 
 /** Move a task's home from one unit to another, keeping its tags. */

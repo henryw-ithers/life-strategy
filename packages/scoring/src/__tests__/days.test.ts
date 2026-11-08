@@ -26,6 +26,18 @@ describe("localDateOf", () => {
   it("respects a configured rollover hour", () => {
     expect(localDateOf(new Date(2026, 6, 17, 4, 30), 5)).toBe("2026-07-16");
   });
+
+  it("reads the wall clock on the morning the clocks go forward", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "Australia/Sydney";
+    try {
+      // 2am jumps to 3am on 4 October 2026: 3:30 is past the start.
+      expect(localDateOf(new Date("2026-10-04T03:30:00+11:00"))).toBe("2026-10-04");
+      expect(localDateOf(new Date("2026-10-04T01:30:00+10:00"))).toBe("2026-10-03");
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
 });
 
 describe("week and fortnight boundaries", () => {

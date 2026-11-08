@@ -28,7 +28,8 @@ function format(dt: Date): string {
 
 /** The local date `now` belongs to, honoring the rollover hour. */
 export function localDateOf(now: Date, rolloverHour = ROLLOVER_HOUR): string {
-  const shifted = new Date(now.getTime() - rolloverHour * 3600_000);
+  // The wall clock, not elapsed time: they differ on a daylight-saving morning.
+  const shifted = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getHours() < rolloverHour ? 1 : 0));
   const y = shifted.getFullYear();
   const m = `${shifted.getMonth() + 1}`.padStart(2, "0");
   const d = `${shifted.getDate()}`.padStart(2, "0");

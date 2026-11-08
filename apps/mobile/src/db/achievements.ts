@@ -16,7 +16,7 @@ import {
   type SeriesId,
   type Subject,
 } from "@glide/scoring";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { asc, eq, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { currentLocalDate, localDateAt } from "../lib/calendar";
@@ -297,12 +297,6 @@ export function badgesByUnit(items: readonly AchievementItem[]): Map<string, Uni
 
 // ── Celebrating ─────────────────────────────────────────────────────
 
-/** Ranks earned and not yet celebrated, oldest first (§6). */
-export async function loadUncelebrated(): Promise<EarnedAchievement[]> {
-  const rows = await db.select().from(achievement).where(isNull(achievement.celebratedAt));
-  return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(toEarned);
-}
-
 /**
  * Hand out the ranks waiting to be celebrated, and mark every one of
  * them celebrated in the same transaction, so each is shown once
@@ -325,16 +319,3 @@ export async function takeUncelebrated(skip: ReadonlySet<SeriesId>): Promise<Ear
     .map(toEarned);
 }
 
-/** Mark the celebration shown, so it's shown once. */
-export async function markCelebrated(ids: readonly string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const now = new Date().toISOString();
-  db.transaction((tx) => {
-    for (const id of ids) {
-      tx.update(achievement)
-        .set({ celebratedAt: now })
-        .where(and(eq(achievement.id, id), isNull(achievement.celebratedAt)))
-        .run();
-    }
-  });
-}
