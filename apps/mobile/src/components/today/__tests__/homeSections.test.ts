@@ -201,3 +201,12 @@ describe("extra runs and Not on today (Henry, 2026-11-07)", () => {
     ]);
   });
 });
+
+describe("set aside today (Henry, 2026-11-07)", () => {
+  it("lists tasks set to Not today last, so they can be added back", () => {
+    const planned = plan({ open: [task("read")] });
+    expect(notOnToday({ planned, group: () => null, dayOrder: new Map(), setAsideIds: ["gym"] })).toEqual([
+      { group: "setAside", taskIds: ["gym"] },
+    ]);
+  });
+});

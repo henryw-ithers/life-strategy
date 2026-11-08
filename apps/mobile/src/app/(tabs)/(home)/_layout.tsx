@@ -1,6 +1,6 @@
 /**
- * Home's stack. Its nav bar carries only the + menu and Settings, with
- * no title: Home draws its own header (the week strip and the grade).
+ * Today's stack. A large title that folds as you scroll, like the other
+ * tabs (Henry, 2026-11-07); the screen sets it to the day it shows.
  */
 import { Stack } from "expo-router";
 import { useColorScheme } from "react-native";
@@ -13,7 +13,7 @@ export default function HomeLayout() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" options={tabRootOptions(theme, "")} />
+      <Stack.Screen name="index" options={tabRootOptions(theme, "Today")} />
     </Stack>
   );
 }

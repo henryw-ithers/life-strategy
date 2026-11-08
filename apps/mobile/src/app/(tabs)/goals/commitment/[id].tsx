@@ -66,7 +66,7 @@ import {
 } from "../../../../components/plan/unitSelection";
 import { ActionMenu, type MenuAction } from "../../../../components/ui/ActionMenu";
 import { AppText } from "../../../../components/ui/AppText";
-import { hueWash, ScrollBackdrop } from "../../../../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../../../../components/ui/Backdrop";
 import { Group } from "../../../../components/ui/Group";
 import {
   LoadFailure,
@@ -269,7 +269,8 @@ export default function CommitmentScreen() {
           { paddingTop: space.sm, paddingBottom: space.xxxl },
         ]}
       >
-        <ScrollBackdrop circles={hueWash(accent)} />
+        {/* The same backdrop as every screen (Henry, 2026-11-07). */}
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />

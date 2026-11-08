@@ -32,7 +32,17 @@ vocabulary and invariants below describe the code as it is.
 **Windows are set aside for launch** (ADR-0051, 2026-11-04): one
 switch, `WINDOWS` in `apps/mobile/src/lib/features.ts`, gives every
 day no windows, so the day shows in its parts. The tabs are **Today,
-Week, Life and Log** (routes still `(home)`, `plan`, `goals`, `log`).
+Life and Log** (routes still `(home)`, `goals`, `log`); the Week tab
+went on 2026-11-07, and its New task and New event sheets open on
+Today. Today lists work that belongs to another day under **Not on
+today** (earlier this week, with a deadline, later this week), each
+with Add to today, and keeps a task whose week is done in its place,
+marked Extra, at the extra-run rate. **Not today** on a task set a day
+or more ahead skips it, and that day stops asking for it; set on the
+day itself it only leaves the list (under Set aside today, where Add
+to today brings it back) and the day still counts it, so skipping can
+never raise the day you're in. The load reads a task's skips as they
+stood when the day began (`skippedAtStart`); events keep ADR-0040 §2.
 Working hours have no UI, and the commitment share reads the default
 hours. The window and hours code and tables stay for when windows come
 back; don't delete them, and don't build on them without a new ADR.

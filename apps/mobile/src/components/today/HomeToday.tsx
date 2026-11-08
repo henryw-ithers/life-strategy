@@ -136,7 +136,17 @@ export function HomeToday({
   // Later one-offs, loaded once the section opens, join its rows.
   const aheadById = new Map((ahead ?? []).filter((t) => !tasks.has(t.id)).map((t) => [t.id, t] as const));
   const taskOf = (id: string) => tasks.get(id) ?? aheadById.get(id);
-  const notToday = notOnToday({ planned, group: groupOf, dayOrder: plan.dayOrder, aheadIds: [...aheadById.keys()] });
+  // Set to Not today: listed here so Add to today can bring it back.
+  const setAsideIds = [...tasks.values()]
+    .filter((t) => t.kind === "task" && t.skippedToday && !t.completedToday)
+    .map((t) => t.id);
+  const notToday = notOnToday({
+    planned,
+    group: groupOf,
+    dayOrder: plan.dayOrder,
+    aheadIds: [...aheadById.keys()],
+    setAsideIds,
+  });
   const notTodayCount = notToday.reduce((n, g) => n + g.taskIds.length, 0);
   // On a day with windows, what no window holds; on one with none,
   // the parts of the day hold it.

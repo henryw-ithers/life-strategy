@@ -40,7 +40,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import type { ThemeTokens } from "../../theme/colors";
-import { radius } from "../../theme/tokens";
+import { radius, space } from "../../theme/tokens";
+import { rampStep } from "./dragScroll";
 
 interface Rect {
   x: number;
@@ -71,15 +72,13 @@ interface DragContext {
   ghostTop: SharedValue<number>;
   activeId: string | null;
   overKey: string | null;
+  theme: ThemeTokens;
 }
 
 const Context = createContext<DragContext | null>(null);
 
 /** Moved less than this before letting go: a hold, not a drag. */
 const HOLD_SLOP = 8;
-/** How close to the top or bottom edge starts scrolling, and how fast. */
-const EDGE = 90;
-const SCROLL_STEP = 9;
 
 const measure = (node: View | null): Promise<Rect | null> =>
   new Promise((resolve) => {
@@ -216,15 +215,18 @@ export function DayDrag({ children, onDrop, onDraggingChange, renderGhost, scrol
       if (!d) return;
       d.lastY = y;
       locate(y);
-      // Near an edge, the page scrolls under the finger.
+      // Off the middle of the screen, the page scrolls under the finger,
+      // faster the nearer the edge (`rampStep`). Each frame reads where
+      // the finger is now, so the speed follows it.
       const { scroll: s, screenHeight: h } = latest.current;
-      const dir = y < EDGE ? -1 : y > h - EDGE ? 1 : 0;
-      if (dir === 0 || !s) return stopAuto();
+      if (rampStep(y, h) === 0 || !s) return stopAuto();
       if (auto.current) return;
       auto.current = setInterval(() => {
         const now = drag.current;
-        if (!now) return stopAuto();
-        s.to(Math.max(0, s.y() + dir * SCROLL_STEP));
+        const { scroll: sc, screenHeight: sh } = latest.current;
+        const step = now ? rampStep(now.lastY, sh) : 0;
+        if (!now || step === 0 || !sc) return stopAuto();
+        sc.to(Math.max(0, sc.y() + step));
         locate(now.lastY);
       }, 16);
     },
@@ -276,8 +278,9 @@ export function DayDrag({ children, onDrop, onDraggingChange, renderGhost, scrol
       ghostTop,
       activeId: active?.id ?? null,
       overKey: target?.sectionKey ?? null,
+      theme,
     }),
-    [registerSection, registerRow, start, move, finish, reset, ghostTop, active?.id, target?.sectionKey],
+    [registerSection, registerRow, start, move, finish, reset, ghostTop, active?.id, target?.sectionKey, theme],
   );
 
   // The lifted copy grows a touch, unless Reduce Motion is on.
@@ -403,16 +406,31 @@ export function DragRow({
   );
 
   const lifted = ctx?.activeId === id;
+  const draggable = enabled && ctx !== null;
   return (
     <GestureDetector gesture={pan}>
       <View
         ref={attach}
         collapsable={false}
-        style={lifted ? styles.lifted : null}
+        style={[draggable ? styles.withGrip : null, lifted ? styles.lifted : null]}
       >
-        {children}
+        {draggable ? <View style={styles.grow}>{children}</View> : children}
+        {draggable && ctx ? <Grip color={ctx.theme.muted} /> : null}
       </View>
     </GestureDetector>
+  );
+}
+
+/** Three short lines at the row's end: this row can be held and moved
+ *  (Henry, 2026-11-07). Hidden from VoiceOver, which moves rows with
+ *  Move it instead. */
+function Grip({ color }: { color: string }) {
+  return (
+    <View style={styles.grip} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[styles.gripLine, { backgroundColor: color }]} />
+      ))}
+    </View>
   );
 }
 
@@ -428,4 +446,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   lifted: { opacity: 0.3 },
+  withGrip: { flexDirection: "row", alignItems: "center" },
+  grow: { flex: 1, minWidth: 0 },
+  grip: { width: 16, gap: 3, marginLeft: space.xs, marginRight: space.sm, opacity: 0.5 },
+  gripLine: { height: 1.5, borderRadius: 1 },
 });

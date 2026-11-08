@@ -24,13 +24,11 @@ import {
 } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
-import { useHeaderHeight } from "expo-router/react-navigation";
+import { Redirect, router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,7 +49,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { CelebrationCard } from "../../../components/achievements/CelebrationCard";
-import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddSheets, type AddKind } from "../../../components/plan/AddSheets";
 import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { ItemEditor } from "../../../components/plan/ItemEditor";
 import { DayParts, partsOf } from "../../../components/plan/DayParts";
@@ -78,7 +77,7 @@ import { ScoreSheet } from "../../../components/today/ScoreSheet";
 import { rowHold, TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { AppText } from "../../../components/ui/AppText";
-import { Backdrop, constellation } from "../../../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { NativeSheet } from "../../../components/ui/NativeSheet";
@@ -92,8 +91,8 @@ import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../.
 import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
 import { pinForDay, unpinForDay } from "../../../db/pins";
-import { addSkip } from "../../../db/skips";
-import { archiveTask, reorderDayTasks, setTaskOneOff } from "../../../db/tasks";
+import { addSkip, setRunsSkipped } from "../../../db/skips";
+import { archiveTask, reorderDayTasks } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
 import { skipProblem, type SkipInput } from "../../../db/windowRules";
@@ -259,10 +258,10 @@ export default function TodayScreen() {
   }
   const ahead = usePlannedAhead(day, othersOpen);
 
-  const headerHeight = useHeaderHeight();
-  const headerInset = Platform.OS === "ios" ? headerHeight : 0;
-
-  /** Another tab's + menu asked to log something (`openAdd`). */
+  /** New task and New event, from this tab's + or another's
+   *  (`openAdd`); they lived on Week until it went. */
+  const [adding, setAdding] = useState<AddKind | null>(null);
+  /** Another tab's + menu asked to add something (`openAdd`). */
   const { add: addParam } = useLocalSearchParams<{ add?: string }>();
   const [seenAddParam, setSeenAddParam] = useState(addParam);
   if (addParam !== seenAddParam) {
@@ -271,6 +270,7 @@ export default function TodayScreen() {
       setEditingActivity(null);
       setActivitySheet(true);
     }
+    if (addParam === "task" || addParam === "event") setAdding(addParam);
   }
   useEffect(() => {
     if (addParam) router.setParams({ add: undefined });
@@ -365,7 +365,7 @@ export default function TodayScreen() {
   if (day === null) {
     return (
       <View style={styles.root}>
-        <TabToolbar onTask={() => openAdd("task")} onEvent={() => openAdd("event")} onLog={logSomething} settings />
+        <TabToolbar onTask={() => setAdding("task")} onEvent={() => setAdding("event")} onLog={logSomething} settings />
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       </View>
     );
@@ -400,8 +400,8 @@ export default function TodayScreen() {
 
   const toolbar = (
     <TabToolbar
-      onTask={() => openAdd("task")}
-      onEvent={() => openAdd("event")}
+      onTask={() => setAdding("task")}
+      onEvent={() => setAdding("event")}
       onWindow={
         WINDOWS && windowEditable
           ? () => {
@@ -629,28 +629,10 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Fixed behind Home's content: its own header sits above the
-          scroll view. */}
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+      {/* The large title folds as you scroll (Henry, 2026-11-07): the
+          day's name, with its date and grade at the top of the list. */}
+      <Stack.Screen options={{ title: isToday ? "Today" : (spokenDate(day.date).split(",")[0] ?? "") }} />
       {toolbar}
-
-      <TodayHeader
-        day={day}
-        weekGrade={weekGrade}
-        monthGrades={monthGrades}
-        monthOpen={monthOpen}
-        onToggleMonth={() => setMonthOpen((v) => !v)}
-        viewMonth={viewMonth}
-        onChangeMonth={changeMonth}
-        onSelect={select}
-        onOpenKind={() => setKindSheet(true)}
-        onOpenScore={() => setScoreSheet(true)}
-        onStep={(d: number) => leave(d < 0 ? -1 : 1)}
-        topInset={headerInset}
-        layout={layout}
-        reduceMotion={reduceMotion}
-        theme={theme}
-      />
 
       <DayDrag
         onDrop={dropTask}
@@ -677,6 +659,22 @@ export default function TodayScreen() {
           scrollY.current = e.nativeEvent.contentOffset.y;
         }}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
+        <TodayHeader
+          day={day}
+          weekGrade={weekGrade}
+          monthGrades={monthGrades}
+          monthOpen={monthOpen}
+          onToggleMonth={() => setMonthOpen((v) => !v)}
+          viewMonth={viewMonth}
+          onChangeMonth={changeMonth}
+          onSelect={select}
+          onOpenScore={() => setScoreSheet(true)}
+          onStep={(d: number) => leave(d < 0 ? -1 : 1)}
+          layout={layout}
+          reduceMotion={reduceMotion}
+          theme={theme}
+        />
         <Animated.View style={[styles.slide, slideStyle]}>
         {day.finalized ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
@@ -805,12 +803,15 @@ export default function TodayScreen() {
                 ahead={ahead}
                 groupOf={groupOf}
                 onAddToday={(t) =>
-                  // A one-off takes today as its day; a run from another
-                  // day is pinned into today, in its part of the day.
+                  // Pinned into today, in its part of the day. A pin never
+                  // changes what's due (ADR-0039 §12): a one-off keeps its
+                  // own day, so done today it's paid what that day would
+                  // have paid, and a carried one never joins today's load.
+                  // Set aside with Not today: take the skip back.
                   void saveThen(
                     () =>
-                      t.oneOffSize != null
-                        ? setTaskOneOff(t.id, t.oneOffSize, day.date, t.oneOffDue)
+                      t.skippedToday
+                        ? setRunsSkipped(t.id, [day.date], false)
                         : pinForDay(t.id, day.date, anchorOf(t.partOfDay ?? "anytime"), "window"),
                     () => refresh(),
                   )
@@ -926,6 +927,14 @@ export default function TodayScreen() {
       </DayDrag>
 
       <UndoBar undo={undo} theme={theme} />
+
+      <AddSheets
+        adding={adding}
+        onClose={() => setAdding(null)}
+        save={(write) => saveThen(write, refresh)}
+        onSaved={() => void refresh()}
+        theme={theme}
+      />
 
       <ItemEditor
         itemId={editingItem}

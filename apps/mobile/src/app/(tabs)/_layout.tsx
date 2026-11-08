@@ -1,9 +1,8 @@
 /**
- * The four tabs, in the native iOS 26 tab bar (ADR-0043 §1, spec §2.1):
- * Today, Week, Life and Log, each with an SF Symbol and a label (Home
- * and Plan until windows were set aside, ADR-0051). The bar
- * shrinks as you scroll down, except on Home: its own header sits
- * above its scroll view, so iOS can't find what to follow.
+ * The three tabs, in the native iOS 26 tab bar (ADR-0043 §1, spec §2.1):
+ * Today, Life and Log, each with an SF Symbol and a label. Week went on
+ * 2026-11-07 (Henry: "basically useless"); its New task and New event
+ * sheets moved to Today. The bar shrinks as you scroll down.
  *
  * **Every tab's page is opaque and draws its own backdrop.** The
  * backdrop used to live here, once, behind see-through pages. But iOS
@@ -20,8 +19,8 @@
  * calibration, backup, onboarding, Settings) are pushed by
  * the root stack, so they cover the tab bar.
  *
- * Route names kept their old paths (`(home)`, `plan`, `goals`) when the
- * labels became Today, Week and Life, so no link had to change.
+ * Route names kept their old paths (`(home)`, `goals`) when the labels
+ * became Today and Life, so no link had to change.
  */
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { StyleSheet, useColorScheme, View } from "react-native";
@@ -39,10 +38,6 @@ export default function TabsLayout() {
         <NativeTabs.Trigger name="(home)" contentStyle={opaque}>
           <NativeTabs.Trigger.Icon sf="sun.max" />
           <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="plan" contentStyle={opaque}>
-          <NativeTabs.Trigger.Icon sf="calendar" />
-          <NativeTabs.Trigger.Label>Week</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="goals" contentStyle={opaque}>
           <NativeTabs.Trigger.Icon sf="square.grid.2x2" />

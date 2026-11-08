@@ -1,7 +1,7 @@
 /**
- * A day in its parts, for planning (ADR-0051): the Week tab's chosen
- * day, and a day ahead on Today. Morning, Afternoon, Evening, Night
- * (when it holds something) and Anytime, each with its events at their
+ * A day in its parts, for planning (ADR-0051): a day ahead on Today
+ * (the Week tab that also used it went on 2026-11-07). Morning,
+ * Afternoon, Evening, Night (when it holds something) and Anytime, each with its events at their
  * times and then its tasks in your order. The same sections as Today
  * (`homeSections`), so the two can't drift apart.
  *

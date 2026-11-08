@@ -244,13 +244,16 @@ export function homeSections(input: {
  *   one-off dated earlier, still open.
  * - **With a deadline**: a one-off with a deadline and no day.
  * - **Later this week**: work planned for a later day (`plannedAhead`).
+ * - **Set aside today**: tasks you chose Not today for, so Add to today
+ *   can take that back.
  */
-export type NotOnTodayGroup = "earlier" | "deadline" | "later";
+export type NotOnTodayGroup = "earlier" | "deadline" | "later" | "setAside";
 
 export const NOT_ON_TODAY_LABEL: Record<NotOnTodayGroup, string> = {
   earlier: "Earlier this week",
   deadline: "With a deadline",
   later: "Later this week",
+  setAside: "Set aside today",
 };
 
 /** Which group, if any, a task on the day belongs to. */
@@ -275,10 +278,12 @@ export function notOnToday(input: {
   dayOrder: ReadonlyMap<string, number>;
   /** Later one-offs loaded when the list opens (`loadPlannedAhead`). */
   aheadIds?: readonly string[];
+  /** Tasks set to Not today. */
+  setAsideIds?: readonly string[];
 }): { group: NotOnTodayGroup; taskIds: string[] }[] {
-  const { planned, group, dayOrder, aheadIds = [] } = input;
+  const { planned, group, dayOrder, aheadIds = [], setAsideIds = [] } = input;
   const pinned = new Set(planned.unplacedPins.map((p) => p.taskId));
-  const held: Record<NotOnTodayGroup, string[]> = { earlier: [], deadline: [], later: [] };
+  const held: Record<NotOnTodayGroup, string[]> = { earlier: [], deadline: [], later: [], setAside: [...setAsideIds] };
   for (const id of planned.later) {
     const g = group(id);
     if (g !== null && !pinned.has(id)) held[g].push(id);
@@ -287,7 +292,7 @@ export function notOnToday(input: {
     if (!pinned.has(id) && !held.later.includes(id)) held.later.push(id);
   }
   const order = (ids: string[]) => inYourOrder(ids.map((taskId) => ({ taskId })), dayOrder).map((r) => r.taskId);
-  return (["earlier", "deadline", "later"] as const)
+  return (["earlier", "deadline", "later", "setAside"] as const)
     .map((g) => ({ group: g, taskIds: order(held[g]) }))
     .filter((g) => g.taskIds.length > 0);
 }

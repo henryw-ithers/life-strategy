@@ -627,7 +627,13 @@ export async function loadDay(
     oneOffDue: t.oneOffDue,
     repeatFrom: t.repeatFrom,
     repeatUntil: t.repeatUntil,
-    skippedDates: t.skippedDates,
+    // Not today on a task (Henry, 2026-11-07): skipped a day or more
+    // ahead, the day stops asking for it; skipped on the day itself, it
+    // leaves the list but its points are lost. So a task's load reads
+    // only skips made before the day. An event's skip on the day still
+    // counts (ADR-0040 §2).
+    skippedDates:
+      t.kind === "event" ? t.skippedDates : (schedule.skippedAtStart.get(t.id) ?? new Set<string>()),
   });
   const lifeTaskIds = new Set(
     tasks

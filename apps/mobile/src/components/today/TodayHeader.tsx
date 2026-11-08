@@ -1,7 +1,8 @@
 /**
- * Today's fixed header: the day's identity (date, grade), the week's
- * number, and its navigation — the one part of Home you always need in
- * view, so it stays put and the checklist scrolls beneath it.
+ * The top of Today's list, under the native large title (which names the
+ * day and folds as you scroll, Henry 2026-11-07): the date, which opens
+ * the month, the day's grade and the week's number. Day type is in the
+ * nav bar's ⋯ menu, so there's one ⋯, not two.
  */
 import { weekStart, type PeriodGrade } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -26,10 +27,8 @@ export function TodayHeader({
   viewMonth,
   onChangeMonth,
   onSelect,
-  onOpenKind,
   onOpenScore,
   onStep,
-  topInset,
   layout,
   reduceMotion,
   theme,
@@ -42,26 +41,18 @@ export function TodayHeader({
   viewMonth: string | null;
   onChangeMonth: (month: string) => void;
   onSelect: (date: string) => void;
-  onOpenKind: () => void;
   /** Tapping the number: how the day adds up. */
   onOpenScore: () => void;
   /** The day before or after: VoiceOver's way to swipe. */
   onStep: (days: number) => void;
-  topInset: number;
   layout: LinearTransition | undefined;
   reduceMotion: boolean;
   theme: ThemeTokens;
 }) {
-  const isToday = day.date === day.today;
   const dormant = day.score.earned === 0;
 
   return (
-    <View
-      style={[
-        styles.header,
-        { paddingTop: topInset + space.sm, borderBottomColor: theme.hairline },
-      ]}
-    >
+    <View style={styles.header}>
       <View style={styles.headerRow}>
         <Pressable
           onPress={onToggleMonth}
@@ -77,11 +68,8 @@ export function TodayHeader({
           }}
           style={styles.headerText}
         >
-          <AppText variant="display" color={theme.ink}>
-            {isToday ? "Today" : spokenDate(day.date).split(",")[0]}
-          </AppText>
           <View style={styles.sectionLabel}>
-            <AppText variant="caption" color={theme.muted}>
+            <AppText variant="body" color={theme.muted}>
               {spokenDate(day.date)}
               {day.finalized ? " · settled" : ""}
             </AppText>
@@ -113,19 +101,6 @@ export function TodayHeader({
               />
             </Pressable>
           )}
-          {day.editable ? (
-            <Pressable
-              onPress={onOpenKind}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Change what kind of day this is"
-              style={({ pressed }) => [styles.kindButton, { opacity: pressed ? 0.5 : 1 }]}
-            >
-              <AppText variant="headline" color={theme.muted}>
-                ⋯
-              </AppText>
-            </Pressable>
-          ) : null}
         </View>
       </View>
 
@@ -164,41 +139,18 @@ export function TodayHeader({
 }
 
 const styles = StyleSheet.create({
-  /** Fixed above the scroll region; the strip's own top margin gives it
-   *  room, so the header only pays for its bottom edge. */
-  header: {
-    paddingHorizontal: space.screen,
-    paddingBottom: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  /** The list's own padding sets its sides. */
+  header: { paddingBottom: space.md },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: space.md,
   },
-  headerText: { flex: 1, gap: 2 },
+  headerText: { flex: 1, gap: 2, minHeight: 44, justifyContent: "center" },
   headerRight: { alignItems: "flex-end", gap: space.xs },
   /** Label and its disclosure travel together as one target. */
   sectionLabel: { flexDirection: "row", alignItems: "center", gap: 4 },
   weekStat: { marginTop: space.xs },
-  kindButton: { minWidth: 44, minHeight: 32, alignItems: "flex-end" },
   strip: { marginTop: space.lg },
-  /** The toggle and the planner share the row under the dates. */
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: space.md,
-  },
-  /** Bounded so two words do not stretch to half the screen. */
-  /** Right-aligned under the strip's last day, so it reads as "and
-   *  beyond this". */
-  planAhead: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-end",
-    gap: 2,
-    minHeight: 32,
-  },
 });
