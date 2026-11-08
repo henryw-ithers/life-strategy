@@ -67,7 +67,7 @@ import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
 import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
-import { anchorOf, homeSections, timedRows } from "../../../components/today/homeSections";
+import { anchorOf, homeSections, notOnTodayGroup, timedRows } from "../../../components/today/homeSections";
 import { HomeToday, OTHERS_KEY, windowId } from "../../../components/today/HomeToday";
 import type { RowExtra } from "../../../components/today/HomeWindow";
 import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
@@ -93,7 +93,7 @@ import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
 import { pinForDay, unpinForDay } from "../../../db/pins";
 import { addSkip } from "../../../db/skips";
-import { archiveTask, reorderDayTasks } from "../../../db/tasks";
+import { archiveTask, reorderDayTasks, setTaskOneOff } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
 import { skipProblem, type SkipInput } from "../../../db/windowRules";
@@ -288,20 +288,37 @@ export default function TodayScreen() {
   const isToday = day !== null && day.date === day.today && plan !== null;
   /** Windows waiting on a removal's Undo, by `windowId`. */
   const hiddenKey = [...undo.hidden].filter((id) => id.startsWith("win-")).sort().join("|");
+  /** Tasks waiting on a delete's Undo: gone from the day at once, not
+   *  once the delete lands (Henry, 2026-11-07). */
+  const hiddenTasks = [...undo.hidden]
+    .filter((id) => !id.startsWith("win-"))
+    // "Not today" waits on Undo the same way, under `skip-<task id>`.
+    .map((id) => (id.startsWith("skip-") ? id.slice(5) : id))
+    .sort()
+    .join("|");
   /** Today's windows, filled live: the clock, swaps and pulls. A window
    *  waiting on Undo is left out, so its tasks go where they'd go
    *  without it (EC-19). */
   const planned = useMemo(() => {
     if (!plan || !isToday) return null;
     const gone = new Set(hiddenKey.split("|").filter(Boolean).map((id) => id.slice(4)));
+    const deleted = new Set(hiddenTasks.split("|").filter(Boolean));
     return planDay({
       ...plan.input,
+      open: plan.input.open.filter((t) => !deleted.has(t.taskId)),
+      pins: plan.input.pins.filter((p) => !deleted.has(p.taskId)),
+      done: (plan.input.done ?? []).filter((d) => !deleted.has(d.taskId)),
       windows: plan.input.windows.filter((w) => !gone.has(windowId(w))),
       now: nowMinute,
       declined,
       pulledIn,
     });
-  }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
+  }, [plan, isToday, hiddenKey, hiddenTasks, nowMinute, declined, pulledIn]);
+  /** Which Not on today group a task is in (Henry, 2026-11-07). */
+  const groupOf = (id: string) => {
+    const t = plan?.tasks.get(id);
+    return t && day ? notOnTodayGroup(t, day.date) : null;
+  };
   /** A day ahead, shown in its parts as Week shows it (ADR-0051). */
   const isFuture = day !== null && day.date > day.today && plan !== null;
   /** The day as sections you can rearrange (ADR-0048): today live, a
@@ -313,12 +330,18 @@ export default function TodayScreen() {
             planned,
             partOf: (id) => plan.tasks.get(id)?.partOfDay ?? null,
             dayOrder: plan.dayOrder,
-            timed: timedRows(plan, planned),
+            timed: timedRows(plan, planned).filter(
+              (r) => !hiddenTasks.split("|").includes(r.taskId),
+            ),
+            elsewhere: (id) => {
+              const t = plan.tasks.get(id);
+              return t ? notOnTodayGroup(t, plan.day.date) : null;
+            },
           })
         : isFuture && plan
           ? partsOf(plan)
           : [],
-    [planned, plan, isFuture],
+    [planned, plan, isFuture, hiddenTasks],
   );
   const needsPlan = day !== null && day.date === day.today && plan === null;
   useEffect(() => {
@@ -451,7 +474,20 @@ export default function TodayScreen() {
       isToday && t.kind === "task" && t.completedToday && (planned?.windows.length ?? 0) > 1
         ? () => setDoneInTask(t)
         : undefined,
-    onSkip: t.kind === "event" && !t.completedToday && day.date >= day.today ? () => askSkipEvent(t) : undefined,
+    onSkip:
+      t.kind === "event" && !t.completedToday && day.date >= day.today
+        ? () => askSkipEvent(t)
+        : t.kind === "task" && !t.completedToday && t.oneOffSize == null && day.date >= day.today
+          ? // Not today (Henry, 2026-11-07): this day's run skipped, the
+            // task kept. Skips are ADR-0040's, so a skip on the day that
+            // empties it leaves it ungraded, never a rest day.
+            () =>
+              undo.remove({
+                id: `skip-${t.id}`,
+                message: `${t.title}: not today`,
+                run: () => addSkip({ kind: "occurrence", taskId: t.id, date: day.date }),
+              })
+          : undefined,
     onEdit: day.editable ? () => setEditingItem(t.id) : undefined,
   });
 
@@ -766,6 +802,18 @@ export default function TodayScreen() {
                 expanded={expanded}
                 onToggleSection={(key, open) => setExpanded((e) => ({ ...e, [key]: open }))}
                 ahead={ahead}
+                groupOf={groupOf}
+                onAddToday={(t) =>
+                  // A one-off takes today as its day; a run from another
+                  // day is pinned into today, in its part of the day.
+                  void saveThen(
+                    () =>
+                      t.oneOffSize != null
+                        ? setTaskOneOff(t.id, t.oneOffSize, day.date, t.oneOffDue)
+                        : pinForDay(t.id, day.date, anchorOf(t.partOfDay ?? "anytime"), "window"),
+                    () => refresh(),
+                  )
+                }
                 othersOpen={othersOpen}
                 onToggleOthers={() => setOthersOpen((v) => !v)}
                 renderRow={taskRow}

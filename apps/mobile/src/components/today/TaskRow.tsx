@@ -69,7 +69,7 @@ export function rowHold(
 ): { run: () => void; label: string } | null {
   const actions: SheetAction[] = [
     ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
-    ...(onSkip ? [{ label: "Skip this event", onPress: onSkip }] : []),
+    ...(onSkip ? [{ label: task.kind === "event" ? "Skip this event" : "Not today", onPress: onSkip }] : []),
     ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
     ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
     ...(onDoneIn ? [{ label: "Done in…", onPress: onDoneIn }] : []),

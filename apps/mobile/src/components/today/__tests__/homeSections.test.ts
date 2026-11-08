@@ -5,7 +5,17 @@
 import { planDay, type OpenTask, type PlanDayInput } from "@glide/scoring";
 import { describe, expect, it } from "vitest";
 
-import { anchorOf, doneGroups, foldedLabel, homeSections, inYourOrder, partOfMinute, windowKey } from "../homeSections";
+import {
+  anchorOf,
+  doneGroups,
+  foldedLabel,
+  homeSections,
+  inYourOrder,
+  notOnToday,
+  notOnTodayGroup,
+  partOfMinute,
+  windowKey,
+} from "../homeSections";
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 const task = (taskId: string, over: Partial<OpenTask> = {}): OpenTask => ({
@@ -159,5 +169,35 @@ describe("a folded window", () => {
 
   it("says how many tasks one still to come holds", () => {
     expect(foldedLabel(section({ rows: ["a"] }), "later")).toBe("1 task");
+  });
+});
+
+describe("extra runs and Not on today (Henry, 2026-11-07)", () => {
+  const FRI = "2026-11-06";
+
+  it("keeps a task whose week is done in its place, marked Extra", () => {
+    const planned = plan({ open: [task("gym", { owesRun: false, partOfDay: "morning" })] });
+    const [morning] = homeSections({ planned, partOf: () => "morning", dayOrder: new Map() });
+    expect(morning?.rows).toEqual([{ taskId: "gym", reason: "extra", swappable: false }]);
+  });
+
+  it("groups a past day's run, a deadline with no day, and later work apart from today", () => {
+    expect(notOnTodayGroup({ plannedOn: "2026-11-05", oneOffDate: null, oneOffDue: null, oneOffSize: null }, FRI)).toBe("earlier");
+    expect(notOnTodayGroup({ plannedOn: null, oneOffDate: null, oneOffDue: "2026-11-20", oneOffSize: "normal" }, FRI)).toBe("deadline");
+    expect(notOnTodayGroup({ plannedOn: null, oneOffDate: null, oneOffDue: null, oneOffSize: "normal" }, FRI)).toBeNull();
+    expect(notOnTodayGroup({ plannedOn: FRI, oneOffDate: null, oneOffDue: null, oneOffSize: null }, FRI)).toBeNull();
+  });
+
+  it("takes them out of today's parts and lists them in order", () => {
+    const planned = plan({ open: [task("thu"), task("essay"), task("read"), task("sat", { plannedLater: true })] });
+    const group = (id: string) => (id === "thu" ? "earlier" : id === "essay" ? "deadline" : null);
+    const sections = homeSections({ planned, partOf: () => null, dayOrder: new Map(), elsewhere: group });
+    const anytime = sections.find((s) => s.key === "p-anytime")!;
+    expect(ids(anytime.rows)).toEqual(["read"]);
+    expect(notOnToday({ planned, group, dayOrder: new Map() })).toEqual([
+      { group: "earlier", taskIds: ["thu"] },
+      { group: "deadline", taskIds: ["essay"] },
+      { group: "later", taskIds: ["sat"] },
+    ]);
   });
 });

@@ -147,7 +147,16 @@ export function DayParts({ day, sections, editable, reload, undo, reduceMotion, 
         </AppText>
       ) : null}
 
-      {sections.map((s) => {
+      {sections.map((whole) => {
+        // A task waiting on a delete's Undo leaves the day at once.
+        const s =
+          whole.kind === "part"
+            ? {
+                ...whole,
+                rows: whole.rows.filter((r) => !undo.hidden.has(r.taskId)),
+                timed: whole.timed.filter((r) => !undo.hidden.has(r.taskId)),
+              }
+            : whole;
         const open = !(folded[s.key] ?? false);
         return (
           <HomeSectionCard

@@ -497,3 +497,18 @@ describe("part of the day (ADR-0048)", () => {
     expect(suggestedIn(day, 0)).toEqual(["m"]);
   });
 });
+
+describe("extra runs (Henry, 2026-11-07)", () => {
+  it("still lists a task whose week is done, to tick again, but never suggests it", () => {
+    const day = plan({ windows: [r(h(9), h(12))], open: [task("gym", { owesRun: false }), task("read")] });
+    expect(day.extra).toEqual(["gym"]);
+    expect(suggestedIn(day, 0)).toEqual(["read"]);
+  });
+
+  it("leaves out one planned for a later day, and one already pinned", () => {
+    const later = plan({ open: [task("gym", { owesRun: false, plannedLater: true })] });
+    expect(later.extra).toEqual([]);
+    const pinned = plan({ open: [task("gym", { owesRun: false })], pins: [pin("gym", { extra: true })] });
+    expect(pinned.extra).toEqual([]);
+  });
+});
