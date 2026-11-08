@@ -3,9 +3,8 @@
  * that opens a native pull-down menu, and Settings on Home and Life.
  *
  * The menu is the same on every tab: Task, Event and Log something,
- * and Window where the tab can add one (Home and Plan). Each tab opens
- * what it owns in place; anything another tab owns switches to that
- * tab and opens it there (`openAdd`).
+ * and Window where the tab can add one. Today opens them in place;
+ * another tab switches to Today and opens it there (`openAdd`).
  *
  * A header toolbar draws no view of its own; it only sets the nav bar,
  * so it can sit anywhere in a screen. Its buttons call the handlers
@@ -18,10 +17,10 @@ import { useLatest } from "../../hooks/useLatest";
 /** What another tab's `+` asked this tab to open. */
 export type AddRequest = "task" | "event" | "activity";
 
-/** Switch to the tab that owns an add, asking it to open the sheet. */
+/** Switch to Today, which owns every add, asking it to open the sheet
+ *  (the Week tab that held Task and Event went on 2026-11-07). */
 export function openAdd(what: AddRequest) {
-  const tab = what === "activity" ? "/" : "/plan";
-  router.navigate(`${tab}?add=${what}` as Href);
+  router.navigate(`/?add=${what}` as Href);
 }
 
 interface TabToolbarProps {

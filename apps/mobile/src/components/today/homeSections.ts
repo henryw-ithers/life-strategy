@@ -48,7 +48,7 @@ export interface TimedRow {
 export interface SectionRow {
   readonly taskId: string;
   /** Why it's here, under its title. */
-  readonly reason?: SuggestionReason | "stillOpen";
+  readonly reason?: SuggestionReason | "stillOpen" | "extra";
   /** A suggestion, which can be swapped for the next that fits. */
   readonly swappable: boolean;
 }
@@ -175,8 +175,11 @@ export function homeSections(input: {
   /** The day's events and timed tasks, placed in parts when there are
    *  no windows. */
   timed?: readonly TimedRow[];
+  /** Work that belongs to another day (`notOnToday`): left out of the
+   *  parts, and listed under Not on today instead. */
+  elsewhere?: (taskId: string) => NotOnTodayGroup | null;
 }): HomeSection[] {
-  const { planned, partOf, dayOrder, timed = [] } = input;
+  const { planned, partOf, dayOrder, timed = [], elsewhere = () => null } = input;
   if (planned.windows.length > 0) {
     const windows: HomeSection[] = planned.windows.map((w, index) => ({
       key: windowKey(w.range),
@@ -207,8 +210,14 @@ export function homeSections(input: {
     held[p.anchor === null ? "anytime" : partOfMinute(p.anchor)].push({ taskId: p.taskId, swappable: false });
   }
   for (const taskId of planned.later) {
-    if (pinned.has(taskId)) continue;
+    if (pinned.has(taskId) || elsewhere(taskId) !== null) continue;
     held[partOf(taskId) ?? "anytime"].push({ taskId, swappable: false });
+  }
+  // Its week's runs done: still there to tick, worth less (Henry,
+  // 2026-11-07).
+  for (const taskId of planned.extra) {
+    if (pinned.has(taskId)) continue;
+    held[partOf(taskId) ?? "anytime"].push({ taskId, reason: "extra", swappable: false });
   }
   const at: Record<Part, TimedRow[]> = { morning: [], afternoon: [], evening: [], night: [], anytime: [] };
   for (const row of timed) at[partAt(row.start)].push(row);
@@ -225,6 +234,67 @@ export function homeSections(input: {
       timed: [...at[part]].sort((a, b) => clock(a.start) - clock(b.start)),
       rows: inYourOrder(held[part], dayOrder),
     }));
+}
+
+/**
+ * Not on today (Henry, 2026-11-07): work that belongs to another day,
+ * listed apart with Add to today rather than mixed into today's parts.
+ *
+ * - **Earlier this week**: a run pinned to a day that's passed, or a
+ *   one-off dated earlier, still open.
+ * - **With a deadline**: a one-off with a deadline and no day.
+ * - **Later this week**: work planned for a later day (`plannedAhead`).
+ * - **Set aside today**: tasks you chose Not today for, so Add to today
+ *   can take that back.
+ */
+export type NotOnTodayGroup = "earlier" | "deadline" | "later" | "setAside";
+
+export const NOT_ON_TODAY_LABEL: Record<NotOnTodayGroup, string> = {
+  earlier: "Earlier this week",
+  deadline: "With a deadline",
+  later: "Later this week",
+  setAside: "Set aside today",
+};
+
+/** Which group, if any, a task on the day belongs to. */
+export function notOnTodayGroup(task: {
+  plannedOn: string | null;
+  oneOffDate: string | null;
+  oneOffDue: string | null;
+  oneOffSize: string | null;
+}, date: string): NotOnTodayGroup | null {
+  const planned = task.plannedOn ?? task.oneOffDate;
+  if (planned !== null && planned < date) return "earlier";
+  if (planned !== null && planned > date) return "later";
+  if (task.oneOffSize != null && task.oneOffDate === null && task.oneOffDue !== null) return "deadline";
+  return null;
+}
+
+/** The Not on today groups, in order, each in your order. Work planned
+ *  later comes from `plannedAhead`; the rest from what the day holds. */
+export function notOnToday(input: {
+  planned: PlannedDay;
+  group: (taskId: string) => NotOnTodayGroup | null;
+  dayOrder: ReadonlyMap<string, number>;
+  /** Later one-offs loaded when the list opens (`loadPlannedAhead`). */
+  aheadIds?: readonly string[];
+  /** Tasks set to Not today. */
+  setAsideIds?: readonly string[];
+}): { group: NotOnTodayGroup; taskIds: string[] }[] {
+  const { planned, group, dayOrder, aheadIds = [], setAsideIds = [] } = input;
+  const pinned = new Set(planned.unplacedPins.map((p) => p.taskId));
+  const held: Record<NotOnTodayGroup, string[]> = { earlier: [], deadline: [], later: [], setAside: [...setAsideIds] };
+  for (const id of planned.later) {
+    const g = group(id);
+    if (g !== null && !pinned.has(id)) held[g].push(id);
+  }
+  for (const id of [...planned.plannedAhead, ...aheadIds]) {
+    if (!pinned.has(id) && !held.later.includes(id)) held.later.push(id);
+  }
+  const order = (ids: string[]) => inYourOrder(ids.map((taskId) => ({ taskId })), dayOrder).map((r) => r.taskId);
+  return (["earlier", "deadline", "later", "setAside"] as const)
+    .map((g) => ({ group: g, taskIds: order(held[g]) }))
+    .filter((g) => g.taskIds.length > 0);
 }
 
 /** Today's ticks, under the window each was done in, in the day's

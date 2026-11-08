@@ -81,14 +81,6 @@ export function constellation(
   ];
 }
 
-/** One hue washing a focused screen — used per area in the diagnostic. */
-export function hueWash(accent: string): BackdropCircle[] {
-  return [
-    { color: accent, size: 280, offset: { top: 120, right: -130 }, alpha: "16" },
-    { color: accent, size: 140, offset: { bottom: -40, left: -50 }, alpha: "0d" },
-  ];
-}
-
 const styles = StyleSheet.create({
   scrolling: { position: "absolute", left: 0, right: 0 },
 });

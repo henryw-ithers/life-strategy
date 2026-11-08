@@ -336,7 +336,10 @@ export function computeDayLoad(
       // A deadline: spread over the days until it's due, and all of it
       // once due or overdue (ADR-0050).
       spread += (task.weight * owed) / daysUntil(date, task.oneOffDue, away);
-    } else if (!isPinnedElsewhere(task, date)) {
+    } else if (!isPinnedElsewhere(task, date) && task.skippedDates?.has(date) !== true) {
+      // Skipped today (Not today, made ahead of the day), it asks
+      // nothing of today; its runs fall to the days left (Henry,
+      // 2026-11-07).
       // Flexible: the runs it still owes join the pool, at most one for
       // each day it can still run (ADR-0050): a bounded series ending
       // Tuesday doesn't load Wednesday (ADR-0040), and a week's backlog

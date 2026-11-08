@@ -178,7 +178,7 @@ const PUSHED: [route: string, title: string][] = [
   // The tiers (ADR-0041), from Life, and from onboarding's step 2.
   ["backup", "Your data"],
   ["away", "Time away"],
-  // From Plan's ⋯ menu (spec §5.3.1).
+  // Windows are set aside (ADR-0051); kept for when they come back.
   ["hours", "Working hours"],
   ["calibration", "Calibration"],
   // Its heading, "Where your data lives", is too long for a large title.

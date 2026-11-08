@@ -17,7 +17,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createCommitment,
   deleteCommitment,
-  setUsesSubCommitments,
   updateCommitment,
 } from "../commitmentWrites";
 import { savePriorities } from "../priorities";
@@ -33,7 +32,7 @@ import {
   windowChoice,
   windowChoiceMember,
 } from "../schema";
-import { archiveTask, restoreTask, setTaskPlanning } from "../tasks";
+import { archiveTask, setTaskPlanning } from "../tasks";
 import { resetTestDb, testDb } from "./harness";
 
 const recache = vi.hoisted(() => vi.fn(() => Promise.resolve()));
@@ -207,14 +206,7 @@ describe("archiveTask", () => {
     expect(taskRow("run")?.pointValue).toBe(0);
     expect(gradesStale()).toBeUndefined();
   });
-
-  it("restoreTask undoes it", async () => {
-    seedPlan();
-    await archiveTask("gym");
-    await restoreTask("gym");
-    expect(taskRow("gym")?.active).toBe(true);
-    expect(taskRow("gym")?.archivedAt).toBeNull();
-  });
+;
 });
 
 describe("deleteCommitment", () => {
@@ -274,34 +266,6 @@ describe("deleteCommitment", () => {
   });
 });
 
-describe("setUsesSubCommitments", () => {
-  it("folds the work up and splits it back out where it came from", async () => {
-    seedCommitment();
-    await setUsesSubCommitments("school", false);
-    expect(taskRow("essay")?.unitId).toBe("school");
-    expect(taskRow("essay")?.movedFromUnitId).toBe("comp");
-    const comp = () => testDb().select().from(lifeUnit).all().find((u) => u.id === "comp");
-    expect(comp()?.archivedAt).not.toBeNull();
-
-    await setUsesSubCommitments("school", true);
-    expect(taskRow("essay")?.unitId).toBe("comp");
-    expect(taskRow("essay")?.movedFromUnitId).toBeNull();
-    expect(comp()?.archivedAt).toBeNull();
-  });
-
-  it("leaves the work where it was when folding fails part way", async () => {
-    seedCommitment();
-    // The tasks move first; archiving the sub-commitments comes after.
-    failOn("life_unit", "UPDATE");
-
-    await expect(setUsesSubCommitments("school", false)).rejects.toThrow(/injected failure/);
-
-    expect(taskRow("essay")?.unitId).toBe("comp");
-    expect(taskRow("essay")?.movedFromUnitId).toBeNull();
-    const memberships = testDb().select().from(taskUnit).all().filter((m) => m.taskId === "essay");
-    expect(memberships.map((m) => m.unitId)).toEqual(["comp"]);
-  });
-});
 
 describe("savePriorities", () => {
   const order = [

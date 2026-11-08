@@ -130,7 +130,14 @@ export function HomeSectionCard({
   const row = (r: SectionRow) => {
     const t = tasks.get(r.taskId);
     if (!t) return null;
-    const reason = r.reason === undefined ? undefined : r.reason === "stillOpen" ? "Still open" : reasonLabel(r.reason);
+    const reason =
+      r.reason === undefined
+        ? undefined
+        : r.reason === "stillOpen"
+          ? "Still open"
+          : r.reason === "extra"
+            ? "Extra"
+            : reasonLabel(r.reason);
     return (
       <Animated.View key={r.taskId} layout={reduceMotion ? undefined : LinearTransition.duration(220)}>
         <DragRow id={r.taskId} sectionKey={section.key} enabled={editable && canDrag(t)} onHold={holdFor(t, windowStart)}>

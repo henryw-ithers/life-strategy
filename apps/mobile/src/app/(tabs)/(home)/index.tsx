@@ -24,13 +24,11 @@ import {
 } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Redirect, router, useLocalSearchParams, type Href } from "expo-router";
-import { useHeaderHeight } from "expo-router/react-navigation";
+import { Redirect, router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,7 +49,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { CelebrationCard } from "../../../components/achievements/CelebrationCard";
-import { openAdd, TabToolbar } from "../../../components/nav/TabToolbar";
+import { TabToolbar } from "../../../components/nav/TabToolbar";
+import { AddSheets, type AddKind } from "../../../components/plan/AddSheets";
 import { AddFromOpenSheet } from "../../../components/plan/AddFromOpenSheet";
 import { ItemEditor } from "../../../components/plan/ItemEditor";
 import { DayParts, partsOf } from "../../../components/plan/DayParts";
@@ -67,7 +66,7 @@ import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
 import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
-import { anchorOf, homeSections, timedRows } from "../../../components/today/homeSections";
+import { anchorOf, homeSections, notOnTodayGroup, timedRows } from "../../../components/today/homeSections";
 import { HomeToday, OTHERS_KEY, windowId } from "../../../components/today/HomeToday";
 import type { RowExtra } from "../../../components/today/HomeWindow";
 import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
@@ -78,7 +77,7 @@ import { ScoreSheet } from "../../../components/today/ScoreSheet";
 import { rowHold, TaskRow } from "../../../components/today/TaskRow";
 import { TodayHeader } from "../../../components/today/TodayHeader";
 import { AppText } from "../../../components/ui/AppText";
-import { Backdrop, constellation } from "../../../components/ui/Backdrop";
+import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { NativeSheet } from "../../../components/ui/NativeSheet";
@@ -92,7 +91,7 @@ import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../.
 import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
 import { pinForDay, unpinForDay } from "../../../db/pins";
-import { addSkip } from "../../../db/skips";
+import { addSkip, setRunsSkipped } from "../../../db/skips";
 import { archiveTask, reorderDayTasks } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
@@ -102,7 +101,7 @@ import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { spokenDate } from "../../../lib/format";
-import { getTheme } from "../../../theme/colors";
+import { getTheme, unitHue } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { dayMinuteAt } from "../../../lib/calendar";
 import { WINDOWS } from "../../../lib/features";
@@ -259,10 +258,10 @@ export default function TodayScreen() {
   }
   const ahead = usePlannedAhead(day, othersOpen);
 
-  const headerHeight = useHeaderHeight();
-  const headerInset = Platform.OS === "ios" ? headerHeight : 0;
-
-  /** Another tab's + menu asked to log something (`openAdd`). */
+  /** New task and New event, from this tab's + or another's
+   *  (`openAdd`); they lived on Week until it went. */
+  const [adding, setAdding] = useState<AddKind | null>(null);
+  /** Another tab's + menu asked to add something (`openAdd`). */
   const { add: addParam } = useLocalSearchParams<{ add?: string }>();
   const [seenAddParam, setSeenAddParam] = useState(addParam);
   if (addParam !== seenAddParam) {
@@ -271,6 +270,7 @@ export default function TodayScreen() {
       setEditingActivity(null);
       setActivitySheet(true);
     }
+    if (addParam === "task" || addParam === "event") setAdding(addParam);
   }
   useEffect(() => {
     if (addParam) router.setParams({ add: undefined });
@@ -288,20 +288,37 @@ export default function TodayScreen() {
   const isToday = day !== null && day.date === day.today && plan !== null;
   /** Windows waiting on a removal's Undo, by `windowId`. */
   const hiddenKey = [...undo.hidden].filter((id) => id.startsWith("win-")).sort().join("|");
+  /** Tasks waiting on a delete's Undo: gone from the day at once, not
+   *  once the delete lands (Henry, 2026-11-07). */
+  const hiddenTasks = [...undo.hidden]
+    .filter((id) => !id.startsWith("win-"))
+    // "Not today" waits on Undo the same way, under `skip-<task id>`.
+    .map((id) => (id.startsWith("skip-") ? id.slice(5) : id))
+    .sort()
+    .join("|");
   /** Today's windows, filled live: the clock, swaps and pulls. A window
    *  waiting on Undo is left out, so its tasks go where they'd go
    *  without it (EC-19). */
   const planned = useMemo(() => {
     if (!plan || !isToday) return null;
     const gone = new Set(hiddenKey.split("|").filter(Boolean).map((id) => id.slice(4)));
+    const deleted = new Set(hiddenTasks.split("|").filter(Boolean));
     return planDay({
       ...plan.input,
+      open: plan.input.open.filter((t) => !deleted.has(t.taskId)),
+      pins: plan.input.pins.filter((p) => !deleted.has(p.taskId)),
+      done: (plan.input.done ?? []).filter((d) => !deleted.has(d.taskId)),
       windows: plan.input.windows.filter((w) => !gone.has(windowId(w))),
       now: nowMinute,
       declined,
       pulledIn,
     });
-  }, [plan, isToday, hiddenKey, nowMinute, declined, pulledIn]);
+  }, [plan, isToday, hiddenKey, hiddenTasks, nowMinute, declined, pulledIn]);
+  /** Which Not on today group a task is in (Henry, 2026-11-07). */
+  const groupOf = (id: string) => {
+    const t = plan?.tasks.get(id);
+    return t && day ? notOnTodayGroup(t, day.date) : null;
+  };
   /** A day ahead, shown in its parts as Week shows it (ADR-0051). */
   const isFuture = day !== null && day.date > day.today && plan !== null;
   /** The day as sections you can rearrange (ADR-0048): today live, a
@@ -313,12 +330,18 @@ export default function TodayScreen() {
             planned,
             partOf: (id) => plan.tasks.get(id)?.partOfDay ?? null,
             dayOrder: plan.dayOrder,
-            timed: timedRows(plan, planned),
+            timed: timedRows(plan, planned).filter(
+              (r) => !hiddenTasks.split("|").includes(r.taskId),
+            ),
+            elsewhere: (id) => {
+              const t = plan.tasks.get(id);
+              return t ? notOnTodayGroup(t, plan.day.date) : null;
+            },
           })
         : isFuture && plan
           ? partsOf(plan)
           : [],
-    [planned, plan, isFuture],
+    [planned, plan, isFuture, hiddenTasks],
   );
   const needsPlan = day !== null && day.date === day.today && plan === null;
   useEffect(() => {
@@ -342,7 +365,7 @@ export default function TodayScreen() {
   if (day === null) {
     return (
       <View style={styles.root}>
-        <TabToolbar onTask={() => openAdd("task")} onEvent={() => openAdd("event")} onLog={logSomething} settings />
+        <TabToolbar onTask={() => setAdding("task")} onEvent={() => setAdding("event")} onLog={logSomething} settings />
         <ActivityIndicator color={theme.muted} style={styles.loading} />
       </View>
     );
@@ -351,7 +374,8 @@ export default function TodayScreen() {
   const canRecord = day.date <= day.today;
   const layout = reduceMotion ? undefined : LinearTransition.duration(200);
   const dayLabel = isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? day.date);
-  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
+  // The unit's own colour, a commitment's included (`unitHue`).
+  const hueFor = (t: TodayTask) => unitHue(theme, t);
   const askClear = () => void askClearToday(() => void refresh());
   // Swipe left or right for the next or previous day (spec §5.2);
   // vertical movement stays the scroll's.
@@ -376,8 +400,8 @@ export default function TodayScreen() {
 
   const toolbar = (
     <TabToolbar
-      onTask={() => openAdd("task")}
-      onEvent={() => openAdd("event")}
+      onTask={() => setAdding("task")}
+      onEvent={() => setAdding("event")}
       onWindow={
         WINDOWS && windowEditable
           ? () => {
@@ -451,7 +475,20 @@ export default function TodayScreen() {
       isToday && t.kind === "task" && t.completedToday && (planned?.windows.length ?? 0) > 1
         ? () => setDoneInTask(t)
         : undefined,
-    onSkip: t.kind === "event" && !t.completedToday && day.date >= day.today ? () => askSkipEvent(t) : undefined,
+    onSkip:
+      t.kind === "event" && !t.completedToday && day.date >= day.today
+        ? () => askSkipEvent(t)
+        : t.kind === "task" && !t.completedToday && t.oneOffSize == null && day.date >= day.today
+          ? // Not today (Henry, 2026-11-07): this day's run skipped, the
+            // task kept. Skips are ADR-0040's, so a skip on the day that
+            // empties it leaves it ungraded, never a rest day.
+            () =>
+              undo.remove({
+                id: `skip-${t.id}`,
+                message: `${t.title}: not today`,
+                run: () => addSkip({ kind: "occurrence", taskId: t.id, date: day.date }),
+              })
+          : undefined,
     onEdit: day.editable ? () => setEditingItem(t.id) : undefined,
   });
 
@@ -592,28 +629,10 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Fixed behind Home's content: its own header sits above the
-          scroll view. */}
-      <Backdrop circles={constellation(theme.areas, { faint: true })} />
+      {/* The large title folds as you scroll (Henry, 2026-11-07): the
+          day's name, with its date and grade at the top of the list. */}
+      <Stack.Screen options={{ title: isToday ? "Today" : (spokenDate(day.date).split(",")[0] ?? "") }} />
       {toolbar}
-
-      <TodayHeader
-        day={day}
-        weekGrade={weekGrade}
-        monthGrades={monthGrades}
-        monthOpen={monthOpen}
-        onToggleMonth={() => setMonthOpen((v) => !v)}
-        viewMonth={viewMonth}
-        onChangeMonth={changeMonth}
-        onSelect={select}
-        onOpenKind={() => setKindSheet(true)}
-        onOpenScore={() => setScoreSheet(true)}
-        onStep={(d: number) => leave(d < 0 ? -1 : 1)}
-        topInset={headerInset}
-        layout={layout}
-        reduceMotion={reduceMotion}
-        theme={theme}
-      />
 
       <DayDrag
         onDrop={dropTask}
@@ -640,6 +659,22 @@ export default function TodayScreen() {
           scrollY.current = e.nativeEvent.contentOffset.y;
         }}
       >
+        <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
+        <TodayHeader
+          day={day}
+          weekGrade={weekGrade}
+          monthGrades={monthGrades}
+          monthOpen={monthOpen}
+          onToggleMonth={() => setMonthOpen((v) => !v)}
+          viewMonth={viewMonth}
+          onChangeMonth={changeMonth}
+          onSelect={select}
+          onOpenScore={() => setScoreSheet(true)}
+          onStep={(d: number) => leave(d < 0 ? -1 : 1)}
+          layout={layout}
+          reduceMotion={reduceMotion}
+          theme={theme}
+        />
         <Animated.View style={[styles.slide, slideStyle]}>
         {day.finalized ? (
           <AppText variant="caption" color={theme.muted} style={styles.stateNote}>
@@ -766,6 +801,21 @@ export default function TodayScreen() {
                 expanded={expanded}
                 onToggleSection={(key, open) => setExpanded((e) => ({ ...e, [key]: open }))}
                 ahead={ahead}
+                groupOf={groupOf}
+                onAddToday={(t) =>
+                  // Pinned into today, in its part of the day. A pin never
+                  // changes what's due (ADR-0039 §12): a one-off keeps its
+                  // own day, so done today it's paid what that day would
+                  // have paid, and a carried one never joins today's load.
+                  // Set aside with Not today: take the skip back.
+                  void saveThen(
+                    () =>
+                      t.skippedToday
+                        ? setRunsSkipped(t.id, [day.date], false)
+                        : pinForDay(t.id, day.date, anchorOf(t.partOfDay ?? "anytime"), "window"),
+                    () => refresh(),
+                  )
+                }
                 othersOpen={othersOpen}
                 onToggleOthers={() => setOthersOpen((v) => !v)}
                 renderRow={taskRow}
@@ -877,6 +927,14 @@ export default function TodayScreen() {
       </DayDrag>
 
       <UndoBar undo={undo} theme={theme} />
+
+      <AddSheets
+        adding={adding}
+        onClose={() => setAdding(null)}
+        save={(write) => saveThen(write, refresh)}
+        onSaved={() => void refresh()}
+        theme={theme}
+      />
 
       <ItemEditor
         itemId={editingItem}

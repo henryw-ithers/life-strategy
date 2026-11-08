@@ -17,7 +17,7 @@
  *
  * Achievements open from the top (ADR-0047 §7), and each unit's row
  * carries its highest rank and a streak mark while a run is going.
- * Adding a task or event from the + menu happens on Plan (`openAdd`).
+ * Adding a task or event from the + menu happens on Today (`openAdd`).
  */
 import { addDays, TIERS } from "@glide/scoring";
 import { router, type Href } from "expo-router";

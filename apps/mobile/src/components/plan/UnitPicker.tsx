@@ -26,7 +26,8 @@
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { wash, type ThemeTokens } from "../../theme/colors";
+import { unitHue, wash, type ThemeTokens } from "../../theme/colors";
+import { isPaletteKey } from "../../theme/palette";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { COMMUNAL_TASK_NOTE } from "./planning";
@@ -137,7 +138,7 @@ export function UnitPicker({
         {units.map((u) => {
           const index = value.indexOf(u.id);
           const selected = index >= 0;
-          const hue = areaColors[u.areaId] ?? theme.accent;
+          const hue = isPaletteKey(u.colour) ? unitHue(theme, u) : (areaColors[u.areaId] ?? theme.accent);
           const notNow = u.notNow === true && !selected;
           // A Not now chip stays tappable, to say why it can't be picked.
           const blocked = !notNow && !canPick(value, u.id, units, max);

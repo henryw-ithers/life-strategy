@@ -18,7 +18,6 @@
  *   percentage, or a count of weeks not met.
  */
 import { computeStreak, type Streak } from "./streak";
-import { sizeMinutes } from "./fill";
 import type { TaskSize } from "./windows";
 
 export const RANKS = ["bronze", "silver", "gold", "platinum", "diamond"] as const;
@@ -228,9 +227,12 @@ export function clampTookAbout(minutes: number): number {
 }
 
 /**
- * The time a tick counts for, in minutes: "Took about…" when set, else
- * an event's own length, else the task's size (0.5, 1 or 2 hours; no
- * size is Normal), either of the last two scaled by how much was done.
+ * The time a tick counts for, in minutes: **only time that's real**
+ * (Henry, 2026-11-07: a Sleep task with no time had counted 10 hours).
+ * "Took about…" when one is stored, else the length of an event or a
+ * task with a start and end, scaled by how much was done. A task with
+ * no time counts none: its size is an estimate for fitting work into a
+ * day, never hours spent.
  */
 export function tickMinutes(tick: {
   readonly size: TaskSize | null;
@@ -241,6 +243,6 @@ export function tickMinutes(tick: {
   const took = tick.tookMinutes;
   if (took != null) return clampTookAbout(took);
   const duration = tick.durationMinutes;
-  const whole = duration != null && duration > 0 ? duration : sizeMinutes(tick.size);
-  return whole * Math.min(1, Math.max(0, tick.fraction ?? 1));
+  if (duration == null || duration <= 0) return 0;
+  return duration * Math.min(1, Math.max(0, tick.fraction ?? 1));
 }

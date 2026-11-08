@@ -9,7 +9,6 @@ import { addDays, pinsOn } from "@glide/scoring";
 import { addDayEdit, deleteDayEdit, loadDayEdits, loadHoursVersions, saveHoursFrom } from "../hours";
 import {
   createChoice,
-  deleteChoice,
   endPinFrom,
   loadChoices,
   loadPinRules,
@@ -19,7 +18,6 @@ import {
   removePinsForTasks,
   setPinKind,
   unpinForDay,
-  updateChoice,
 } from "../pins";
 import { addAway, addSkip, loadAwayRanges, loadSkipsBetween, removeSkip, setRepeatBounds } from "../skips";
 import { appSetting, lifeArea, lifeUnit, task, taskCompletion, windowPlacement } from "../schema";
@@ -259,10 +257,6 @@ describe('"Do N of these"', () => {
     await expect(
       createChoice({ localDate: MON, anchorMinute: 540, taskIds: ["essay", "reading"], plannedCount: 1 }),
     ).rejects.toThrow("already in a choice");
-    await updateChoice(id, { plannedCount: 1 });
-    expect((await loadChoices(MON))[0]?.plannedCount).toBe(1);
-    await deleteChoice(id);
-    expect(await loadChoices(MON)).toEqual([]);
   });
 
   it("a choice left with one task goes when another is forgotten", async () => {

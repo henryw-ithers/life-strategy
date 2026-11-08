@@ -1,19 +1,18 @@
 /**
  * Achievements on a real migrated SQLite (ADR-0047): ranks awarded
  * once and never taken back, progress toward the next, the celebration
- * shown once, the month review's list, and "Took about…".
+ * shown once, and the month review's list.
  */
+import type { SeriesId } from "@glide/scoring";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   awardAchievements,
   badgesByUnit,
   loadAchievements,
-  loadUncelebrated,
-  markCelebrated,
   takeUncelebrated,
 } from "../achievements";
-import { setTookAbout, toggleCompletion } from "../completions";
+import { toggleCompletion } from "../completions";
 import { loadLog } from "../log";
 import { achievement, lifeArea, lifeUnit, task, taskCompletion, taskUnit } from "../schema";
 import { resetTestDb, testDb } from "./harness";
@@ -128,15 +127,6 @@ describe("awarding", () => {
 });
 
 describe("celebrating", () => {
-  it("is shown once", async () => {
-    ticks(20);
-    await awardAchievements();
-    const waiting = await loadUncelebrated();
-    expect(waiting.length).toBeGreaterThan(0);
-    await markCelebrated(waiting.map((a) => a.id));
-    expect(await loadUncelebrated()).toEqual([]);
-  });
-
   it("is handed out once, even if the card is never put away", async () => {
     ticks(20);
     await awardAchievements();
@@ -150,10 +140,10 @@ describe("celebrating", () => {
   it("marks skipped series without returning them", async () => {
     ticks(20);
     await awardAchievements();
-    const all = await loadUncelebrated();
-    const skipped = new Set(all.map((a) => a.series));
+    const all = testDb().select().from(achievement).all();
+    const skipped = new Set(all.map((a) => a.series as SeriesId));
     expect(await takeUncelebrated(skipped)).toEqual([]);
-    expect(await loadUncelebrated()).toEqual([]);
+    expect(await takeUncelebrated(new Set())).toEqual([]);
   });
 });
 
@@ -166,18 +156,3 @@ describe("the month review", () => {
   });
 });
 
-describe("Took about…", () => {
-  it("is kept on the tick and clamped, and counts toward hours", async () => {
-    await toggleCompletion("run", TODAY);
-    await setTookAbout("run", TODAY, 10_000);
-    const [row] = testDb().select().from(taskCompletion).all();
-    expect(row?.actualMinutes).toBe(720);
-    const hours = (await loadAchievements()).find((a) => a.series === "unitHours" && a.subjectId === "fit");
-    expect(hours?.progress).toBe(12);
-    expect(testDb().select().from(achievement).all().length).toBeGreaterThan(0);
-  });
-
-  it("refuses a day with no tick", async () => {
-    await expect(setTookAbout("run", TODAY, 30)).rejects.toThrow();
-  });
-});

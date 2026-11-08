@@ -57,10 +57,6 @@ export const PART_OF_DAY_LABEL: Record<PartOfDay, string> = {
   evening: "Evening",
 };
 
-/** What an unpinned part of day is called. Null is a first-class
- *  value, not a missing one — most of a plan is deliberately flexible. */
-export const ANYTIME_LABEL = "Anytime";
-
 /** `[3, 1, 5]` → `"1,3,5"`. Empty means flexible, which stores as null. */
 export function formatWeekdays(days: readonly Weekday[]): string | null {
   if (days.length === 0) return null;

@@ -188,6 +188,11 @@ export interface PlannedDay {
   /** Tasks kept to a part of the day no window touches, ranked: shown
    *  in that part of the day's own section (ADR-0048). */
   readonly byPart: Readonly<Record<PartOfDay, readonly string[]>>;
+  /** Tasks whose week's runs are already done, ranked: still there to
+   *  tick, as an extra run worth less (ADR-0023 §2; Henry, 2026-11-07:
+   *  a third tick of a 2×/week task must still be loggable). Never
+   *  suggested into a window. */
+  readonly extra: readonly string[];
 }
 
 /** Whether a window touches a part of the day at all. */
@@ -326,8 +331,12 @@ export function planDay(input: PlanDayInput): PlannedDay {
   }
   for (const slot of slots) slot.pinned.sort((a, b) => a.order - b.order);
 
-  // A task with no run owed and no live extra pin isn't open at all.
-  // Work planned for a later day is never suggested (§3.2).
+  // A task with no run owed is an extra run: listed apart, never
+  // suggested. Work planned for a later day is never suggested (§3.2).
+  const extra = [...byId.values()]
+    .filter((t) => !t.owesRun && !pinnedIds.has(t.taskId) && t.plannedLater !== true)
+    .sort(compareFor(null, suggestBy))
+    .map((t) => t.taskId);
   const unpinned = [...byId.values()].filter((t) => t.owesRun && !pinnedIds.has(t.taskId));
   const candidates = unpinned.filter((t) => t.plannedLater !== true);
   const plannedAhead = unpinned
@@ -427,6 +436,7 @@ export function planDay(input: PlanDayInput): PlannedDay {
     doesntFit,
     later,
     plannedAhead,
+    extra,
     byPart: {
       morning: byPart.morning.sort(rank).map((t) => t.taskId),
       afternoon: byPart.afternoon.sort(rank).map((t) => t.taskId),

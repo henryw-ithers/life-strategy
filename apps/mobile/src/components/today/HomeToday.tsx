@@ -14,8 +14,12 @@
  *   skips one (ADR-0040 §2).
  * - **Done** is at the bottom, each tick under the window it was done
  *   in: hold one to say it was done in another.
- * - **Other open tasks** has three groups: Doesn't fit today, More for
- *   today and Planned for other days (ADR-0037 §3). It starts closed,
+ * - **Not on today** (Henry, 2026-11-07): work that belongs to another
+ *   day, in three groups (earlier this week, with a deadline, later this
+ *   week), each with Add to today. It starts closed, and loads later
+ *   one-offs once opened (ADR-0037 §3).
+ * - **Other open tasks**, on a day with windows: Doesn't fit today and
+ *   More for today. It starts closed,
  *   and dropping a task there takes it out of its window for today.
  *
  * Every open task shows exactly once (EC-19).
@@ -34,7 +38,7 @@ import { AppText } from "../ui/AppText";
 import { ExpandChevron } from "../ui/ExpandChevron";
 import { DragRow, useDropTarget } from "./DayDrag";
 import { openIndex, situationLine, windowState, type WindowState } from "./homeDay";
-import { doneGroups, type HomeSection } from "./homeSections";
+import { doneGroups, NOT_ON_TODAY_LABEL, notOnToday, type HomeSection, type NotOnTodayGroup } from "./homeSections";
 import { HomeSectionCard, type RowExtra } from "./HomeWindow";
 
 export const windowId = (r: TimeRange) => `${r.start}-${r.end}`;
@@ -66,6 +70,10 @@ interface HomeTodayProps {
   onRemove: (range: TimeRange) => void;
   reduceMotion: boolean;
   theme: ThemeTokens;
+  /** Which Not on today group a task is in, or null for today's own. */
+  groupOf: (taskId: string) => NotOnTodayGroup | null;
+  /** Add to today: put work from another day on today's list. */
+  onAddToday: (task: TodayTask) => void;
 }
 
 /** Where a part of the day is, today: over, now, or still to come. */
@@ -95,6 +103,8 @@ export function HomeToday({
   onEditTimes,
   onRemove,
   reduceMotion,
+  groupOf,
+  onAddToday,
   theme,
 }: HomeTodayProps) {
   const [doneOpen, setDoneOpen] = useState(false);
@@ -123,11 +133,21 @@ export function HomeToday({
     })),
   ].sort((a, b) => a.start - b.start);
 
-  const aheadIds = new Set(planned.plannedAhead);
-  const aheadRows = [
-    ...planned.plannedAhead.map((id) => tasks.get(id)).filter((t): t is TodayTask => t !== undefined),
-    ...(ahead ?? []).filter((t) => !aheadIds.has(t.id) && !tasks.has(t.id)),
-  ];
+  // Later one-offs, loaded once the section opens, join its rows.
+  const aheadById = new Map((ahead ?? []).filter((t) => !tasks.has(t.id)).map((t) => [t.id, t] as const));
+  const taskOf = (id: string) => tasks.get(id) ?? aheadById.get(id);
+  // Set to Not today: listed here so Add to today can bring it back.
+  const setAsideIds = [...tasks.values()]
+    .filter((t) => t.kind === "task" && t.skippedToday && !t.completedToday)
+    .map((t) => t.id);
+  const notToday = notOnToday({
+    planned,
+    group: groupOf,
+    dayOrder: plan.dayOrder,
+    aheadIds: [...aheadById.keys()],
+    setAsideIds,
+  });
+  const notTodayCount = notToday.reduce((n, g) => n + g.taskIds.length, 0);
   // On a day with windows, what no window holds; on one with none,
   // the parts of the day hold it.
   const later =
@@ -137,7 +157,7 @@ export function HomeToday({
     { key: "more", label: "More for today", ids: later },
   ];
   const otherIds = [...planned.doesntFit, ...later];
-  const otherCount = otherIds.length + aheadRows.length;
+  const otherCount = otherIds.length;
   const [overOthers, attachOthers] = useDropTarget(OTHERS_KEY, othersOpen ? otherIds : []);
 
   const done = doneGroups({
@@ -259,18 +279,60 @@ export function HomeToday({
                 ) : null,
               )
             : null}
-          {othersOpen && aheadRows.length > 0 ? (
-            <View style={styles.group}>
-              <AppText variant="caption" color={theme.muted} style={styles.groupLabel}>
-                Planned for other days
+        </View>
+      ) : null}
+
+      {notTodayCount > 0 ? (
+        <View style={styles.others}>
+          <Pressable
+            onPress={onToggleOthers}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: othersOpen }}
+            style={styles.othersHeader}
+          >
+            <View style={styles.othersTitle}>
+              <AppText variant="label" color={theme.ink}>
+                Not on today ({notTodayCount})
               </AppText>
-              <View style={[cardStyle(theme), styles.list]}>
-                {aheadRows.map((t) => (
-                  <View key={`a-${t.id}`}>{renderRow(t, { windowStart: null, dragged: false })}</View>
-                ))}
-              </View>
+              <ExpandChevron open={othersOpen} color={theme.muted} size={13} />
             </View>
-          ) : null}
+          </Pressable>
+          {othersOpen
+            ? notToday.map((g) => (
+                <View key={g.group} style={styles.group}>
+                  <AppText variant="caption" color={theme.muted} style={styles.groupLabel}>
+                    {NOT_ON_TODAY_LABEL[g.group]}
+                  </AppText>
+                  <View style={[cardStyle(theme), styles.list]}>
+                    {g.taskIds.map((id) => {
+                      const t = taskOf(id);
+                      if (!t) return null;
+                      return (
+                        <View key={`n-${id}`} style={styles.addRow}>
+                          <View style={styles.grow}>{renderRow(t, { windowStart: null, dragged: false })}</View>
+                          {editable ? (
+                            <Pressable
+                              onPress={() => onAddToday(t)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Add ${t.title} to today`}
+                              hitSlop={6}
+                              style={({ pressed }) => [
+                                styles.addButton,
+                                { backgroundColor: theme.fill, opacity: pressed ? 0.6 : 1 },
+                              ]}
+                            >
+                              <AppText variant="caption" color={theme.accent}>
+                                Add to today
+                              </AppText>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))
+            : null}
         </View>
       ) : null}
 
@@ -325,6 +387,9 @@ const styles = StyleSheet.create({
   groupLabel: { paddingHorizontal: space.xs },
   list: { paddingHorizontal: space.lg, paddingVertical: space.xs },
   othersHeader: { minHeight: 44, justifyContent: "center" },
+  addRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  grow: { flex: 1 },
+  addButton: { minHeight: 32, paddingHorizontal: space.md, borderRadius: 999, justifyContent: "center" },
   othersTitle: { flexDirection: "row", alignItems: "center", gap: space.xs },
   doneLabel: { paddingTop: space.sm },
 });

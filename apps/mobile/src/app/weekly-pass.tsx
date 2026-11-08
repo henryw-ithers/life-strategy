@@ -74,7 +74,7 @@ import { currentLocalDate } from "../lib/calendar";
 import { WINDOWS } from "../lib/features";
 import { recordProblem } from "../lib/problemLog";
 import { spokenDate } from "../lib/format";
-import { getTheme } from "../theme/colors";
+import { getTheme, unitHue } from "../theme/colors";
 import { cardStyle } from "../theme/surfaces";
 import { radius, space } from "../theme/tokens";
 
@@ -245,7 +245,7 @@ export default function WeeklyPassScreen() {
 
   // ── Steps ────────────────────────────────────────────────────────
 
-  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
+  const hueFor = (t: TodayTask) => unitHue(theme, t);
 
   const body = (() => {
     if (current === "tiers") {

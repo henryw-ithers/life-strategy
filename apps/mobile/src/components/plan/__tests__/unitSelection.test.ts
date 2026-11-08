@@ -106,7 +106,8 @@ describe("pickableUnits", () => {
         {
           id: "school",
           name: "School",
-          parts: [{ id: "comp2521", name: "COMP2521" }],
+          colour: "pink",
+          parts: [{ id: "comp2521", name: "COMP2521", colour: "pink" }],
           split: true,
           tasks: [],
         },
@@ -114,6 +115,8 @@ describe("pickableUnits", () => {
       areas: [],
     });
     expect(picked.map((u) => u.id)).toEqual(["comp2521"]);
+    // A sub-commitment takes its commitment's colour (Henry, 2026-11-07).
+    expect(picked[0]?.colour).toBe("pink");
   });
 
   it("leads with commitments and their parts, then scored life units", () => {
@@ -123,7 +126,8 @@ describe("pickableUnits", () => {
         {
           id: "school",
           name: "School",
-          parts: [{ id: "comp2521", name: "COMP2521" }],
+          colour: null,
+          parts: [{ id: "comp2521", name: "COMP2521", colour: null }],
           split: false,
           tasks: [],
         },

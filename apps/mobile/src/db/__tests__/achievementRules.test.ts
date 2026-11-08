@@ -83,9 +83,9 @@ describe("counts", () => {
     expect(valueOf(facts({ tasks: [task("run")] }), "unitCompletions", "fit")?.earned).toBe(0);
   });
 
-  it("counts hours from Took about, else the size, scaled by part-done", () => {
+  it("counts only real time: a stored Took about, else the task's own start to end", () => {
     const f = facts({
-      tasks: [task("run", { size: "big" })],
+      tasks: [task("run", { size: "big", startMinute: 420, endMinute: 540 })],
       completions: [
         tick("run", "2026-10-01", { actualMinutes: 45 }),
         tick("run", "2026-10-02"),
@@ -94,6 +94,14 @@ describe("counts", () => {
     });
     // 45 + 120 + 60 minutes.
     expect(valueOf(f, "unitHours", "fit")?.earned).toBe(3);
+  });
+
+  it("counts no hours for a task with no time, whatever its size (Henry, 2026-11-07)", () => {
+    const f = facts({
+      tasks: [task("sleep", { size: "big" })],
+      completions: Array.from({ length: 10 }, (_, i) => tick("sleep", `2026-10-${String(i + 1).padStart(2, "0")}`)),
+    });
+    expect(valueOf(f, "unitHours", "fit")?.earned).toBe(0);
   });
 
   it("counts a commitment's ticked events as attended and in its hours, never a weekly target", () => {
@@ -286,7 +294,7 @@ describe("the wider catalogue", () => {
 
   it("counts hours by area and in all", () => {
     const f = facts({
-      tasks: [task("run", { size: "big" })],
+      tasks: [task("run", { startMinute: 420, endMinute: 540 })],
       completions: [tick("run", "2026-10-01"), tick("run", "2026-10-02")],
     });
     expect(valueOf(f, "areaHours", "health")?.earned).toBe(4);

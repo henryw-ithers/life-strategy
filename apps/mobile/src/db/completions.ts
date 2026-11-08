@@ -5,7 +5,6 @@
  */
 import {
   addDays,
-  clampTookAbout,
   fortnightStart,
   isDueOn,
   normalizeFraction,
@@ -317,31 +316,3 @@ export async function setCompletionTags(
   await cacheDayScore(date);
 }
 
-/**
- * Set or clear "Took about…" on a day's tick, kept between 1 minute
- * and 12 hours. Only hours achievements read it (ADR-0047 §3), and
- * **no points move**, so no day is re-scored. Cleared, a tick counts
- * its size or event length again.
- */
-export async function setTookAbout(
-  taskId: string,
-  date: string,
-  minutes: number | null,
-): Promise<void> {
-  assertEditable(date);
-  if (minutes !== null && !Number.isFinite(minutes)) {
-    throw new Error(`Not a length of time: ${minutes}`);
-  }
-  db.transaction((tx) => {
-    const [completion] = tx
-      .select({ id: taskCompletion.id })
-      .from(taskCompletion)
-      .where(and(eq(taskCompletion.taskId, taskId), eq(taskCompletion.localDate, date)))
-      .all();
-    if (!completion) throw new Error(`No tick of ${taskId} on ${date}`);
-    tx.update(taskCompletion)
-      .set({ actualMinutes: minutes === null ? null : clampTookAbout(minutes) })
-      .where(eq(taskCompletion.id, completion.id))
-      .run();
-  });
-}

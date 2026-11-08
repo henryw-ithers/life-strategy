@@ -194,24 +194,3 @@ export async function loadLog(): Promise<LogMonth[]> {
   });
 }
 
-/**
- * The month you are standing in, for the checkpoint on Portfolio.
- *
- * **A checkpoint, not a ceremony.** ADR-0002 §5 specified the monthly
- * review as a five-stage ritual — diagnostic, then new weights beside
- * old, then settling every goal, then adjusting tasks, then the month's
- * grade. That is a lot of machinery to walk through twelve times a
- * year, and it front-loads bookkeeping onto a moment that is supposed
- * to be reflective. What this returns instead is the small set of facts
- * a person needs in order to *decide* whether anything needs changing:
- * how the month scored, how much of it is behind that number, and what
- * the month actually held. The adjustments stay where they already
- * live — re-rank on this screen, settle a goal on its own screen — so
- * the checkpoint stays a place you look rather than a queue you clear.
- *
- * This is also the first caller `loadMonthGrade` has ever had. The
- * function was written, tested and then referenced by nothing, which is
- * how the monthly half of the product stayed invisible.
- */
-export type MonthCheckpoint = LogMonth;
-

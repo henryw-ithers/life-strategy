@@ -62,7 +62,8 @@
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { type ThemeTokens } from "../../theme/colors";
+import { unitHue, type ThemeTokens } from "../../theme/colors";
+import { isPaletteKey } from "../../theme/palette";
 import { radius, space, type as typeScale } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import { KeyboardScroll } from "../ui/KeyboardScroll";
@@ -167,8 +168,11 @@ export function AddTaskModal({
   /** The home unit's area hue, or the app accent until one is picked —
    *  so the sheet takes the colour of the choice as it's made. */
   const home = unitIds[0];
+  const homeUnit = units.find((u) => u.id === home);
   const accent =
-    areaColors[units.find((u) => u.id === home)?.areaId ?? ""] ?? theme.accent;
+    homeUnit && isPaletteKey(homeUnit.colour)
+      ? unitHue(theme, homeUnit)
+      : (areaColors[homeUnit?.areaId ?? ""] ?? theme.accent);
 
   /** Recurring commitment work has to name its days (ADR-0033). */
   const missingDays = needsDays({

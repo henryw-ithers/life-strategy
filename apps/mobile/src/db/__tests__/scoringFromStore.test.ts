@@ -175,12 +175,15 @@ describe("what's due (ADR-0040)", () => {
     skip("2026-10-18");
     expect((await loadDay(MON)).restDay).toBe(true);
 
+    // Not today on the day itself (Henry, 2026-11-07): the task leaves
+    // the list, but the day still asks for it, so its points are lost.
     testDb().delete(scheduleSkip).run();
     skip(MON);
     const onTheDay = await loadDay(MON);
     expect(onTheDay.restDay).toBe(false);
-    expect(onTheDay.score.base).toBeNull();
+    expect(onTheDay.score.base).toBe(0);
   });
+
 
   it("Clear today skips unticked events and keeps life work due (§4)", async () => {
     addSchool();

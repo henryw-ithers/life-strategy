@@ -193,7 +193,8 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
     const t = taskById.get(c.taskId)!;
     const minutes = tickMinutes({
       size: t.size,
-      durationMinutes: t.kind === "event" && t.startMinute !== null && t.endMinute !== null ? t.endMinute - t.startMinute : null,
+      // An event's, or a timed task's, own length: real time only.
+      durationMinutes: t.startMinute !== null && t.endMinute !== null ? t.endMinute - t.startMinute : null,
       tookMinutes: c.actualMinutes,
       fraction: c.fraction,
     });

@@ -241,3 +241,18 @@ describe("only what can be done today (ADR-0050)", () => {
     expect(computeDayLoad([fortnightly], [], SATURDAY).expected).toBeCloseTo(14 / days, 10);
   });
 });
+
+describe("Not today, made ahead of the day (Henry, 2026-11-07)", () => {
+  it("takes a skipped flexible task out of that day's pool", () => {
+    const read = { ...t("read", 3, 10), skippedDates: new Set([WEDNESDAY]) };
+    expect(computeDayLoad([read], [], WEDNESDAY).expected).toBe(0);
+    // Its runs still fall to the days left.
+    expect(computeDayLoad([read], [], FRIDAY).expected).toBeGreaterThan(0);
+  });
+
+  it("takes a skipped every-day task out of that day", () => {
+    const walk = { ...t("walk", 7, 10), skippedDates: new Set([WEDNESDAY]) };
+    expect(computeDayLoad([walk], [], WEDNESDAY).expected).toBe(0);
+    expect(computeDayLoad([walk], [], FRIDAY).expected).toBe(10);
+  });
+});

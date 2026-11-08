@@ -1,7 +1,7 @@
 /**
- * A day in its parts, for planning (ADR-0051): the Week tab's chosen
- * day, and a day ahead on Today. Morning, Afternoon, Evening, Night
- * (when it holds something) and Anytime, each with its events at their
+ * A day in its parts, for planning (ADR-0051): a day ahead on Today
+ * (the Week tab that also used it went on 2026-11-07). Morning,
+ * Afternoon, Evening, Night (when it holds something) and Anytime, each with its events at their
  * times and then its tasks in your order. The same sections as Today
  * (`homeSections`), so the two can't drift apart.
  *
@@ -22,7 +22,7 @@ import { pinForDay } from "../../db/pins";
 import { archiveTask, reorderDayTasks } from "../../db/tasks";
 import type { TodayTask } from "../../db/today";
 import type { UndoDelete } from "../../hooks/useUndoDelete";
-import type { ThemeTokens } from "../../theme/colors";
+import { unitHue, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import type { DropTarget } from "../today/DayDrag";
@@ -83,7 +83,7 @@ export function PartRow({
   event: boolean;
   theme: ThemeTokens;
 }) {
-  const hue = theme.areas[task.areaId] ?? theme.accent;
+  const hue = unitHue(theme, task);
   return (
     <View style={styles.row}>
       <View style={[event ? styles.bar : styles.dot, { backgroundColor: hue }]} />
@@ -147,7 +147,16 @@ export function DayParts({ day, sections, editable, reload, undo, reduceMotion, 
         </AppText>
       ) : null}
 
-      {sections.map((s) => {
+      {sections.map((whole) => {
+        // A task waiting on a delete's Undo leaves the day at once.
+        const s =
+          whole.kind === "part"
+            ? {
+                ...whole,
+                rows: whole.rows.filter((r) => !undo.hidden.has(r.taskId)),
+                timed: whole.timed.filter((r) => !undo.hidden.has(r.taskId)),
+              }
+            : whole;
         const open = !(folded[s.key] ?? false);
         return (
           <HomeSectionCard
