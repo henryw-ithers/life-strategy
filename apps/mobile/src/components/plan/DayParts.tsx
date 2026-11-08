@@ -22,7 +22,7 @@ import { pinForDay } from "../../db/pins";
 import { archiveTask, reorderDayTasks } from "../../db/tasks";
 import type { TodayTask } from "../../db/today";
 import type { UndoDelete } from "../../hooks/useUndoDelete";
-import type { ThemeTokens } from "../../theme/colors";
+import { unitHue, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
 import type { DropTarget } from "../today/DayDrag";
@@ -83,7 +83,7 @@ export function PartRow({
   event: boolean;
   theme: ThemeTokens;
 }) {
-  const hue = theme.areas[task.areaId] ?? theme.accent;
+  const hue = unitHue(theme, task);
   return (
     <View style={styles.row}>
       <View style={[event ? styles.bar : styles.dot, { backgroundColor: hue }]} />

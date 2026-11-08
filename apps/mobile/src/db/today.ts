@@ -88,6 +88,9 @@ export interface TodayTask {
   title: string;
   unitId: string;
   areaId: string;
+  /** Its unit's own colour, or for a sub-commitment its parent's: a
+   *  palette key, drawn by `unitHue` (ADR-0043 §4). Null for the area's. */
+  colour: string | null;
   pointValue: number;
   timesPerWeek: number;
   /** ADR-0024. Since formula v9 these decide which days a task is due
@@ -341,6 +344,13 @@ export async function loadDay(
 
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
   const unitById = new Map(units.map((u) => [u.id, u]));
+  /** A unit's own colour, else its parent commitment's (Henry,
+   *  2026-11-07: a commitment's colour reaches all its tasks). */
+  const colourOf = (unitId: string): string | null => {
+    const u = unitById.get(unitId);
+    if (!u) return null;
+    return u.colour ?? (u.parentUnitId ? (unitById.get(u.parentUnitId)?.colour ?? null) : null);
+  };
   const scoredUnitIds = new Set(
     units.filter((u) => u.includeInScoring).map((u) => u.id),
   );
@@ -889,6 +899,7 @@ export async function loadDay(
       title: t.title,
       unitId: t.unitId,
       areaId: unitById.get(t.unitId)?.areaId ?? "",
+      colour: colourOf(t.unitId),
       pointValue: value,
       timesPerWeek: t.timesPerWeek,
       plannedWeekdays: t.plannedWeekdays,

@@ -147,7 +147,10 @@ export interface PlanArea {
 export interface PlanCommitment {
   id: string;
   name: string;
-  parts: { id: string; name: string }[];
+  /** Its own colour, a palette key, or null for the area's. */
+  colour: string | null;
+  /** Each sub-commitment, with its colour or the commitment's. */
+  parts: { id: string; name: string; colour: string | null }[];
   /** Split into sub-commitments (ADR-0035 §1): its work lives in them,
    *  never on the commitment itself. */
   split: boolean;
@@ -358,7 +361,8 @@ export async function loadPlan(): Promise<PlanData> {
       return {
         id: c.id,
         name: c.name,
-        parts: parts.map((u) => ({ id: u.id, name: u.name })),
+        colour: c.colour,
+        parts: parts.map((u) => ({ id: u.id, name: u.name, colour: u.colour ?? c.colour })),
         split: subCommitmentsOn(c, parts.length),
         tasks: tasks
           .filter((t) => homes.has(t.unitId))

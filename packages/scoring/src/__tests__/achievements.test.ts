@@ -96,7 +96,10 @@ describe("tickMinutes", () => {
   it("uses Took about, then an event's length, then the size", () => {
     expect(tickMinutes({ size: "big", tookMinutes: 45 })).toBe(45);
     expect(tickMinutes({ size: null, durationMinutes: 90 })).toBe(90);
-    expect(tickMinutes({ size: "quick", fraction: 0.5 })).toBe(15);
+    expect(tickMinutes({ size: null, durationMinutes: 90, fraction: 0.5 })).toBe(45);
+    // A task with no time counts none, whatever its size.
+    expect(tickMinutes({ size: "big" })).toBe(0);
+    expect(tickMinutes({ size: null })).toBe(0);
     expect(clampTookAbout(10_000)).toBe(720);
   });
 });

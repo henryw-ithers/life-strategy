@@ -102,7 +102,7 @@ import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";
 import { spokenDate } from "../../../lib/format";
-import { getTheme } from "../../../theme/colors";
+import { getTheme, unitHue } from "../../../theme/colors";
 import { space } from "../../../theme/tokens";
 import { dayMinuteAt } from "../../../lib/calendar";
 import { WINDOWS } from "../../../lib/features";
@@ -374,7 +374,8 @@ export default function TodayScreen() {
   const canRecord = day.date <= day.today;
   const layout = reduceMotion ? undefined : LinearTransition.duration(200);
   const dayLabel = isToday ? "today" : (spokenDate(day.date).split(",")[0] ?? day.date);
-  const hueFor = (t: TodayTask) => theme.areas[t.areaId] ?? theme.accent;
+  // The unit's own colour, a commitment's included (`unitHue`).
+  const hueFor = (t: TodayTask) => unitHue(theme, t);
   const askClear = () => void askClearToday(() => void refresh());
   // Swipe left or right for the next or previous day (spec §5.2);
   // vertical movement stays the scroll's.

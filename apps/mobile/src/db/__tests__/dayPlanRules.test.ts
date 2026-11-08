@@ -41,6 +41,7 @@ function task(over: Partial<TodayTask> = {}): TodayTask {
     title: "t",
     unitId: "u",
     areaId: "a",
+    colour: null,
     pointValue: 0,
     timesPerWeek: 3,
     plannedWeekdays: null,

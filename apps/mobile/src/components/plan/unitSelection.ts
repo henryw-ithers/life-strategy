@@ -29,6 +29,8 @@ export interface PickableUnit {
   motivationKind?: "instrumental" | "communal";
   /** A commitment or one of its parts (ADR-0035). */
   commitment?: boolean;
+  /** Its own colour, or its commitment's (`unitHue`). */
+  colour?: string | null;
   /** In the Not now tier (ADR-0041): shown greyed, never picked. A Not
    *  now unit holds no tasks (spec §5.4.1). */
   notNow?: boolean;
@@ -103,12 +105,13 @@ export function pickableUnits(plan: PlanData | null): PickableUnit[] {
   const commitments = plan.commitments.flatMap((c) => [
     // A split commitment holds nothing itself — its work goes in a
     // sub-commitment (ADR-0035 §1) — so only those are offered.
-    ...(c.split ? [] : [{ id: c.id, name: c.name, areaId: COMMITMENT_AREA, commitment: true }]),
+    ...(c.split ? [] : [{ id: c.id, name: c.name, areaId: COMMITMENT_AREA, commitment: true, colour: c.colour }]),
     ...c.parts.map((p) => ({
       id: p.id,
       name: p.name,
       areaId: COMMITMENT_AREA,
       commitment: true,
+      colour: p.colour,
     })),
   ]);
   const life = plan.areas.flatMap((a) =>
