@@ -9,7 +9,7 @@ what happens, plus what people might want that the app can't do.
 **Works means the code says so.** These come from reading the code
 and docs; nothing here was run on a device.
 
-449 stories: 366 Works, 60 Gap, 0 Suspect, 23 Parked.
+449 stories: 371 Works, 55 Gap, 0 Suspect, 23 Parked.
 
 ## How to read this
 
@@ -118,16 +118,16 @@ As someone following a glide:// link before onboarding, I want not to reach
 a half-set-up screen, so that the first run stays in order.
 *Outcome:* Every route goes to onboarding until it is done.
 
-**ONB-015 · Gap**
+**ONB-015 · Works**
 As someone sorting units in two sittings, I want my half-sorted board to be
 kept, so that I don't start again.
-*Outcome:* Not built. Progress before all 18 are placed is held in memory
-only.
+*Outcome:* A half-sorted board is kept as a draft and comes back as you left
+it.
 
-**ONB-016 · Gap**
+**ONB-016 · Works**
 As a new user, I want to go back a page in onboarding, so that I can reread
 something.
-*Outcome:* Not built. There is no back button.
+*Outcome:* Back on every page after the first.
 
 **ONB-017 · Gap**
 As a new user, I want starter templates or suggested tasks at setup, so that
@@ -292,10 +292,11 @@ that the calendar is a shortcut.
 *Outcome:* Future cells are disabled and › stops at the current month, so
 future days are swipe-only.
 
-**TOD-027 · Gap**
+**TOD-027 · Works**
 As someone planning next month, I want to jump straight to a future date, so
 that I don't swipe many times.
-*Outcome:* Not built. The month grid can't open future days.
+*Outcome:* The month grid opens any day up to four weeks out, and goes
+forward a month when that reaches it.
 
 **TOD-028 · Gap**
 As someone planning further ahead, I want to view beyond four weeks, so that
@@ -1902,10 +1903,10 @@ As someone reading the empty Log, I want the right tab name, so that I can
 find it.
 *Outcome:* It says "on Today".
 
-**LOG-014 · Gap**
+**LOG-014 · Works**
 As someone wanting to jump from an entry to its day, I want to open that
 day, so that I can edit it.
-*Outcome:* Not built. Log has no link to the day.
+*Outcome:* Tap an entry's date to open that day on Today.
 
 **LOG-015 · Gap**
 As someone searching my notes, I want free-text search, so that I find an
@@ -2184,10 +2185,10 @@ As someone wanting several reminders, I want more than one a day, so that
 morning and evening both work.
 *Outcome:* Not built.
 
-**SET-017 · Gap**
+**SET-017 · Works**
 As someone wanting a theme choice, I want to pick light or dark, so that the
 app suits me.
-*Outcome:* Not built. It follows the system.
+*Outcome:* Settings, Appearance: System, Light or Dark.
 
 **SET-018 · Gap**
 As someone with a Lock Screen habit, I want a widget, so that I can see

@@ -40,6 +40,12 @@ export function readStep(raw: string | null): OnboardingStep {
   return found ?? OLD_STEPS[raw] ?? "welcome";
 }
 
+/** The step before this one, for Back. `welcome` stays `welcome`. */
+export function previousStep(step: OnboardingStep): OnboardingStep {
+  const i = ONBOARDING_STEPS.indexOf(step);
+  return ONBOARDING_STEPS[Math.max(i - 1, 0)] ?? "welcome";
+}
+
 /** The step after this one. `done` stays `done`. */
 export function nextStep(step: OnboardingStep): OnboardingStep {
   const i = ONBOARDING_STEPS.indexOf(step);

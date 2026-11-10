@@ -52,6 +52,8 @@ export interface OnboardingPageProps {
   onPress: () => void;
   /** Shown as a quiet Skip under the action when the step allows it. */
   onSkip?: () => void;
+  /** Back to the page before (Henry, 2026-11-10). None on the first. */
+  onBack?: () => void;
   busy?: boolean;
   /** Long steps (a list to work through) start at the top. */
   top?: boolean;
@@ -67,6 +69,7 @@ export function OnboardingPage({
   action,
   onPress,
   onSkip,
+  onBack,
   busy,
   top,
   circles,
@@ -102,6 +105,9 @@ export function OnboardingPage({
           <Button label={action} onPress={onPress} disabled={busy === true} theme={theme} />
           {onSkip ? (
             <Button label="Skip" variant="quiet" onPress={onSkip} disabled={busy === true} theme={theme} />
+          ) : null}
+          {onBack ? (
+            <Button label="Back" variant="quiet" onPress={onBack} disabled={busy === true} theme={theme} />
           ) : null}
         </View>
       </View>

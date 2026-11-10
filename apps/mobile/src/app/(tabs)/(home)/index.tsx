@@ -16,6 +16,7 @@
  */
 import {
   addDays,
+  isLocalDate,
   isoWeekday,
   planDay,
   specialDayBonus,
@@ -263,7 +264,7 @@ export default function TodayScreen() {
    *  (`openAdd`); they lived on Week until it went. */
   const [adding, setAdding] = useState<AddKind | null>(null);
   /** Another tab's + menu asked to add something (`openAdd`). */
-  const { add: addParam } = useLocalSearchParams<{ add?: string }>();
+  const { add: addParam, date: dateParam } = useLocalSearchParams<{ add?: string; date?: string }>();
   const [seenAddParam, setSeenAddParam] = useState(addParam);
   if (addParam !== seenAddParam) {
     setSeenAddParam(addParam);
@@ -276,6 +277,15 @@ export default function TodayScreen() {
   useEffect(() => {
     if (addParam) router.setParams({ add: undefined });
   }, [addParam]);
+  /** A day opened from elsewhere, such as a Log entry (Henry, 2026-11-10). */
+  useEffect(() => {
+    if (!dateParam) return;
+    // `select` refuses days past the four weeks a day can be planned.
+    if (isLocalDate(dateParam)) select(dateParam);
+    router.setParams({ date: undefined });
+    // `select` is the hook's stable setter; the param is what's watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateParam]);
 
   /** null while unknown, so the gate never flashes Today (ADR-0011). */
   const [onboarded, setOnboarded] = useState<boolean | null>(null);

@@ -36,6 +36,7 @@
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
+import { router, type Href } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
@@ -382,8 +383,14 @@ function DayEntry({
 
   return (
     <View style={styles.day}>
-      <View style={styles.dayHead}>
-        <AppText variant="caption" color={theme.muted} tabular>
+      {/* Tap the date to open that day on Today (Henry, 2026-11-10). */}
+      <Pressable
+        onPress={() => router.navigate(`/?date=${entry.localDate}` as Href)}
+        accessibilityRole="link"
+        accessibilityHint="Opens this day on Today"
+        style={({ pressed }) => [styles.dayHead, { opacity: pressed ? 0.6 : 1 }]}
+      >
+        <AppText variant="caption" color={theme.accent} tabular>
           {dayLabel(entry.localDate)}
         </AppText>
         {/* `flagged` has been in the data since the log was written and
@@ -406,7 +413,7 @@ function DayEntry({
             {entry.score}
           </AppText>
         ) : null}
-      </View>
+      </Pressable>
 
       {entry.achievements.map((title) => (
         <View key={title} style={styles.item}>

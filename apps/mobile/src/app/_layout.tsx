@@ -29,10 +29,11 @@ import { pruneEndedPinsToday } from "../db/pins";
 import { archiveEndedSeries } from "../db/seriesWrites";
 import { syncTaxonomy } from "../db/seed";
 import { isOnboardingComplete } from "../db/onboarding";
-import { loadDayStart } from "../db/settings";
+import { loadAppearance, loadDayStart } from "../db/settings";
 import { useNudgeOpensToday } from "../notifications/dailyNudge";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
+import { applyAppearance, isAppearanceChoice } from "../theme/appearance";
 import { getTheme, type ThemeTokens } from "../theme/colors";
 
 import { space } from "../theme/tokens";
@@ -212,6 +213,9 @@ function MigrationGate() {
       .then(runDataMigrations)
       // When the day starts, before anything asks what day it is.
       .then(loadDayStart)
+      // The look you chose, before the first screen draws.
+      .then(loadAppearance)
+      .then((choice) => applyAppearance(isAppearanceChoice(choice) ? choice : "system"))
       // Old pins aren't kept (windows-and-pins §7). A cleanup that fails
       // is logged and the app opens anyway: a leftover pin is a smaller
       // problem than an app that won't start.
