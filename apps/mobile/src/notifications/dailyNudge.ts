@@ -6,7 +6,9 @@
  * could change that: app open, task completion, rest-day declaration,
  * and settings changes.
  */
+import { router, type Href } from "expo-router";
 import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { randomNotificationLine } from "../content/notificationCopy";
@@ -16,6 +18,17 @@ import {
   markNotificationPermissionAsked,
   setNotificationEnabled,
 } from "../db/settings";
+
+/** A tapped reminder opens Today, wherever the app was. iOS only:
+ *  `expo-notifications` throws on web (see below). */
+export function useNudgeOpensToday(): void {
+  const response = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (response?.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      router.navigate("/" as Href);
+    }
+  }, [response]);
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

@@ -48,7 +48,7 @@ const STATEMENT: readonly { heading: string; body: string }[] = [
   {
     heading: "Backups",
     body:
-      "A backup is one file with everything you’ve written in it, and it goes wherever you choose to put it. It isn’t locked with a passphrase, so anyone who has the file can read it. Keep it somewhere private. We never see it.",
+      "A backup is one file with everything you’ve written in it except photos, and it goes wherever you choose to put it. It isn’t locked with a passphrase, so anyone who has the file can read it. Keep it somewhere private. We never see it.",
   },
 ];
 

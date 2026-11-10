@@ -109,6 +109,17 @@ export async function setDayKind(
   await cacheDayScore(date);
 }
 
+/** Mark a day worth remembering, or not (Henry, 2026-11-10). It keeps
+ *  the day in the Log and counts toward "days worth remembering". No
+ *  score moves, so nothing is re-scored. */
+export async function setDayFlagged(date: string, flagged: boolean): Promise<void> {
+  assertEditable(date);
+  await db
+    .insert(dayGrade)
+    .values({ localDate: date, flagged })
+    .onConflictDoUpdate({ target: dayGrade.localDate, set: { flagged } });
+}
+
 /** One task as it stood on a given day (`day_grade.plan_snapshot`). */
 export interface PlanSnapshotTask {
   taskId: string;

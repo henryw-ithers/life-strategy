@@ -16,6 +16,7 @@ export function ActivitiesBand({
   dayKind,
   editable,
   onEdit,
+  onToggleFlag,
   onAdd,
   layout,
   theme,
@@ -24,6 +25,7 @@ export function ActivitiesBand({
   dayKind: DayKind;
   editable: boolean;
   onEdit: (activity: TodayActivity) => void;
+  onToggleFlag: (activity: TodayActivity) => void;
   onAdd: () => void;
   layout: LinearTransition | undefined;
   theme: ThemeTokens;
@@ -42,6 +44,7 @@ export function ActivitiesBand({
           dayKind={dayKind}
           disabled={!editable}
           onPress={() => onEdit(a)}
+          onToggleFlag={editable ? () => onToggleFlag(a) : undefined}
           theme={theme}
         />
       ))}

@@ -48,6 +48,9 @@ export interface CreateCommitmentInput {
   usesSubCommitments?: boolean;
 }
 
+/** Said when a fourth live commitment would be made (ADR-0035 §1). */
+export const TOO_MANY_COMMITMENTS = "Three commitments is the most at once. Archive one to add another.";
+
 /**
  * Create a commitment.
  *
@@ -68,9 +71,8 @@ export async function createCommitment(
       .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)))
       .all();
     if (!canAddCommitment(existing)) {
-      throw new Error(
-        `At most three commitments (ADR-0035 §1); archive one to add another.`,
-      );
+      // The UI says this before it gets here; this guards a race.
+      throw new Error(TOO_MANY_COMMITMENTS);
     }
 
     const [{ next } = { next: 0 }] = tx
@@ -358,11 +360,20 @@ export async function archiveCommitment(id: string): Promise<void> {
 export async function unarchiveCommitment(id: string): Promise<void> {
   const ids = subtreeIds(db, id);
   const [row] = await db
-    .select({ archivedAt: lifeUnit.archivedAt })
+    .select({ archivedAt: lifeUnit.archivedAt, parentUnitId: lifeUnit.parentUnitId })
     .from(lifeUnit)
     .where(eq(lifeUnit.id, id));
   const finishedAt = row?.archivedAt ?? null;
   db.transaction((tx) => {
+    // Coming back counts toward the cap, like a new one (ADR-0035 §1).
+    if (row?.parentUnitId === null) {
+      const live = tx
+        .select({ id: lifeUnit.id, parentUnitId: lifeUnit.parentUnitId })
+        .from(lifeUnit)
+        .where(and(eq(lifeUnit.isCustom, true), isNull(lifeUnit.archivedAt)))
+        .all();
+      if (!canAddCommitment(live)) throw new Error(TOO_MANY_COMMITMENTS);
+    }
     tx.update(lifeUnit)
       .set({ archivedAt: null })
       .where(inArray(lifeUnit.id, ids))

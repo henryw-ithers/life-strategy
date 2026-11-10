@@ -41,6 +41,7 @@ export function ItemEditor({
   onClose,
   onSaved,
   onDelete,
+  date,
   theme,
 }: {
   /** The task or event to edit; null when closed. */
@@ -50,6 +51,8 @@ export function ItemEditor({
   onSaved: () => void;
   /** Delete, through the caller's Undo. */
   onDelete: (task: PlanTask) => void;
+  /** The day the item was opened from, if any (`saveEventEdit`). */
+  date?: string;
   theme: ThemeTokens;
 }) {
   const [shownId, gone] = useRetained(itemId);
@@ -105,7 +108,7 @@ export function ItemEditor({
         theme={theme}
         onClose={onClose}
         onSave={async (input, bounds) => {
-          const saved = await savedOrSaid(() => saveEventEdit(stored, input, bounds));
+          const saved = await savedOrSaid(() => saveEventEdit(stored, input, bounds, date));
           if (!saved) return;
           onClose();
           onSaved();

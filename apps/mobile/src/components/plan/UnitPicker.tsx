@@ -190,7 +190,7 @@ export function UnitPicker({
       </ScrollView>
       {notNowTapped ? (
         <AppText variant="footnote" color={theme.muted} accessibilityLiveRegion="polite">
-          {nameOf(units, notNowTapped)} is in Not now. Move it up in Priorities to add tasks.
+          {nameOf(units, notNowTapped)} is in Not now. Drag it into a tier on Life to add tasks.
         </AppText>
       ) : null}
       {atMax ? (

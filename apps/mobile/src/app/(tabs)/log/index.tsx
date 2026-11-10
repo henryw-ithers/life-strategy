@@ -263,7 +263,7 @@ export default function LogScreen() {
               Your notes, photos and achievements collect here.
             </AppText>
             <AppText variant="caption" color={theme.muted} style={styles.emptyText}>
-              Add a note or a photo to a day on Home and it will show up here.
+              Add a note or a photo to a day on Today and it will show up here.
             </AppText>
           </View>
         ) : shown.length === 0 ? (
@@ -437,9 +437,7 @@ function DayEntry({
               key={p.id}
               onPress={() => onView(p.uri)}
               accessibilityRole="imagebutton"
-              accessibilityLabel={
-                p.caption ?? `Photo from ${dayLabel(entry.localDate)}`
-              }
+              accessibilityLabel={`Photo from ${dayLabel(entry.localDate)}`}
               accessibilityHint="Opens full screen"
               style={({ pressed }) => [
                 single ? styles.soloFrame : styles.gridFrame,
@@ -467,14 +465,6 @@ function DayEntry({
             </Pressable>
           ))}
         </View>
-      ) : null}
-
-      {/* Only under a lone photo, where there is room for it to read as
-          a caption rather than as a label on a tile. */}
-      {single && entry.photos[0]?.caption ? (
-        <AppText variant="caption" color={theme.muted} style={styles.caption}>
-          {entry.photos[0].caption}
-        </AppText>
       ) : null}
     </View>
   );
@@ -518,7 +508,6 @@ const styles = StyleSheet.create({
   /** A reading measure for journal text, which is the only real prose
    *  on this screen. */
   note: { flex: 1, maxWidth: 460 },
-  caption: { marginTop: space.xs },
 
   photoSolo: { marginTop: space.xs },
   photoGrid: {

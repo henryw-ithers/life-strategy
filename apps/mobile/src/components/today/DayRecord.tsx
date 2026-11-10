@@ -34,6 +34,7 @@
  * Since Phase 3c both open a native iOS menu (`ActionMenu`), the same
  * kind as the + menu, in place of the app's own card.
  */
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -43,6 +44,7 @@ import type { DayData, TodayActivity } from "../../db/today";
 import { type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { ActionMenu } from "../ui/ActionMenu";
+import { showActions } from "../ui/actionSheet";
 import { PhotoViewer } from "../ui/PhotoViewer";
 
 export function DayRecord({
@@ -163,17 +165,34 @@ export function ActivityRow({
   dayKind,
   disabled,
   onPress,
+  onToggleFlag,
   theme,
 }: {
   activity: TodayActivity;
   dayKind: DayData["kind"];
   disabled: boolean;
   onPress: () => void;
+  /** Hold: mark it worth remembering, or not. */
+  onToggleFlag?: () => void;
   theme: ThemeTokens;
 }) {
+  const flagLabel = activity.flagged ? "Not worth remembering" : "Worth remembering";
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={
+        onToggleFlag
+          ? () =>
+              showActions(activity.title, [
+                { label: flagLabel, onPress: onToggleFlag },
+                { label: "Edit activity", onPress },
+              ])
+          : undefined
+      }
+      accessibilityActions={onToggleFlag ? [{ name: "flag", label: flagLabel }] : undefined}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "flag") onToggleFlag?.();
+      }}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={`${activity.title}${
@@ -197,9 +216,14 @@ export function ActivityRow({
         ))}
       </View>
       <View style={styles.activityText}>
-        <AppText color={theme.ink} numberOfLines={1}>
-          {activity.title}
-        </AppText>
+        <View style={styles.titleRow}>
+          {activity.flagged ? (
+            <Ionicons name="bookmark" size={12} color={theme.accent} accessibilityLabel="Worth remembering" />
+          ) : null}
+          <AppText color={theme.ink} numberOfLines={1} style={styles.titleText}>
+            {activity.title}
+          </AppText>
+        </View>
         {activity.note ? (
           <AppText variant="footnote" color={theme.muted} numberOfLines={1}>
             {activity.note}
@@ -216,6 +240,8 @@ export function ActivityRow({
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  titleText: { flexShrink: 1 },
   band: {
     marginTop: space.xl,
     paddingTop: space.md,

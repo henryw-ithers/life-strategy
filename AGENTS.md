@@ -202,7 +202,8 @@ second one. What separates it is its **band**, not its table
 - **A day that asks nothing becomes a rest day automatically**
   (ADR-0037, `isRestDay`): no life work due, no commitment work
   scheduled, a plan behind it, **and** either nothing open later this
-  week or something open done early today. It scores **70**; activities
+  week or something open done early today, or an extra run done today
+  (Henry, 2026-11-10). It scores **70**; activities
   fill the last 30 at three times the usual rate; early work is paid on
   top, uncapped, at **what its planned day would have paid** — as it is
   on every other day too. **Every open task is listed before its

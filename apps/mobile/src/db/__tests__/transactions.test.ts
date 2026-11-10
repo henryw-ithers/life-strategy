@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCommitment,
+  unarchiveCommitment,
   deleteCommitment,
   updateCommitment,
 } from "../commitmentWrites";
@@ -352,7 +353,15 @@ describe("createCommitment", () => {
 
   it("refuses a fourth", async () => {
     seedCommitments(3);
-    await expect(createCommitment({ name: "Gym club" })).rejects.toThrow(/At most three/);
+    await expect(createCommitment({ name: "Gym club" })).rejects.toThrow(/most at once/);
+    expect(liveCommitments()).toHaveLength(3);
+  });
+
+  it("refuses to unarchive a fourth (Henry, 2026-11-10)", async () => {
+    seedCommitments(3);
+    testDb().update(lifeUnit).set({ archivedAt: "2026-10-01" }).where(sql`id = 'c0'`).run();
+    await createCommitment({ name: "Gym club" });
+    await expect(unarchiveCommitment("c0")).rejects.toThrow(/most at once/);
     expect(liveCommitments()).toHaveLength(3);
   });
 

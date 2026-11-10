@@ -96,9 +96,12 @@ export default function SettingsScreen() {
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The reminder time waiting for its pause, saved at once if you leave. */
+  const pendingTime = useRef<(() => void) | null>(null);
   useEffect(
     () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      pendingTime.current?.();
     },
     [],
   );
@@ -169,12 +172,16 @@ export default function SettingsScreen() {
   const pickReminderTime = (m: number) => {
     setDraftTime(m);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveTimer.current = null;
+    pendingTime.current = () => {
+      pendingTime.current = null;
       void onChangeTime(Math.floor(m / 60), m % 60).finally(() => {
         // A newer turn is waiting to save; keep showing it.
         if (saveTimer.current === null) setDraftTime(null);
       });
+    };
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      pendingTime.current?.();
     }, 500);
   };
 

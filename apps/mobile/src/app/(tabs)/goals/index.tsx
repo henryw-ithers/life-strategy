@@ -244,7 +244,7 @@ export default function LifeScreen() {
               </AppText>
               <InfoButton
                 title="Commitments"
-                body="Something with set hours, like School, Work or a club. On a day with commitment work, each commitment takes its time that day out of your working hours, and the rest of your life keeps what's left."
+                body="Something with set hours, like School, Work or a club. On a day with commitment work, each commitment takes its share of the day, and the rest of your life keeps what's left."
                 theme={theme}
               />
             </View>
@@ -317,10 +317,7 @@ export default function LifeScreen() {
           tier={weighingTier}
           recommended={priority.live.recommended.get(weighingShown) ?? 0}
           override={priority.overrides.get(weighingShown) ?? null}
-          canMoveUp={false}
-          canMoveDown={false}
           theme={theme}
-          onMove={() => undefined}
           onSave={({ tier, override: own }) => priority.setUnit(weighingShown, tier, own)}
           onClose={() => setWeighing(null)}
         />
@@ -341,9 +338,8 @@ export default function LifeScreen() {
           theme={theme}
           onClose={() => setSheet(null)}
           onSave={async ({ name, usesSubCommitments }) => {
-            await createCommitment({ name, usesSubCommitments });
             setSheet(null);
-            await reload();
+            await save(() => createCommitment({ name, usesSubCommitments }));
           }}
         />
       ) : null}
@@ -569,6 +565,8 @@ function UnitRows({
                     </AppText>
                   </Pressable>
                 ))}
+                {/* A Not now unit holds no tasks, so it offers none to add. */}
+                {slot === "notNow" ? null : (
                 <Pressable
                   onPress={() => onAdd(u.id)}
                   accessibilityRole="button"
@@ -586,6 +584,7 @@ function UnitRows({
                     Add task
                   </AppText>
                 </Pressable>
+                )}
               </Animated.View>
             ) : null}
           </Animated.View>

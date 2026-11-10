@@ -76,8 +76,8 @@ export function PlanUnitSection({
           style={[styles.panel, { backgroundColor: theme.surface }]}
         >
           <AppText variant="caption" color={theme.muted}>
-            Not now: out of your plan, so it holds no tasks. Move it up in Priorities to
-            bring it back.
+            Not now: out of your plan, so it holds no tasks. Drag it into a tier on Life
+            to bring it back.
           </AppText>
           <OutlineAction
             label="Open your units"

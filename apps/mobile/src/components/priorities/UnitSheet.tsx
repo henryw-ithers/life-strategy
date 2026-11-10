@@ -1,12 +1,10 @@
 /**
- * One unit on Priorities, without dragging (WCAG 2.2 SC 2.5.7): its
- * tier, its place in the tier, and your own weight for it.
+ * One unit on Life, without dragging (WCAG 2.2 SC 2.5.7): its tier and
+ * your own weight for it. Order within a tier is set by dragging.
  *
  * The recommended weight stays on screen beside whatever you type
  * (AGENTS.md: every override shows the recommended value), and an empty
- * field means the recommended one. Tier and weight apply on Save; Move
- * up and Move down act on the board straight away, as a drag would.
- * Nothing is stored until Done on Priorities saves the whole board.
+ * field means the recommended one. Tier and weight apply on Save.
  */
 import { TIERS, type Tier } from "@glide/scoring";
 import { useState } from "react";
@@ -33,11 +31,7 @@ interface UnitSheetProps {
   tier: Tier;
   recommended: number;
   override: number | null;
-  /** Whether it can move within its tier. */
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   theme: ThemeTokens;
-  onMove: (delta: -1 | 1) => void;
   /** The weight is a whole number from 1 to 99, or null for the
    *  recommended one. Ignored in Not now, which has no weight. */
   onSave: (next: { tier: Tier; override: number | null }) => void;
@@ -59,10 +53,7 @@ export function UnitSheet({
   tier: startTier,
   recommended,
   override,
-  canMoveUp,
-  canMoveDown,
   theme,
-  onMove,
   onSave,
   onClose,
   onDismissed,
@@ -98,27 +89,6 @@ export function UnitSheet({
           theme={theme}
           label="Tier"
         />
-        {tier === startTier ? (
-          <View style={styles.moves}>
-            <Button
-              variant="tonal"
-              icon="arrow-up"
-              label="Move up"
-              disabled={!canMoveUp}
-              onPress={() => onMove(-1)}
-              theme={theme}
-            />
-            <Button
-              variant="tonal"
-              icon="arrow-down"
-              label="Move down"
-              disabled={!canMoveDown}
-              onPress={() => onMove(1)}
-              theme={theme}
-            />
-          </View>
-        ) : null}
-
         {planned ? (
           <>
             <AppText color={theme.ink}>
@@ -164,5 +134,4 @@ export function UnitSheet({
 
 const styles = StyleSheet.create({
   body: { gap: space.md },
-  moves: { flexDirection: "row", gap: space.sm },
 });

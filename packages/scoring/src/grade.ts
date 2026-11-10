@@ -374,8 +374,9 @@ export interface RestDayInput {
  * the rest of the week (Henry: *"having any open tasks should prevent
  * rest day from occurring"*) **or** something was done early today,
  * which makes it one (Henry: doing Friday's task on an empty Tuesday
- * makes Tuesday "70 + the task"). An empty day with work still open
- * and none of it done is ungraded, as ADR-0029 has it.
+ * makes Tuesday "70 + the task"), or an extra run was done today, which
+ * counts the same way (Henry, 2026-11-10). An empty day with work still
+ * open and none of it done is ungraded, as ADR-0029 has it.
  *
  * **A rest day needs a day that had nothing due when it began**
  * (ADR-0040 §3). Skipped ahead of time, an empty day can be one;
@@ -395,7 +396,9 @@ export function isRestDay(
   const due = load.expected - (load.loose ?? 0);
   if (!rest || due > 1e-9 || commitmentBand > 0 || !rest.hasPlan) return false;
   if (rest.emptiedToday) return false;
-  return !rest.openThisWeek || rest.earlyToday || (load.looseDone ?? 0) > 0;
+  // An extra run counts like early work (Henry, 2026-11-10): it's your
+  // own plan done further, so the empty day becomes a rest day.
+  return !rest.openThisWeek || rest.earlyToday || (load.looseDone ?? 0) > 0 || load.extra > 0;
 }
 
 /** What one run is worth on a rest day when it has no planned day to

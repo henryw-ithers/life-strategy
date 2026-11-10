@@ -2,13 +2,16 @@ import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import {
   DarkTheme,
   DefaultTheme,
+  router,
   Stack,
   ThemeProvider,
   usePathname,
+  type Href,
   type ErrorBoundaryProps,
 } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  Platform,
   StyleSheet,
   useColorScheme,
   View,
@@ -25,7 +28,9 @@ import { runDataMigrations } from "../db/migrations";
 import { pruneEndedPinsToday } from "../db/pins";
 import { archiveEndedSeries } from "../db/seriesWrites";
 import { syncTaxonomy } from "../db/seed";
+import { isOnboardingComplete } from "../db/onboarding";
 import { loadDayStart } from "../db/settings";
+import { useNudgeOpensToday } from "../notifications/dailyNudge";
 import { noteRoute, recordProblem } from "../lib/problemLog";
 import { pushedOptions } from "../components/nav/tabRoot";
 import { getTheme, type ThemeTokens } from "../theme/colors";
@@ -233,6 +238,8 @@ function MigrationGate() {
       <KeyboardProvider>
         <ThemeProvider value={navigationTheme(theme)}>
           <RouteWitness />
+          <OnboardingGuard />
+          {Platform.OS === "ios" ? <NudgeTap /> : null}
           <Stack screenOptions={{ headerShown: false }}>
             {/* Screens pushed over the tabs get a native bar, set here so
                 it is there from the first frame of the push. */}
@@ -303,6 +310,32 @@ function RouteWitness() {
   useEffect(() => {
     noteRoute(pathname);
   }, [pathname]);
+  return null;
+}
+
+/**
+ * Until onboarding is done, every route goes to it, not only Today: a
+ * glide:// link could otherwise skip it. Read again on each navigation,
+ * so finishing onboarding lets you through. Renders nothing.
+ */
+function OnboardingGuard() {
+  const pathname = usePathname();
+  useEffect(() => {
+    if (pathname === "/onboarding") return;
+    let live = true;
+    void isOnboardingComplete().then((done) => {
+      if (live && !done) router.replace("/onboarding" as Href);
+    });
+    return () => {
+      live = false;
+    };
+  }, [pathname]);
+  return null;
+}
+
+/** Opens Today when the daily reminder is tapped. Renders nothing. */
+function NudgeTap() {
+  useNudgeOpensToday();
   return null;
 }
 

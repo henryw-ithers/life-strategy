@@ -32,7 +32,7 @@
  * not.
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { shareLimit } from "@glide/scoring";
+import { MAX_COMMITMENTS, shareLimit } from "@glide/scoring";
 import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -89,6 +89,7 @@ import {
   setUnitColour,
   setCommitmentShare,
   unarchiveCommitment,
+  TOO_MANY_COMMITMENTS,
   updateCommitment,
 } from "../../../../db/commitmentWrites";
 import {
@@ -238,7 +239,7 @@ export default function CommitmentScreen() {
       "It keeps everything and stops scoring. You can unarchive it from this menu whenever.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Archive", onPress: () => void archiveCommitment(data.id).then(reload) },
+        { text: "Archive", onPress: () => void save(() => archiveCommitment(data.id)) },
       ],
     );
   };
@@ -256,7 +257,14 @@ export default function CommitmentScreen() {
         <CommitmentToolbar
           heading={heading}
           onArchive={archiveThis}
-          onUnarchive={() => data && void unarchiveCommitment(data.id).then(reload)}
+          onUnarchive={() => {
+            if (!data) return;
+            if (data.parent === null && data.commitmentCount >= MAX_COMMITMENTS) {
+              Alert.alert("Three already", TOO_MANY_COMMITMENTS);
+              return;
+            }
+            void save(() => unarchiveCommitment(data.id));
+          }}
           onDelete={deleteThis}
         />
       ) : null}
@@ -292,6 +300,8 @@ export default function CommitmentScreen() {
               </AppText>
             ) : null}
 
+            {/* Archived: read-only until unarchived. */}
+            {archived ? null : (
             <Group theme={theme} flush>
               <ActionRow
                 label="Name"
@@ -308,7 +318,7 @@ export default function CommitmentScreen() {
               />
               {/* Its share of the day (ADR-0044 §3): a commitment's, not
                   a sub-commitment's, which prices nothing. */}
-              {data.parent === null && !archived ? (
+              {data.parent === null ? (
                 <ActionRow
                   label="Share of your day"
                   value={shareRowText(shareWeek, data.setShare, shareLimit(Math.max(1, data.commitmentCount)))}
@@ -328,6 +338,7 @@ export default function CommitmentScreen() {
                 />
               ) : null}
             </Group>
+            )}
 
             {data.subsOn ? (
               <Group
@@ -584,18 +595,16 @@ export default function CommitmentScreen() {
                   setRenamingSubId(null);
                 }}
                 onSave={async ({ name }) => {
-                  if (sheetShown.kind === "commitment") {
-                    await updateCommitment(data.id, { name });
-                  } else if (renamingSubId !== null) {
-                    await updateCommitment(renamingSubId, { name });
-                  } else if (sheetShown.name !== undefined) {
-                    await updateCommitment(data.id, { name });
-                  } else {
-                    await createSubCommitment(data.id, name);
-                  }
+                  const subId = renamingSubId;
                   setSheet(null);
                   setRenamingSubId(null);
-                  await reload();
+                  await save(() =>
+                    sheetShown.kind === "commitment" || sheetShown.name !== undefined
+                      ? updateCommitment(data.id, { name })
+                      : subId !== null
+                        ? updateCommitment(subId, { name })
+                        : createSubCommitment(data.id, name),
+                  );
                 }}
               />
             ) : null}

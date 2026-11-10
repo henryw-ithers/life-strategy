@@ -94,7 +94,7 @@ export function CommitmentSheet({
               Sub-commitments
             </AppText>
             <AppText variant="caption" color={theme.muted}>
-              Classes, shifts or teams. You can change this later.
+              Classes, shifts or teams. You can add them later too.
             </AppText>
           </View>
           <Switch

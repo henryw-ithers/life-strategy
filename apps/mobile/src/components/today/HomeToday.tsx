@@ -57,6 +57,9 @@ interface HomeTodayProps {
   onToggleSection: (key: string, open: boolean) => void;
   /** Open one-offs planned for later days, loaded once the list opens. */
   ahead: readonly TodayTask[] | null;
+  /** How many later one-offs `ahead` will hold, counted before it loads,
+   *  so the section shows even when they're all it has. */
+  aheadCount: number;
   othersOpen: boolean;
   onToggleOthers: () => void;
   renderRow: (task: TodayTask, extra: RowExtra) => React.ReactNode;
@@ -91,6 +94,7 @@ export function HomeToday({
   expanded,
   onToggleSection,
   ahead,
+  aheadCount,
   othersOpen,
   onToggleOthers,
   renderRow,
@@ -147,7 +151,8 @@ export function HomeToday({
     aheadIds: [...aheadById.keys()],
     setAsideIds,
   });
-  const notTodayCount = notToday.reduce((n, g) => n + g.taskIds.length, 0);
+  const notTodayCount =
+    notToday.reduce((n, g) => n + g.taskIds.length, 0) + (ahead === null ? aheadCount : 0);
   // On a day with windows, what no window holds; on one with none,
   // the parts of the day hold it.
   const later =

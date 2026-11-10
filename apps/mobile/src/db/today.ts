@@ -188,6 +188,8 @@ export interface TodayActivity {
   size: ActivitySize | null;
   tags: { unitId: string; unitName: string; areaId: string }[];
   creditedPoints: number;
+  /** Marked worth remembering. */
+  flagged: boolean;
 }
 
 export interface DayData {
@@ -198,6 +200,8 @@ export interface DayData {
   finalized: boolean;
   kind: DayKind;
   title: string | null;
+  /** Marked worth remembering: it's kept in the Log. */
+  flagged: boolean;
   satisfactionRating: number | null;
   score: DayScore;
   hasSnapshot: boolean;
@@ -987,6 +991,7 @@ export async function loadDay(
         areaId: unitById.get(t.unitId)?.areaId ?? "",
       })),
       creditedPoints: tags.reduce((sum, t) => sum + t.pointsCredited, 0),
+      flagged: a.flagged,
     };
   });
 
@@ -1032,6 +1037,7 @@ export async function loadDay(
     finalized: isFinalized(date, today) || dayRow?.finalizedAt != null,
     kind,
     title: dayRow?.title ?? null,
+    flagged: dayRow?.flagged ?? false,
     satisfactionRating: dayRow?.satisfactionRating ?? null,
     score,
     hasSnapshot: weights.size > 0,
