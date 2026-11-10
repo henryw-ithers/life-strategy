@@ -25,7 +25,7 @@ import { isCommitmentUnit } from "./commitmentPlan";
 import { recacheAllDayScores } from "./dayGrades";
 import { forgetPinsOf } from "./pins";
 import { lifeUnit, snapshot, task, unitWeight } from "./schema";
-import { writeAndMarkStale } from "./settings";
+import { getSetting, setSetting, writeAndMarkStale } from "./settings";
 import { latestOverrides, recomputeAllUnitPoints, type Tx } from "./tasks";
 import { boardWeights, tieredUnits, tierOrderOf } from "./tierRules";
 
@@ -311,4 +311,22 @@ export async function clearOverrides(unitIds: readonly string[]): Promise<void> 
     recomputeAllUnitPoints(tx);
   });
   await recacheAllDayScores();
+}
+
+const SORTING_KEY = "priorities.sorting";
+
+/** A first run's board while units are still Unsorted (Henry,
+ *  2026-11-10), so leaving Life doesn't lose the sorting. Read only on a
+ *  first run, so it needs no clearing once the plan saves. */
+export async function loadSortingDraft(): Promise<unknown[]> {
+  try {
+    const parsed: unknown = JSON.parse((await getSetting(SORTING_KEY)) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveSortingDraft(placement: readonly { unitId: string; tier: string }[]): Promise<void> {
+  await setSetting(SORTING_KEY, JSON.stringify(placement));
 }

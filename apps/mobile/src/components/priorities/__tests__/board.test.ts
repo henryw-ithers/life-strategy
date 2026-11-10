@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { inTiers, moveTo, sortedPlacement, type BoardUnit } from "../board";
+import { inTiers, moveTo, restoreDraft, sortedPlacement, type BoardUnit } from "../board";
 
 describe("moveTo", () => {
   const start: BoardUnit[] = [
@@ -41,6 +41,23 @@ describe("a first run", () => {
     expect(sortedPlacement(moveTo(half, "b", "top", 0))).toEqual([
       { unitId: "b", tier: "top" },
       { unitId: "a", tier: "important" },
+    ]);
+  });
+});
+
+describe("a half-sorted first run (Henry, 2026-11-10)", () => {
+  it("comes back as it was left, with anything new Unsorted", () => {
+    const draft = [
+      { unitId: "b", tier: "top" },
+      { unitId: "gone", tier: "top" },
+      { unitId: "a", tier: "unsorted" },
+      { unitId: "c", tier: "nonsense" },
+    ];
+    expect(restoreDraft(["a", "b", "c", "d"], draft)).toEqual([
+      { unitId: "b", tier: "top" },
+      { unitId: "a", tier: "unsorted" },
+      { unitId: "c", tier: "unsorted" },
+      { unitId: "d", tier: "unsorted" },
     ]);
   });
 });

@@ -6,7 +6,8 @@
  * so the history keeps one set of priorities a day.
  *
  * - **A first run** starts every unit Unsorted (Henry, 2026-10-21), and
- *   nothing saves until each one has a tier.
+ *   the plan saves once each one has a tier. Until then the board is kept
+ *   as a draft, so leaving Life doesn't lose it (Henry, 2026-11-10).
  * - **Moving a unit to Not now** asks first when it holds tasks: they
  *   pause until it moves back up (ADR-0041 §3).
  * - A move that would leave the plan unable to save (every unit in Not
@@ -16,9 +17,9 @@ import { TIERS, type Tier } from "@glide/scoring";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 
-import { inTiers, moveTo, sortedPlacement, type BoardUnit, type Slot } from "../components/priorities/board";
+import { inTiers, moveTo, restoreDraft, sortedPlacement, type BoardUnit, type Slot } from "../components/priorities/board";
 import { TIER_LABEL } from "../components/priorities/UnitSheet";
-import { loadPriorities, savePriorities, type PriorityBoard } from "../db/priorities";
+import { loadPriorities, loadSortingDraft, savePriorities, saveSortingDraft, type PriorityBoard } from "../db/priorities";
 import { boardWeights } from "../db/tierRules";
 import { recordProblem } from "../lib/problemLog";
 
@@ -34,7 +35,11 @@ export function usePriorityBoard(onSaved: () => void) {
     const next = await loadPriorities();
     setBoard(next);
     if (sorting.current) return;
-    setPlacement(next.units.map((u) => ({ unitId: u.unitId, tier: next.firstRun ? "unsorted" : u.tier })));
+    setPlacement(
+      next.firstRun
+        ? restoreDraft(next.units.map((u) => u.unitId), await loadSortingDraft())
+        : next.units.map((u) => ({ unitId: u.unitId, tier: u.tier })),
+    );
     setOverrides(new Map(next.units.flatMap((u) => (u.override === null ? [] : [[u.unitId, u.override] as const]))));
   }, []);
 
@@ -47,8 +52,9 @@ export function usePriorityBoard(onSaved: () => void) {
     setOverrides(nextOverrides);
     const sorted = sortedPlacement(next);
     if (sorted === null) {
-      // Still sorting a first run: kept here until every unit has a tier.
+      // Still sorting a first run: kept as a draft until every unit has a tier.
       sorting.current = true;
+      void saveSortingDraft(next).catch((e: unknown) => recordProblem(e, "save"));
       return;
     }
     // Not now holds no weight, so a weight set there isn't kept.

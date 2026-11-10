@@ -16,6 +16,7 @@
  */
 import {
   addDays,
+  isLocalDate,
   isoWeekday,
   planDay,
   specialDayBonus,
@@ -66,7 +67,8 @@ import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
 import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
 import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
-import { anchorOf, homeSections, notOnTodayGroup, timedRows } from "../../../components/today/homeSections";
+import { anchorOf, homeSections, notOnTodayGroup, PART_LABEL, timedRows } from "../../../components/today/homeSections";
+import { showActions } from "../../../components/ui/actionSheet";
 import { HomeToday, OTHERS_KEY, windowId } from "../../../components/today/HomeToday";
 import type { RowExtra } from "../../../components/today/HomeWindow";
 import { MoveToWindowSheet } from "../../../components/today/MoveToWindowSheet";
@@ -83,9 +85,9 @@ import { Group } from "../../../components/ui/Group";
 import { NativeSheet } from "../../../components/ui/NativeSheet";
 import { saveThen } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
-import { deleteActivity, logActivity, updateActivity } from "../../../db/activities";
+import { deleteActivity, logActivity, setActivityFlagged, updateActivity } from "../../../db/activities";
 import { setCompletionFraction, setCompletionTags, setCompletionWindow, toggleCompletion } from "../../../db/completions";
-import { setDayKind } from "../../../db/dayGrades";
+import { setDayFlagged, setDayKind } from "../../../db/dayGrades";
 import { addDayEdit } from "../../../db/hours";
 import { addJournalEntry, deleteJournalEntry, updateJournalEntry } from "../../../db/journal";
 import { isOnboardingComplete } from "../../../db/onboarding";
@@ -95,7 +97,7 @@ import { addSkip, setRunsSkipped } from "../../../db/skips";
 import { archiveTask, reorderDayTasks } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
 import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
-import { skipProblem, type SkipInput } from "../../../db/windowRules";
+import type { SkipInput } from "../../../db/windowRules";
 import { useCelebration } from "../../../hooks/useCelebration";
 import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
 import { useRetained } from "../../../hooks/useRetained";
@@ -262,7 +264,7 @@ export default function TodayScreen() {
    *  (`openAdd`); they lived on Week until it went. */
   const [adding, setAdding] = useState<AddKind | null>(null);
   /** Another tab's + menu asked to add something (`openAdd`). */
-  const { add: addParam } = useLocalSearchParams<{ add?: string }>();
+  const { add: addParam, date: dateParam } = useLocalSearchParams<{ add?: string; date?: string }>();
   const [seenAddParam, setSeenAddParam] = useState(addParam);
   if (addParam !== seenAddParam) {
     setSeenAddParam(addParam);
@@ -275,6 +277,15 @@ export default function TodayScreen() {
   useEffect(() => {
     if (addParam) router.setParams({ add: undefined });
   }, [addParam]);
+  /** A day opened from elsewhere, such as a Log entry (Henry, 2026-11-10). */
+  useEffect(() => {
+    if (!dateParam) return;
+    // `select` refuses days past the four weeks a day can be planned.
+    if (isLocalDate(dateParam)) select(dateParam);
+    router.setParams({ date: undefined });
+    // `select` is the hook's stable setter; the param is what's watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateParam]);
 
   /** null while unknown, so the gate never flashes Today (ADR-0011). */
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
@@ -435,10 +446,10 @@ export default function TodayScreen() {
     }
   };
 
-  /** Skip an event: this one, or its week if that week hasn't started
-   *  (ADR-0040 §2, EC-25). Nothing counts what's skipped. */
+  /** Skip one event (ADR-0040 §2). Nothing counts what's skipped. A
+   *  whole week is skipped from the event's own sheet, since today's
+   *  week has always started (EC-25). */
   const askSkipEvent = (t: TodayTask) => {
-    const weekOk = skipProblem({ kind: "taskWeek", taskId: t.id, date: day.date }, day.today) === null;
     const skip = (input: SkipInput) =>
       void addSkip(input)
         .then(() => refresh())
@@ -447,9 +458,6 @@ export default function TodayScreen() {
         );
     Alert.alert(t.title, undefined, [
       { text: "Skip this one", onPress: () => skip({ kind: "occurrence", taskId: t.id, date: day.date }) },
-      ...(weekOk
-        ? [{ text: "Skip this week", onPress: () => skip({ kind: "taskWeek", taskId: t.id, date: day.date }) }]
-        : []),
       { text: "Cancel", style: "cancel" as const },
     ]);
   };
@@ -471,6 +479,7 @@ export default function TodayScreen() {
       isToday && t.kind === "task" && !t.completedToday && movableTo(t).length > 0
         ? () => setMovingTask(t)
         : undefined,
+    onMoveTo: moveToFor(t),
     onDoneIn:
       isToday && t.kind === "task" && t.completedToday && (planned?.windows.length ?? 0) > 1
         ? () => setDoneInTask(t)
@@ -478,7 +487,7 @@ export default function TodayScreen() {
     onSkip:
       t.kind === "event" && !t.completedToday && day.date >= day.today
         ? () => askSkipEvent(t)
-        : t.kind === "task" && !t.completedToday && t.oneOffSize == null && day.date >= day.today
+        : t.kind === "task" && !t.completedToday && !t.skippedToday && t.oneOffSize == null && day.date >= day.today
           ? // Not today (Henry, 2026-11-07): this day's run skipped, the
             // task kept. Skips are ADR-0040's, so a skip on the day that
             // empties it leaves it ungraded, never a rest day.
@@ -491,6 +500,9 @@ export default function TodayScreen() {
           : undefined,
     onEdit: day.editable ? () => setEditingItem(t.id) : undefined,
   });
+
+  /** A row that can be dragged, or moved with "Move to…". */
+  const canDragTask = (t: TodayTask) => t.kind === "task" && !t.completedToday && t.doneAheadOn === null;
 
   /** A task dropped somewhere new on today (ADR-0048): into another
    *  window or part of the day for today only, and in your order, kept. */
@@ -521,6 +533,25 @@ export default function TodayScreen() {
       if (moved) await pinForDay(taskId, day.date, anchor, "window", { order: to.index });
       await reorderDayTasks(order);
     }, () => refresh());
+  };
+
+  /** "Move to…" (Henry, 2026-11-10): the parts of the day a task can go
+   *  to without dragging, through the same drop. Only where dragging is
+   *  allowed: today, a task not ticked or done ahead, in a part. */
+  const moveToFor = (t: TodayTask): (() => void) | undefined => {
+    if (!isToday || !windowEditable || !canDragTask(t)) return undefined;
+    const from = sections.find((s) => s.kind === "part" && s.rows.some((r) => r.taskId === t.id));
+    if (!from) return undefined;
+    const targets = sections.filter((s) => s.kind === "part" && s.key !== from.key);
+    if (targets.length === 0) return undefined;
+    return () =>
+      showActions(
+        `Move ${t.title} to`,
+        targets.map((s) => ({
+          label: s.kind === "part" ? PART_LABEL[s.part] : "",
+          onPress: () => dropTask(t.id, from.key, { sectionKey: s.key, index: s.rows.length }),
+        })),
+      );
   };
 
   /** A row, with the gestures the day allows on it. A tick is filed
@@ -598,7 +629,13 @@ export default function TodayScreen() {
         }
       />
       {canRecord ? (
-        <RecordActions onAddNote={() => setNoteSheet(true)} onAddPhoto={() => void pickPhoto()} theme={theme} />
+        <RecordActions
+          onAddNote={() => setNoteSheet(true)}
+          onAddPhoto={() => void pickPhoto()}
+          flagged={day.flagged}
+          onToggleFlag={() => void saveThen(() => setDayFlagged(day.date, !day.flagged), refresh)}
+          theme={theme}
+        />
       ) : null}
     </>
   );
@@ -801,6 +838,7 @@ export default function TodayScreen() {
                 expanded={expanded}
                 onToggleSection={(key, open) => setExpanded((e) => ({ ...e, [key]: open }))}
                 ahead={ahead}
+                aheadCount={day.aheadCount}
                 groupOf={groupOf}
                 onAddToday={(t) =>
                   // Pinned into today, in its part of the day. A pin never
@@ -820,7 +858,7 @@ export default function TodayScreen() {
                 onToggleOthers={() => setOthersOpen((v) => !v)}
                 renderRow={taskRow}
                 holdFor={(t) => rowHold(t, handlersFor(t))?.run}
-                canDrag={(t) => t.kind === "task" && !t.completedToday && t.doneAheadOn === null}
+                canDrag={canDragTask}
                 reduceMotion={reduceMotion}
                 editable={windowEditable}
                 onSwap={(start, taskId) =>
@@ -893,6 +931,7 @@ export default function TodayScreen() {
               setEditingActivity(a);
               setActivitySheet(true);
             }}
+            onToggleFlag={(a) => void saveThen(() => setActivityFlagged(a.id, day.date, !a.flagged), refresh)}
             onAdd={logSomething}
             layout={layout}
             theme={theme}
@@ -938,6 +977,7 @@ export default function TodayScreen() {
 
       <ItemEditor
         itemId={editingItem}
+        date={day.date}
         onClose={() => setEditingItem(null)}
         onSaved={() => void refresh()}
         onDelete={(t) =>

@@ -1,11 +1,9 @@
 /**
- * Calibration (ADR-0008): a weekly check-in and, once there's enough
+ * Calibration (ADR-0008): the weekly check-in and, once there's enough
  * data, a plain-language read on whether grades and felt contentment
- * agree — with any suggested formula change requiring explicit
- * acceptance. Nothing here ever pushes; it only exists on a screen
- * the user navigates to themselves.
+ * agree. The same question is asked in the weekly pass. Suggestions
+ * were dropped: formula v8 left nothing for one to change.
  */
-import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
@@ -13,10 +11,8 @@ import { useReducedMotion } from "react-native-reanimated";
 import {
   loadCalibrationState,
   loadCheckinStatus,
-  resolveSuggestion,
   submitCheckin,
   type CalibrationState,
-  type CalibrationSuggestionRow,
   type CheckinStatus,
 } from "../db/calibration";
 import { currentLocalDate } from "../lib/calendar";
@@ -24,45 +20,14 @@ import { NumberDial } from "../components/number-dial/NumberDial";
 import { AppText } from "../components/ui/AppText";
 import { constellation, ScrollBackdrop } from "../components/ui/Backdrop";
 import { Button } from "../components/ui/Button";
+import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { getTheme } from "../theme/colors";
-import { radius, space } from "../theme/tokens";
+import { space } from "../theme/tokens";
 
 function directionLine(direction: "higher" | "lower" | "aligned"): string {
   if (direction === "higher") return "Your grades have been running higher than your weeks felt.";
   if (direction === "lower") return "Your grades have been running lower than your weeks felt.";
   return "Your grades and how your weeks felt have been lining up.";
-}
-
-/**
- * What a stored suggestion would do — or, for every suggestion the app
- * has ever written, what it *would have* done.
- *
- * `gapCoefficient` was the only kind, and formula v8 removed the
- * constant it moved (ADR-0028 §1). A pending row from before that can
- * still be sitting here, so it is described honestly and offered only a
- * Dismiss: an Accept that silently applies nothing would be the app
- * telling the user it did something it did not.
- */
-function describeChange(proposedChange: string): string | null {
-  try {
-    const change = JSON.parse(proposedChange) as { type: string };
-    if (change.type === "gapCoefficient") {
-      return "Scoring has changed since this was suggested — satisfaction no longer affects your weights, so there is nothing left for this to adjust.";
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/** True when accepting the suggestion would actually change something.
- *  Nothing currently does; see `describeChange`. */
-function isApplicable(proposedChange: string): boolean {
-  try {
-    return (JSON.parse(proposedChange) as { type: string }).type !== "gapCoefficient";
-  } catch {
-    return false;
-  }
 }
 
 export default function CalibrationScreen() {
@@ -83,29 +48,20 @@ export default function CalibrationScreen() {
     setCheckin(checkinStatus);
     setRating(checkinStatus.existingScore);
     setCalibration(state);
-  }, []);
+    // Setters are stable; listing them lets the React Compiler match.
+  }, [setCheckin, setRating, setCalibration]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const { error, retry, save } = useScreenLoad(reload);
 
   const saveCheckin = async () => {
     if (!checkin || rating === null || saving) return;
     setSaving(true);
-    await submitCheckin(checkin.weekStart, rating);
-    await reload();
+    // A failure is said and the screen reloads; Save comes back either way.
+    await save(() => submitCheckin(checkin.weekStart, rating));
     setSaving(false);
   };
 
-  const resolve = async (id: string, status: "accepted" | "dismissed") => {
-    await resolveSuggestion(id, status);
-    await reload();
-  };
-
-  const pending = calibration?.suggestions.filter((s) => s.status === "proposed") ?? [];
-  const resolved = calibration?.suggestions.filter((s) => s.status !== "proposed") ?? [];
+  if (error) return <LoadFailure error={error} onRetry={retry} theme={theme} />;
 
   return (
     <View style={styles.root}>
@@ -177,51 +133,8 @@ export default function CalibrationScreen() {
                 </AppText>
               )}
 
-              {pending.map((s) => (
-                <View key={s.id} style={[styles.suggestionCard, { borderColor: theme.hairline }]}>
-                  <AppText color={theme.ink}>{s.insightText}</AppText>
-                  {describeChange(s.proposedChange) ? (
-                    <AppText variant="caption" color={theme.muted}>
-                      {describeChange(s.proposedChange)}
-                    </AppText>
-                  ) : null}
-                  <View style={styles.suggestionActions}>
-                    {isApplicable(s.proposedChange) ? (
-                      <Button
-                        label="Accept"
-                        color={theme.accent}
-                        onPress={() => void resolve(s.id, "accepted")}
-                        theme={theme}
-                      />
-                    ) : null}
-                    <Button
-                      label="Dismiss"
-                      variant="quiet"
-                      onPress={() => void resolve(s.id, "dismissed")}
-                      theme={theme}
-                    />
-                  </View>
-                </View>
-              ))}
             </View>
 
-            {resolved.length > 0 ? (
-              <View style={[styles.section, { borderTopColor: theme.hairline }]}>
-                <AppText variant="headline" color={theme.ink}>
-                  History
-                </AppText>
-                {resolved.map((s: CalibrationSuggestionRow) => (
-                  <View key={s.id} style={[styles.historyRow, { borderTopColor: theme.hairline }]}>
-                    <AppText color={theme.ink} style={styles.grow} numberOfLines={2}>
-                      {s.insightText}
-                    </AppText>
-                    <AppText variant="caption" color={theme.muted}>
-                      {s.status}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
-            ) : null}
           </>
         )}
       </ScrollView>
@@ -241,21 +154,4 @@ const styles = StyleSheet.create({
   },
   checkinCaption: { marginBottom: space.xs },
   insightLine: { marginTop: space.xs },
-  suggestionCard: {
-    marginTop: space.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: space.lg,
-    gap: space.xs,
-  },
-  suggestionActions: { flexDirection: "row", gap: space.sm, marginTop: space.sm },
-  grow: { flex: 1 },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
-    minHeight: 40,
-    paddingTop: space.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
 });

@@ -42,7 +42,7 @@ export interface LogEntry {
   /** Journal text, newest first within the day. */
   notes: string[];
   /** File URIs; the screen resolves and handles missing files. */
-  photos: { id: string; uri: string; caption: string | null }[];
+  photos: { id: string; uri: string }[];
   /** Ranks earned that day (ADR-0047), as `achievementTitle` reads. */
   achievements: string[];
   /** A day the user marked worth keeping (`day_grade.flagged`). */
@@ -129,7 +129,6 @@ export async function loadLog(): Promise<LogMonth[]> {
     entryFor(p.localDate).photos.push({
       id: p.id,
       uri: uriOf(p.fileUri),
-      caption: p.caption,
     });
   }
   for (const a of achievements) {

@@ -36,6 +36,7 @@
  */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
+import { router, type Href } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
@@ -263,7 +264,7 @@ export default function LogScreen() {
               Your notes, photos and achievements collect here.
             </AppText>
             <AppText variant="caption" color={theme.muted} style={styles.emptyText}>
-              Add a note or a photo to a day on Home and it will show up here.
+              Add a note or a photo to a day on Today and it will show up here.
             </AppText>
           </View>
         ) : shown.length === 0 ? (
@@ -382,8 +383,14 @@ function DayEntry({
 
   return (
     <View style={styles.day}>
-      <View style={styles.dayHead}>
-        <AppText variant="caption" color={theme.muted} tabular>
+      {/* Tap the date to open that day on Today (Henry, 2026-11-10). */}
+      <Pressable
+        onPress={() => router.navigate(`/?date=${entry.localDate}` as Href)}
+        accessibilityRole="link"
+        accessibilityHint="Opens this day on Today"
+        style={({ pressed }) => [styles.dayHead, { opacity: pressed ? 0.6 : 1 }]}
+      >
+        <AppText variant="caption" color={theme.accent} tabular>
           {dayLabel(entry.localDate)}
         </AppText>
         {/* `flagged` has been in the data since the log was written and
@@ -406,7 +413,7 @@ function DayEntry({
             {entry.score}
           </AppText>
         ) : null}
-      </View>
+      </Pressable>
 
       {entry.achievements.map((title) => (
         <View key={title} style={styles.item}>
@@ -437,9 +444,7 @@ function DayEntry({
               key={p.id}
               onPress={() => onView(p.uri)}
               accessibilityRole="imagebutton"
-              accessibilityLabel={
-                p.caption ?? `Photo from ${dayLabel(entry.localDate)}`
-              }
+              accessibilityLabel={`Photo from ${dayLabel(entry.localDate)}`}
               accessibilityHint="Opens full screen"
               style={({ pressed }) => [
                 single ? styles.soloFrame : styles.gridFrame,
@@ -467,14 +472,6 @@ function DayEntry({
             </Pressable>
           ))}
         </View>
-      ) : null}
-
-      {/* Only under a lone photo, where there is room for it to read as
-          a caption rather than as a label on a tile. */}
-      {single && entry.photos[0]?.caption ? (
-        <AppText variant="caption" color={theme.muted} style={styles.caption}>
-          {entry.photos[0].caption}
-        </AppText>
       ) : null}
     </View>
   );
@@ -518,7 +515,6 @@ const styles = StyleSheet.create({
   /** A reading measure for journal text, which is the only real prose
    *  on this screen. */
   note: { flex: 1, maxWidth: 460 },
-  caption: { marginTop: space.xs },
 
   photoSolo: { marginTop: space.xs },
   photoGrid: {

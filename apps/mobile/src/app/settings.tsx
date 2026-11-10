@@ -45,8 +45,10 @@ import { Group, GroupDivider } from "../components/ui/Group";
 import { SettingsRow } from "../components/ui/SettingsRow";
 import { FieldScope, TimeField, TimeFieldRow } from "../components/ui/DateTimeField";
 import {
+  loadAppearance,
   loadNotificationSettings,
   markNotificationPermissionAsked,
+  saveAppearance,
   eventsDefaultOnce,
   setEventsDefaultOnce,
   setNotificationEnabled,
@@ -60,6 +62,8 @@ import { HourStepper } from "../components/ui/HourStepper";
 import { changeDayStart } from "../db/dayStart";
 import { askClearToday } from "../components/today/clearToday";
 import { hhmmToMinutes } from "../lib/pickerValues";
+import { Segmented } from "../components/plan/Segmented";
+import { applyAppearance, isAppearanceChoice, type AppearanceChoice } from "../theme/appearance";
 import { loadDay } from "../db/today";
 import {
   cancelAllNudges,
@@ -91,30 +95,36 @@ export default function SettingsScreen() {
   /** New events start one-time (ADR-0040 §6). */
   const [eventsOnce, setEventsOnce] = useState(false);
   const [dayStart, setDayStartShown] = useState(dayStartHour);
+  const [appearance, setAppearance] = useState<AppearanceChoice>("system");
   const dayStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deniedAtOs, setDeniedAtOs] = useState(false);
   /** The time on the wheel while it's being turned, before it's saved. */
   const [draftTime, setDraftTime] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The reminder time waiting for its pause, saved at once if you leave. */
+  const pendingTime = useRef<(() => void) | null>(null);
   useEffect(
     () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      pendingTime.current?.();
     },
     [],
   );
 
   const reload = useCallback(async () => {
-    const [loaded, status, once] = await Promise.all([
+    const [loaded, status, once, look] = await Promise.all([
       loadNotificationSettings(),
       getPermissionStatus(),
       eventsDefaultOnce(),
+      loadAppearance(),
     ]);
+    setAppearance(isAppearanceChoice(look) ? look : "system");
     setSettings(loaded);
     setEventsOnce(once);
     setDeniedAtOs(!status.granted && !status.canAskAgain);
     // Setters are stable; listing them lets the React Compiler match
     // its own dependency inference and compile this screen.
-  }, [setSettings, setEventsOnce, setDeniedAtOs]);
+  }, [setSettings, setEventsOnce, setDeniedAtOs, setAppearance]);
 
   const { error, retry } = useScreenLoad(reload);
 
@@ -169,12 +179,16 @@ export default function SettingsScreen() {
   const pickReminderTime = (m: number) => {
     setDraftTime(m);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveTimer.current = null;
+    pendingTime.current = () => {
+      pendingTime.current = null;
       void onChangeTime(Math.floor(m / 60), m % 60).finally(() => {
         // A newer turn is waiting to save; keep showing it.
         if (saveTimer.current === null) setDraftTime(null);
       });
+    };
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      pendingTime.current?.();
     }, 500);
   };
 
@@ -303,6 +317,25 @@ export default function SettingsScreen() {
             rest of this list. */}
         {/* Day-level changes (ADR-0040 §§4–5). Clear today is also in
             Home's ⋯. */}
+        <Group theme={theme} title="Appearance">
+          <Segmented
+            segments={[
+              { value: "system", label: "System" },
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+            value={appearance}
+            onChange={(choice) => {
+              setAppearance(choice);
+              applyAppearance(choice);
+              void saveThen(() => saveAppearance(choice), () => undefined, retry);
+            }}
+            accent={theme.accent}
+            theme={theme}
+            label="Appearance"
+          />
+        </Group>
+
         <Group theme={theme} title="Your days" flush>
           {/* When a day begins and ends (ADR-0049): for nights and shifted
               schedules. The note runs under the row at full width, so a

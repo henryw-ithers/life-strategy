@@ -23,6 +23,7 @@
 import { isoWeekday, weekStart, type PinKind, type TimeRange } from "@glide/scoring";
 import { router, Stack, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useReducedMotion } from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -43,6 +44,7 @@ import { WindowCard } from "../components/plan/WindowCard";
 import { WindowTimesSheet } from "../components/plan/WindowTimesSheet";
 import { WEEKDAY_NAME } from "../components/plan/planning";
 import { saveDayWindow } from "../components/plan/saveWindow";
+import { NumberDial } from "../components/number-dial/NumberDial";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { Group } from "../components/ui/Group";
@@ -50,6 +52,7 @@ import { InfoButton } from "../components/ui/InfoButton";
 import { KeyboardScroll } from "../components/ui/KeyboardScroll";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { UndoBar } from "../components/ui/UndoBar";
+import { loadCheckinStatus, submitCheckin, type CheckinStatus } from "../db/calibration";
 import { loadDayPlan, type DayPlan } from "../db/dayPlan";
 import { addDayEdit } from "../db/hours";
 import { pinForDay, setPinKind, unpinForDay } from "../db/pins";
@@ -78,7 +81,9 @@ import { getTheme, unitHue } from "../theme/colors";
 import { cardStyle } from "../theme/surfaces";
 import { radius, space } from "../theme/tokens";
 
-type Step = "tiers" | "lastWeek" | "different" | "windows";
+/** "content" is the weekly contentment question (ADR-0008), asked the
+ *  same way every week (Henry, 2026-11-10). */
+type Step = "tiers" | "lastWeek" | "content" | "different" | "windows";
 
 /** A window sheet on one day, named by the window's start. */
 type DaySheet =
@@ -117,6 +122,9 @@ export default function WeeklyPassScreen() {
   /** New events start one-time (shift work): Copy last week's events. */
   const [shifts, setShifts] = useState(false);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
+  const [checkin, setCheckin] = useState<CheckinStatus | null>(null);
+  const [rating, setRating] = useState<number | null>(null);
+  const reduceMotion = useReducedMotion();
   const [editing, setEditing] = useState<PassEvent | "new" | null>(null);
   const [editingShown, editingGone] = useRetained(editing);
   const [eventUnits, setEventUnits] = useState<string[]>([]);
@@ -132,13 +140,14 @@ export default function WeeklyPassScreen() {
   const load = useCallback(async () => {
     const turn = ++loadTurn.current;
     const dates = daysLeft(today);
-    const [due, lastWeek, weekEvents, plans, nextPlan, once] = await Promise.all([
+    const [due, lastWeek, weekEvents, plans, nextPlan, once, checkinStatus] = await Promise.all([
       tiersCheckDue(today),
       loadLastWeek(today),
       loadWeekEvents(today),
       Promise.all(dates.map((d) => loadDayPlan(d))),
       loadPlan(),
       eventsDefaultOnce(),
+      loadCheckinStatus(today),
     ]);
     if (turn !== loadTurn.current) return;
     setShifts(once);
@@ -146,8 +155,18 @@ export default function WeeklyPassScreen() {
     // Windows are set aside for launch, and their step with them
     // (ADR-0051).
     setSteps(
-      (s) => s ?? [...(due ? (["tiers"] as const) : []), "lastWeek", "different", ...(WINDOWS ? (["windows"] as const) : [])],
+      (s) =>
+        s ?? [
+          ...(due ? (["tiers"] as const) : []),
+          "lastWeek",
+          "content",
+          "different",
+          ...(WINDOWS ? (["windows"] as const) : []),
+        ],
     );
+    // Kept once picked: a reload mid-pass doesn't wipe the dial.
+    setCheckin(checkinStatus);
+    setRating((r) => r ?? checkinStatus.existingScore);
     setLast(lastWeek);
     setEvents(weekEvents);
     setDays(plans);
@@ -328,6 +347,27 @@ export default function WeeklyPassScreen() {
               You logged {last.activities} {last.activities === 1 ? "thing" : "things"}.
             </AppText>
           ) : null}
+        </View>
+      );
+    }
+    if (current === "content" && checkin) {
+      return (
+        <View style={styles.stack}>
+          <AppText variant="title" color={theme.ink} accessibilityRole="header">
+            How content did {checkin.label === "this" ? "this week" : "last week"} feel?
+          </AppText>
+          <AppText color={theme.muted}>
+            From 1 to 10. Skip it any time. Nothing here is tracked as missed.
+          </AppText>
+          <NumberDial
+            label="Contentment"
+            a11yName="Weekly contentment"
+            value={rating}
+            onChange={setRating}
+            accent={theme.accent}
+            theme={theme}
+            reduceMotion={reduceMotion}
+          />
         </View>
       );
     }
@@ -543,7 +583,14 @@ export default function WeeklyPassScreen() {
             )}
             <Button
               label={isLast ? "Done" : current === "tiers" ? "Skip" : "Next"}
-              onPress={() => (isLast ? finish() : setStep(step + 1))}
+              onPress={() => {
+                // The answer saves as you leave its step; unanswered is fine.
+                if (current === "content" && checkin && rating !== null && rating !== checkin.existingScore) {
+                  void save(() => submitCheckin(checkin.weekStart, rating), () => undefined);
+                }
+                if (isLast) finish();
+                else setStep(step + 1);
+              }}
               theme={theme}
             />
           </View>

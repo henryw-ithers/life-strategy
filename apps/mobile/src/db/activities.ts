@@ -73,3 +73,10 @@ export async function updateActivity(
   });
   await cacheDayScore(date);
 }
+
+/** Mark an activity worth remembering, or not (Henry, 2026-11-10). It
+ *  counts toward "days worth remembering"; no score moves. */
+export async function setActivityFlagged(activityId: string, date: string, flagged: boolean): Promise<void> {
+  assertEditable(date);
+  await db.update(activity).set({ flagged }).where(eq(activity.id, activityId));
+}

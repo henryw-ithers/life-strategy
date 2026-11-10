@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { nextStep, ONBOARDING_STEPS, readStep, SHOWN_STEPS } from "../onboardingFlow";
+import { nextStep, ONBOARDING_STEPS, previousStep, readStep, SHOWN_STEPS } from "../onboardingFlow";
 
 describe("the pages", () => {
   it("explain, then ask about the reminder", () => {
@@ -13,6 +13,10 @@ describe("the pages", () => {
 
   it("each lead to the next, and done stays done", () => {
     expect(nextStep("welcome")).toBe("tiers");
+    // Back (Henry, 2026-11-10): one step back, and none before the start.
+    expect(previousStep("tiers")).toBe("welcome");
+    expect(previousStep("notify")).toBe("start");
+    expect(previousStep("welcome")).toBe("welcome");
     expect(nextStep("start")).toBe("notify");
     expect(nextStep("notify")).toBe("done");
     expect(nextStep("done")).toBe("done");

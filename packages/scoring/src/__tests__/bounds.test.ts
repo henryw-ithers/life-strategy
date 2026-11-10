@@ -222,6 +222,16 @@ describe("rest days and days emptied on the day (ADR-0040 §3)", () => {
     expect(load.expected).toBe(0);
     expect(isRestDay(load, 0, rest)).toBe(true);
   });
+
+  it("an extra run on an empty day with work open later makes it a rest day, like early work", () => {
+    // Henry, 2026-11-10: a run past the week's count counts like early work.
+    const open = { ...rest, openThisWeek: true };
+    expect(isRestDay(empty, 0, open)).toBe(false);
+    const extraRun = { ...empty, extra: 10 };
+    expect(isRestDay(extraRun, 0, open)).toBe(true);
+    const score = computeDayScore({ kind: "normal", load: extraRun, restDay: { averageExpected: 10, ...open } });
+    expect(score.base).toBeGreaterThan(70);
+  });
 });
 
 describe("boundsError (strict on write)", () => {

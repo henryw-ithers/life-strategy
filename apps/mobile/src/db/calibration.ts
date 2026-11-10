@@ -13,12 +13,12 @@ import {
   type ContentmentSample,
   type DivergenceStats,
 } from "@glide/scoring";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
 import { loadWeekGrade } from "./grades";
-import { calibrationSuggestion, contentmentCheckin, dayGrade } from "./schema";
+import { contentmentCheckin, dayGrade } from "./schema";
 import { currentLocalDate } from "../lib/calendar";
 
 const ROLLING_WINDOW_WEEKS = 12;
@@ -123,18 +123,9 @@ async function loadRecentWeeklyGrades(
   return results.filter((r): r is { weekStart: string; grade: number } => r !== null);
 }
 
-export interface CalibrationSuggestionRow {
-  id: string;
-  insightText: string;
-  proposedChange: string;
-  status: "proposed" | "accepted" | "dismissed";
-  resolvedAt: string | null;
-}
-
 export interface CalibrationState {
   gate: boolean;
   divergence: DivergenceStats | null;
-  suggestions: CalibrationSuggestionRow[];
 }
 
 /**
@@ -156,48 +147,18 @@ export interface CalibrationState {
  * worth of consequences, not a slider, so §4 leaves it open rather
  * than repointing the automation at it.
  *
- * Existing rows are left alone. Suggestions already stored stay
- * readable in the history list, and `resolveSuggestion` still records
- * a decision on them; it simply no longer applies a `gapCoefficient`.
+ * Nothing reads or writes `calibration_suggestion` any more (Henry,
+ * 2026-11-10): no users exist, so there are no old rows to show. The
+ * table stays, since migrations only go forward (ADR-0002).
  */
 export async function loadCalibrationState(): Promise<CalibrationState> {
-  const [samples, grades, suggestions] = await Promise.all([
+  const [samples, grades] = await Promise.all([
     loadContentmentSamples(),
     loadRecentWeeklyGrades(ROLLING_WINDOW_WEEKS),
-    db.select().from(calibrationSuggestion).orderBy(desc(calibrationSuggestion.createdAt)),
   ]);
 
   const gate = meetsColdStartGate(samples);
   const divergence = gate ? computeDivergence(grades, samples) : null;
 
-  return { gate, divergence, suggestions };
-}
-
-/**
- * Records the user's answer to a suggestion. ADR-0008 §1's rule — "every
- * change applies only on an explicit yes" — is unchanged and now
- * vacuous: nothing generates suggestions since ADR-0028 §4, and the
- * leftover rows have no change left to apply. Dismissed suggestions are
- * never regenerated or re-surfaced automatically.
- */
-export async function resolveSuggestion(
-  id: string,
-  status: "accepted" | "dismissed",
-): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(calibrationSuggestion)
-    .where(eq(calibrationSuggestion.id, id));
-  if (!row) return;
-
-  await db
-    .update(calibrationSuggestion)
-    .set({ status, resolvedAt: new Date().toISOString() })
-    .where(eq(calibrationSuggestion.id, id));
-
-  // Nothing to apply. Every suggestion the app has ever written is a
-  // `gapCoefficient` one, and formula v8 retired that constant
-  // (ADR-0028 §1) — accepting a leftover row records the user's answer
-  // and changes no arithmetic. When calibration gets a lever again,
-  // this is where applying it goes.
+  return { gate, divergence };
 }

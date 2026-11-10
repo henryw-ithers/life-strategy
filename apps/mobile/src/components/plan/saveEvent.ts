@@ -115,6 +115,9 @@ export async function saveEventEdit(
   event: StoredEvent,
   input: EventInput,
   bounds: Bounds | null,
+  /** The day it was opened from: "This event only" and "This and
+   *  following" start at that day's run, or today's if it has passed. */
+  from?: string,
 ): Promise<boolean> {
   const repeating = event.plannedWeekdays !== null && event.oneOffDate === null;
   const staysRepeating = input.weekdays.length > 0;
@@ -142,9 +145,10 @@ export async function saveEventEdit(
 
   const scope = await askScope();
   if (scope === null) return false;
+  const today = currentLocalDate();
   const date = nextRun(
     { ...event, skippedDates: await skippedDays(event.id) },
-    currentLocalDate(),
+    from !== undefined && from > today ? from : today,
   );
   if (scope === "all" || date === null) {
     await updateEvent(event.id, input);

@@ -56,3 +56,22 @@ export function moveTo(
     return [...here.slice(0, at), { unitId, tier: slot }, ...here.slice(at)];
   });
 }
+
+/**
+ * A first run's half-sorted board, as it was left (Henry, 2026-11-10):
+ * the saved order and tiers, then any unit it doesn't know, Unsorted.
+ * Anything that isn't a unit or a slot is dropped.
+ */
+export function restoreDraft(unitIds: readonly string[], draft: readonly unknown[]): BoardUnit[] {
+  const known = new Set(unitIds);
+  const slots = new Set<string>([...TIERS, "unsorted"]);
+  const kept: BoardUnit[] = [];
+  for (const d of draft) {
+    const p = d as { unitId?: unknown; tier?: unknown };
+    if (typeof p.unitId !== "string" || typeof p.tier !== "string") continue;
+    if (!known.has(p.unitId) || !slots.has(p.tier) || kept.some((k) => k.unitId === p.unitId)) continue;
+    kept.push({ unitId: p.unitId, tier: p.tier as Slot });
+  }
+  const placed = new Set(kept.map((k) => k.unitId));
+  return [...kept, ...unitIds.filter((id) => !placed.has(id)).map((unitId) => ({ unitId, tier: "unsorted" as const }))];
+}

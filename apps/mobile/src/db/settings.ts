@@ -66,6 +66,17 @@ export async function loadDayStart(): Promise<void> {
 
 // Changing it moves stored times too: `changeDayStart` in `dayStart.ts`.
 
+const APPEARANCE_KEY = "appearance";
+
+/** Light, Dark or System (Henry, 2026-11-10); System when unset. */
+export async function loadAppearance(): Promise<string> {
+  return (await getSetting(APPEARANCE_KEY)) ?? "system";
+}
+
+export async function saveAppearance(choice: string): Promise<void> {
+  await setSetting(APPEARANCE_KEY, choice);
+}
+
 const SCORE_EXPLAINED_KEY = "score.explained";
 
 /**

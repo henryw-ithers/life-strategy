@@ -1,6 +1,8 @@
+import { addDays } from "@glide/scoring";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { MonthDay } from "../../db/dayGrades";
+import { isPlannable } from "../../lib/calendar";
 import { spokenDate } from "../../lib/format";
 import { gradeColor, type ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
@@ -56,6 +58,8 @@ export function MonthGrid({
   const daysInMonth = new Date(Date.UTC(y!, m!, 0, 12)).getUTCDate();
   // Sunday-first offset of the 1st (ADR-0004 §1 as amended).
   const leading = new Date(Date.UTC(y!, m! - 1, 1, 12)).getUTCDay();
+  const lastPlannable = addDays(today, 28);
+  const canForward = month.slice(0, 7) < lastPlannable.slice(0, 7);
 
   const cells: (string | null)[] = [
     ...Array.from({ length: leading }, () => null),
@@ -82,17 +86,17 @@ export function MonthGrid({
             {MONTHS[m! - 1]} {y}
           </AppText>
           <Pressable
-            // There is nothing to log in the future, so forward stops
-            // at the month containing today.
-            disabled={month.slice(0, 7) >= today.slice(0, 7)}
+            // Forward stops at the month holding the last day you can
+            // plan, four weeks out (Henry, 2026-11-10).
+            disabled={!canForward}
             onPress={() => onChangeMonth(shiftMonth(month, 1))}
             accessibilityRole="button"
             accessibilityLabel="Next month"
-            accessibilityState={{ disabled: month.slice(0, 7) >= today.slice(0, 7) }}
+            accessibilityState={{ disabled: !canForward }}
             hitSlop={10}
             style={({ pressed }) => [
               styles.arrow,
-              { opacity: month.slice(0, 7) >= today.slice(0, 7) ? 0.3 : pressed ? 0.5 : 1 },
+              { opacity: !canForward ? 0.3 : pressed ? 0.5 : 1 },
             ]}
           >
             <Chevron color={theme.ink} theme={theme} size={18} />
@@ -113,7 +117,8 @@ export function MonthGrid({
             const day = grades.get(date);
             const isToday = date === today;
             const isSelected = date === selected;
-            const isFuture = date > today;
+            // Days ahead open for planning, up to four weeks; past that, faded.
+            const isFuture = date > today && !isPlannable(date, today);
             return (
               <Pressable
                 key={date}

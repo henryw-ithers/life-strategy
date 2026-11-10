@@ -13,6 +13,7 @@ import {
   takeUncelebrated,
 } from "../achievements";
 import { toggleCompletion } from "../completions";
+import { setDayFlagged } from "../dayGrades";
 import { loadLog } from "../log";
 import { achievement, lifeArea, lifeUnit, task, taskCompletion, taskUnit } from "../schema";
 import { resetTestDb, testDb } from "./harness";
@@ -144,6 +145,18 @@ describe("celebrating", () => {
     const skipped = new Set(all.map((a) => a.series as SeriesId));
     expect(await takeUncelebrated(skipped)).toEqual([]);
     expect(await takeUncelebrated(new Set())).toEqual([]);
+  });
+});
+
+describe("worth remembering (Henry, 2026-11-10)", () => {
+  it("keeps a flagged day in the Log and counts it", async () => {
+    await setDayFlagged(TODAY, true);
+    const october = (await loadLog()).find((m) => m.month === "2026-10")!;
+    expect(october.entries.find((e) => e.localDate === TODAY)?.flagged).toBe(true);
+    const days = (await loadAchievements()).find((a) => a.series === "flaggedDays");
+    expect(days?.progress).toBe(1);
+    await setDayFlagged(TODAY, false);
+    expect((await loadAchievements()).find((a) => a.series === "flaggedDays")?.progress).toBe(0);
   });
 });
 

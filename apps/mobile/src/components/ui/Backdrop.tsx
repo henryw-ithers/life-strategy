@@ -82,5 +82,6 @@ export function constellation(
 }
 
 const styles = StyleSheet.create({
-  scrolling: { position: "absolute", left: 0, right: 0 },
+  // Clipped, so circles past the edge never widen the scroll view.
+  scrolling: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
 });

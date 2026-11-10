@@ -52,6 +52,7 @@ import {
   buildLabel,
   deviceLabel,
   recordFeedbackSent,
+  recordProblem,
 } from "../lib/problemLog";
 import { getTheme } from "../theme/colors";
 import { radius, space, type as typeScale } from "../theme/tokens";
@@ -105,11 +106,14 @@ export default function FeedbackScreen() {
   });
 
   useEffect(() => {
-    void loadFeedbackDraft().then((saved) => {
-      setKind(saved.kind);
-      setText(saved.text);
-      setLoaded(true);
-    });
+    void loadFeedbackDraft()
+      .then((saved) => {
+        setKind(saved.kind);
+        setText(saved.text);
+      })
+      // A draft that won't load starts the box empty, never spins forever.
+      .catch((e: unknown) => recordProblem(e, "load"))
+      .finally(() => setLoaded(true));
   }, []);
 
   useEffect(
@@ -146,7 +150,12 @@ export default function FeedbackScreen() {
     }
 
     try {
-      await Share.share({ message: composed.body, title: composed.subject });
+      const shared = await Share.share({ message: composed.body, title: composed.subject });
+      // Dismissed: nothing was sent, so you're back to writing.
+      if (shared.action === Share.dismissedAction) {
+        setStage({ kind: "writing" });
+        return;
+      }
       recordFeedbackSent(kind, "share");
       setStage({ kind: "handed-off", via: "share" });
     } catch {

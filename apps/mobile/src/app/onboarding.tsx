@@ -30,7 +30,7 @@ import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { completeOnboarding, loadOnboardingStep, saveOnboardingStep, type OnboardingStep } from "../db/onboarding";
 import { hasPriorities } from "../db/priorities";
 import { hasAskedNotificationPermission } from "../db/settings";
-import { nextStep } from "../lib/onboardingFlow";
+import { nextStep, previousStep } from "../lib/onboardingFlow";
 import { recordProblem } from "../lib/problemLog";
 import { askForNudge, declineNudge } from "../notifications/dailyNudge";
 import { getTheme, type ThemeTokens } from "../theme/colors";
@@ -99,6 +99,7 @@ export default function OnboardingScreen() {
     });
 
   const next = () => step && go(nextStep(step));
+  const back = () => step && go(previousStep(step));
 
   if (error) {
     return (
@@ -117,7 +118,7 @@ export default function OnboardingScreen() {
 
   if (step === "tiers") {
     return (
-      <OnboardingPage theme={theme} step="tiers" action="Next" onPress={next}>
+      <OnboardingPage theme={theme} step="tiers" action="Next" onPress={next} onBack={back}>
         <AppText variant="display" color={theme.ink}>
           What matters most?
         </AppText>
@@ -131,7 +132,7 @@ export default function OnboardingScreen() {
 
   if (step === "day") {
     return (
-      <OnboardingPage theme={theme} step="day" action="Next" onPress={next}>
+      <OnboardingPage theme={theme} step="day" action="Next" onPress={next} onBack={back}>
         <AppText variant="display" color={theme.ink}>
           A day out of 100
         </AppText>
@@ -151,7 +152,7 @@ export default function OnboardingScreen() {
 
   if (step === "time") {
     return (
-      <OnboardingPage theme={theme} step="time" action="Next" onPress={next}>
+      <OnboardingPage theme={theme} step="time" action="Next" onPress={next} onBack={back}>
         <AppText variant="display" color={theme.ink}>
           Your day, in parts
         </AppText>
@@ -165,7 +166,7 @@ export default function OnboardingScreen() {
 
   if (step === "start") {
     return (
-      <OnboardingPage theme={theme} step="start" action="Next" onPress={next}>
+      <OnboardingPage theme={theme} step="start" action="Next" onPress={next} onBack={back}>
         <AppText variant="display" color={theme.ink}>
           Where to start
         </AppText>
@@ -188,6 +189,7 @@ export default function OnboardingScreen() {
         action={askedNudge ? "Done" : "Turn on"}
         onPress={() => (askedNudge ? void run(complete) : void remind(true))}
         onSkip={askedNudge ? undefined : () => void remind(false)}
+        onBack={back}
         busy={busy}
         circles={constellation(theme.areas)}
       >

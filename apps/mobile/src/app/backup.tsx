@@ -36,7 +36,9 @@ type Mode =
   | { kind: "idle" }
   | { kind: "exporting" }
   | { kind: "restoring" }
-  | { kind: "done"; message: string };
+  | { kind: "done"; message: string }
+  /** The old database is closed; only a relaunch reads the new one. */
+  | { kind: "restored"; message: string };
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -86,7 +88,7 @@ export default function BackupScreen() {
         return;
       }
       setMode({
-        kind: "done",
+        kind: "restored",
         message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again. It’s still running on the old data until you do.`,
       });
     } catch (e) {
@@ -152,6 +154,12 @@ export default function BackupScreen() {
             <AppText variant="caption" color={theme.muted}>
               {mode.kind === "exporting" ? "Writing your backup…" : "Restoring…"}
             </AppText>
+          </View>
+        ) : null}
+
+        {mode.kind === "restored" ? (
+          <View style={[styles.section, { borderTopColor: theme.hairline }]}>
+            <AppText color={theme.ink}>{mode.message}</AppText>
           </View>
         ) : null}
 

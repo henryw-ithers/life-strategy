@@ -1,5 +1,6 @@
 /**
- * Adding to the day's record: a note or a photo. Sits with the record
+ * Adding to the day's record: a note or a photo, and marking the day
+ * worth remembering. Sits with the record
  * itself rather than beside the grade — having them a screen away from
  * what they add to cost the checklist its most valuable rows. Rendered
  * even when the record is empty, since that is when you most need the
@@ -46,10 +47,15 @@ export function AddAction({
 export function RecordActions({
   onAddNote,
   onAddPhoto,
+  flagged,
+  onToggleFlag,
   theme,
 }: {
   onAddNote: () => void;
   onAddPhoto: () => void;
+  /** Whether the day is marked worth remembering. */
+  flagged: boolean;
+  onToggleFlag: () => void;
   theme: ThemeTokens;
 }) {
   return (
@@ -66,6 +72,21 @@ export function RecordActions({
         onPress={onAddPhoto}
         theme={theme}
       />
+      <Pressable
+        onPress={onToggleFlag}
+        hitSlop={8}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: flagged }}
+        accessibilityLabel="Worth remembering"
+        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+      >
+        <View style={styles.action}>
+          <Ionicons name={flagged ? "bookmark" : "bookmark-outline"} size={15} color={theme.accent} />
+          <AppText variant="label" color={theme.accent}>
+            {flagged ? "Remembered" : "Remember"}
+          </AppText>
+        </View>
+      </Pressable>
     </View>
   );
 }

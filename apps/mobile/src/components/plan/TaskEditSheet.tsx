@@ -129,18 +129,6 @@ export function TaskEditSheet({
   const effectiveTimes = frequencyForWeekdays(weekdays, timesPerWeek);
   const storedWeekdays = formatWeekdays(weekdays);
 
-  const dirty =
-    title.trim() !== task.title ||
-    effectiveTimes !== task.timesPerWeek ||
-    unitIds.join("|") !== task.unitIds.join("|") ||
-    storedWeekdays !== task.plannedWeekdays ||
-    partOfDay !== task.partOfDay ||
-    fortnightOffset !== task.fortnightOffset ||
-    detail.startMinute !== task.startMinute ||
-    detail.endMinute !== task.endMinute ||
-    detail.size !== task.size ||
-    detail.allowsPartial !== task.allowsPartial;
-
   /** A task has to be listed somewhere, so an empty unit row can't be
    *  saved — the picker lets you clear the last chip on the way to
    *  choosing a different one, and this is where that lands. */
@@ -152,6 +140,19 @@ export function TaskEditSheet({
     date: task.oneOffDate,
     due: task.oneOffDue,
   });
+
+  const dirty =
+    title.trim() !== task.title ||
+    effectiveTimes !== task.timesPerWeek ||
+    unitIds.join("|") !== task.unitIds.join("|") ||
+    storedWeekdays !== task.plannedWeekdays ||
+    partOfDay !== task.partOfDay ||
+    fortnightOffset !== task.fortnightOffset ||
+    detail.startMinute !== task.startMinute ||
+    detail.endMinute !== task.endMinute ||
+    detail.size !== task.size ||
+    detail.allowsPartial !== task.allowsPartial ||
+    (once && (oneOff.size !== task.oneOffSize || oneOff.date !== task.oneOffDate || oneOff.due !== task.oneOffDue));
 
   /** Recurring commitment work has to name its days (ADR-0033). This
    *  bites when an unpinned task is moved under a commitment. */

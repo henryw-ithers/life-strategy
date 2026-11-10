@@ -66,6 +66,15 @@ Henry, 2026-10-01:
 > needs a day that had nothing due when it started. A day emptied on the
 > day itself is ungraded instead.
 
+> **Amended 2026-11-10 (Henry).** An extra run (a run of a task whose
+> week is already done) makes an empty day a rest day too, like early
+> work. Before, an empty day with work open later stayed ungraded and
+> the extra run paid nothing, though Today shows those rows to tick.
+> This does pay for a day that asked nothing: about 70 plus half a run.
+> It's accepted because the extra run is your own plan done further,
+> the same reason early work counts. Emptying a day still can't reach
+> it: a day emptied on the day is ungraded before this is checked.
+
 A day **asks nothing** when, measured from the days before it like the
 load itself:
 
