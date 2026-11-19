@@ -25,7 +25,6 @@ export interface CaptionTask {
   doneCount: number;
   goalCount: number;
   pointsIfCompletedNow: number;
-  streak: number | null;
   progress: number;
   allowsPartial: boolean;
   oneOffSize: string | null;
@@ -107,25 +106,6 @@ export function countsRuns(task: CaptionTask): boolean {
   );
 }
 
-/**
- * A daily task's run of days.
- *
- * **Only once it's worth saying, and only while it's true.** Below a
- * week there is no run to speak of, and a row that announced "1 day"
- * every time you restarted would be reporting the break rather than
- * the habit. That is the one thing docs/backburner.md warned a streak
- * must never do: its emotional weight lives entirely in the reset.
- *
- * A part-done day **counts toward the run** (Henry, 2026-09-30:
- * "progress isn't linear and some days showing up is what counts"),
- * which `loadDay` gets by reading every completion row, whatever its
- * fraction.
- */
-function streakCaption(task: CaptionTask): string | null {
-  if (task.streak === null || task.streak < 7) return null;
-  return `${task.streak} days`;
-}
-
 /** Progress copy stays factual — counts, never deficits (ADR-0008).
  *  Ordinal phrasing: the run at hand — "2nd of 5 this week" is the
  *  one just done (checked) or the one a tap would log (unchecked). */
@@ -150,5 +130,5 @@ function statusCaption(task: CaptionTask): string | null {
   if (task.progress > 0 && task.progress < 1) return progressLabel(task.progress);
   // An event is a time, not a count: its line says when and where.
   if (task.kind === "event") return eventCaption(task);
-  return countCaption(task) ?? streakCaption(task);
+  return countCaption(task);
 }

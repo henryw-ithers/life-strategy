@@ -415,11 +415,13 @@ export default function SettingsScreen() {
             reading identically for a user who is thriving and one who is
             not. Not a row, because a row invites a tap it does not have. */}
         <Group theme={theme} title="Support">
+          {/* Testers aren't all in the US: the first line works anywhere. */}
           <AppText color={theme.ink}>
-            988 Suicide &amp; Crisis Lifeline: call or text 988.
+            In a crisis, call your local emergency number, or find a free
+            helpline near you at findahelpline.com.
           </AppText>
           <AppText color={theme.ink} style={styles.resourceLine}>
-            Crisis Text Line: text HOME to 741741.
+            In the US: call or text 988.
           </AppText>
           <AppText variant="caption" color={theme.muted} style={styles.resourceLine}>
             Or talk to a doctor, therapist, or someone you trust.
@@ -443,7 +445,7 @@ export default function SettingsScreen() {
           <GroupDivider theme={theme} />
           <SettingsRow
             label="Reset everything"
-            detail="Deletes every rating, task, grade, and journal entry on this phone."
+            detail="Deletes every task, grade, note and photo on this phone."
             hint="Deletes everything on this device and starts over"
             destructive
             onPress={confirmErase}

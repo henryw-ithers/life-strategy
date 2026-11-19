@@ -8,15 +8,17 @@ import { addDays, type PeriodGrade } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, AppState } from "react-native";
 
 import { isDone } from "../components/today/daySections";
+import { saveThen } from "../components/ui/ScreenLoad";
 import { setCompletionFraction, toggleCompletion } from "../db/completions";
 import { loadCalendarGrades, type MonthDay } from "../db/dayGrades";
 import { loadWeekGrade } from "../db/grades";
 import { loadDayPlan, type DayPlan } from "../db/dayPlan";
 import { loadDay, loadPlannedAhead, type DayData, type TodayTask } from "../db/today";
-import { currentLocalDate, isPlannable } from "../lib/calendar";
+import { currentLocalDate, hasRolledOver, isPlannable } from "../lib/calendar";
+import { recordProblem } from "../lib/problemLog";
 import { syncDailyNudge } from "../notifications/dailyNudge";
 
 export function useDayData() {
@@ -38,6 +40,12 @@ export function useDayData() {
   /** Whether every due task was done at the last look, so finishing the
    *  last one is celebrated once rather than on every tap after. */
   const allDoneBefore = useRef(false);
+  /** Why the last load failed, shown in place of the day; null once one
+   *  succeeds. */
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  /** The date that was "today" at the last load, to notice the day
+   *  changing under an open app. */
+  const loadedToday = useRef<string | null>(null);
 
   const reload = useCallback(
     async (
@@ -52,16 +60,28 @@ export function useDayData() {
       // Today and later days are planned (windows); a past day is its
       // record, so its day alone.
       const planned = date >= currentLocalDate();
-      const [loaded, grades, week] = await Promise.all([
-        planned ? loadDayPlan(date) : scored?.date === date ? scored : loadDay(date),
-        loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
-        loadWeekGrade(date),
-      ]);
+      let loaded: DayPlan | DayData, grades: Map<string, MonthDay>, week: PeriodGrade | null;
+      try {
+        [loaded, grades, week] = await Promise.all([
+          planned ? loadDayPlan(date) : scored?.date === date ? scored : loadDay(date),
+          loadCalendarGrades(currentLocalDate(), month ?? currentLocalDate()),
+          loadWeekGrade(date),
+        ]);
+      } catch (thrown) {
+        // Shown, not swallowed: an endless spinner tells nobody anything.
+        if (turn !== loadTurn.current) return null;
+        const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+        recordProblem(error, "load");
+        setLoadError(error);
+        return null;
+      }
       const nextPlan = "planned" in loaded ? loaded : null;
       const next = nextPlan ? nextPlan.day : (loaded as DayData);
       // A superseded load lands nothing and says so: its caller mustn't
       // announce a score from it.
       if (turn !== loadTurn.current) return null;
+      loadedToday.current = next.today;
+      setLoadError(null);
       setDay(next);
       setPlan(nextPlan);
       setMonthGrades(grades);
@@ -80,6 +100,28 @@ export function useDayData() {
       });
     }, [reload, selected, viewMonth]),
   );
+
+  // Focus doesn't fire when the app comes back from the background, so a
+  // screen left open overnight would keep yesterday as Today and file
+  // ticks there. Following today, it moves on as soon as the day does.
+  useEffect(() => {
+    const check = () => {
+      if (selected === null && hasRolledOver(loadedToday.current)) {
+        void reload(currentLocalDate(), viewMonth);
+      }
+    };
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") check();
+    });
+    const tick = setInterval(check, 60_000);
+    return () => {
+      sub.remove();
+      clearInterval(tick);
+    };
+  }, [reload, selected, viewMonth]);
+
+  /** Try the failed load again. */
+  const retry = () => void reload(selected ?? currentLocalDate(), viewMonth);
 
   /** Reload the day on screen, after a write to it. */
   const refresh = (scored?: DayData | null) =>
@@ -108,12 +150,19 @@ export function useDayData() {
     // Tap always moves forward until the task is done: on a part-done row
     // it finishes rather than throwing away what was logged. Undo lives
     // on the row that is actually finished, and on the sheet.
-    const scored =
-      task.progress > 0 && task.progress < 1
-        ? await setCompletionFraction(task.id, day.date, 1)
-        : // A session done ahead belongs to the day it was done on, so
-          // undoing it undoes that tick — one session, one completion.
-          await toggleCompletion(task.id, task.doneAheadOn ?? day.date, windowStart);
+    let scored: DayData | null;
+    try {
+      scored =
+        task.progress > 0 && task.progress < 1
+          ? await setCompletionFraction(task.id, day.date, 1)
+          : // A session done ahead belongs to the day it was done on, so
+            // undoing it undoes that tick — one session, one completion.
+            await toggleCompletion(task.id, task.doneAheadOn ?? day.date, windowStart);
+    } catch (thrown) {
+      // A tick that didn't save says so, in the words every screen uses.
+      await saveThen(() => Promise.reject(thrown), () => reload(day.date));
+      return;
+    }
     const next = await reload(day.date, undefined, scored);
     // A newer load overtook this one: it says nothing.
     if (next === null) return;
@@ -141,7 +190,21 @@ export function useDayData() {
     return date <= currentLocalDate() || isPlannable(date, currentLocalDate());
   };
 
-  return { day, plan, weekGrade, monthGrades, viewMonth, refresh, select, step, canStep, changeMonth, toggle };
+  return {
+    day,
+    plan,
+    weekGrade,
+    monthGrades,
+    viewMonth,
+    loadError,
+    retry,
+    refresh,
+    select,
+    step,
+    canStep,
+    changeMonth,
+    toggle,
+  };
 }
 
 /**

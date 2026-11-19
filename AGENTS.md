@@ -219,9 +219,9 @@ second one. What separates it is its **band**, not its table
   never offered or chosen and is not a day kind; a day off stays
   ungraded. An empty day with work open and none done is ungraded.
   **A rest day needs a day that had nothing due when it started**
-  (ADR-0040): a day emptied on the day itself, by Clear today or a
-  same-day skip, is ungraded instead, so emptying a day can never
-  score 70.
+  (ADR-0040): a day emptied on the day itself, by Clear today, a
+  same-day skip, or moving or deleting a one-off due that day, is
+  ungraded instead, so emptying a day can never score 70.
 - Daily grades are **private by default**. Never add leaderboards,
   score comparisons, or competitive rankings — these are excluded by
   design, not omitted by accident.

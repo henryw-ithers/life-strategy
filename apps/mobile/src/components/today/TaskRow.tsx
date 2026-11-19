@@ -74,10 +74,12 @@ type HoldHandlers = Pick<
 export function rowHold(
   task: TodayTask,
   { onTag, onSkip, onPartial, onMove, onMoveTo, onDrop, onDoneIn, onEdit }: HoldHandlers,
+  /** The row is on a day ahead, where a skip is that day's, not today's. */
+  ahead = false,
 ): { run: () => void; label: string } | null {
   const actions: SheetAction[] = [
     ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
-    ...(onSkip ? [{ label: task.kind === "event" ? "Skip this event" : "Not today", onPress: onSkip }] : []),
+    ...(onSkip ? [{ label: task.kind === "event" ? "Skip this event" : ahead ? "Skip this day" : "Not today", onPress: onSkip }] : []),
     ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
     ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
     ...(onMoveTo ? [{ label: "Move to…", onPress: onMoveTo }] : []),

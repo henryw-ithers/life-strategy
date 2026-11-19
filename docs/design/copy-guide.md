@@ -19,7 +19,7 @@ Notification copy never includes task names, unit names, or counts — the remin
 - "Today's list is ready."
 - "Your day's checklist is waiting, whenever works."
 - "A few minutes for today's list."
-- "Today's checklist — take a look when you're ready."
+- "Today's checklist is there when you want it."
 
 Tapping the notification opens today's checklist. Nothing else.
 

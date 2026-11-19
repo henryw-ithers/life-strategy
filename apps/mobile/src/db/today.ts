@@ -13,7 +13,6 @@ import {
   commitmentPointValues,
   computeDayLoad,
   computeDayScore,
-  computeStreak,
   deriveChecklist,
   editWindowStart,
   EXTRA_RUN_RATE,
@@ -66,7 +65,7 @@ import { recordProblem } from "../lib/problemLog";
 import { pruneEndedPinsToday } from "./pins";
 import { loadSchedule } from "./schedule";
 import { loadAwayRanges } from "./skips";
-import { awayDatesBetween, withSchedule } from "./windowRules";
+import { withSchedule } from "./windowRules";
 import {
   activity,
   activityTag,
@@ -117,14 +116,6 @@ export interface TodayTask {
    * Empty unless the task is completed today and was tagged.
    */
   tagUnitIds: string[];
-  /**
-   * Consecutive days, for daily tasks only. Null for everything else:
-   * a run means nothing on a task that is meant to happen three times
-   * a week, and showing one would invent a target the plan never set.
-   *
-   * Shown, never enforced (ADR-0004 §5). It does not reach the grade.
-   */
-  streak: number | null;
   /** Whether its owner turned part credit on (ADR-0014 §1). */
   allowsPartial: boolean;
   /** Filed under a commitment or one of its parts (ADR-0035). */
@@ -778,8 +769,11 @@ export async function loadDay(
    * rest day: emptying a day must never score 70.
    */
   const emptiedToday =
-    schedule.changedOnTheDay &&
-    (computeDayLoad(
+    // A one-off moved off or deleted on the day was due at its start,
+    // though the task no longer shows it.
+    schedule.oneOffMovedOff ||
+    (schedule.changedOnTheDay &&
+      (computeDayLoad(
       loadTasks.map((lt) => ({ ...lt, skippedDates: schedule.skippedAtStart.get(lt.taskId) ?? new Set() })),
       lifeCompletions.filter((c) => c.localDate !== date),
       date,
@@ -788,7 +782,7 @@ export async function loadDay(
       commitmentTasks.some((t) => {
         const atStart = { ...t, skippedDates: schedule.skippedAtStart.get(t.id) ?? new Set<string>() };
         return t.oneOffSize != null ? t.oneOffDate === date : isDueOn(atStart, date);
-      }));
+      })));
   const restDay =
     kind !== "rest" &&
     isRestDay(load, band, { hasPlan, openThisWeek, earlyToday, emptiedToday });
@@ -830,58 +824,6 @@ export async function loadDay(
       .filter((r) => r.completionId === c.id)
       .map((r) => r.unitId);
     if (ids.length > 0) tagsByTask.set(c.taskId, ids);
-  }
-
-  /**
-   * Runs for daily tasks. A separate query because the checklist's own
-   * completion window is a fortnight, and a streak needs more than
-   * that.
-   *
-   * Bounded at a year: a longer run is not worth widening every day's
-   * read for, and the number stops being the interesting part well
-   * before then.
-   *
-   * **Every completion row counts, whatever its fraction** — decided,
-   * not incidental (ADR-0014 §4, 2026-09-30). A quarter done is a day
-   * you showed up, and Henry's call is that showing up is what a run is
-   * for: *"progress isn't linear and some days showing up is what
-   * counts."* Do not filter this to whole completions.
-   */
-  const dailyTaskIds = tasks.filter((t) => t.timesPerWeek === 7).map((t) => t.id);
-  const streakWindowStart = addDays(date, -365);
-  const streakRows = dailyTaskIds.length
-    ? await db
-        .select({ taskId: taskCompletion.taskId, localDate: taskCompletion.localDate })
-        .from(taskCompletion)
-        .where(
-          and(
-            inArray(taskCompletion.taskId, dailyTaskIds),
-            gte(taskCompletion.localDate, streakWindowStart),
-            lte(taskCompletion.localDate, date),
-          ),
-        )
-    : [];
-  const dayOffRows = dailyTaskIds.length
-    ? await db
-        .select({ localDate: dayGrade.localDate })
-        .from(dayGrade)
-        .where(and(eq(dayGrade.kind, "rest"), gte(dayGrade.localDate, streakWindowStart)))
-    : [];
-  // Away days are days off too (ADR-0040 §5): they bridge a run.
-  const awayInWindow = dailyTaskIds.length
-    ? awayDatesBetween(await loadAwayRanges(), streakWindowStart, date)
-    : new Set<string>();
-  const daysOff = [...dayOffRows.map((d) => d.localDate), ...awayInWindow];
-  const streakByTask = new Map<string, number>();
-  for (const id of dailyTaskIds) {
-    streakByTask.set(
-      id,
-      computeStreak({
-        done: streakRows.filter((r) => r.taskId === id).map((r) => r.localDate),
-        daysOff,
-        today: date,
-      }).current,
-    );
   }
 
   const todayTasks: TodayTask[] = tasks.map((t) => {
@@ -952,7 +894,6 @@ export async function loadDay(
       extraToday: sRest.extraToday,
       pointsIfCompletedNow: sRest.pointsIfCompletedNow,
       tagUnitIds: tagsByTask.get(t.id) ?? [],
-      streak: streakByTask.get(t.id) ?? null,
       allowsPartial: t.allowsPartial,
       commitment: commitmentUnitIds.has(t.unitId),
       commitmentName: commitmentNameOf(t.unitId),

@@ -56,7 +56,6 @@ function task(over: Partial<TodayTask> = {}): TodayTask {
     extraToday: false,
     pointsIfCompletedNow: 0,
     tagUnitIds: [],
-    streak: null,
     allowsPartial: false,
     commitment: false,
     commitmentName: null,

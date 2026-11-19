@@ -2,8 +2,8 @@
 // entry, with one step first: load CanvasKit, Skia's WebAssembly build.
 //
 // Skia's web module reads the CanvasKit global when it is first
-// imported, so CanvasKit has to exist before any route that draws the
-// portfolio graph is evaluated — loading it later, from a component,
+// imported, so CanvasKit has to exist before any route that draws with
+// Skia is evaluated (none does now; kept so one can) — loading it later, from a component,
 // leaves Skia bound to nothing. Hence the router is required, not
 // imported, once the load settles.
 //
@@ -17,7 +17,7 @@ import { LoadSkiaWeb } from "@shopify/react-native-skia/lib/module/web";
 
 LoadSkiaWeb({ locateFile: (file) => `/${file}` })
   .catch((error) => {
-    console.warn("Skia (CanvasKit) did not load; the portfolio graph will not draw.", error);
+    console.warn("Skia (CanvasKit) did not load; Skia drawing will not work.", error);
   })
   .finally(() => {
     // A sample plan for looking at screens past Priorities, whose Done

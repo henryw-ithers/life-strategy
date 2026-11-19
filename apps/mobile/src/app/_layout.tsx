@@ -21,6 +21,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import migrations from "../../drizzle/migrations";
+import { exportBackup } from "../backup/backupFile";
 import { AppText } from "../components/ui/AppText";
 import { Button } from "../components/ui/Button";
 import { db, openDatabase } from "../db/client";
@@ -230,7 +231,7 @@ function MigrationGate() {
   }, [success]);
 
   const fatal = migrationError ?? seedError;
-  if (fatal) return <StartupFailure error={fatal} />;
+  if (fatal) return <StartupFailure error={fatal} canExport />;
 
   // Splash screen stays visible while migrations and the seed run.
   if (!success || !seeded) return null;
@@ -263,9 +264,10 @@ function MigrationGate() {
  * side (the app has no data to show) and read the same way in copy, so
  * they share one dead end rather than three.
  */
-function StartupFailure({ error }: { error: Error }) {
+function StartupFailure({ error, canExport = false }: { error: Error; canExport?: boolean }) {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   // Recorded once per distinct failure, not once per render — this
   // screen re-renders on theme changes and has no other exit.
@@ -282,12 +284,35 @@ function StartupFailure({ error }: { error: Error }) {
         Couldn’t open your data
       </AppText>
       <AppText color={theme.muted} style={styles.errorBody}>
-        Nothing is lost. Closing and reopening the app usually fixes
-        this.
+        Nothing is lost. Closing and reopening the app may fix this.
+        {canExport ? " If it doesn’t, back up your data here and keep the file until an update fixes it." : ""}
       </AppText>
       <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
         {error.message}
       </AppText>
+      {/* A failed migration fails the same way every launch, and backup
+          lives behind this gate: this is the only way to get data out.
+          The connection is open by now, so the export can read it. */}
+      {canExport ? (
+        <View style={styles.retry}>
+          <Button
+            label="Back up now"
+            variant="secondary"
+            onPress={() =>
+              void exportBackup().catch((e: unknown) => {
+                recordProblem(e, "save");
+                setExportNote("The backup couldn’t be written.");
+              })
+            }
+            theme={theme}
+          />
+          {exportNote ? (
+            <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
+              {exportNote}
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -361,8 +386,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       </AppText>
       <AppText color={theme.muted} style={styles.errorBody}>
         Your data is untouched. Nothing was being saved. Try again, and if
-        it keeps happening, the gear on your Log opens Settings, where the
-        problem log has the details.
+        it keeps happening, the problem log in Settings has the details.
       </AppText>
       <AppText variant="footnote" color={theme.muted} style={styles.errorBody}>
         {error.message}

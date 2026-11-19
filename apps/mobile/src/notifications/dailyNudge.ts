@@ -12,6 +12,8 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { randomNotificationLine } from "../content/notificationCopy";
+import { dayStartHour } from "../lib/calendar";
+import { nextReminder } from "../lib/nudgeTime";
 import type { DayData } from "../db/today";
 import {
   loadNotificationSettings,
@@ -93,23 +95,6 @@ export function isDayHandled(day: DayData): boolean {
   return [...day.due, ...day.week].every((t) => t.completedToday);
 }
 
-function parseTime(time: string): { hour: number; minute: number } {
-  const [h, m] = time.split(":").map(Number);
-  return { hour: h ?? 9, minute: m ?? 0 };
-}
-
-/** Today at the target time if it hasn't passed and today isn't
- *  handled yet; otherwise tomorrow at the target time. */
-function nextFireDate(time: string, handled: boolean): Date {
-  const { hour, minute } = parseTime(time);
-  const today = new Date();
-  today.setHours(hour, minute, 0, 0);
-  if (!handled && today.getTime() > Date.now()) return today;
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow;
-}
-
 /**
  * Drops any scheduled nudge without scheduling a replacement. Used by
  * the data erase: a scheduled notification lives in the OS, not in the
@@ -136,7 +121,8 @@ export async function syncDailyNudge(day: DayData): Promise<void> {
   const { granted } = await getPermissionStatus();
   if (!granted) return;
 
-  const date = nextFireDate(settings.time, isDayHandled(day));
+  // From the planning day, not the calendar date (ADR-0049).
+  const date = nextReminder(day.today, settings.time, isDayHandled(day), dayStartHour());
   await Notifications.scheduleNotificationAsync({
     content: { body: randomNotificationLine() },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },

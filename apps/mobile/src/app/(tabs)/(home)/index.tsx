@@ -82,7 +82,7 @@ import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Button } from "../../../components/ui/Button";
 import { Group } from "../../../components/ui/Group";
 import { NativeSheet } from "../../../components/ui/NativeSheet";
-import { saveThen } from "../../../components/ui/ScreenLoad";
+import { LoadFailure, saveThen } from "../../../components/ui/ScreenLoad";
 import { UndoBar } from "../../../components/ui/UndoBar";
 import { deleteActivity, logActivity, setActivityFlagged, updateActivity } from "../../../db/activities";
 import { setCompletionFraction, setCompletionTags, setCompletionWindow, toggleCompletion } from "../../../db/completions";
@@ -139,6 +139,8 @@ export default function TodayScreen() {
     canStep,
     changeMonth,
     toggle,
+    loadError,
+    retry,
   } = useDayData();
   const undo = useUndoDelete((write) => saveThen(write, refresh));
   const celebration = useCelebration();
@@ -374,7 +376,11 @@ export default function TodayScreen() {
     return (
       <View style={styles.root}>
         <TabToolbar onTask={() => setAdding("task")} onEvent={() => setAdding("event")} onLog={logSomething} settings />
-        <ActivityIndicator color={theme.muted} style={styles.loading} />
+        {loadError ? (
+          <LoadFailure error={loadError} onRetry={retry} theme={theme} />
+        ) : (
+          <ActivityIndicator color={theme.muted} style={styles.loading} />
+        )}
       </View>
     );
   }
@@ -497,7 +503,14 @@ export default function TodayScreen() {
     onSkip:
       t.kind === "event" && !t.completedToday && day.date >= day.today
         ? () => askSkipEvent(t)
-        : t.kind === "task" && !t.completedToday && !t.skippedToday && t.oneOffSize == null && day.date >= day.today
+        : t.kind === "task" &&
+            !t.completedToday &&
+            !t.skippedToday &&
+            t.oneOffSize == null &&
+            day.date >= day.today &&
+            // Only on the day's own rows: a run listed from earlier or
+            // later in the week isn't this day's to skip.
+            notOnTodayGroup(t, day.date) === null
           ? // Not today (Henry, 2026-11-07): this day's run skipped, the
             // task kept. Skips are ADR-0040's, so a skip on the day that
             // empties it leaves it ungraded, never a rest day.
@@ -877,6 +890,7 @@ export default function TodayScreen() {
                 undo={undo}
                 reduceMotion={reduceMotion}
                 theme={theme}
+                skipFor={(t) => handlersFor(t).onSkip}
               />
             ) : !isToday ? (
               // A past day's record: only what was done (spec §5.2). It
@@ -953,6 +967,8 @@ export default function TodayScreen() {
         save={(write) => saveThen(write, refresh)}
         onSaved={() => void refresh()}
         theme={theme}
+        // A past day can't take a new event; it starts today instead.
+        date={day.date >= day.today ? day.date : undefined}
       />
 
       <ItemEditor

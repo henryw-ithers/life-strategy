@@ -244,3 +244,10 @@ a low grade or a low count.
 5. [x] Screens: Life → Achievements, unit badges and streak icons, the
        earning card, the month review list. Remove the goal code.
 6. [x] Update the spec (§5.4, §5.6) and the build tracker.
+
+## Amendment (Henry, 2026-11-19)
+
+§5's "small streak icon on the task" is withdrawn. ADR-0050 retired the
+per-task series, and §4 keeps achievements off the daily surface, so
+Today's rows no longer show a task's run of days. The unit's streak
+mark on Life stays.

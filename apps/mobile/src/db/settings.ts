@@ -30,6 +30,24 @@ export function setSettingIn(executor: Tx | typeof db, key: string, value: strin
   }
 }
 
+/**
+ * A one-off due on a day was moved off it, or deleted, on that day.
+ * Like a same-day skip, that empties the day rather than resting it: a
+ * day emptied on the day is ungraded, never a 70 (ADR-0040 §3,
+ * amended 2026-11-19). One key per day, so a day re-scored later
+ * still knows.
+ */
+const dayChangedKey = (date: string) => `day.changedOnTheDay.${date}`;
+
+/** Note that `date`'s due work changed on the day itself. */
+export function markDayChangedIn(executor: Tx | typeof db, date: string): void {
+  setSettingIn(executor, dayChangedKey(date), "1");
+}
+
+export async function wasDayChanged(date: string): Promise<boolean> {
+  return (await getSetting(dayChangedKey(date))) !== null;
+}
+
 const KEY_NOTIFICATIONS_ENABLED = "notifications.dailyNudge.enabled";
 const KEY_NOTIFICATIONS_TIME = "notifications.dailyNudge.time";
 const KEY_NOTIFICATIONS_PERMISSION_ASKED = "notifications.permissionAsked";

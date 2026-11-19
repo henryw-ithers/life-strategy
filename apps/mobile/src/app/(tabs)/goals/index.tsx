@@ -280,7 +280,7 @@ export default function LifeScreen() {
               />
             </View>
             {priority.unsorted > 0 ? (
-              <AppText color={theme.muted}>Drag each unit into a tier. Not now is a tier too.</AppText>
+              <AppText color={theme.muted}>Drag each unit into a tier, or tap its ≡. Not now is a tier too.</AppText>
             ) : null}
             {priority.unsorted === 0 && priority.live.problem ? (
               <AppText variant="footnote" color={theme.muted}>

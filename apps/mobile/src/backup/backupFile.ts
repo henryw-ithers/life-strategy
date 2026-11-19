@@ -131,8 +131,9 @@ export type RestoreOutcome =
  *    **before** touching anything on disk: a damaged file leaves the
  *    device untouched.
  * 2. Refuse a schema newer than this build.
- * 3. Write the current database beside itself as `.pre-restore` — the
- *    undo for someone who restores the wrong file.
+ * 3. Write the current database beside itself as `.pre-restore`, so a
+ *    swap interrupted part-way still has the old data on disk. It is
+ *    deleted once the swap holds.
  * 4. Close the live connection, replace the file, and delete the
  *    `-wal`/`-shm` sidecars, which belong to the old database and
  *    would corrupt the new one.
@@ -140,7 +141,8 @@ export type RestoreOutcome =
  * The connection cannot be reopened in place (`db` in db/client.ts is
  * a module-level singleton every screen already holds), so this
  * returns having invalidated it: the caller's only correct next move
- * is to tell the user to relaunch.
+ * is to reload the app (`reloadAppAsync`), which opens and migrates the
+ * restored file.
  */
 export async function restoreBackup(preview: BackupPreview): Promise<RestoreOutcome> {
   const opened = readBackup(await new File(preview.uri).bytes()); // throws BackupError
@@ -193,6 +195,9 @@ export async function restoreBackup(preview: BackupPreview): Promise<RestoreOutc
     const f = new File(sidecar);
     if (f.exists) f.delete();
   }
+  // The swap held: the set-aside copy has done its job, and leaving a
+  // full copy of the old data behind would outlive a later reset.
+  if (rescue.exists) rescue.delete();
 
   return { status: "restored", restoredFrom: opened.meta.createdAt };
 }

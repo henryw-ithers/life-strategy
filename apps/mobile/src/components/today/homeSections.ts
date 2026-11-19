@@ -250,7 +250,8 @@ export function homeSections(input: {
 export type NotOnTodayGroup = "earlier" | "deadline" | "later" | "setAside";
 
 export const NOT_ON_TODAY_LABEL: Record<NotOnTodayGroup, string> = {
-  earlier: "Earlier this week",
+  // Not "this week": a one-off carries until done, so it can be older.
+  earlier: "Earlier",
   deadline: "With a deadline",
   later: "Later this week",
   setAside: "Set aside today",

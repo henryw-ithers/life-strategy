@@ -37,6 +37,12 @@ export function currentLocalDate(): string {
   return localDateOf(new Date(), dayStart);
 }
 
+/** Whether the day a screen loaded as "today" has since ended: the app
+ *  sat open, or in the background, across the day's start. */
+export function hasRolledOver(loadedToday: string | null, now: string = currentLocalDate()): boolean {
+  return loadedToday !== null && loadedToday !== now;
+}
+
 /** The day an instant belongs to. */
 export function localDateAt(at: Date): string {
   return localDateOf(at, dayStart);
