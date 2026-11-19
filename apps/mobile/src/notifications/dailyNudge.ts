@@ -111,7 +111,17 @@ export async function cancelAllNudges(): Promise<void> {
  * whatever's currently scheduled, then — if the reminder is enabled
  * and permitted — schedules exactly one upcoming occurrence.
  */
-export async function syncDailyNudge(day: DayData): Promise<void> {
+export function syncDailyNudge(day: DayData): Promise<void> {
+  // One at a time: two syncs started close together (a focus reload and
+  // a tick) would each cancel, then each schedule, leaving two.
+  const run = syncing.then(() => syncNow(day));
+  syncing = run.catch(() => undefined);
+  return run;
+}
+
+let syncing: Promise<void> = Promise.resolve();
+
+async function syncNow(day: DayData): Promise<void> {
   if (!canSchedule) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 

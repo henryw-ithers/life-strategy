@@ -10,7 +10,7 @@
  * shame (docs/design/copy-guide.md).
  */
 import { reloadAppAsync } from "expo";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -56,6 +56,7 @@ export default function BackupScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
 
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
+  const restoring = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
@@ -79,6 +80,10 @@ export default function BackupScreen() {
   };
 
   const onRestore = async (preview: BackupPreview) => {
+    // A second tap would restore over a closed connection and report a
+    // failure that didn't happen.
+    if (restoring.current) return;
+    restoring.current = true;
     setError(null);
     setMode({ kind: "restoring" });
     try {
@@ -86,6 +91,7 @@ export default function BackupScreen() {
       if (outcome.status === "refused") {
         setError(outcome.reason);
         setMode({ kind: "idle" });
+        restoring.current = false;
         return;
       }
       setMode({
@@ -95,6 +101,7 @@ export default function BackupScreen() {
     } catch (e) {
       setError(describeBackupError(e) ?? "The backup couldn’t be restored.");
       setMode({ kind: "idle" });
+      restoring.current = false;
     }
   };
 

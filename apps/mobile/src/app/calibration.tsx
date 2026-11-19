@@ -24,6 +24,8 @@ import { Button } from "../components/ui/Button";
 import { LoadFailure, useScreenLoad } from "../components/ui/ScreenLoad";
 import { getTheme } from "../theme/colors";
 import { space } from "../theme/tokens";
+import { Redirect } from "expo-router";
+import { CONTENTMENT } from "../lib/features";
 
 function directionLine(direction: "higher" | "lower" | "aligned"): string {
   if (direction === "higher") return "Your grades have been running higher than your weeks felt.";
@@ -31,7 +33,13 @@ function directionLine(direction: "higher" | "lower" | "aligned"): string {
   return "Your grades and how your weeks felt have been lining up.";
 }
 
-export default function CalibrationScreen() {
+/** Set aside for launch (ADR-0052): only a glide:// link still reaches this
+ *  route, and it goes to Settings instead. */
+export default function CalibrationScreenRoute() {
+  return CONTENTMENT ? <CalibrationScreen /> : <Redirect href="/settings" />;
+}
+
+function CalibrationScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const reduceMotion = useReducedMotion();

@@ -217,7 +217,13 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
   // a run (ADR-0004 §5); ranks read the run up to yesterday (§6).
   const restDays = f.grades.filter((g) => g.kind === "rest").map((g) => g.localDate);
   const doneByTask = new Map<string, string[]>();
-  for (const c of ticks) doneByTask.set(c.taskId, [...(doneByTask.get(c.taskId) ?? []), c.localDate]);
+  // Pushed, not spread: a spread copies the list on every tick, which
+  // grows with the square of a task's history.
+  for (const c of ticks) {
+    const list = doneByTask.get(c.taskId);
+    if (list) list.push(c.localDate);
+    else doneByTask.set(c.taskId, [c.localDate]);
+  }
   const daysByUnit = new Map<string, Set<string>>();
   for (const c of lifeTicks) {
     const unitId = taskById.get(c.taskId)!.unitId;
@@ -266,13 +272,18 @@ export function seriesValues(f: AchievementFacts): SeriesValue[] {
       repeatUntil: t.repeatUntil,
       skippedDates,
     };
-    const done = doneByTask.get(t.id) ?? [];
+    // Ticks counted per week once, rather than every tick re-read for
+    // every week of the task's life.
+    const runsByWeek = new Map<string, number>();
+    for (const d of doneByTask.get(t.id) ?? []) {
+      const ws = weekStart(d);
+      runsByWeek.set(ws, (runsByWeek.get(ws) ?? 0) + 1);
+    }
     const weeks = new Map<string, PlanWeek>();
     for (let ws = weekStart(from); ws <= lastWeek; ws = addDays(ws, 7)) {
       if (t.repeatUntil !== null && t.repeatUntil < ws) break;
       const target = weeklyGoalFor(load, ws);
-      const end = addDays(ws, 6);
-      const runs = done.filter((d) => d >= ws && d <= end).length;
+      const runs = runsByWeek.get(ws) ?? 0;
       weeks.set(ws, { weekStart: ws, met: target > 0 && runs >= target, skipped: target === 0 });
     }
     weeksByTask.set(t.id, weeks);

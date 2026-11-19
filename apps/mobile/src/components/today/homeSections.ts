@@ -17,6 +17,7 @@ import {
   type TimeRange,
 } from "@glide/scoring";
 
+import { PART_OF_DAY_LABEL } from "../plan/planning";
 import type { WindowState } from "./homeDay";
 
 /** A section of the day. Night (midnight to 5) is the app's own, for
@@ -25,9 +26,7 @@ import type { WindowState } from "./homeDay";
 export type Part = PartOfDay | "night" | "anytime";
 
 export const PART_LABEL: Record<Part, string> = {
-  morning: "Morning",
-  afternoon: "Afternoon",
-  evening: "Evening",
+  ...PART_OF_DAY_LABEL,
   night: "Night",
   anytime: "Anytime",
 };

@@ -71,7 +71,7 @@ let opening: Promise<void> | null = null;
  * true rather than hopeful.
  */
 export function openDatabase(): Promise<void> {
-  opening ??= openDatabaseAsync(DATABASE_NAME, { enableChangeListener: true })
+  opening ??= openDatabaseAsync(DATABASE_NAME)
     .then((connection) => {
       sqlite = connection;
       db = drizzle(connection, { schema });

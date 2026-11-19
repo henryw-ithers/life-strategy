@@ -14,7 +14,7 @@ import {
   runsBefore,
   weeklyGoalFor,
 } from "./dayLoad";
-import { addDays, fortnightStart, weekStart } from "./days";
+import { addDays, countingWindowStart, fortnightStart, weekStart } from "./days";
 
 /**
  * Daily checklist derivation and day-grade computation (ADR-0004 §4 as
@@ -58,12 +58,6 @@ export interface TaskDayStatus {
   pointsIfCompletedNow: number;
 }
 
-/** The counting window a task's weekly goal is measured over. */
-function windowFor(task: ChecklistTask, date: string): string {
-  return task.timesPerWeek === 0 && !task.oneOff
-    ? fortnightStart(date)
-    : weekStart(date);
-}
 
 /** Points one run is worth on a day of the given expected load. */
 function runPoints(weight: number, expected: number): number {
@@ -95,7 +89,7 @@ export function deriveChecklist(
 ): TaskDayStatus[] {
   const load = computeDayLoad(tasks, completions, date, away);
   return tasks.map((t) => {
-    const window = windowFor(t, date);
+    const window = countingWindowStart(t, date);
     const inWindow = completions.filter(
       (c) =>
         c.taskId === t.taskId && c.localDate >= window && c.localDate <= date,

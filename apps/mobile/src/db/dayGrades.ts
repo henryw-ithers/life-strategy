@@ -100,12 +100,12 @@ export async function setDayKind(
     satisfactionRating:
       kind === "special" ? (opts.satisfactionRating ?? null) : null,
   };
-  const [existing] = await db.select().from(dayGrade).where(eq(dayGrade.localDate, date));
-  if (existing) {
-    await db.update(dayGrade).set(values).where(eq(dayGrade.localDate, date));
-  } else {
-    await db.insert(dayGrade).values({ localDate: date, ...values });
-  }
+  // One statement: a read then an insert could race a score being
+  // written for the same day and fail on the primary key.
+  await db
+    .insert(dayGrade)
+    .values({ localDate: date, ...values })
+    .onConflictDoUpdate({ target: dayGrade.localDate, set: values });
   await cacheDayScore(date);
 }
 

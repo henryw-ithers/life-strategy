@@ -68,6 +68,13 @@ export function fortnightStart(date: string): string {
   return format(new Date(ws - (((weeksSinceEpoch % 2) + 2) % 2) * 7 * DAY_MS));
 }
 
+/** The first day of the counting window `date` falls in for a task: the
+ *  fortnight for a fortnightly task (`timesPerWeek` 0, not a one-off),
+ *  the week otherwise. */
+export function countingWindowStart(task: { timesPerWeek: number; oneOff?: boolean }, date: string): string {
+  return task.timesPerWeek === 0 && !task.oneOff ? fortnightStart(date) : weekStart(date);
+}
+
 /**
  * Which half of the fortnight `date` falls in: 0 for the first week,
  * 1 for the second.

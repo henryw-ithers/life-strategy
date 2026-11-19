@@ -1,6 +1,7 @@
 /**
- * Life → Achievements (ADR-0047 §7): every achievement, earned and
- * locked, as shields (Henry, 2026-10-25). The badges for everything you
+ * Life → Achievements (ADR-0047 §7): what you've earned and started,
+ * as shields, with every one a tap away (Henry, 2026-10-25; trimmed in
+ * the pre-submission review, 2026-11-19). The badges for everything you
  * do sit in a grid at the top. Then each achievement your units,
  * areas and commitments can earn, named once, with every one's badge
  * for it in a row beneath, units in your priority order (ADR-0050).
@@ -20,6 +21,7 @@ import { StreakFlame } from "../../../components/achievements/Medal";
 import { SERIES_ICON } from "../../../components/achievements/seriesIcons";
 import { ShieldBadge } from "../../../components/achievements/ShieldBadge";
 import { AppText } from "../../../components/ui/AppText";
+import { Button } from "../../../components/ui/Button";
 import { constellation, ScrollBackdrop } from "../../../components/ui/Backdrop";
 import { Group, GroupDivider } from "../../../components/ui/Group";
 import { InfoButton } from "../../../components/ui/InfoButton";
@@ -38,6 +40,9 @@ export default function AchievementsScreen() {
   const [sections, setSections] = useState<AchievementSection[] | null>(null);
   const [open, setOpen] = useState<AchievementItem | null>(null);
   const [openShown, openGone] = useRetained(open);
+  /** Every achievement, locked ones with nothing toward them included.
+   *  Off by default: a first look was a wall of zeros (review, 2026-11-19). */
+  const [showAll, setShowAll] = useState(false);
 
   /** Only the latest load lands. */
   const turn = useRef(0);
@@ -51,7 +56,20 @@ export default function AchievementsScreen() {
   const { error, retry } = useScreenLoad(reload);
 
   const everything = sections?.[0]?.key === "all" ? sections[0] : null;
-  const rest = sections?.filter((s) => s !== everything) ?? [];
+  const allBadges = everything ? byStanding(everything.rows.flatMap((r) => r.items)) : [];
+  // What you hold and what you've started; on day one, the first few,
+  // so the screen is never empty.
+  const begun = allBadges.filter(started);
+  const badges = showAll ? allBadges : begun.length > 0 ? begun : allBadges.slice(0, FIRST_LOOK);
+  const rest = (sections?.filter((s) => s !== everything) ?? [])
+    .map((s) => (showAll ? s : { ...s, rows: s.rows.filter((r) => r.items.some(started)) }))
+    .filter((s) => s.rows.length > 0);
+  const hidden =
+    allBadges.length - badges.length +
+    (sections ?? [])
+      .filter((s) => s !== everything)
+      .flatMap((s) => s.rows)
+      .filter((r) => !r.items.some(started)).length;
 
   return (
     <>
@@ -72,9 +90,9 @@ export default function AchievementsScreen() {
               />
             </View>
 
-            {everything ? (
+            {badges.length > 0 ? (
               <View style={[cardStyle(theme), styles.grid]}>
-                {byStanding(everything.rows.flatMap((r) => r.items)).map((item) => (
+                {badges.map((item) => (
                   <GridBadge key={item.series} item={item} theme={theme} onPress={() => setOpen(item)} />
                 ))}
               </View>
@@ -90,6 +108,15 @@ export default function AchievementsScreen() {
                 ))}
               </Group>
             ))}
+
+            {showAll || hidden > 0 ? (
+              <Button
+                label={showAll ? "Show what you've started" : "Show every achievement"}
+                variant="quiet"
+                onPress={() => setShowAll((v) => !v)}
+                theme={theme}
+              />
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -105,6 +132,14 @@ export default function AchievementsScreen() {
       ) : null}
     </>
   );
+}
+
+/** How many badges a first look shows before anything has begun. */
+const FIRST_LOOK = 6;
+
+/** Earned, or with something toward it. */
+function started(item: AchievementItem): boolean {
+  return item.earned.length > 0 || (item.progress ?? 0) > 0;
 }
 
 /** Highest rank first, then nearest the next rank: what you hold and

@@ -20,7 +20,7 @@ import {
   type Weekday,
   type WorkSchedule,
 } from "@glide/scoring";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { Redirect, router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -59,6 +59,7 @@ import { recordProblem } from "../lib/problemLog";
 import { currentLocalDate, endFromClock, startFromClock } from "../lib/calendar";
 import { getTheme } from "../theme/colors";
 import { radius, space } from "../theme/tokens";
+import { WINDOWS } from "../lib/features";
 
 /** "Weekdays", "Weekends", "Every day", else "Mon, Wed, Fri". */
 function groupTitle(days: readonly number[]): string | null {
@@ -68,7 +69,13 @@ function groupTitle(days: readonly number[]): string | null {
   return formatWeekdaySummary(days as readonly Weekday[]);
 }
 
-export default function HoursScreen() {
+/** Set aside for launch (ADR-0051): only a glide:// link still reaches this
+ *  route, and it goes to Settings instead. */
+export default function HoursScreenRoute() {
+  return WINDOWS ? <HoursScreen /> : <Redirect href="/settings" />;
+}
+
+function HoursScreen() {
   const scheme = useColorScheme();
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const today = currentLocalDate();

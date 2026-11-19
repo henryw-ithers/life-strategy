@@ -53,7 +53,7 @@
  * - A one-off with neither a day nor a deadline asks nothing of any
  *   day; it counts on the day it's done, in full on both sides.
  */
-import { addDays, fortnightStart, weekStart } from "./days";
+import { addDays, countingWindowStart, fortnightStart, weekStart } from "./days";
 import { inScheduleOn, isBounded, pinnedOn, type ScheduleBounds } from "./schedule";
 
 /** A task as the day's arithmetic sees it. The `ScheduleBounds` fields
@@ -162,12 +162,6 @@ function daysUntil(date: string, due: string, away?: ReadonlySet<string>): numbe
   return Math.max(1, n);
 }
 
-/** The first day of the counting window `date` falls in: the fortnight
- *  for a fortnightly task, the week otherwise. */
-function windowStartFor(task: LoadTask, date: string): string {
-  return task.timesPerWeek === 0 && !task.oneOff ? fortnightStart(date) : weekStart(date);
-}
-
 /**
  * Runs a task owes in the window `date` falls in: its frequency, or one
  * for a fortnightly task and for a one-off.
@@ -186,7 +180,7 @@ function windowStartFor(task: LoadTask, date: string): string {
 export function weeklyGoalFor(task: LoadTask, date: string): number {
   const goal = task.oneOff ? 1 : task.timesPerWeek === 0 ? 1 : task.timesPerWeek;
   if (task.oneOff || !isBounded(task)) return goal;
-  const start = windowStartFor(task, date);
+  const start = countingWindowStart(task, date);
   const length = task.timesPerWeek === 0 ? 14 : 7;
   const days = Array.from({ length }, (_, i) => addDays(start, i));
   const unbounded: LoadTask = { ...task, repeatFrom: null, repeatUntil: null, skippedDates: undefined };
@@ -299,7 +293,7 @@ export function computeDayLoad(
   let extra = 0;
 
   for (const task of tasks) {
-    const windowStart = windowStartFor(task, date);
+    const windowStart = countingWindowStart(task, date);
     const inWindow = completions.filter(
       (c) =>
         c.taskId === task.taskId &&
