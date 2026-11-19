@@ -2,8 +2,8 @@
  * Edit or delete any task or event by its id, wherever it shows (Henry,
  * 2026-10-26: "if some type of object appears I should easily be able
  * to edit, delete, or move it"). A task opens its edit sheet; an event
- * opens the event sheet, with Delete. One component, so Home, Plan and
- * the weekly pass edit the same way the unit and commitment screens do.
+ * opens the event sheet, with Delete. One component, so Today edits the
+ * same way the unit and commitment screens do.
  *
  * The caller owns the deleting (its own Undo bar), so a delete is
  * handed back rather than written here.
@@ -17,7 +17,7 @@ import { recordProblem } from "../../lib/problemLog";
 import type { ThemeTokens } from "../../theme/colors";
 import { applyTaskEdit, editableFrom } from "./applyTaskEdit";
 import { EventSheet } from "./EventSheet";
-import { savedOrSaid, saveEventEdit } from "./saveEvent";
+import { CANCELLED, savedOrSaid, saveEventEdit, saveNewEvent } from "./saveEvent";
 import { TaskEditSheet } from "./TaskEditSheet";
 import { pickableUnits } from "./unitSelection";
 
@@ -116,6 +116,12 @@ export function ItemEditor({
         onDelete={() => {
           onClose();
           onDelete(t);
+        }}
+        onAgain={async (input) => {
+          const added = await savedOrSaid(async () => (await saveNewEvent(t.unitIds, input, null)) !== CANCELLED);
+          if (!added) return;
+          onClose();
+          onSaved();
         }}
       />
     );

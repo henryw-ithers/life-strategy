@@ -63,6 +63,7 @@ traced. Copy [template.md](template.md) to write a new one.
 | [0049](0049-the-day-starts-when-you-say.md) | A Day starts at setting; times run overnight for up to a day and belong to the day they start | Accepted |
 | [0050](0050-a-day-asks-only-what-it-can.md) | Formula v12: task weights evened toward the average; a day asks only what can be done in it; achievements are for units, not tasks | Accepted |
 | [0051](0051-launch-without-windows.md) | Launch without windows: the day in parts, Week replaces Plan, working hours set aside | Accepted |
+| [0052](0052-launch-without-the-weekly-pass-or-contentment.md) | Launch without the weekly pass or contentment: the pass removed, contentment archived, events set up rather than copied | Accepted |
 
 ## Reading guide
 
@@ -123,7 +124,7 @@ came from testing: the day is arranged by you, not the clock, and it
 starts when you say. 0051 sets windows aside for launch.
 
 **Why the numbers have gaps.** 0012 and 0016–0018 are reserved. 0019 to
-0051 were written as other decisions came up first; renumbering to fill
+0052 were written as other decisions came up first; renumbering to fill
 the gaps would break every existing link to them.
 
 **Not ADRs:** release operations ([release.md](../release.md)), testing

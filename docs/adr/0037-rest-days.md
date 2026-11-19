@@ -75,6 +75,11 @@ Henry, 2026-10-01:
 > the same reason early work counts. Emptying a day still can't reach
 > it: a day emptied on the day is ungraded before this is checked.
 
+> **Clarified 2026-11-19.** Carried work done late counts the same way
+> (ADR-0039 §8 already paid it as early work is paid): a late pinned
+> run, a carried commitment one-off, and now a one-off whose day has
+> passed (ADR-0050 §2 as amended).
+
 A day **asks nothing** when, measured from the days before it like the
 load itself:
 

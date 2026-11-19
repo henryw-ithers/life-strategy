@@ -1,8 +1,9 @@
 /**
  * Calibration (ADR-0008): the weekly check-in and, once there's enough
  * data, a plain-language read on whether grades and felt contentment
- * agree. The same question is asked in the weekly pass. Suggestions
- * were dropped: formula v8 left nothing for one to change.
+ * agree. Archived for launch (ADR-0052): the `CONTENTMENT` switch hides
+ * it, and stored answers are kept. Suggestions were dropped: formula v8
+ * left nothing for one to change.
  */
 import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, useColorScheme, View } from "react-native";

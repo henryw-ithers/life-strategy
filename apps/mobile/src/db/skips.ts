@@ -83,8 +83,8 @@ export async function addSkip(skip: SkipInput): Promise<string> {
 
 /**
  * Skip a task's runs on several dates, or take those skips back, in one
- * transaction: the weekly pass turns an event off for the rest of the
- * week (ADR-0040 §2). Reads what's stored inside the transaction, so a
+ * transaction (ADR-0040 §2): Add to today takes back a Not today. Reads
+ * what's stored inside the transaction, so a
  * stale screen can't half-apply it. Runs can be skipped from today on.
  */
 export async function setRunsSkipped(

@@ -1,29 +1,9 @@
 /**
- * The weekly pass's rules (spec §5.3.2).
+ * How completed work counts toward effort share (ADR-0041 §5).
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  activityMinutes,
-  daysLeft,
-  doneMinutes,
-  lastWeek,
-  tiersDue,
-} from "../weeklyPassRules";
-
-/** Wednesday 21 October 2026; its week runs Sunday 18 to Saturday 24. */
-const WED = "2026-10-21";
-
-describe("weeks", () => {
-  it("takes last week as the Sunday to Saturday before this one", () => {
-    expect(lastWeek(WED)).toEqual({ start: "2026-10-11", end: "2026-10-17" });
-    expect(lastWeek("2026-10-18")).toEqual({ start: "2026-10-11", end: "2026-10-17" });
-  });
-
-  it("plans today to Saturday", () => {
-    expect(daysLeft(WED)).toEqual(["2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"]);
-  });
-});
+import { activityMinutes, doneMinutes } from "../workShareRules";
 
 describe("time spent", () => {
   const tick = { kind: "task" as const, size: null, startMinute: null, endMinute: null, fraction: 1 };
@@ -45,13 +25,5 @@ describe("time spent", () => {
     ]);
     expect(activityMinutes(null, ["a"])).toEqual([]);
     expect(activityMinutes("big", [])).toEqual([]);
-  });
-});
-
-describe("the month's tiers", () => {
-  it("are offered on the first pass of a month only", () => {
-    expect(tiersDue(null, WED)).toBe(true);
-    expect(tiersDue("2026-09", WED)).toBe(true);
-    expect(tiersDue("2026-10", WED)).toBe(false);
   });
 });

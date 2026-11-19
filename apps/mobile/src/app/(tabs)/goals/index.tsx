@@ -56,7 +56,7 @@ import { badgesByUnit, highestRank, loadAchievements, type UnitBadge } from "../
 import { loadCommitmentsScreen, type CommitmentsScreenData } from "../../../db/commitments";
 import { createCommitment } from "../../../db/commitmentWrites";
 import { addTask, archiveTask, loadPlan, type PlanData, type PlanTask } from "../../../db/tasks";
-import { loadWorkShares } from "../../../db/weeklyPass";
+import { loadWorkShares } from "../../../db/workShares";
 import { SLOT_LABEL, usePriorityBoard } from "../../../hooks/usePriorityBoard";
 import { useRetained } from "../../../hooks/useRetained";
 import { useUndoDelete } from "../../../hooks/useUndoDelete";

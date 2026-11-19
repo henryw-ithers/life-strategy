@@ -159,3 +159,15 @@ export function pastChangedBy(before: Bounds, after: Bounds, today: string): boo
   };
   return pastOf(before) !== pastOf(after);
 }
+
+/** The day an event ended: a one-time event's own day, or a series'
+ *  last. Null while it has no end. */
+export function eventEnd(e: { oneOffDate: string | null; repeatUntil: string | null }): string | null {
+  return e.oneOffDate ?? e.repeatUntil;
+}
+
+/** Whether an event is over: listed under Past (Henry, 2026-11-19). */
+export function eventIsPast(e: { oneOffDate: string | null; repeatUntil: string | null }, today: string): boolean {
+  const end = eventEnd(e);
+  return end !== null && end < today;
+}

@@ -1,20 +1,13 @@
 /**
  * Home's day, in words and states (spec §5.1): which window is open,
  * what the day says before, between and after windows, how long the
- * open one has left, what a closed one says, when the evening card
- * comes, and when the weekly pass is offered. Pure, so it's tested
- * off-device.
+ * open one has left, what a closed one says, and when the evening card
+ * comes. Pure, so it's tested off-device.
  *
  * **Nothing here counts what wasn't done**: a past window says how
  * many were done, or only its times (P7, P8).
  */
-import {
-  addDays,
-  formatMinutes,
-  isoWeekday,
-  weekStart,
-  type TimeRange,
-} from "@glide/scoring";
+import { formatMinutes, type TimeRange } from "@glide/scoring";
 
 /** Where a window is in the day. */
 export type WindowState = "past" | "open" | "later";
@@ -77,28 +70,3 @@ export function eveningFrom(windows: readonly TimeRange[]): number {
   return last ? last.end - 60 : EVENING_DEFAULT;
 }
 
-/**
- * Whether Home offers the weekly pass (ADR-0039 §11, spec §5.1): from
- * Sunday 6 pm, the week's first evening (weeks run Sunday to Saturday,
- * ADR-0004 §1), until Monday's first window starts. Not now hides it
- * for the week, and nothing mentions a skipped pass (P15).
- */
-export const PASS_FROM = 18 * 60;
-
-export function passCardDue(input: {
-  today: string;
-  now: number;
-  /** Monday's first window, if Monday has one. */
-  mondayFirst: number | null;
-  /** The week Not now was pressed in, by its Sunday. */
-  hiddenWeek: string | null;
-}): boolean {
-  const { today, now, mondayFirst, hiddenWeek } = input;
-  if (hiddenWeek === weekStart(today)) return false;
-  const day = isoWeekday(today);
-  if (day === 7) return now >= PASS_FROM;
-  if (day === 1 && addDays(today, -1) === weekStart(today)) {
-    return mondayFirst === null || now < mondayFirst;
-  }
-  return false;
-}

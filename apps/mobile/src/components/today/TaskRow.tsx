@@ -31,6 +31,8 @@ interface TaskRowProps {
   /** Press-and-hold: move it to another part of the day, the non-drag
    *  way to do what dragging does (WCAG 2.5.7; Henry, 2026-11-10). */
   onMoveTo?: () => void;
+  /** Press-and-hold on a carried one-off: let it go (Henry, 2026-11-19). */
+  onDrop?: () => void;
   /** Press-and-hold on a row ticked today: say which window it was done
    *  in (ADR-0048). */
   onDoneIn?: () => void;
@@ -64,14 +66,14 @@ interface TaskRowProps {
 
 type HoldHandlers = Pick<
   TaskRowProps,
-  "onTag" | "onSkip" | "onPartial" | "onMove" | "onMoveTo" | "onDoneIn" | "onEdit"
+  "onTag" | "onSkip" | "onPartial" | "onMove" | "onMoveTo" | "onDrop" | "onDoneIn" | "onEdit"
 >;
 
 /** What a hold on a row does: its one action, or a menu of them. Null
  *  when a hold does nothing. Shared with `DragRow`'s hold. */
 export function rowHold(
   task: TodayTask,
-  { onTag, onSkip, onPartial, onMove, onMoveTo, onDoneIn, onEdit }: HoldHandlers,
+  { onTag, onSkip, onPartial, onMove, onMoveTo, onDrop, onDoneIn, onEdit }: HoldHandlers,
 ): { run: () => void; label: string } | null {
   const actions: SheetAction[] = [
     ...(onTag ? [{ label: "Where else it counts", onPress: onTag }] : []),
@@ -79,6 +81,7 @@ export function rowHold(
     ...(onPartial ? [{ label: "How much of it you did", onPress: onPartial }] : []),
     ...(onMove ? [{ label: "Move it", onPress: onMove }] : []),
     ...(onMoveTo ? [{ label: "Move to…", onPress: onMoveTo }] : []),
+    ...(onDrop ? [{ label: "Drop", onPress: onDrop }] : []),
     ...(onDoneIn ? [{ label: "Done in…", onPress: onDoneIn }] : []),
     ...(onEdit ? [{ label: task.kind === "event" ? "Edit event" : "Edit task", onPress: onEdit }] : []),
   ];
@@ -96,6 +99,7 @@ export function TaskRow({
   onTag,
   onMove,
   onMoveTo,
+  onDrop,
   onDoneIn,
   onSkip,
   onPartial,
@@ -128,7 +132,7 @@ export function TaskRow({
   const caption = reason ?? rowCaption(task);
   // Everything a hold can do here, as one menu when there's more than
   // one (Henry, 2026-10-26: every object editable).
-  const hold = rowHold(task, { onTag, onSkip, onPartial, onMove, onMoveTo, onDoneIn, onEdit });
+  const hold = rowHold(task, { onTag, onSkip, onPartial, onMove, onMoveTo, onDrop, onDoneIn, onEdit });
   const longPress = hold?.run;
   const longPressLabel = hold?.label ?? null;
 

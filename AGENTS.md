@@ -44,7 +44,9 @@ to today brings it back) and the day still counts it, so skipping can
 never raise the day you're in. The load reads a task's skips as they
 stood when the day began (`skippedAtStart`); events keep ADR-0040 §2.
 Working hours have no UI, and the commitment share reads the default
-hours. The window and hours code and tables stay for when windows come
+hours. **The weekly pass is removed and the contentment check-in
+archived** (ADR-0052): `CONTENTMENT` in the same file is off. New events
+default to One time, and a past one-time event has **Again on…**. The window and hours code and tables stay for when windows come
 back; don't delete them, and don't build on them without a new ADR.
 
 ## Repository layout
@@ -126,10 +128,11 @@ Use these terms consistently in code, docs, and UI copy:
 | **Day starts at** | The hour the user's day begins, 3am unless changed in Settings. A day runs 24 hours from it, and anything that starts before the next day begins belongs to the day it started, for up to a day (ADR-0049) |
 | **Do N of these** | The old pool: up to three equal-priced tasks pinned in a window, any N of which satisfy it. Its planned count sets the day's ceiling (ADR-0033 §3). **Removed from the UI** (Henry, 2026-10-25): nothing creates one now, but a choice saved before still scores |
 | **Clear today / Away** | Clear today sets aside today's windows and unticked events; the day is still graded, or ungraded if nothing is left due. Away is a date range of days off (ADR-0040) |
+| **Drop** | Letting an unfinished one-off go once its day has passed: it stops showing and nothing is owed, but it stays in history as dropped, unlike Delete, which removes a mistake. Dropping never changes a past day's score (Henry, 2026-11-19) |
 | **Activity** | A spontaneous one-off logged event, tagged to ≤3 SLUs. Credit is `size × the unit's daily share` and draws from the day's shared `UNPLANNED_CAP` pool (ADR-0009 as amended by ADR-0023) |
 | **Grade** | Points earned out of 100 (daily), aggregated weekly/monthly |
 | **Achievement** | Defined and awarded by the app, never set up by the user (ADR-0047, which replaced goals). A **series** counts one thing (a task's completions, a unit's hours, an every-day streak, weeks a plan was met, days scoring 80 or above) with five **ranks**, Bronze to Diamond, peaking near 1,000. Units, areas, commitments and the whole app earn them; nothing is counted per task (ADR-0050). Each drawn as a shield (an outline before Bronze). Earned ranks are never taken back. Feeds the Achievements screen, unit badges and monthly summaries, never daily grades |
-| **Contentment check-in** | Weekly 1–10 "how content did you feel?" question used to calibrate grading |
+| **Contentment check-in** | *Archived (Henry, 2026-11-19): not asked anywhere; stored answers kept.* Weekly 1–10 "how content did you feel?" question used to calibrate grading |
 | **Memory flag** | User mark on a day or activity meaning "worth remembering"; feeds look-back views. Journal entries, photos, and flags stay addable after a grade settles, and since 2026-08-13 notes are editable and deletable and photos removable (ADR-0002 amendment; press and hold in the day record) |
 
 ## Hierarchy
@@ -149,8 +152,9 @@ second one. What separates it is its **band**, not its table
   of 1.6, 1.0 and 0.6, adjusted from ×1.1 to ×0.9 by order, then scaled
   to 100. Not now is out of the plan: zero weight, no tasks. There is no
   floor (Henry, 2026-10-13). Satisfaction is no longer asked; old
-  ratings stay in their snapshots, read-only, and the weekly
-  contentment question is the only check on whether the plan works.
+  ratings stay in their snapshots, read-only. The weekly contentment
+  question was the only check on whether the plan works; it is
+  archived for launch (ADR-0052), so nothing checks it for now.
 - Every derived value is user-overridable, and every override still
   displays the recommended value beside it.
 - Daily grades measure consistency, never one-time achievements;
@@ -166,8 +170,10 @@ second one. What separates it is its **band**, not its table
   average task (formula v12, ADR-0050), so no single task dwarfs the
   rest. **A day asks only what can be done in it**: a task owes at most
   one run a day, fortnightly work spreads over its fortnight, a one-off
-  with a deadline over the days until it's due, and one with neither a
-  day nor a deadline counts only on the day it's done.
+  with a day is due that day in full (then carried, never in a later
+  day's load, until done or dropped; Henry, 2026-11-19), one with only
+  a deadline is spread over the days until it's due, and one with
+  neither counts only on the day it's done.
 - **A task's point value is a property of the day, not the task.**
   `task.point_value` stores a *weight* (a share of the 100); points are
   `90 × weight ÷ that day's expected load`, computed per day. Do not
@@ -203,7 +209,7 @@ second one. What separates it is its **band**, not its table
   (ADR-0037, `isRestDay`): no life work due, no commitment work
   scheduled, a plan behind it, **and** either nothing open later this
   week or something open done early today, or an extra run done today
-  (Henry, 2026-11-10). It scores **70**; activities
+  (Henry, 2026-11-10), or carried work done late (ADR-0039 §8). It scores **70**; activities
   fill the last 30 at three times the usual rate; early work is paid on
   top, uncapped, at **what its planned day would have paid** — as it is
   on every other day too. **Every open task is listed before its

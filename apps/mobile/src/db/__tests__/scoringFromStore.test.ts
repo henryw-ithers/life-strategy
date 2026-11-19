@@ -24,7 +24,7 @@ import {
   taskUnit,
 } from "../schema";
 import { addAway, setRepeatBounds } from "../skips";
-import { latestWeights } from "../tasks";
+import { dropTask, latestWeights } from "../tasks";
 import { loadDay } from "../today";
 import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
@@ -408,5 +408,33 @@ describe("sub-commitments (ADR-0044 §7)", () => {
     const units = testDb().select().from(lifeUnit).all();
     expect(units.find((u) => u.id === "school")?.usesSubCommitments).toBe(false);
     expect(units.some((u) => u.id === "comp")).toBe(false);
+  });
+});
+
+describe("a one-off with a day, and Drop (Henry, 2026-11-19)", () => {
+  it("counts in full on its day, is carried after it, and Drop moves no score", async () => {
+    addTask({ id: "essay", unitId: "friends", oneOffSize: "normal", oneOffDate: MON });
+    const monday = await loadDay(MON);
+    expect(monday.due.some((t) => t.id === "essay")).toBe(true);
+    const before = monday.score.base;
+
+    clock.today = TUE;
+    // Looking ahead from Monday, Tuesday doesn't list it; on Tuesday it's carried.
+    const tuesday = await loadDay(TUE);
+    expect([...tuesday.due, ...tuesday.week].find((t) => t.id === "essay")?.plannedOn).toBe(MON);
+
+    await dropTask("essay");
+    expect((await loadDay(MON)).score.base).toBe(before);
+    const after = await loadDay(TUE);
+    expect([...after.due, ...after.week].find((t) => t.id === "essay")?.droppedToday).toBe(true);
+    clock.today = "2026-10-21";
+    const wednesday = await loadDay("2026-10-21");
+    expect([...wednesday.due, ...wednesday.week].some((t) => t.id === "essay")).toBe(false);
+  });
+
+  it("isn't shown on a later day when you look ahead", async () => {
+    addTask({ id: "essay", unitId: "friends", oneOffSize: "normal", oneOffDate: MON });
+    const tuesday = await loadDay(TUE);
+    expect([...tuesday.due, ...tuesday.week].some((t) => t.id === "essay")).toBe(false);
   });
 });

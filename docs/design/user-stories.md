@@ -1,15 +1,15 @@
 # User stories
 
 Every way someone could use, or might want to use, Life Strategy, as
-of 2026-11-10, after the Suspect fixes on
-fix/user-story-suspects. "Every possible" has no literal end,
-so this is every user action crossed with every state that changes
-what happens, plus what people might want that the app can't do.
+of 2026-11-19 (ADR-0052 and the one-off changes with it). "Every
+possible" has no literal end, so this is every user action crossed
+with every state that changes what happens, plus what people might
+want that the app can't do.
 
 **Works means the code says so.** These come from reading the code
 and docs; nothing here was run on a device.
 
-449 stories: 371 Works, 55 Gap, 0 Suspect, 23 Parked.
+443 stories: 360 Works, 60 Gap, 0 Suspect, 23 Parked.
 
 ## How to read this
 
@@ -314,6 +314,12 @@ As someone sharing my day, I want to show friends my score, so that we can
 compare.
 *Outcome:* Excluded on purpose: grades are private, no comparison
 (AGENTS.md).
+
+**TOD-031 · Works**
+As a student, I want to see which course a task is for, so that the list
+reads at a glance.
+*Outcome:* The commitment or sub-commitment leads the caption, as in
+"COMP2521 · 2nd of 3 this week"; General reads as its commitment.
 
 ## TCK: Ticking tasks
 
@@ -663,6 +669,20 @@ As someone wanting to postpone, I want "move to tomorrow" in one tap, so
 that deferring is quick.
 *Outcome:* Not built.
 
+**NOT-020 · Works**
+As someone with a one-off that I planned for a day, I want it not to show on
+later days when I look ahead, so that the plan isn't cluttered.
+*Outcome:* Looking ahead, it isn't shown after its day. Once its day passes
+unticked it shows on today under Earlier this week until done or dropped,
+past its deadline too.
+
+**NOT-021 · Works**
+As someone who decided not to do a one-off, I want to drop it, so that it
+stops nagging me without deleting it.
+*Outcome:* Hold a carried one-off: "Drop", with Undo ("X: dropped"). It's
+gone from that day on, nothing is owed, it stays in history, and no past
+score moves.
+
 ## TSK: Creating and editing tasks
 
 ### Happy path
@@ -842,6 +862,17 @@ As someone wanting reminders per task, I want a notification for one task,
 so that I don't forget it.
 *Outcome:* Not built. There is one daily reminder.
 
+**TSK-033 · Works**
+As someone adding a task, I want its size to stay when I switch Once and
+Repeats, so that I don't pick it twice.
+*Outcome:* One size, kept whichever is on (Henry, 2026-11-19).
+
+**TSK-034 · Works**
+As someone with a one-off on a day and a deadline, I want it to count on the
+day I picked, so that the day I planned asks for it.
+*Outcome:* A one-off with a day is due that day in full, deadline or not.
+Done later, it's paid what its own day would have paid.
+
 ## EVT: Events
 
 ### Happy path
@@ -864,7 +895,8 @@ don't clean up later.
 **EVT-004 · Works**
 As someone who usually adds one-offs, I want new events to default to once,
 so that I change less.
-*Outcome:* Settings, "New events happen once".
+*Outcome:* New events default to One time for everyone; Every week is one
+tap (ADR-0052). The setting is gone.
 
 **EVT-005 · Works**
 As someone skipping one class, I want to skip just that occurrence, so that
@@ -994,6 +1026,18 @@ As a student wanting marks, I want to record a grade for a course, so that
 progress is in one place.
 *Outcome:* Excluded on purpose: no mark or result in the commitment model
 (ADR-0035).
+
+**EVT-028 · Works**
+As someone with an appointment that comes round again, I want to use a past
+one-time event again, so that I don't retype it.
+*Outcome:* "Again on…" in its sheet makes a new one-time event on the day
+you pick, a week on by default. The first stays as it was.
+
+**EVT-029 · Works**
+As someone with many one-time events, I want past ones out of the way but
+findable, so that the list shows what's coming.
+*Outcome:* A commitment's or unit's events are split into Events (coming up)
+and Past events, folded with a count, newest first.
 
 ## DAY: Kinds of day
 
@@ -1321,102 +1365,28 @@ it's a proper journal.
 
 ## WKP: Weekly pass
 
-### Happy path
+Removed on purpose (ADR-0052, Henry, 2026-11-19). Its steps live
+elsewhere: effort share on Life, tiers on Life at any time, skipping an
+event's weeks in its sheet, and Time away in Settings. The contentment
+question is archived.
 
-**WKP-001 · Works**
+**WKP-001 · Gap**
 As someone starting a week, I want a short guided look at it, so that the
 week has a plan.
-*Outcome:* Card "Plan this week · about 5 min" with Start and Not now, or ⋯,
-"Plan this week" at any time.
+*Outcome:* Removed on purpose (ADR-0052): it no longer fit the app. Each
+part has a home elsewhere.
 
-**WKP-002 · Works**
-As someone in the pass, I want to see where last week went, so that I can
-adjust.
-*Outcome:* "Here's where last week went": bars by share, and "You logged N
-things."
-
-**WKP-003 · Works**
-As someone in the pass, I want to see what's different this week, so that
-surprises are handled.
-*Outcome:* "Anything different this week?" lists events; a switch turns one
-off for the rest of the week.
-
-**WKP-004 · Works**
-As someone at the start of a month, I want to be asked about tiers, so that
-priorities stay current.
-*Outcome:* "Still happy with your tiers?" with "Open your units", on the
-first pass of the month.
-
-**WKP-005 · Works**
-As someone reflecting on the week, I want to say how content it felt, so
-that the app can check grades against how weeks feel.
-*Outcome:* "How content did last week feel?" with a 1–10 dial. It saves on
-Next; skipping is fine.
-
-### Variations
-
-**WKP-006 · Works**
-As someone busy on Sunday, I want the card to wait, so that I can do it
-later.
-*Outcome:* Shows Sunday from 6 pm, then all Monday.
-
-**WKP-007 · Works**
-As someone not wanting it this week, I want to dismiss it, so that it stops
-asking.
-*Outcome:* Not now hides it for the week.
-
-**WKP-008 · Works**
-As someone partway through, I want to stop, so that I'm not trapped.
-*Outcome:* Finish is always in the toolbar; Back from step 2; Next, Skip or
-Done.
-
-**WKP-009 · Works**
+**WKP-002 · Gap**
 As someone with shifts that change, I want to copy last week's events, so
 that I don't retype them.
-*Outcome:* "Copy last week's events", shown when new events default to once.
-"Nothing to copy" or "Copied".
+*Outcome:* Removed on purpose (ADR-0052). Set events to repeat, or open a
+past one-time event and use "Again on…".
 
-**WKP-010 · Works**
-As someone away next week, I want to set it from the pass, so that it's all
-in one place.
-*Outcome:* "Time away" and "Add an event" links.
-
-### Edge cases
-
-**WKP-011 · Works**
-As someone who closes the app in the pass, I want nothing lost, so that
-interruptions are fine.
-*Outcome:* What was saved stays; the pass starts again at step 1. (EC-43)
-
-**WKP-012 · Works**
-As someone with an empty last week, I want no judgement, so that a quiet
-week isn't a failure.
-*Outcome:* "Nothing completed to show from last week."
-
-**WKP-013 · Works**
-As someone with no events this week, I want to be told, so that the step
-isn't confusing.
-*Outcome:* "No events this week."
-
-**WKP-014 · Works**
-As someone Away or viewing another day, I want no card, so that it only
-shows when useful.
-*Outcome:* Today only, not while Away.
-
-**WKP-015 · Works**
-As someone whose pass fails to load, I want to retry, so that I'm not stuck.
-*Outcome:* "This screen couldn't load" with "Try again".
-
-**WKP-016 · Gap**
+**WKP-003 · Gap**
 As someone wanting a monthly review ritual, I want a guided end-of-month
 pass, so that the month gets its due.
-*Outcome:* Not built as a flow. Month review is on Log, and tiers are asked
-in the first weekly pass.
-
-**WKP-017 · Gap**
-As someone wanting a pass on another day, I want to choose when it appears,
-so that it fits my week.
-*Outcome:* Not built. Weeks are fixed Sunday to Saturday.
+*Outcome:* Not built as a flow. Month review is on Log; tiers are on Life at
+any time.
 
 ## LIF: Life: priorities and units
 
@@ -1726,6 +1696,12 @@ As someone with a nested course structure, I want three levels, so that
 units within courses fit.
 *Outcome:* Excluded on purpose: two levels only (ADR-0035 §1).
 
+**COM-028 · Works**
+As someone who finished a one-off commitment task, I want it to leave the
+commitment's page, so that the page lists what's left.
+*Outcome:* A one-off done in full leaves the Tasks list; it stays in Today's
+Done and the Log.
+
 ## ACH: Achievements
 
 ### Happy path
@@ -2034,10 +2010,11 @@ As someone naming a trip, I want a label, so that it reads well.
 *Outcome:* Shown on Today as "Away · label · back Weekday". Blank falls back
 to "Away".
 
-**AWY-004 · Works**
+**AWY-004 · Gap**
 As someone adding Away from the weekly pass, I want a shortcut, so that it's
 quick.
-*Outcome:* "Time away" link.
+*Outcome:* Removed with the weekly pass (ADR-0052). Time away is in
+Settings.
 
 ### Edge cases
 
@@ -2099,16 +2076,17 @@ that I remember to open it.
 *Outcome:* Daily reminder switch, then Time (default 09:00). One local
 notification, from 4 gentle lines.
 
-**SET-002 · Works**
+**SET-002 · Gap**
 As someone reflecting weekly, I want to say how content I felt, so that the
 app can check its grades against that.
-*Outcome:* A step in the weekly pass, or Settings, Calibration: dial 1–10.
+*Outcome:* Archived (ADR-0052): the contentment question isn't asked
+anywhere for now. Stored answers are kept.
 
-**SET-003 · Works**
+**SET-003 · Gap**
 As someone curious, I want to see how grades track contentment, so that I
 know whether the plan works.
-*Outcome:* Insight appears with 8 samples over 6 weeks; before that, "Still
-learning your rhythm…" or "Not enough overlapping weeks yet…".
+*Outcome:* Archived with the check-in (ADR-0052): Calibration is hidden
+behind the CONTENTMENT switch.
 
 ### Variations
 
@@ -2174,11 +2152,10 @@ does something.
 *Outcome:* Not built: suggestions were removed (Henry, 2026-11-10). Formula
 v8 left nothing for one to change, so Calibration shows insight only.
 
-**SET-015 · Works**
+**SET-015 · Gap**
 As someone wanting the weekly question, I want to be asked it, so that I
 don't have to remember.
-*Outcome:* The weekly pass asks it as a step, the same way every week.
-Calibration still has it.
+*Outcome:* Archived (ADR-0052). Nothing asks it for now.
 
 **SET-016 · Gap**
 As someone wanting several reminders, I want more than one a day, so that
@@ -2560,7 +2537,7 @@ Each EC from `redesign-spec.md` §7, by story or reason.
 - EC-40: LIF-013
 - EC-41: ACH-013
 - EC-42: Void: withdrawn 2026-10-19.
-- EC-43: WKP-011
+- EC-43: Void: the weekly pass is removed (ADR-0052).
 - EC-44: TIM-011
 - EC-45: A11-004
 - EC-46: A11-003

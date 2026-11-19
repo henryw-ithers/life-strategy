@@ -12,7 +12,7 @@
  * What is stopping a save is said in words under the button rather
  * than left as a greyed button that explains nothing.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { eventProblem, type EventInput } from "../../db/events";
@@ -34,8 +34,6 @@ import { Segmented } from "./Segmented";
 import { UnitPicker } from "./UnitPicker";
 import type { PickableUnit } from "./UnitPicker";
 import { WeekdayPicker } from "./WeekdayPicker";
-import { eventsDefaultOnce } from "../../db/settings";
-import { recordProblem } from "../../lib/problemLog";
 
 export interface EventSheetValue {
   title: string;
@@ -76,6 +74,10 @@ interface EventSheetProps {
   onSave: (input: EventInput, bounds: Bounds | null) => void | Promise<void>;
   /** Offered when editing. */
   onDelete?: () => void;
+  /** "Again on…" (Henry, 2026-11-19): offered on an existing one-time
+   *  event. Makes a new one-time event, the same but on another day; the
+   *  first stays as it was. */
+  onAgain?: (input: EventInput) => void | Promise<void>;
 }
 
 type Repeat = "weekly" | "once";
@@ -97,25 +99,15 @@ export function EventSheet({
   onDismissed,
   onSave,
   onDelete,
+  onAgain,
 }: EventSheetProps) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [repeat, setRepeatState] = useState<Repeat>(initial?.oneOffDate ? "once" : "weekly");
-  /** Once you've chosen, a stored default arriving late can't undo it. */
-  const repeatChosen = useRef(initial !== undefined);
-  const setRepeat = (next: Repeat) => {
-    repeatChosen.current = true;
-    setRepeatState(next);
-  };
-  // A new event starts one-time for shift work (ADR-0040 §6).
-  useEffect(() => {
-    if (initial !== undefined) return;
-    void eventsDefaultOnce()
-      .then((once) => {
-        if (once && !repeatChosen.current) setRepeatState("once");
-      })
-      // Read failing only means the sheet opens weekly; it's logged.
-      .catch((e: unknown) => recordProblem(e, "load"));
-  }, [initial]);
+  // A new event happens once unless you make it repeat (Henry,
+  // 2026-11-19); an existing one opens as it is.
+  const [repeat, setRepeatState] = useState<Repeat>(
+    initial === undefined || initial.oneOffDate ? "once" : "weekly",
+  );
+  const setRepeat = setRepeatState;
   const [days, setDays] = useState<Weekday[]>(parseWeekdays(initial?.plannedWeekdays));
   const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
@@ -150,6 +142,16 @@ export function EventSheet({
   const savedBounds = initial
     ? { repeatFrom: initial.repeatFrom ?? null, repeatUntil: initial.repeatUntil ?? null }
     : null;
+
+  /** The day "Again on…" adds it to: a week on from its own day, or a
+   *  week from today if that has passed. Null until you open it. */
+  const [againOn, setAgainOn] = useState<string | null>(null);
+  const againable = onAgain !== undefined && initial?.oneOffDate != null;
+  const againDefault = (() => {
+    const today = currentLocalDate();
+    const next = initial?.oneOffDate ? addDays(initial.oneOffDate, 7) : today;
+    return next < today ? addDays(today, 7) : next;
+  })();
 
   const input: EventInput = {
     title,
@@ -311,6 +313,24 @@ export function EventSheet({
           {problem}
         </AppText>
       ) : null}
+      {againable ? (
+        againOn === null ? (
+          <Button label="Again on…" variant="quiet" onPress={() => setAgainOn(againDefault)} theme={theme} />
+        ) : (
+          <View style={styles.again}>
+            <DayField date={againOn} onChange={setAgainOn} label="Again on" accent={accent} theme={theme} />
+            <Button
+              label="Add"
+              onPress={() => {
+                const day = againOn;
+                setAgainOn(null);
+                void onAgain?.({ ...input, weekdays: [], date: day });
+              }}
+              theme={theme}
+            />
+          </View>
+        )
+      ) : null}
       {onDelete ? (
         <Button label="Delete event" variant="quiet" onPress={onDelete} theme={theme} />
       ) : null}
@@ -360,6 +380,7 @@ function PickRow({
 }
 
 const styles = StyleSheet.create({
+  again: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.md },
   /** Takes the rest of the full-height sheet, and scrolls in it. */
   scroller: { flex: 1 },
   body: { gap: space.md, paddingBottom: space.md },

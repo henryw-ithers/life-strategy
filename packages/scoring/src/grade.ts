@@ -113,7 +113,7 @@ export function deriveChecklist(
     const extraToday = doneBeforeToday >= goalCount;
     const band: TaskBand = extraToday
       ? "doneThisWeek"
-      : isAnchoredOn(t, date)
+      : isAnchoredOn(t, date) || (t.oneOff === true && t.oneOffDate === date)
         ? "due"
         : "week";
     return {

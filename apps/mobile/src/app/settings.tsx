@@ -49,8 +49,6 @@ import {
   loadNotificationSettings,
   markNotificationPermissionAsked,
   saveAppearance,
-  eventsDefaultOnce,
-  setEventsDefaultOnce,
   setNotificationEnabled,
   setNotificationTime,
   type NotificationSettings,
@@ -61,6 +59,7 @@ import { currentLocalDate, dayStartHour } from "../lib/calendar";
 import { HourStepper } from "../components/ui/HourStepper";
 import { changeDayStart } from "../db/dayStart";
 import { askClearToday } from "../components/today/clearToday";
+import { CONTENTMENT } from "../lib/features";
 import { hhmmToMinutes } from "../lib/pickerValues";
 import { Segmented } from "../components/plan/Segmented";
 import { applyAppearance, isAppearanceChoice, type AppearanceChoice } from "../theme/appearance";
@@ -93,7 +92,6 @@ export default function SettingsScreen() {
   const theme = getTheme(scheme === "dark" ? "dark" : "light");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   /** New events start one-time (ADR-0040 §6). */
-  const [eventsOnce, setEventsOnce] = useState(false);
   const [dayStart, setDayStartShown] = useState(dayStartHour);
   const [appearance, setAppearance] = useState<AppearanceChoice>("system");
   const dayStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,19 +110,17 @@ export default function SettingsScreen() {
   );
 
   const reload = useCallback(async () => {
-    const [loaded, status, once, look] = await Promise.all([
+    const [loaded, status, look] = await Promise.all([
       loadNotificationSettings(),
       getPermissionStatus(),
-      eventsDefaultOnce(),
       loadAppearance(),
     ]);
     setAppearance(isAppearanceChoice(look) ? look : "system");
     setSettings(loaded);
-    setEventsOnce(once);
     setDeniedAtOs(!status.granted && !status.canAskAgain);
     // Setters are stable; listing them lets the React Compiler match
     // its own dependency inference and compile this screen.
-  }, [setSettings, setEventsOnce, setDeniedAtOs, setAppearance]);
+  }, [setSettings, setDeniedAtOs, setAppearance]);
 
   const { error, retry } = useScreenLoad(reload);
 
@@ -244,13 +240,16 @@ export default function SettingsScreen() {
         <ScrollBackdrop circles={constellation(theme.areas, { faint: true })} />
         {/* Tuning the plan itself comes first: it is the only thing here
             that changes what the app shows you tomorrow. */}
-        <Group theme={theme} title="Your plan" flush>
-          <SettingsRow
-            label="Calibration"
-            onPress={() => router.push("/calibration" as Href)}
-            theme={theme}
-          />
-        </Group>
+        {/* Archived for launch with the check-in (ADR-0052). */}
+        {CONTENTMENT ? (
+          <Group theme={theme} title="Your plan" flush>
+            <SettingsRow
+              label="Calibration"
+              onPress={() => router.push("/calibration" as Href)}
+              theme={theme}
+            />
+          </Group>
+        ) : null}
 
         {error ? (
           <LoadFailure error={error} onRetry={retry} theme={theme} />
@@ -377,25 +376,6 @@ export default function SettingsScreen() {
             onPress={() => void askClearToday(() => {})}
             theme={theme}
           />
-          <GroupDivider theme={theme} />
-          <View style={[styles.row, styles.inset]}>
-            <View style={styles.grow}>
-              <AppText color={theme.ink}>New events happen once</AppText>
-              <AppText variant="footnote" color={theme.muted}>
-                For shifts that change week to week. You can still make one repeat.
-              </AppText>
-            </View>
-            <Switch
-              value={eventsOnce}
-              onValueChange={(v) => {
-                setEventsOnce(v);
-                void saveThen(() => setEventsDefaultOnce(v), () => undefined, retry);
-              }}
-              trackColor={{ false: theme.hairline, true: theme.accent }}
-              thumbColor={theme.canvas}
-              accessibilityLabel="New events happen once"
-            />
-          </View>
         </Group>
 
         <Group

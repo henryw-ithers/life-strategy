@@ -17,6 +17,8 @@ import {
 } from "@glide/scoring";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
+import { currentLocalDate } from "../lib/calendar";
+import { eventEnd, eventIsPast } from "./seriesRules";
 import { db } from "./client";
 import { fractionsBefore, settledOf } from "./oneOffProgress";
 import {
@@ -376,8 +378,13 @@ export interface CommitmentUnitScreen {
   /** Sub-commitments put away by turning the switch off — restored when
    *  it goes back on. */
   archivedSubCount: number;
-  /** What this unit holds directly. Empty on a split commitment. */
+  /** What this unit holds directly. Empty on a split commitment.
+   *  Events still to come; ended ones are in `pastEvents`. */
   events: UnitItem[];
+  /** One-time events whose day has passed, and series that have ended,
+   *  newest first: kept so one can be used again (Henry, 2026-11-19). */
+  pastEvents: UnitItem[];
+  /** Tasks still to do: a one-off that's done leaves (Henry, 2026-11-19). */
   tasks: UnitItem[];
   /** A commitment's own share of the day, or null for automatic
    *  (ADR-0044 §3). Always null on a sub-commitment. */
@@ -440,7 +447,7 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
   const rows = await db
     .select()
     .from(task)
-    .where(and(inArray(task.unitId, holderIds), eq(task.active, true)));
+    .where(and(inArray(task.unitId, holderIds), eq(task.active, true), isNull(task.droppedOn)));
   const item = (t: (typeof rows)[number]): UnitItem => ({
     id: t.id,
     title: t.title,
@@ -456,6 +463,16 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
     notes: t.description,
   });
   const own = subsOn ? [] : rows.filter((t) => t.unitId === id).map(item);
+  const today = currentLocalDate();
+  // A one-off done in full is in Today's Done and the Log, not here.
+  const finished = settledOf(
+    await fractionsBefore(
+      own.filter((t) => t.oneOffSize != null && t.kind !== "event").map((t) => t.id),
+      addDays(today, 1),
+    ),
+  );
+  const isPast = (t: UnitItem) => eventIsPast(t, today);
+  const ownEvents = own.filter((t) => t.kind === "event");
   const byStart = (a: UnitItem, b: UnitItem) =>
     (a.startMinute ?? 0) - (b.startMinute ?? 0) || a.title.localeCompare(b.title);
 
@@ -482,8 +499,11 @@ export async function loadCommitmentUnit(id: string): Promise<CommitmentUnitScre
       : [],
     archivedSubCount: units.filter((u) => u.parentUnitId === id && u.archivedAt !== null)
       .length,
-    events: own.filter((t) => t.kind === "event").sort(byStart),
-    tasks: own.filter((t) => t.kind !== "event"),
+    events: ownEvents.filter((t) => !isPast(t)).sort(byStart),
+    pastEvents: ownEvents
+      .filter(isPast)
+      .sort((a, b) => (eventEnd(b) ?? "").localeCompare(eventEnd(a) ?? "")),
+    tasks: own.filter((t) => t.kind !== "event" && !finished.has(t.id)),
     setShare: parentRow === null ? row.setShare : null,
     commitmentCount: units.filter(
       (u) => u.parentUnitId === null && u.archivedAt === null && u.commitmentShare !== null,

@@ -152,6 +152,7 @@ export default function CommitmentScreen() {
   const planTask = (taskId: string): PlanTask | null =>
     plan?.commitments.flatMap((c) => c.tasks).find((t) => t.id === taskId) ?? null;
 
+  const [pastOpen, setPastOpen] = useState(false);
   const { error, retry, save } = useScreenLoad(reload);
   const undo = useUndoDelete(save);
   /** The page as shown: a sub-commitment, event or task waiting on Undo
@@ -398,6 +399,31 @@ export default function CommitmentScreen() {
                   ) : null}
                 </Group>
 
+                {/* Ended events, folded, newest first: open one to use it
+                    again (Henry, 2026-11-19). */}
+                {data.pastEvents.length > 0 ? (
+                  <Group theme={theme} title="Past events" flush>
+                    <ActionRow
+                      label={pastOpen ? "Hide past events" : "Show past events"}
+                      value={String(data.pastEvents.length)}
+                      theme={theme}
+                      onPress={() => setPastOpen((v) => !v)}
+                      last={!pastOpen}
+                    />
+                    {pastOpen
+                      ? data.pastEvents.map((e) => (
+                          <ItemRow
+                            key={e.id}
+                            item={e}
+                            detail={eventWhen(e)}
+                            theme={theme}
+                            onPress={archived ? undefined : () => setEventSheet(e)}
+                          />
+                        ))
+                      : null}
+                  </Group>
+                ) : null}
+
                 <Group
                   theme={theme}
                   title="Tasks"
@@ -563,6 +589,13 @@ export default function CommitmentScreen() {
                         });
                       }
                 }
+                onAgain={async (input) => {
+                  const added = await savedOrSaid(
+                    async () => (await saveNewEvent([data.id], input, null)) !== CANCELLED,
+                  );
+                  if (added) setEventSheet(null);
+                  await reload();
+                }}
               />
             ) : null}
 

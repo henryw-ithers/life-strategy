@@ -15,7 +15,6 @@ import { saveHoursFrom } from "../hours";
 import { pinForDay } from "../pins";
 import { dayGrade, lifeArea, lifeUnit, task, taskCompletion, taskUnit } from "../schema";
 import { addAway, clearToday } from "../skips";
-import { copyLastWeeksEvents } from "../tasks";
 import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
 
@@ -39,7 +38,6 @@ const TUE = "2026-10-20";
 const WED = "2026-10-21";
 const FRI = "2026-10-23";
 const SAT = "2026-10-24";
-const LAST_MON = "2026-10-12";
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 /** 8 am on Monday, before the first window. */
@@ -253,64 +251,5 @@ describe("the week strip (§5.3)", () => {
     expect(on(FRI).marker).toBe("away");
     expect(on(FRI).freeMinutes).toBe(0);
     expect(on(SAT).freeMinutes).toBe(0);
-  });
-});
-
-describe("copying last week's events (ADR-0040 §6)", () => {
-  const shift = (id: string, date: string, over: Partial<TaskRow> = {}) =>
-    addTask({
-      id,
-      unitId: "school",
-      kind: "event",
-      oneOffSize: "normal",
-      oneOffDate: date,
-      startMinute: h(12),
-      endMinute: h(16),
-      ...over,
-    });
-  const events = () =>
-    testDb()
-      .select()
-      .from(task)
-      .all()
-      .filter((t) => t.kind === "event");
-
-  it("adds last week's one-time events a week later, once", async () => {
-    shift("shift", LAST_MON, { title: "Café", description: "Back door" });
-    expect(await copyLastWeeksEvents(SUN)).toBe(1);
-    const copy = events().find((e) => e.id !== "shift");
-    expect(copy).toMatchObject({
-      title: "Café",
-      unitId: "school",
-      oneOffDate: MON,
-      startMinute: h(12),
-      endMinute: h(16),
-      description: "Back door",
-    });
-    // Pressing it again adds nothing.
-    expect(await copyLastWeeksEvents(SUN)).toBe(0);
-    expect(events()).toHaveLength(2);
-  });
-
-  it("leaves repeating events alone and never copies onto a past day", async () => {
-    addTask({
-      id: "lecture",
-      unitId: "school",
-      kind: "event",
-      plannedWeekdays: "1",
-      startMinute: h(10),
-      endMinute: h(11),
-    });
-    shift("monday", LAST_MON);
-    shift("friday", "2026-10-16");
-    // The copy of Monday's would land on Monday, now past.
-    clock.today = TUE;
-    expect(await copyLastWeeksEvents(SUN)).toBe(1);
-    expect(events().map((e) => e.oneOffDate).sort()).toEqual([
-      "2026-10-12",
-      "2026-10-16",
-      FRI,
-      null,
-    ].sort());
   });
 });
