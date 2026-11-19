@@ -205,3 +205,12 @@ has used a build with the field, so nothing is moved into notes.
        week…". Clear today sheet. Time away in Settings. (Phase 7.
        "Copy last week's events" comes with Phase 8's Plan.)
 4. [x] Amend ADR-0029, 0032, 0037 and 0038 (dated 2026-10-13). Update AGENTS.md.
+
+## Amendment (Henry, 2026-11-19)
+
+A one-off due on a day that is moved to another day, or deleted, on
+that day itself empties the day the same way a same-day skip does: if
+nothing is left due, the day is ungraded, never a 70 rest day. It was
+due when the day began, so the day asked something. Recorded per day
+when the edit is made (`oneOffMovedOff`), since the task no longer
+shows the date it had. Found in the pre-submission review.

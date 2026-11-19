@@ -28,6 +28,7 @@ import { AppText } from "../ui/AppText";
 import type { DropTarget } from "../today/DayDrag";
 import { anchorOf, homeSections, timedRows, type HomeSection } from "../today/homeSections";
 import { HomeSectionCard } from "../today/HomeWindow";
+import { rowHold } from "../today/TaskRow";
 import { spanLabel } from "./dayView";
 import { ItemEditor } from "./ItemEditor";
 
@@ -116,9 +117,12 @@ interface DayPartsProps {
   undo: UndoDelete;
   reduceMotion: boolean;
   theme: ThemeTokens;
+  /** Skipping a row on this day ahead (Skip this day, Skip this event),
+   *  or undefined where it can't be. */
+  skipFor?: (task: TodayTask) => (() => void) | undefined;
 }
 
-export function DayParts({ day, sections, editable, reload, undo, reduceMotion, theme }: DayPartsProps) {
+export function DayParts({ day, sections, editable, reload, undo, reduceMotion, theme, skipFor }: DayPartsProps) {
   /** A task or event being edited (`ItemEditor`). */
   const [editingItem, setEditingItem] = useState<string | null>(null);
   /** Parts folded by hand, by key; every part starts open. */
@@ -175,7 +179,10 @@ export function DayParts({ day, sections, editable, reload, undo, reduceMotion, 
             now={null}
             tasks={day.tasks}
             renderRow={renderRow}
-            holdFor={() => undefined}
+            holdFor={(t) =>
+              rowHold(t, { onSkip: skipFor?.(t), onEdit: editable ? () => setEditingItem(t.id) : undefined }, true)
+                ?.run
+            }
             canDrag={(t) => editable && t.kind === "task"}
             onSwap={() => {}}
             onPullIn={() => {}}

@@ -18,6 +18,9 @@
  */
 import { sql } from "drizzle-orm";
 
+import { ROLLOVER_HOUR } from "@glide/scoring";
+
+import { applyDayStart } from "../lib/calendar";
 import { clearLog } from "../lib/problemLog";
 import { db, sqlite } from "./client";
 import { syncTaxonomy } from "./seed";
@@ -88,6 +91,25 @@ async function deletePhotoFiles(): Promise<void> {
 }
 
 /**
+ * Backups leave copies of everything outside the database: the export
+ * written to the cache before it is shared, and the copy a restore sets
+ * aside while it swaps files. Reset promises it all goes, so these go
+ * too. Swallowed like the photos: a leftover file shouldn't stop a reset.
+ */
+async function deleteBackupCopies(): Promise<void> {
+  try {
+    const { Directory, File, Paths } = await import("expo-file-system");
+    const rescue = new File(`${sqlite.databasePath}.pre-restore`);
+    if (rescue.exists) rescue.delete();
+    for (const entry of new Directory(Paths.cache).list()) {
+      if (entry instanceof File && entry.name.endsWith(".lsbk")) entry.delete();
+    }
+  } catch {
+    // Ignored on purpose — see above.
+  }
+}
+
+/**
  * Wipes all user data and reseeds the default taxonomy, leaving the
  * app exactly as a fresh install finds it. The caller is responsible
  * for sending the user back to onboarding.
@@ -112,6 +134,12 @@ export async function eraseAllData(): Promise<void> {
   });
 
   await deletePhotoFiles();
+  await deleteBackupCopies();
+
+  // The day-start setting was just deleted; the hour in memory goes back
+  // to the default with it, or times entered before the next launch
+  // would be stored against the old hour.
+  applyDayStart(ROLLOVER_HOUR);
 
   // The problem log lives outside the database (ADR-0013 decision 2),
   // so nothing above reaches it. Erase all data means all data, and a

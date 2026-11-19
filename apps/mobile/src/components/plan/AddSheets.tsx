@@ -25,6 +25,7 @@ export function AddSheets({
   save,
   onSaved,
   theme,
+  date,
 }: {
   adding: AddKind | null;
   onClose: () => void;
@@ -33,6 +34,8 @@ export function AddSheets({
   /** After an event saves, so the day shows it. */
   onSaved: () => void;
   theme: ThemeTokens;
+  /** The day on screen, where a new event starts. */
+  date?: string;
 }) {
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [shown, gone] = useRetained(adding);
@@ -82,6 +85,7 @@ export function AddSheets({
       {shown === "event" ? (
         <EventSheet
           visible={adding === "event"}
+          defaultDate={date}
           onDismissed={gone}
           unitChoice={{ units, value: eventUnits, onChange: setEventUnits, areaColors: theme.areas }}
           accent={theme.accent}

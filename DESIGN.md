@@ -304,13 +304,14 @@ favicon match it.
 
 ### Navigation
 
-Native iOS tabs (`app/(tabs)/_layout.tsx`): Home (`sun.max`), Plan
-(`calendar`), Life (`square.grid.2x2`) and Log (`book.closed`), a label
-on each, shrinking as you scroll down. Each tab is a native stack whose
-root has a large title (Home has none: it draws its own header). The
-nav bar carries a `+` pull-down menu (Task, Event, Log something, and
-Window on Home and Plan) and, on Home and Life, Settings. A menu
-item another tab owns switches to that tab and opens it there.
+Native iOS tabs (`app/(tabs)/_layout.tsx`): Today (`sun.max`), Life
+(`square.grid.2x2`) and Log (`book.closed`), a label on each, shrinking
+as you scroll down (the Plan tab went on 2026-11-07). Each tab is a
+native stack whose root has a large title (Today has none: it draws
+its own header). The nav bar carries a `+` pull-down menu (Task,
+Event, Log something; Window only while windows are on, ADR-0051) and,
+on Today and Life, Settings. A menu item another tab owns switches to
+that tab and opens it there.
 
 Every screen is opaque and draws its own backdrop. iOS changes tabs
 with both pages on screen for a moment, so see-through pages over one
@@ -328,7 +329,7 @@ flicker, and a change during a push is drawn over the transition. So a
 pushed screen reads its title synchronously (`useFirstRead`), and
 toolbar buttons call their handlers through `useLatest`.
 
-Focused screens (Settings, Backup, Priorities, a day) are pushed by
+Focused screens (Settings, Backup, a day) are pushed by
 the root stack and cover the tabs; a unit, a commitment or
 Achievements pushes within Life. Every pushed screen has the same
 native nav bar as a tab root, with the system back button, so a push

@@ -1,6 +1,6 @@
 /**
  * An achievement's badge: a shield (Henry, 2026-10-25). Earned, it's a
- * rim in the rank's deep metal around a face in its light tone, with
+ * rim in the rank's palette colour around a face in its light tone, with
  * the series' icon in the middle. Not yet earned, it's the outline: the
  * pre-Bronze shape, so a locked badge still shows what it will be.
  *
@@ -18,17 +18,38 @@ import { SymbolView } from "expo-symbols";
 import { StyleSheet, View } from "react-native";
 
 import type { ThemeTokens } from "../../theme/colors";
+import { PALETTE, type PaletteKey } from "../../theme/palette";
 
 export type BadgeIcon = React.ComponentProps<typeof Ionicons>["name"];
 
-/** Each metal's deep rim and light face. */
-const METAL: Record<Rank, { deep: string; light: string }> = {
-  bronze: { deep: "#9A5A2C", light: "#E8B38A" },
-  silver: { deep: "#7D8794", light: "#E2E6EC" },
-  gold: { deep: "#B07D0B", light: "#F7D774" },
-  platinum: { deep: "#4E9A8E", light: "#CDEFE8" },
-  diamond: { deep: "#2F7FC8", light: "#BFE6FF" },
+/**
+ * Each rank's colour, from the palette (spec §883; DESIGN.md: no colour
+ * outside it). Silver is the muted grey.
+ */
+const RANK_HUE: Record<Rank, PaletteKey | "muted"> = {
+  bronze: "brown",
+  silver: "muted",
+  gold: "yellow",
+  platinum: "mint",
+  diamond: "cyan",
 };
+
+/** `a` mixed `t` of the way toward `b`, both #RRGGBB: a solid face, so
+ *  the rim drawn under it doesn't show through as a wash would. */
+function mix(a: string, b: string, t: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2]
+    .map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/** A rank's deep rim (the palette colour) and light face (that colour
+ *  three quarters of the way to the card). */
+function metalOf(rank: Rank, theme: ThemeTokens): { deep: string; light: string } {
+  const key = RANK_HUE[rank];
+  const deep = key === "muted" ? theme.muted : PALETTE[key][theme.name === "dark" ? "dark" : "light"];
+  return { deep, light: mix(deep, theme.surface, 0.75) };
+}
 
 function Shield({ size, color, filled }: { size: number; color: string; filled: boolean }) {
   return (
@@ -55,7 +76,7 @@ export function ShieldBadge({
   theme: ThemeTokens;
   size?: number;
 }) {
-  const metal = rank ? METAL[rank] : null;
+  const metal = rank ? metalOf(rank, theme) : null;
   return (
     <View style={[styles.box, { width: size, height: size }]} accessible={false}>
       {metal ? (

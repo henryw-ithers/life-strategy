@@ -12,6 +12,7 @@ import { and, gte, inArray, lte } from "drizzle-orm";
 import { db } from "./client";
 import { COVERAGE_LOOKBACK_DAYS } from "./commitmentPlan";
 import { dayClear, lifeUnit, taskCompletion } from "./schema";
+import { wasDayChanged } from "./settings";
 import { loadAwayRanges, loadSkipsBetween } from "./skips";
 import {
   awayDatesBetween,
@@ -32,6 +33,10 @@ export interface DaySchedule {
   readonly cleared: boolean;
   /** Whether anything was skipped or cleared on the day itself. */
   readonly changedOnTheDay: boolean;
+  /** Whether a one-off due on the day was moved off it, or deleted, on
+   *  the day itself. It was due, so the day asked something at its
+   *  start even though the task no longer shows it. */
+  readonly oneOffMovedOff: boolean;
 }
 
 /** How far either side of a date its schedule is read: far enough for
@@ -45,7 +50,7 @@ export async function loadSchedule(
 ): Promise<DaySchedule> {
   const start = addDays(date, -REACH);
   const end = addDays(date, REACH);
-  const [skips, ranges, clears, units] = await Promise.all([
+  const [skips, ranges, clears, units, movedOff] = await Promise.all([
     loadSkipsBetween(start, end),
     loadAwayRanges(),
     db
@@ -60,6 +65,7 @@ export async function loadSchedule(
         commitmentShare: lifeUnit.commitmentShare,
       })
       .from(lifeUnit),
+    wasDayChanged(date),
   ]);
   const cleared = new Set(clears.map((c) => c.localDate));
   const eventIds = tasks.filter((t) => t.kind === "event").map((t) => t.id);
@@ -90,6 +96,7 @@ export async function loadSchedule(
     skippedAtStart: skippedByTask(tasks, commitmentOf, inputs, { startOf: date }),
     away: inputs.away,
     cleared: cleared.has(date),
+    oneOffMovedOff: movedOff,
     changedOnTheDay:
       cleared.has(date) ||
       skips.some((s) => s.kind === "occurrence" && s.localDate === date && s.madeOn === date),

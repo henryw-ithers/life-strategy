@@ -29,7 +29,7 @@ kept by [ADR-0046](docs/adr/0046-backups-are-plain-files.md)).
 A personal planning and reflection app. Priorities (18 life units
 sorted into four tiers) become a daily checklist and a grade out of
 100. The daily part is a checklist and a number; the periodic part is
-a review (priorities, the weekly pass, effort shares, achievements);
+a review (priorities, effort shares, achievements);
 and over time the record reads as a log of a
 life, with journals, photos and flagged memories beside the grades.
 

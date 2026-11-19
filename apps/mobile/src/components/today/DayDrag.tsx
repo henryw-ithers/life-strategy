@@ -29,7 +29,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -415,7 +415,7 @@ export function DragRow({
         style={[draggable ? styles.withGrip : null, lifted ? styles.lifted : null]}
       >
         {draggable ? <View style={styles.grow}>{children}</View> : children}
-        {draggable && ctx ? <Grip color={ctx.theme.muted} /> : null}
+        {draggable && ctx ? <Grip color={ctx.theme.muted} onPress={onHold} /> : null}
       </View>
     </GestureDetector>
   );
@@ -424,13 +424,23 @@ export function DragRow({
 /** Three short lines at the row's end: this row can be held and moved
  *  (Henry, 2026-11-07). Hidden from VoiceOver, which moves rows with
  *  Move it instead. */
-function Grip({ color }: { color: string }) {
+/** The ≡ at a row's end. Tapping it opens the row's menu, the same one
+ *  a hold opens, so moving a row never depends on finding the hold.
+ *  Hidden from VoiceOver: the row carries that menu as an action. */
+function Grip({ color, onPress }: { color: string; onPress?: () => void }) {
   return (
-    <View style={styles.grip} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      hitSlop={14}
+      style={styles.grip}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       {[0, 1, 2].map((i) => (
         <View key={i} style={[styles.gripLine, { backgroundColor: color }]} />
       ))}
-    </View>
+    </Pressable>
   );
 }
 

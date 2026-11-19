@@ -9,6 +9,7 @@
  * the file came from (ADR-0043 §1). Clarity about consequences is not
  * shame (docs/design/copy-guide.md).
  */
+import { reloadAppAsync } from "expo";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -89,7 +90,7 @@ export default function BackupScreen() {
       }
       setMode({
         kind: "restored",
-        message: `Restored from ${formatDate(outcome.restoredFrom)}. Close the app completely and open it again. It’s still running on the old data until you do.`,
+        message: `Restored from ${formatDate(outcome.restoredFrom)}. Open the app again to see it.`,
       });
     } catch (e) {
       setError(describeBackupError(e) ?? "The backup couldn’t be restored.");
@@ -160,6 +161,20 @@ export default function BackupScreen() {
         {mode.kind === "restored" ? (
           <View style={[styles.section, { borderTopColor: theme.hairline }]}>
             <AppText color={theme.ink}>{mode.message}</AppText>
+            {/* The old connection is closed, so nothing else here works:
+                reloading opens and migrates the restored file. */}
+            <Button
+              label="Open restored data"
+              onPress={() =>
+                void reloadAppAsync("Restored a backup").catch(() =>
+                  setMode({
+                    kind: "restored",
+                    message: "Close the app completely and open it again to see your restored data.",
+                  }),
+                )
+              }
+              theme={theme}
+            />
           </View>
         ) : null}
 
@@ -194,8 +209,7 @@ export default function BackupScreen() {
               </AppText>
               <AppText variant="caption" color={theme.muted}>
                 Replaces everything currently in the app with the contents of a
-                backup file. Your current data is set aside first, but the app
-                will show the restored version.
+                backup file. Back up first if you might want what’s here now.
               </AppText>
               <Button
                 label="Choose a backup file"

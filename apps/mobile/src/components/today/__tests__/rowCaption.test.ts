@@ -18,7 +18,6 @@ const weekly = (over: Partial<CaptionTask> = {}): CaptionTask => ({
   doneCount: 2,
   goalCount: 5,
   pointsIfCompletedNow: 4,
-  streak: null,
   progress: 0,
   allowsPartial: false,
   oneOffSize: null,
@@ -75,27 +74,6 @@ describe("progress", () => {
       expect(progressLabel(p)).toMatch(/done$/);
       expect(progressLabel(p)).not.toMatch(/left|remaining|to go|missing/i);
     }
-  });
-});
-
-describe("a daily task's run", () => {
-  const daily = (streak: number | null, over: Partial<CaptionTask> = {}) =>
-    weekly({ timesPerWeek: 7, band: "due", streak, ...over });
-
-  it("shows from a week up, and not before", () => {
-    expect(rowCaption(daily(6))).toBeNull();
-    expect(rowCaption(daily(7))).toBe("7 days");
-  });
-
-  it("still shows on a part-credit daily task", () => {
-    // Part credit drops the count, not the run: showing up counts.
-    expect(rowCaption(daily(12, { allowsPartial: true }))).toBe("12 days");
-  });
-
-  it("gives way to progress on a part-done day", () => {
-    expect(rowCaption(daily(12, { allowsPartial: true, progress: 0.75 }))).toBe(
-      "Three quarters done",
-    );
   });
 });
 

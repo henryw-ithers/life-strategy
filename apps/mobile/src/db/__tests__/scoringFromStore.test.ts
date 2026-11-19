@@ -24,7 +24,7 @@ import {
   taskUnit,
 } from "../schema";
 import { addAway, setRepeatBounds } from "../skips";
-import { dropTask, latestWeights } from "../tasks";
+import { archiveTask, dropTask, latestWeights, setTaskOneOff } from "../tasks";
 import { loadDay } from "../today";
 import { placeTiers } from "./tierFixtures";
 import { resetTestDb, testDb } from "./harness";
@@ -182,6 +182,39 @@ describe("what's due (ADR-0040)", () => {
     const onTheDay = await loadDay(MON);
     expect(onTheDay.restDay).toBe(false);
     expect(onTheDay.score.base).toBe(0);
+  });
+
+  it("a one-off moved off or deleted on its own day empties it, never rests it", async () => {
+    // Monday asks only for the essay: gym was skipped ahead, call done.
+    testDb().update(task).set({ timesPerWeek: 1 }).where(sql`id = 'call'`).run();
+    tick("call", "2026-10-18");
+    testDb()
+      .insert(scheduleSkip)
+      .values({ id: "s-ahead", kind: "occurrence", taskId: "gym", localDate: MON, madeOn: "2026-10-18" })
+      .run();
+    addTask({ id: "essay", unitId: "friends", oneOffSize: "normal", oneOffDate: MON, pointValue: 10, createdAt: "2026-10-15T09:00:00.000Z" });
+    testDb().update(taskUnit).set({ pointValue: 10 }).where(sql`task_id = 'essay'`).run();
+    expect((await loadDay(MON)).restDay).toBe(false);
+
+    // Moved to next week on Monday itself: nothing left, but no 70.
+    await setTaskOneOff("essay", "normal", "2026-10-27", null);
+    const moved = await loadDay(MON);
+    expect(moved.restDay).toBe(false);
+    expect(moved.score.base).toBeNull();
+  });
+
+  it("a one-off deleted on its own day empties it too", async () => {
+    testDb().update(task).set({ timesPerWeek: 1 }).where(sql`id = 'call'`).run();
+    tick("call", "2026-10-18");
+    testDb()
+      .insert(scheduleSkip)
+      .values({ id: "s-ahead", kind: "occurrence", taskId: "gym", localDate: MON, madeOn: "2026-10-18" })
+      .run();
+    addTask({ id: "essay", unitId: "friends", oneOffSize: "normal", oneOffDate: MON, pointValue: 10, createdAt: "2026-10-15T09:00:00.000Z" });
+    testDb().update(taskUnit).set({ pointValue: 10 }).where(sql`task_id = 'essay'`).run();
+    expect((await loadDay(MON)).restDay).toBe(false);
+    await archiveTask("essay");
+    expect((await loadDay(MON)).restDay).toBe(false);
   });
 
 
@@ -358,22 +391,6 @@ describe("a commitment's own share (ADR-0044 §3, spec §5.5)", () => {
 });
 
 describe("Away and kept hours, after review", () => {
-  it("an Away day bridges a daily task's run instead of breaking it", async () => {
-    addTask({ id: "stretch", unitId: "fitness", timesPerWeek: 7 });
-    tick("stretch", "2026-10-16");
-    tick("stretch", "2026-10-17");
-    tick("stretch", MON);
-    const before = await loadDay(MON);
-    const withoutAway = [...before.due, ...before.week, ...before.doneThisWeek].find(
-      (t) => t.id === "stretch",
-    )?.streak;
-    expect(withoutAway).toBe(1);
-    await addAway("2026-10-18", "2026-10-18");
-    const day = await loadDay(MON);
-    const withAway = [...day.due, ...day.week, ...day.doneThisWeek].find((t) => t.id === "stretch")?.streak;
-    expect(withAway).toBe(3);
-  });
-
   it("a row holding only starting hours is still scored as an untouched day", async () => {
     clock.today = "2026-10-18";
     await freezeStartingHours("2026-10-18");

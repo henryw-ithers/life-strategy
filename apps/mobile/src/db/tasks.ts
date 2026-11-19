@@ -49,8 +49,8 @@ import {
 import { forgetPinsOf } from "./pins";
 import type { Bounds } from "./seriesRules";
 import { tieredUnits } from "./tierRules";
-import { markGradesStaleIn, writeAndMarkStale } from "./settings";
-import { currentLocalDate, todayEnd } from "../lib/calendar";
+import { markDayChangedIn, markGradesStaleIn, writeAndMarkStale } from "./settings";
+import { currentLocalDate, localDateAt, todayEnd } from "../lib/calendar";
 
 export interface PlanTask {
   id: string;
@@ -857,8 +857,22 @@ export async function dropTask(taskId: string): Promise<void> {
   });
 }
 
+/** Whether a task made at `createdAt` already existed when `today`
+ *  began, so the day asked for it from the start. */
+function dueAtStart(createdAt: string, today: string): boolean {
+  return localDateAt(new Date(createdAt)) < today;
+}
+
 export async function archiveTask(taskId: string): Promise<void> {
+  const today = currentLocalDate();
   db.transaction((tx) => {
+    const [before] = tx
+      .select({ oneOffDate: task.oneOffDate, createdAt: task.createdAt })
+      .from(task)
+      .where(eq(task.id, taskId))
+      .all();
+    // A one-off deleted on its own day empties the day, as a move does.
+    if (before?.oneOffDate === today && dueAtStart(before.createdAt, today)) markDayChangedIn(tx, today);
     // An archived task's pins go, and restoring it doesn't bring them
     // back (windows-and-pins §2.11).
     forgetPinsOf(tx, [taskId]);
@@ -943,7 +957,18 @@ export async function setTaskOneOff(
   date: string | null,
   due: string | null,
 ): Promise<void> {
+  const today = currentLocalDate();
   db.transaction((tx) => {
+    const [before] = tx
+      .select({ oneOffDate: task.oneOffDate, createdAt: task.createdAt })
+      .from(task)
+      .where(eq(task.id, taskId))
+      .all();
+    // Moved off today, on today: the day was emptied, not rested. One
+    // made today wasn't there when the day began.
+    if (before?.oneOffDate === today && date !== today && dueAtStart(before.createdAt, today)) {
+      markDayChangedIn(tx, today);
+    }
     tx.update(task)
       .set({ oneOffSize: size, size, oneOffDate: date, oneOffDue: due })
       .where(eq(task.id, taskId))

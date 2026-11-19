@@ -78,6 +78,8 @@ interface EventSheetProps {
    *  event. Makes a new one-time event, the same but on another day; the
    *  first stays as it was. */
   onAgain?: (input: EventInput) => void | Promise<void>;
+  /** The day a new one-time event starts on: the day you're looking at. */
+  defaultDate?: string;
 }
 
 type Repeat = "weekly" | "once";
@@ -100,6 +102,7 @@ export function EventSheet({
   onSave,
   onDelete,
   onAgain,
+  defaultDate,
 }: EventSheetProps) {
   const [title, setTitle] = useState(initial?.title ?? "");
   // A new event happens once unless you make it repeat (Henry,
@@ -109,7 +112,11 @@ export function EventSheet({
   );
   const setRepeat = setRepeatState;
   const [days, setDays] = useState<Weekday[]>(parseWeekdays(initial?.plannedWeekdays));
-  const [date, setDate] = useState<string | null>(initial?.oneOffDate ?? null);
+  // One time is the default, so a new event starts on a day: the one
+  // you were looking at.
+  const [date, setDate] = useState<string | null>(
+    initial ? (initial.oneOffDate ?? null) : (defaultDate ?? currentLocalDate()),
+  );
   const [start, setStart] = useState<number | null>(initial?.startMinute ?? null);
   const [end, setEnd] = useState<number | null>(initial?.endMinute ?? null);
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -146,7 +153,9 @@ export function EventSheet({
   /** The day "Again on…" adds it to: a week on from its own day, or a
    *  week from today if that has passed. Null until you open it. */
   const [againOn, setAgainOn] = useState<string | null>(null);
-  const againable = onAgain !== undefined && initial?.oneOffDate != null;
+  // Only once it has passed: an upcoming one is edited, not repeated.
+  const againable =
+    onAgain !== undefined && initial?.oneOffDate != null && initial.oneOffDate < currentLocalDate();
   const againDefault = (() => {
     const today = currentLocalDate();
     const next = initial?.oneOffDate ? addDays(initial.oneOffDate, 7) : today;
@@ -324,7 +333,17 @@ export function EventSheet({
               onPress={() => {
                 const day = againOn;
                 setAgainOn(null);
-                void onAgain?.({ ...input, weekdays: [], date: day });
+                // The event as saved: edits not yet saved belong to
+                // this one, not to the copy.
+                if (initial)
+                  void onAgain?.({
+                    title: initial.title,
+                    weekdays: [],
+                    date: day,
+                    startMinute: initial.startMinute ?? null,
+                    endMinute: initial.endMinute ?? null,
+                    notes: initial.notes ?? "",
+                  });
               }}
               theme={theme}
             />
