@@ -61,6 +61,14 @@ the average. Unit weights themselves are untouched (ADR-0041).
 - **Fortnightly** work is spread over the days left in its fortnight.
 - A **one-off with a deadline** (`oneOffDue`) is spread over the days
   until it's due; due today or overdue, it's all today's.
+
+  > **Amended 2026-11-19 (Henry).** A one-off with a **day** is due on
+  > that day in full, deadline or not; its deadline only matters to a
+  > one-off with no day. Once its day has passed it is carried: never
+  > in a later day's load, paid what its own day would have paid when
+  > done (ADR-0039 §8), and not shown on a later day you look ahead to.
+  > An unfinished one-off can be **dropped**: gone from that day on,
+  > nothing owed, no past score moved.
 - A **one-off with neither a day nor a deadline** asks nothing of any
   day. Ticked, all of what it still owes joins that day's expected
   work and what was done its earned, so a part-done tick is a part

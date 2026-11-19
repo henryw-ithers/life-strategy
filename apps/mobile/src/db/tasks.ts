@@ -8,7 +8,6 @@
  * engine and `task_completion` keep taking one number per task.
  */
 import {
-  addDays,
   applyWeightOverrides,
   boundsError,
   deriveTierWeights,
@@ -23,7 +22,7 @@ import {
   evenedWeight,
   meanTaskWeight,
 } from "@glide/scoring";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as Crypto from "expo-crypto";
 
 import { db } from "./client";
@@ -300,7 +299,8 @@ export async function loadPlan(): Promise<PlanData> {
     .from(lifeUnit)
     .where(isNull(lifeUnit.archivedAt))
     .orderBy(asc(lifeUnit.sortOrder));
-  const tasks = await db.select().from(task).where(eq(task.active, true));
+  // A dropped one-off is gone from the plan's lists (Henry, 2026-11-19).
+  const tasks = await db.select().from(task).where(and(eq(task.active, true), isNull(task.droppedOn)));
   const memberships = tasks.length
     ? await db
         .select()
@@ -843,6 +843,20 @@ export async function setTaskDetails(
     .where(eq(task.id, taskId));
 }
 
+/**
+ * Drop an unfinished one-off (Henry, 2026-11-19): you've decided not to
+ * do it. Nothing is owed from today, and it stays in history as dropped.
+ * Unlike Delete it isn't archived, so the days before today still read
+ * it and no past score moves. Its pins go.
+ */
+export async function dropTask(taskId: string): Promise<void> {
+  const today = currentLocalDate();
+  db.transaction((tx) => {
+    forgetPinsOf(tx, [taskId]);
+    tx.update(task).set({ droppedOn: today }).where(eq(task.id, taskId)).run();
+  });
+}
+
 export async function archiveTask(taskId: string): Promise<void> {
   db.transaction((tx) => {
     // An archived task's pins go, and restoring it doesn't bring them
@@ -1133,79 +1147,5 @@ export async function updateEvent(
       .where(eq(task.id, taskId))
       .run();
     recomputeAllUnitPoints(tx);
-  });
-}
-
-/**
- * "Copy last week's events" (ADR-0040 §6), for shifts that change week
- * to week: every one-time event in the week before `weekStart` (a
- * Sunday, ADR-0004 §1) is added again a week later, with its units, times and notes. Repeating events
- * already repeat, so they're left alone.
- *
- * Copies only onto today or later (past days keep their plan), and
- * never twice: an event already there with the same name, unit, date
- * and times is skipped, so pressing it again adds nothing. One
- * transaction. Returns how many were added.
- */
-export async function copyLastWeeksEvents(weekStart: string): Promise<number> {
-  const today = currentLocalDate();
-  const from = addDays(weekStart, -7);
-  const until = addDays(weekStart, 6);
-  return writeAndMarkStale((tx) => {
-    const rows = tx
-      .select({
-        id: task.id,
-        unitId: task.unitId,
-        title: task.title,
-        oneOffDate: task.oneOffDate,
-        startMinute: task.startMinute,
-        endMinute: task.endMinute,
-        description: task.description,
-      })
-      .from(task)
-      .innerJoin(lifeUnit, eq(lifeUnit.id, task.unitId))
-      .where(
-        and(
-          eq(task.active, true),
-          eq(task.kind, "event"),
-          isNotNull(task.oneOffSize),
-          gte(task.oneOffDate, from),
-          lte(task.oneOffDate, until),
-          isNull(lifeUnit.archivedAt),
-        ),
-      )
-      .all();
-    const key = (r: { unitId: string; title: string; oneOffDate: string | null; startMinute: number | null; endMinute: number | null }) =>
-      `${r.unitId}|${r.title}|${r.oneOffDate}|${r.startMinute}|${r.endMinute}`;
-    const there = new Set(rows.filter((r) => r.oneOffDate! >= weekStart).map(key));
-    let added = 0;
-    for (const r of rows) {
-      if (r.oneOffDate! >= weekStart) continue;
-      const date = addDays(r.oneOffDate!, 7);
-      if (date < today) continue;
-      const copy = { ...r, oneOffDate: date };
-      if (there.has(key(copy))) continue;
-      const units = tx
-        .select({ unitId: taskUnit.unitId })
-        .from(taskUnit)
-        .where(eq(taskUnit.taskId, r.id))
-        .all()
-        .map((m) => m.unitId);
-      const unitIds = [r.unitId, ...units.filter((u) => u !== r.unitId)];
-      const id = Crypto.randomUUID();
-      addTaskIn(tx, id, unitIds, r.title, 1, null, null, { size: "normal", date, due: null }, {
-        startMinute: r.startMinute,
-        endMinute: r.endMinute,
-        size: null,
-        allowsPartial: false,
-        kind: "event",
-      });
-      if (r.description !== null) {
-        tx.update(task).set({ description: r.description }).where(eq(task.id, id)).run();
-      }
-      there.add(key(copy));
-      added += 1;
-    }
-    return added;
   });
 }

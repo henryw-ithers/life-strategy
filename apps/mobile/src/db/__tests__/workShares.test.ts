@@ -1,13 +1,12 @@
 /**
- * The weekly pass from stored rows (spec §5.3.2): last week as shares
- * of time, this week's events turned off and on, and the month's tiers.
+ * Effort share from stored rows (ADR-0041 §5): shares of the time spent,
+ * a commitment as one row; and writing a run of skips.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   activity,
   activityTag,
-  dayGrade,
   lifeArea,
   lifeUnit,
   scheduleSkip,
@@ -15,14 +14,7 @@ import {
   taskCompletion,
   taskUnit,
 } from "../schema";
-import {
-  isOnThisWeek,
-  loadLastWeek,
-  loadWeekEvents,
-  markTiersOffered,
-  setEventOffThisWeek,
-  tiersCheckDue,
-} from "../weeklyPass";
+import { loadWorkShares } from "../workShares";
 import { setRunsSkipped } from "../skips";
 import { resetTestDb, testDb } from "./harness";
 
@@ -89,88 +81,33 @@ beforeEach(() => {
     .run();
 });
 
-describe("last week (spec §5.3.2)", () => {
+describe("effort share (ADR-0041 §5)", () => {
   it("is each unit's share of the time, a commitment as one row", async () => {
     addTask({ id: "run", unitId: "fitness", size: "normal" });
     addTask({ id: "lecture", unitId: "comp", kind: "event", plannedWeekdays: "2", startMinute: 600, endMinute: 720 });
     tick("run", LAST_TUE);
     tick("lecture", LAST_TUE);
-    // This week's work isn't last week's.
+    // Outside the range, so not counted.
     tick("run", MON);
 
-    const week = await loadLastWeek(MON);
-    expect(week.start).toBe("2026-10-11");
-    expect(week.shares.map((s) => [s.unitId, s.name, Math.round(s.share * 100)])).toEqual([
+    const shares = await loadWorkShares("2026-10-11", "2026-10-17");
+    expect(shares.map((s) => [s.unitId, s.name, Math.round(s.share * 100)])).toEqual([
       ["school", "School", 67],
       ["fitness", "Fitness", 33],
     ]);
   });
 
-  it("counts sized activities across their tags, flags and how many were logged", async () => {
+  it("counts sized activities across their tags", async () => {
     testDb()
       .insert(activity)
       .values([
-        { id: "a1", localDate: LAST_TUE, title: "Dinner", size: "big", flagged: true },
+        { id: "a1", localDate: LAST_TUE, title: "Dinner", size: "big" },
         { id: "a2", localDate: LAST_TUE, title: "A thought", size: null },
       ])
       .run();
     testDb().insert(activityTag).values({ activityId: "a1", unitId: "friends" }).run();
-    testDb().insert(dayGrade).values({ localDate: LAST_TUE, flagged: true }).run();
-
-    const week = await loadLastWeek(MON);
-    expect(week.shares.map((s) => s.unitId)).toEqual(["friends"]);
-    expect(week.activities).toBe(2);
-    expect(week.flaggedDays).toEqual([LAST_TUE]);
-    expect(week.flaggedActivities).toEqual([{ title: "Dinner", date: LAST_TUE }]);
-  });
-
-  it("is empty when nothing was done, and says nothing about what wasn't", async () => {
-    addTask({ id: "run", unitId: "fitness", plannedWeekdays: "2" });
-    const week = await loadLastWeek(MON);
-    expect(week.shares).toEqual([]);
-    expect(Object.keys(week).sort()).toEqual([
-      "activities",
-      "end",
-      "flaggedActivities",
-      "flaggedDays",
-      "shares",
-      "start",
-    ]);
-  });
-});
-
-describe("this week's events", () => {
-  beforeEach(() => {
-    addTask({
-      id: "lecture",
-      unitId: "comp",
-      kind: "event",
-      plannedWeekdays: "1,3",
-      timesPerWeek: 2,
-      startMinute: 600,
-      endMinute: 690,
-    });
-  });
-
-  it("lists each event's days left this week", async () => {
-    const [e] = await loadWeekEvents(MON);
-    expect(e?.event.title).toBe("lecture");
-    expect(e?.days.map((d) => d.date)).toEqual([MON, "2026-10-21"]);
-    expect(isOnThisWeek(e!)).toBe(true);
-  });
-
-  it("turns one off for the week with skipped runs, and back on", async () => {
-    const [e] = await loadWeekEvents(MON);
-    await setEventOffThisWeek(e!, true);
-    expect(testDb().select().from(scheduleSkip).all().map((s) => s.localDate).sort()).toEqual([
-      MON,
-      "2026-10-21",
-    ]);
-    const [off] = await loadWeekEvents(MON);
-    expect(isOnThisWeek(off!)).toBe(false);
-
-    await setEventOffThisWeek(off!, false);
-    expect(testDb().select().from(scheduleSkip).all()).toEqual([]);
+    const shares = await loadWorkShares("2026-10-11", "2026-10-17");
+    expect(shares.map((s) => s.unitId)).toEqual(["friends"]);
   });
 });
 
@@ -183,14 +120,5 @@ describe("setRunsSkipped", () => {
     await setRunsSkipped("lecture", [MON, "2026-10-21"], true);
     await setRunsSkipped("lecture", [MON], true);
     expect(testDb().select().from(scheduleSkip).all()).toHaveLength(2);
-  });
-});
-
-describe("the month's tiers", () => {
-  it("are offered once a month", async () => {
-    expect(await tiersCheckDue(MON)).toBe(true);
-    await markTiersOffered(MON);
-    expect(await tiersCheckDue("2026-10-25")).toBe(false);
-    expect(await tiersCheckDue("2026-11-01")).toBe(true);
   });
 });

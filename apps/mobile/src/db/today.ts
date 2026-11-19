@@ -55,6 +55,7 @@ import { db } from "./client";
 import { loadCommitmentDay } from "./commitments";
 import {
   doneAheadOn,
+  GENERAL_SUB_NAME,
   isCommitmentUnit,
   scheduledDateFor,
   sessionFor,
@@ -128,6 +129,10 @@ export interface TodayTask {
   allowsPartial: boolean;
   /** Filed under a commitment or one of its parts (ADR-0035). */
   commitment: boolean;
+  /** The commitment or sub-commitment it's filed under, shown quietly
+   *  under its title (Henry, 2026-11-19): a sub-commitment's own name,
+   *  or the commitment's for its own work and General. Null for life. */
+  commitmentName: string | null;
   /**
    * Commitment work that is not scheduled for this day. Worth its
    * scheduled-day value, paid in full outside every cap (ADR-0032 §4).
@@ -179,6 +184,8 @@ export interface TodayTask {
   repeatUntil: string | null;
   /** Whether this day's run is skipped (ADR-0040 §2). */
   skippedToday: boolean;
+  /** Dropped today (`dropTask`): off the day's lists. */
+  droppedToday: boolean;
 }
 
 export interface TodayActivity {
@@ -348,6 +355,13 @@ export async function loadDay(
 
   const units = await db.select().from(lifeUnit).where(isNull(lifeUnit.archivedAt));
   const unitById = new Map(units.map((u) => [u.id, u]));
+  /** A commitment unit's name for its rows: General reads as its parent. */
+  const commitmentNameOf = (unitId: string): string | null => {
+    const u = unitById.get(unitId);
+    if (!u || !commitmentUnitIds.has(unitId)) return null;
+    const parent = u.parentUnitId ? unitById.get(u.parentUnitId) : undefined;
+    return parent && u.name === GENERAL_SUB_NAME ? parent.name : u.name;
+  };
   /** A unit's own colour, else its parent commitment's (Henry,
    *  2026-11-07: a commitment's colour reaches all its tasks). */
   const colourOf = (unitId: string): string | null => {
@@ -375,7 +389,11 @@ export async function loadDay(
    * load and the commitment band, sees them through the one path.
    */
   const schedule = await loadSchedule(date, activeTasks);
-  const everyTask = activeTasks.map((t) => withSchedule(t, schedule.skipped));
+  // Dropped before this day: gone. Dropped on it: still in its load, off
+  // its lists (`droppedToday`), so dropping never moves a score.
+  const everyTask = activeTasks
+    .filter((t) => t.droppedOn === null || t.droppedOn >= date)
+    .map((t) => withSchedule(t, schedule.skipped));
 
   /**
    * One-offs earn their place on a day by a different rule to recurring
@@ -442,7 +460,16 @@ export async function loadDay(
   const allTasks = everyTask.filter((t) => {
     if (t.oneOffSize == null) return true;
     if (settledBefore.has(t.id)) return false;
-    if (t.oneOffDate == null || t.oneOffDate <= date) return true;
+    if (t.oneOffDate == null || t.oneOffDate === date) return true;
+    if (t.oneOffDate < date) {
+      // Its day has passed. Looking ahead it isn't shown: it may yet be
+      // done (Henry, 2026-11-19). On today it's carried, priced at what
+      // its own day would have paid and never in today's load, like
+      // early work (ADR-0039 §8).
+      if (date > today) return false;
+      if (!commitmentUnitIds.has(t.unitId)) aheadLifeIds.add(t.id);
+      return true;
+    }
     // **Every open task is on the day before its date**, at the bottom,
     // in "Planned for other days" (`pinnedElsewhere`) — Henry: *"you
     // should always be able to view and complete any open task before
@@ -628,6 +655,7 @@ export async function loadDay(
     fortnightOffset: t.fortnightOffset,
     oneOff: t.oneOffSize != null,
     oneOffDated: t.oneOffDate != null,
+    oneOffDate: t.oneOffDate,
     oneOffDue: t.oneOffDue,
     repeatFrom: t.repeatFrom,
     repeatUntil: t.repeatUntil,
@@ -927,6 +955,7 @@ export async function loadDay(
       streak: streakByTask.get(t.id) ?? null,
       allowsPartial: t.allowsPartial,
       commitment: commitmentUnitIds.has(t.unitId),
+      commitmentName: commitmentNameOf(t.unitId),
       offSchedule: offScheduleIds.has(t.id),
       doneAheadOn: doneAhead.get(t.id) ?? null,
       oneOffDate: t.oneOffDate,
@@ -946,6 +975,7 @@ export async function loadDay(
       repeatFrom: t.repeatFrom,
       repeatUntil: t.repeatUntil,
       skippedToday: t.skippedDates.has(date),
+      droppedToday: t.droppedOn === date,
     };
   });
 

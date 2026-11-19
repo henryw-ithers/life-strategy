@@ -271,7 +271,12 @@ export function AddTaskModal({
 
       <SizePicker
         value={once ? oneOff.size : (detail.size ?? "normal")}
-        onChange={(size) => (once ? setOneOff({ ...oneOff, size }) : setDetail({ ...detail, size }))}
+        // One size, whichever of Once or Repeats is on: switching keeps
+        // it (Henry, 2026-11-19).
+        onChange={(size) => {
+          setOneOff({ ...oneOff, size });
+          setDetail({ ...detail, size });
+        }}
         accent={accent}
         theme={theme}
       />

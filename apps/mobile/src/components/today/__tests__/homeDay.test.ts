@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import {
   eveningFrom,
   openIndex,
-  passCardDue,
   situationLine,
   timeLeft,
   windowState,
@@ -66,20 +65,3 @@ describe("the evening card", () => {
   });
 });
 
-describe("the weekly pass card", () => {
-  const SUN = "2026-10-18";
-  const MON = "2026-10-19";
-  const base = { mondayFirst: h(8, 30), hiddenWeek: null };
-
-  it("shows from Sunday 6 pm until Monday's first window", () => {
-    expect(passCardDue({ ...base, today: SUN, now: h(17) })).toBe(false);
-    expect(passCardDue({ ...base, today: SUN, now: h(18) })).toBe(true);
-    expect(passCardDue({ ...base, today: MON, now: h(8) })).toBe(true);
-    expect(passCardDue({ ...base, today: MON, now: h(8, 30) })).toBe(false);
-    expect(passCardDue({ ...base, today: "2026-10-21", now: h(8) })).toBe(false);
-  });
-
-  it("stays hidden for the week after Not now", () => {
-    expect(passCardDue({ ...base, today: MON, now: h(7), hiddenWeek: SUN })).toBe(false);
-  });
-});

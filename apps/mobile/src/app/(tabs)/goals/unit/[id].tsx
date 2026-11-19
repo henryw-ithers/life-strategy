@@ -273,6 +273,11 @@ export default function UnitScreen() {
             setEditing(null);
             deleteTask(t);
           }}
+          onAgain={async (input) => {
+            const added = await savedOrSaid(async () => (await saveNewEvent([unit.id], input, null)) !== CANCELLED);
+            if (added) setEditing(null);
+            retry();
+          }}
         />
       ) : null}
 

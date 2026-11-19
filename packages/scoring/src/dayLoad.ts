@@ -75,8 +75,12 @@ export interface LoadTask extends ScheduleBounds {
    *  a deadline counts only on the day it's done (ADR-0050). */
   oneOffDated?: boolean;
   /** A one-off's deadline, `YYYY-MM-DD`: it's spread over the days
-   *  until then (ADR-0050). */
+   *  until then (ADR-0050), unless it has a day. */
   oneOffDue?: string | null;
+  /** A one-off's day itself, `YYYY-MM-DD`. Due in full on that day and
+   *  no other; after it, it's carried and asks nothing of a later day
+   *  (Henry, 2026-11-19). */
+  oneOffDate?: string | null;
 }
 
 export interface LoadCompletion {
@@ -330,6 +334,13 @@ export function computeDayLoad(
     }
 
     if (owed === 0 || loose) continue;
+    if (task.oneOff && task.oneOffDate) {
+      // A one-off with a day is due that day, in full, deadline or not.
+      // Before it, it isn't today's work; after it, it's carried, and a
+      // carried task is never added to a later day's load (ADR-0039 §8).
+      if (task.oneOffDate === date) anchored.set(task.taskId, task.weight * owed);
+      continue;
+    }
     if (isAnchoredOn(task, date)) {
       anchored.set(task.taskId, task.weight);
     } else if (task.oneOff && task.oneOffDue) {

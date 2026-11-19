@@ -133,3 +133,10 @@ describe("events (ADR-0038)", () => {
     expect(rowCaption(event({ doneAheadOn: "2026-09-28" }))).toMatch(/Done ahead/);
   });
 });
+
+describe("a commitment's name (Henry, 2026-11-19)", () => {
+  it("leads the line, before what the row would say anyway", () => {
+    expect(rowCaption({ ...weekly(), commitment: true, commitmentName: "COMP2521" })).toMatch(/^COMP2521/);
+    expect(rowCaption({ ...weekly(), commitment: true, commitmentName: "COMP2521", kind: "event", startMinute: 540, endMinute: 600 })).toMatch(/^COMP2521 · /);
+  });
+});

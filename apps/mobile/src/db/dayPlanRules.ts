@@ -147,7 +147,7 @@ export function toOpenTask(
   facts: TaskFacts,
   { spreadHere = true }: { spreadHere?: boolean } = {},
 ): OpenTask | null {
-  if (t.kind === "event" || t.skippedToday || t.doneAheadOn !== null) return null;
+  if (t.kind === "event" || t.skippedToday || t.droppedToday || t.doneAheadOn !== null) return null;
   const plannedOn = t.plannedOn ?? (t.oneOffDate !== null ? t.oneOffDate : null);
   const plannedLater = (plannedOn !== null && plannedOn > date) || !spreadHere;
   const carried = plannedOn !== null && plannedOn < date;

@@ -31,6 +31,9 @@ export interface CaptionTask {
   oneOffSize: string | null;
   /** Filed under a commitment or one of its parts. */
   commitment: boolean;
+  /** Its commitment or sub-commitment, leading the line (Henry,
+   *  2026-11-19). */
+  commitmentName?: string | null;
   /** The earlier day this session was done on, if it was done ahead. */
   doneAheadOn: string | null;
   /** `event` for a time you attend (ADR-0038). */
@@ -138,6 +141,11 @@ function countCaption(task: CaptionTask): string | null {
 
 /** The row's one line, or null when nothing is worth the space. */
 export function rowCaption(task: CaptionTask): string | null {
+  const line = [task.commitmentName, statusCaption(task)].filter(Boolean).join(" · ");
+  return line === "" ? null : line;
+}
+
+function statusCaption(task: CaptionTask): string | null {
   if (task.doneAheadOn !== null) return doneAheadLabel(task.doneAheadOn);
   if (task.progress > 0 && task.progress < 1) return progressLabel(task.progress);
   // An event is a time, not a count: its line says when and where.

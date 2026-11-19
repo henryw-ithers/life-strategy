@@ -20,7 +20,6 @@ import {
   isoWeekday,
   planDay,
   specialDayBonus,
-  weekStart,
   type TimeRange,
 } from "@glide/scoring";
 import * as Haptics from "expo-haptics";
@@ -65,7 +64,7 @@ import { askClearToday, undoClear } from "../../../components/today/clearToday";
 import { CompletionTagSheet } from "../../../components/today/CompletionTagSheet";
 import { DayKindSheet } from "../../../components/today/DayKindSheet";
 import { DayRecord } from "../../../components/today/DayRecord";
-import { eveningFrom, passCardDue } from "../../../components/today/homeDay";
+import { eveningFrom } from "../../../components/today/homeDay";
 import { DayDrag, type DropTarget } from "../../../components/today/DayDrag";
 import { anchorOf, homeSections, notOnTodayGroup, PART_LABEL, timedRows } from "../../../components/today/homeSections";
 import { showActions } from "../../../components/ui/actionSheet";
@@ -94,9 +93,8 @@ import { isOnboardingComplete } from "../../../db/onboarding";
 import { addPhoto, deletePhoto } from "../../../db/photos";
 import { pinForDay, unpinForDay } from "../../../db/pins";
 import { addSkip, setRunsSkipped } from "../../../db/skips";
-import { archiveTask, reorderDayTasks } from "../../../db/tasks";
+import { archiveTask, dropTask as dropOneOff, reorderDayTasks } from "../../../db/tasks";
 import type { DayData, TodayActivity, TodayTask } from "../../../db/today";
-import { hidePassCard, passCardHiddenWeek } from "../../../db/weeklyPass";
 import type { SkipInput } from "../../../db/windowRules";
 import { useCelebration } from "../../../hooks/useCelebration";
 import { usePlannedAhead, useDayData } from "../../../hooks/useDayData";
@@ -249,7 +247,6 @@ export default function TodayScreen() {
   const [pulledIn, setPulledIn] = useState<ReadonlyMap<number, number>>(new Map());
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [othersOpen, setOthersOpen] = useState(false);
-  const [passHidden, setPassHidden] = useState<string | null>(null);
   const [shownDate, setShownDate] = useState<string | null>(null);
   if (day && day.date !== shownDate) {
     setShownDate(day.date);
@@ -291,7 +288,6 @@ export default function TodayScreen() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   useEffect(() => {
     void isOnboardingComplete().then(setOnboarded);
-    void passCardHiddenWeek().then(setPassHidden);
   }, []);
 
   /** Today, shown with its windows. A load that landed across midnight
@@ -303,8 +299,9 @@ export default function TodayScreen() {
    *  once the delete lands (Henry, 2026-11-07). */
   const hiddenTasks = [...undo.hidden]
     .filter((id) => !id.startsWith("win-"))
-    // "Not today" waits on Undo the same way, under `skip-<task id>`.
-    .map((id) => (id.startsWith("skip-") ? id.slice(5) : id))
+    // "Not today" and Drop wait on Undo the same way, under
+    // `skip-<task id>` and `drop-<task id>`.
+    .map((id) => (id.startsWith("skip-") || id.startsWith("drop-") ? id.slice(5) : id))
     .sort()
     .join("|");
   /** Today's windows, filled live: the clock, swaps and pulls. A window
@@ -432,7 +429,6 @@ export default function TodayScreen() {
         ...(day.date <= day.today
           ? [{ label: "Day type", icon: "calendar", onPress: () => setKindSheet(true) }]
           : []),
-        { label: "Plan this week", icon: "list.bullet.clipboard", onPress: () => router.push("/weekly-pass" as Href) },
       ]}
     />
   );
@@ -480,6 +476,20 @@ export default function TodayScreen() {
         ? () => setMovingTask(t)
         : undefined,
     onMoveTo: moveToFor(t),
+    // A carried one-off (its day or deadline passed) can be let go.
+    onDrop:
+      isToday &&
+      t.kind === "task" &&
+      t.oneOffSize != null &&
+      !t.completedToday &&
+      (notOnTodayGroup(t, day.date) === "earlier" || (t.oneOffDue !== null && t.oneOffDue < day.date))
+        ? () =>
+            undo.remove({
+              id: `drop-${t.id}`,
+              message: `${t.title}: dropped`,
+              run: () => dropOneOff(t.id),
+            })
+        : undefined,
     onDoneIn:
       isToday && t.kind === "task" && t.completedToday && (planned?.windows.length ?? 0) > 1
         ? () => setDoneInTask(t)
@@ -641,15 +651,6 @@ export default function TodayScreen() {
   );
 
   const evening = isToday && nowMinute >= eveningFrom(liveWindows);
-  const showPassCard =
-    isToday &&
-    day.away === null &&
-    passCardDue({
-      today: day.today,
-      now: nowMinute,
-      mondayFirst: liveWindows[0]?.start ?? null,
-      hiddenWeek: passHidden,
-    });
 
   const allTasks = [...day.due, ...day.week, ...day.doneThisWeek];
   const doneOnDay = allTasks.filter((t) => t.completedToday);
@@ -767,27 +768,6 @@ export default function TodayScreen() {
             }}
             theme={theme}
           />
-        ) : null}
-
-        {showPassCard ? (
-          <Group theme={theme}>
-            <AppText variant="headline" color={theme.ink}>
-              Plan this week · about 5 min
-            </AppText>
-            <View style={styles.cardActions}>
-              <Button label="Start" onPress={() => router.push("/weekly-pass" as Href)} theme={theme} />
-              <Button
-                variant="quiet"
-                label="Not now"
-                onPress={() => {
-                  const week = weekStart(day.today);
-                  setPassHidden(week);
-                  void hidePassCard(week);
-                }}
-                theme={theme}
-              />
-            </View>
-          </Group>
         ) : null}
 
         {!day.hasSnapshot ? (

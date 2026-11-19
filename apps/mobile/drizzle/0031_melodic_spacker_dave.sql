@@ -1,0 +1,1 @@
+ALTER TABLE `task` ADD `dropped_on` text;

@@ -4,11 +4,14 @@
  * either, "Need ideas?" and Change tier. A Not now unit holds none and
  * says how to bring it back.
  */
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeIn, type LinearTransition } from "react-native-reanimated";
 
 import { LIBRARY } from "../../content/library";
+import { eventEnd, eventIsPast } from "../../db/seriesRules";
 import type { PlanTask, PlanUnit } from "../../db/tasks";
+import { currentLocalDate } from "../../lib/calendar";
 import type { ThemeTokens } from "../../theme/colors";
 import { radius, space } from "../../theme/tokens";
 import { AppText } from "../ui/AppText";
@@ -63,7 +66,14 @@ export function PlanUnitSection({
 }) {
   const excluded = !unit.includeInScoring;
   const tasks = tasksOf(unit);
-  const events = eventsOf(unit);
+  const today = currentLocalDate();
+  const events = eventsOf(unit).filter((e) => !eventIsPast(e, today));
+  // Ended events, folded, newest first: open one to use it again
+  // (Henry, 2026-11-19).
+  const pastEvents = eventsOf(unit)
+    .filter((e) => eventIsPast(e, today))
+    .sort((a, b) => (eventEnd(b) ?? "").localeCompare(eventEnd(a) ?? ""));
+  const [pastOpen, setPastOpen] = useState(false);
   const entering = reduceMotion ? undefined : FadeIn.duration(160);
 
   return (
@@ -153,6 +163,32 @@ export function PlanUnitSection({
                   onPress={() => onEditTask(e)}
                 />
               ))}
+            </View>
+          ) : null}
+          {pastEvents.length > 0 ? (
+            <View style={styles.events}>
+              <Pressable
+                onPress={() => setPastOpen((v) => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: pastOpen }}
+                style={({ pressed }) => ({ minHeight: 32, justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
+              >
+                <AppText variant="caption" color={theme.muted}>
+                  Past events ({pastEvents.length}) {pastOpen ? "▴" : "▾"}
+                </AppText>
+              </Pressable>
+              {pastOpen
+                ? pastEvents.map((e, i) => (
+                    <ItemRow
+                      key={e.id}
+                      item={e}
+                      detail={eventWhen(e)}
+                      theme={theme}
+                      last={i === pastEvents.length - 1}
+                      onPress={() => onEditTask(e)}
+                    />
+                  ))
+                : null}
             </View>
           ) : null}
           <OutlineAction

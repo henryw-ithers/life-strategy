@@ -256,3 +256,20 @@ describe("Not today, made ahead of the day (Henry, 2026-11-07)", () => {
     expect(computeDayLoad([walk], [], FRIDAY).expected).toBe(10);
   });
 });
+
+describe("a one-off with a day (Henry, 2026-11-19)", () => {
+  const essay = { ...t("essay", 1, 10), oneOff: true, oneOffDated: true, oneOffDate: WEDNESDAY, oneOffDue: SATURDAY };
+
+  it("is due in full on its day, deadline or not", () => {
+    expect(computeDayLoad([essay], [], WEDNESDAY).expected).toBe(10);
+  });
+
+  it("asks nothing of the days before or after it: carried, it's never in a later day's load", () => {
+    expect(computeDayLoad([essay], [], MONDAY).expected).toBe(0);
+    expect(computeDayLoad([essay], [], FRIDAY).expected).toBe(0);
+  });
+
+  it("still pays when done on its day", () => {
+    expect(computeDayLoad([essay], [done("essay", WEDNESDAY)], WEDNESDAY).earned).toBe(10);
+  });
+});

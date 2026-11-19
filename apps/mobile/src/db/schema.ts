@@ -380,6 +380,13 @@ export const task = sqliteTable("task", {
   pausedForNotNow: integer("paused_for_not_now", { mode: "boolean" })
     .notNull()
     .default(false),
+  /**
+   * The day an unfinished one-off was dropped (Henry, 2026-11-19): let
+   * go, not deleted. Gone from that day's lists and from every day after
+   * it; the days before it, its own day included, read it as they did,
+   * so no past score moves. Kept active for that reason.
+   */
+  droppedOn: text("dropped_on"),
   ...timestamps,
 });
 

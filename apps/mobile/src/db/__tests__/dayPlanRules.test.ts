@@ -59,6 +59,7 @@ function task(over: Partial<TodayTask> = {}): TodayTask {
     streak: null,
     allowsPartial: false,
     commitment: false,
+    commitmentName: null,
     offSchedule: false,
     doneAheadOn: null,
     oneOffDate: null,
@@ -73,6 +74,7 @@ function task(over: Partial<TodayTask> = {}): TodayTask {
     repeatFrom: null,
     repeatUntil: null,
     skippedToday: false,
+    droppedToday: false,
     ...over,
   };
 }
@@ -114,6 +116,7 @@ describe("toOpenTask", () => {
   it("leaves out events, skipped runs and sessions done early", () => {
     expect(toOpenTask(task({ kind: "event" }), MON, facts)).toBeNull();
     expect(toOpenTask(task({ skippedToday: true }), MON, facts)).toBeNull();
+    expect(toOpenTask(task({ droppedToday: true }), MON, facts)).toBeNull();
     expect(toOpenTask(task({ doneAheadOn: "2026-10-18" }), MON, facts)).toBeNull();
   });
 

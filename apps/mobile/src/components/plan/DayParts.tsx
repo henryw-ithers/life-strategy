@@ -92,9 +92,16 @@ export function PartRow({
           {time}
         </AppText>
       ) : null}
-      <AppText variant="body" color={theme.ink} style={styles.grow} numberOfLines={2}>
-        {task.title}
-      </AppText>
+      <View style={styles.grow}>
+        <AppText variant="body" color={theme.ink} numberOfLines={2}>
+          {task.title}
+        </AppText>
+        {task.commitmentName ? (
+          <AppText variant="caption" color={theme.muted} numberOfLines={1}>
+            {task.commitmentName}
+          </AppText>
+        ) : null}
+      </View>
     </View>
   );
 }
